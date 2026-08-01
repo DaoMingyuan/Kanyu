@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-02
+
+**Phase 2 视界启幕：离屏地图渲染 render_map（PNG/SVG 双通道），AI 代理能"看见"数据。**
+
 ### 新增
 
 - **kanyu-render / CLI / MCP**：Phase 2「视界」启幕——离屏地图渲染
@@ -224,7 +228,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.9.0
 [0.8.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.8.0
 [0.7.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.7.0
 [0.6.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.6.0
