@@ -4,6 +4,23 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-mcp**：MCP 基因热加载接线（`kanyu_system_hotload` 从 planned
+  变为真实工具，AI 代理可远程加载并执行 WASM 基因）——
+  KanyuServer 持有基因注册表（内存态 `Arc<Mutex<GeneRegistryState>>`，
+  Clone 共享，与 TaskManager 同模式；重启即丢）：
+  - `kanyu_system_hotload(wasm_path)`：编译校验 + 实例化 + 元数据校验
+    （hotload 即"验证"职责，**校验失败绝不注册**），返回 gene_id/meta，
+    重名覆盖并返回 `replaced: true`；
+  - `kanyu_gene_run(gene_id, path)`：已注册基因在数据文件上沙箱执行
+    （FeatureCollection 进/出），未知 gene_id 中文错误提示先 hotload；
+    加入任务化白名单（`task: true` 可异步执行，与分析工具同待遇）；
+  - `kanyu_gene_list()`：注册表快照（gene_id/version/capabilities）。
+  introspect：`kanyu_system_hotload` planned→stable；新增 gene 组
+  （`kanyu_gene_run`/`kanyu_gene_list` stable）。v0.1 基因调用锁内串行化
+  （注释即契约；按名细粒度锁 📋）。
+
 ## [0.11.0] - 2026-08-03
 
 **Phase 5 魂启幕：WASM 基因系统宿主（wasmtime + WIT 组件模型，fuel 沙箱）。**

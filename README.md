@@ -34,6 +34,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 - **脊髓 CLI**：`kanyu data info/load/query/export`、`kanyu introspect`、`kanyu agents init/validate`、`kanyu mcp serve`，全局 `--json`。
 - **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。
 - **离屏渲染**：`kanyu render map` / MCP `kanyu_render_map`——数据 → PNG（tiny-skia）/ SVG 地图图片，晨山/夜观星双主题，AI 代理可直接"看见"数据。
+- **基因热加载**：MCP `kanyu_system_hotload` / `kanyu_gene_run` / `kanyu_gene_list`——WASM 基因（wasmtime 沙箱）远程加载校验与执行，AI 代理可远程扩展内核能力。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 
 ## 快速开始

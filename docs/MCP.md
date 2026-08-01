@@ -12,7 +12,7 @@
 1. [快速开始](#1-快速开始)
 2. [协议细节](#2-协议细节)
 3. [长任务（SEP-2663）](#21-长任务sep-2663-)
-4. [工具参考（6 个，✅）](#3-工具参考6-个-)
+4. [工具参考（✅）](#3-工具参考-)
 5. [命名规范](#4-命名规范)
 6. [设计原则](#5-设计原则)
 7. [错误处理](#6-错误处理)
@@ -149,7 +149,7 @@ JSON 字符串副本，兼容旧客户端：
 重启即丢；任务执行在 blocking 线程池（不阻塞 stdio 调度线程）。
 未知 `taskId` 返回结构化错误。
 
-## 3. 工具参考（6 个，✅）
+## 3. 工具参考（✅）
 
 `tools/list` 按字母序返回；每个工具带中文 description 与 schemars 生成的
 inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null"]` 且不列入 required）。
@@ -241,7 +241,47 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
 > 注意：`tools` 清单中的 `name` 即真实 MCP 工具名（下划线式，见 §4），
 > 并包含 📋 planned 工具（尚不可调用，用于能力宣告）。
 
-### 3.5 `kanyu_agents_validate`
+### 3.5 `kanyu_system_hotload`
+
+> 热加载 WASM 基因到内存注册表（wasmtime 沙箱：无 WASI 导入纯计算 + fuel 配额 10 亿；**校验失败绝不注册**——hotload 即"验证"职责）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `wasm_path` | string | 是 | WASM 基因文件路径（.wasm 组件，接口须为 `kanyu:gene@0.1.0/analyzer`） |
+
+输出（`structuredContent`）：
+
+```json
+{"gene_id": "attr_scaler", "replaced": false,
+ "meta": {"name": "attr_scaler", "version": "0.1.0", "capabilities": ["analyzer"]}}
+```
+
+`gene_id` 取基因的 `meta.name`；重名覆盖旧注册并返回 `"replaced": true`。
+注册表为内存态，**重启即丢**（需重新 hotload）。
+
+### 3.6 `kanyu_gene_run`
+
+> 对已注册基因在数据文件上沙箱执行（FeatureCollection 进/出；arguments 带 `"task": true` 可异步执行，见 §2.1）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `gene_id` | string | 是 | 已注册的基因标识（`kanyu_system_hotload` 返回） |
+| `path` | string | 是 | 数据文件路径 |
+
+输出：`{"feature_count": 4, "collection": {…}}`。
+未知 `gene_id` 返回中文错误（提示先 `kanyu_system_hotload`，或 `kanyu_gene_list` 查看）。
+
+### 3.7 `kanyu_gene_list`
+
+> 列出内存注册表中的全部 WASM 基因（快照）。
+
+无输入参数。输出：
+
+```json
+{"genes": [{"gene_id": "attr_scaler", "version": "0.1.0", "capabilities": ["analyzer"]}]}
+```
+
+### 3.8 `kanyu_agents_validate`
 
 > 校验 AGENTS.md 项目语义文件：元数据（name/crs）、图层语义、业务规则完整性。
 
@@ -252,7 +292,7 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
 输出：`{"valid": true, "issues": []}`（`issues` 为中文问题清单，空 = 通过；
 校验规则见 [ARCHITECTURE.md](ARCHITECTURE.md#5-agentsmd-语义层设计)）。
 
-### 3.6 `kanyu_agents_init`
+### 3.9 `kanyu_agents_init`
 
 > 在指定项目目录生成 AGENTS.md 语义模板（图层/CRS/业务规则，供 AI 理解项目）。
 
@@ -265,7 +305,7 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
 输出：`{"created": "<project>/AGENTS.md"}`。目标已存在时返回 `invalid_params`
 错误（"…已存在"），不会静默覆盖。
 
-### 3.7 `kanyu_analysis_buffer`
+### 3.10 `kanyu_analysis_buffer`
 
 > 对数据文件做缓冲区分析（distance 单位为数据 CRS 单位；EPSG:4326 下是度而非米，米制缓冲需先投影），属性随行。
 
@@ -285,7 +325,7 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
 }
 ```
 
-### 3.8 `kanyu_analysis_overlay`
+### 3.11 `kanyu_analysis_overlay`
 
 > 叠加分析（仅 Polygon/MultiPolygon 面要素；target×overlay 逐要素对布尔、未做跨对融合；非面要素返回中文错误并指出序号）。
 
@@ -298,7 +338,7 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
 输出：`{"feature_count": 1, "collection": {…}}`；结果属性 = target 属性 +
 overlay 属性（键冲突加 `overlay_` 前缀；difference 仅 target 属性）。
 
-### 3.9 `kanyu_analysis_topology`
+### 3.12 `kanyu_analysis_topology`
 
 > 拓扑检查（面要素两两交集面积 > 1e-10 判违规；非面要素跳过）。
 
@@ -314,7 +354,7 @@ overlay 属性（键冲突加 `overlay_` 前缀；difference 仅 target 属性�
  "violations":[{"feature_a":0,"feature_b":1,"note":"面要素重叠，交集面积 4.000000"}]}
 ```
 
-### 3.10 `kanyu_data_reproject`
+### 3.13 `kanyu_data_reproject`
 
 > 坐标投影变换（内置 EPSG 数据库；经纬度自动衔接度/弧度，z 不变）。
 
@@ -333,7 +373,7 @@ overlay 属性（键冲突加 `overlay_` 前缀；difference 仅 target 属性�
 
 提供 `out` 时：`{"reprojected": 4, "out": "bj3857.geojson"}`。
 
-### 3.11 `kanyu_analysis_measure`
+### 3.14 `kanyu_analysis_measure`
 
 > 测地线度量（Karney 2013，WGS84 椭球；输入应为经纬度数据如 EPSG:4326，投影数据请先 `kanyu_data_reproject` 回地理 CRS）。
 
@@ -349,7 +389,7 @@ overlay 属性（键冲突加 `overlay_` 前缀；difference 仅 target 属性�
  "per_feature":[{"index":0,"value":0.0},{"index":3,"value":2802.82},…]}
 ```
 
-### 3.12 `kanyu_analysis_sjoin`
+### 3.15 `kanyu_analysis_sjoin`
 
 > 空间连接（左连接 + 匹配展开：保留全部 target 要素、一对多匹配各输出一条；属性合并、键冲突加 `join_` 前缀并附 `join_index`）。
 
@@ -362,7 +402,7 @@ overlay 属性（键冲突加 `overlay_` 前缀；difference 仅 target 属性�
 输出：`{"feature_count": 4, "collection": {…}}`；无匹配的 target 要素
 join 侧属性与 `join_index` 缺省。
 
-### 3.13 `kanyu_analysis_zonal_stats`
+### 3.16 `kanyu_analysis_zonal_stats`
 
 > 分区统计（values 按质心/代表点归属 zones 面要素，一值多区取首个匹配；zones 追加 `{field}_{stat}` 统计列）。
 
@@ -381,7 +421,7 @@ join 侧属性与 `join_index` 缺省。
   "properties":{"name":"z1","height_count":2,"height_sum":30.0,"height_mean":15.0}}]}}
 ```
 
-### 3.14 `kanyu_render_map`
+### 3.17 `kanyu_render_map`
 
 > 离屏渲染数据文件为地图图片（AI 代理可直接"看见"数据；晨山/夜观星主题，见 [MASTERPLAN.md](MASTERPLAN.md) §1.2）。
 
@@ -421,7 +461,9 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | —（analysis 组扩展） | `kanyu_analysis_sjoin` / `kanyu_analysis_zonal_stats` | ✅ |
 | `kanyu.render.camera` | `kanyu_render_*` | 📋 |
 | —（render 组首工具；符号化并入其 style 参数，裁决 #17） | `kanyu_render_map` | ✅ |
-| `kanyu.system.generate/hotload` | `kanyu_system_*` | 📋 |
+| `kanyu.system.generate` | `kanyu_system_*` | 📋 |
+| `kanyu.system.hotload` | `kanyu_system_hotload` | ✅ |
+| —（gene 组，Phase 5 落地） | `kanyu_gene_run` / `kanyu_gene_list` | ✅ |
 
 即：点号映射为下划线，分组（data/analysis/render/system/agents）保留。
 
@@ -445,7 +487,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| analysis 工具组扩展 | 📋 | MCP tasks 长任务；buffer/overlay/topology（§3.7–3.9）、reproject/measure（§3.10–3.11）与 sjoin/zonal_stats（§3.12–3.13）已 ✅ |
+| analysis 工具组扩展 | 📋 | MCP tasks 长任务；buffer/overlay/topology（§3.10–3.12）、reproject/measure（§3.13–3.14）与 sjoin/zonal_stats（§3.15–3.16）已 ✅ |
 | render 工具组 | 📋 | `kanyu_render_symbolize` / `camera`（随 kanyu-render/wgpu 落地） |
 | system 工具组扩展 | 📋 | `kanyu_system_generate` / `hotload`（代码生成→WASM 沙箱流水线，须人类审核） |
 | MCP tasks | ✅ | SEP-2663（`io.modelcontextprotocol/tasks`，原 SEP-1686 现行编号）协议级长任务，见 §2.1 |

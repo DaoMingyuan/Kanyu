@@ -420,3 +420,7 @@ fuel 配额覆盖纯计算死循环；组件无 IO 导入故不设墙钟超时�
 [`crates/kanyu-gene/testdata/attr_scaler/`](../crates/kanyu-gene/testdata/attr_scaler/)——
 `wit-bindgen` `generate!`/`export!` 实现 `kanyu:gene/analyzer` 的 `Guest`
 trait，`wasm32-unknown-unknown` 编译后用 `wasm-tools component new` 组件化。
+
+**MCP 接线（已落地）**：`kanyu_system_hotload`（热加载校验注册）、
+`kanyu_gene_run`（沙箱执行，可 `task: true` 异步）、`kanyu_gene_list`
+（注册表快照）——字段与输出见 [MCP.md](MCP.md#35-kanyu_system_hotload)。

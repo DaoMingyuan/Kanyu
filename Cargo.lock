@@ -1863,6 +1863,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "kanyu-core",
+ "kanyu-gene",
  "kanyu-render",
  "rmcp",
  "schemars 1.2.2",

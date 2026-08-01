@@ -24,7 +24,7 @@ pub struct ModuleInfo {
 pub struct ToolInfo {
     /// 工具全名（真实 MCP 表面名），如 `kanyu_data_load`。
     pub name: &'static str,
-    /// 分组：data / agents / analysis / render / system。
+    /// 分组：data / agents / analysis / render / system / gene。
     pub group: &'static str,
     /// 状态。
     pub status: &'static str,
@@ -77,7 +77,7 @@ pub fn modules() -> Vec<ModuleInfo> {
         },
         ModuleInfo {
             name: "kanyu-gene",
-            role: "基因：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）；MCP 热加载接线 📋",
+            role: "基因：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）+ MCP 热加载（hotload/gene_run/gene_list）",
             status: "incubating",
         },
         ModuleInfo {
@@ -182,7 +182,18 @@ pub fn tools() -> Vec<ToolInfo> {
         ToolInfo {
             name: "kanyu_system_hotload",
             group: "system",
-            status: "planned",
+            status: "stable",
+        },
+        // 基因工具
+        ToolInfo {
+            name: "kanyu_gene_run",
+            group: "gene",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_gene_list",
+            group: "gene",
+            status: "stable",
         },
     ]
 }

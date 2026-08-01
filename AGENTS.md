@@ -33,7 +33,7 @@ cargo fmt --all
 
 ## 不可逾越的约定
 
-1. **依赖方向**：`kanyu-core` 不依赖兄弟 crate；render/gene 依赖 core；cli/mcp 依赖 core+render（cli 另依赖 gene）。
+1. **依赖方向**：`kanyu-core` 不依赖兄弟 crate；render/gene 依赖 core；cli/mcp 依赖 core+render+gene。
 2. **内核零 C 依赖**：GDAL/GEOS/LibreDWG 只能以可选 feature 或 WASM 插件存在；
    默认构建必须在三大桌面平台开箱通过。
 3. **单一事实来源**：模块清单、MCP 工具清单、格式矩阵只写在 `kanyu-core` 代码中

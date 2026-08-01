@@ -91,7 +91,7 @@ fn main() -> kanyu_core::Result<()> {
 
 ## 2. 作为 MCP 客户端集成
 
-堪舆以 stdio MCP Server 暴露 6 个工具（✅）。启动命令即 `kanyu mcp serve`；
+堪舆以 stdio MCP Server 暴露全部工具（✅，清单见 [MCP.md §3](MCP.md#3-工具参考-)）。启动命令即 `kanyu mcp serve`；
 协议握手与输出形状见 [MCP.md](MCP.md)。
 
 ### Claude Desktop 配置
@@ -120,7 +120,7 @@ args = ["mcp", "serve", "--transport", "stdio"]
     │ ─────────────────────────────────────────▶ │
     │  tools/list                                │
     │ ─────────────────────────────────────────▶ │
-    │  ◀──── 6 个工具 (inputSchema, 中文描述)     │
+    │  ◀──── 工具清单 (inputSchema, 中文描述)      │
     │                                            │
     │  "找出高于 50 米的建筑并导出"                │
     │  tools/call kanyu_data_query               │
