@@ -9,6 +9,20 @@
 - **kanyu-core**：CSV/TSV 原生加载，坐标列自动识别（lon/lat、longitude/latitude、
   x/y、经度/纬度），其余列自动作为属性（数值单元格转为 JSON 数值）。
   xlsx 暂返回结构化错误提示（待 calamine 集成）。
+- **kanyu-core / CLI / MCP**：CSV 导出（`x,y` 坐标列 + 属性字段并集），
+  加载→查询→导出 CSV 闭环。
+
+### 修正
+
+- `kanyu introspect` 工具清单改为真实 MCP 表面名（`kanyu_data_load` 等），
+  并补登 agents 组两个已实现工具——自省必须描述现实。
+- MCP `ServerInfo` 上报为 `kanyu-mcp` + 内核版本（此前为 SDK 默认值）。
+- DWG 能力矩阵诚实化：write/edit 降为 Partial，driver 改为 `libredwg-wasm`，
+  note 对齐总规 §6.1 裁决（沙箱只读、写 ≤r2004、现代版本以 DXF 替代）。
+- `agents validate --json` 输出改为 pretty JSON，与其他 `--json` 命令一致。
+- workspace MSRV 声明修正为 1.88（与 rmcp 3.x 要求一致）。
+- 文档：新增 ARCHITECTURE/API/SDK/MCP/CLI 五份接口文档；
+  README 架构图补 kanyu-shell 模块。
 
 ## [0.1.0] - 2026-08-01
 

@@ -153,6 +153,12 @@ impl Layer {
     pub fn to_geojson_string(collection: &geojson::FeatureCollection) -> String {
         geojson::GeoJson::from(collection.clone()).to_string()
     }
+
+    /// 导出为 CSV 字符串：`x,y` 两列坐标（仅 Point 几何取值，其余留空），
+    /// 后接全部属性字段的并集（排序去重）。
+    pub fn to_csv_string(collection: &geojson::FeatureCollection) -> Result<String> {
+        collection_to_csv(collection)
+    }
 }
 
 /// CSV/TSV → FeatureCollection：自动识别坐标列（lon/lat/x/y/经度/纬度），
@@ -215,6 +221,55 @@ fn csv_to_collection(text: &str, delimiter: u8) -> Result<geojson::FeatureCollec
         features,
         foreign_members: None,
     })
+}
+
+/// FeatureCollection → CSV：`x,y` 坐标列（仅 Point 取值）+ 属性字段并集。
+fn collection_to_csv(collection: &geojson::FeatureCollection) -> Result<String> {
+    // 属性字段并集（排序去重），保证列序稳定。
+    let mut fields: Vec<String> = collection
+        .features
+        .iter()
+        .filter_map(|f| f.properties.as_ref())
+        .flat_map(|p| p.keys().cloned())
+        .collect();
+    fields.sort();
+    fields.dedup();
+
+    let mut wtr = csv::Writer::from_writer(Vec::new());
+    let mut headers = vec!["x".to_string(), "y".to_string()];
+    headers.extend(fields.iter().cloned());
+    wtr.write_record(&headers)
+        .map_err(|e| KanyuError::Other(format!("csv 写出失败: {e}")))?;
+
+    for feature in &collection.features {
+        let (x, y) = match feature.geometry.as_ref().map(|g| &g.value) {
+            Some(geojson::Value::Point(coords)) => (
+                coords.first().map(|v| v.to_string()).unwrap_or_default(),
+                coords.get(1).map(|v| v.to_string()).unwrap_or_default(),
+            ),
+            _ => (String::new(), String::new()),
+        };
+        let mut record = vec![x, y];
+        for field in &fields {
+            let cell = feature
+                .properties
+                .as_ref()
+                .and_then(|p| p.get(field))
+                .map(|v| match v {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                })
+                .unwrap_or_default();
+            record.push(cell);
+        }
+        wtr.write_record(&record)
+            .map_err(|e| KanyuError::Other(format!("csv 写出失败: {e}")))?;
+    }
+
+    let bytes = wtr
+        .into_inner()
+        .map_err(|e| KanyuError::Other(format!("csv 写出失败: {e}")))?;
+    String::from_utf8(bytes).map_err(|e| KanyuError::Other(format!("csv 编码失败: {e}")))
 }
 
 /// 在表头中定位 X/Y 坐标列（大小写不敏感）。
@@ -390,10 +445,32 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("no_coords.csv");
         std::fs::write(&path, "a,b\n1,2\n").unwrap();
-        let err = Layer::load("bad", path.to_str().unwrap()).err().expect("缺少坐标列应报错");
+        let err = Layer::load("bad", path.to_str().unwrap())
+            .err()
+            .expect("缺少坐标列应报错");
         assert!(
             err.to_string().contains("坐标列"),
             "错误应指出坐标列问题: {err}"
         );
+    }
+
+    #[test]
+    fn csv_export_roundtrips_through_loader() {
+        let layer = sample_layer();
+        // CSV 仅承载 Point 几何：先过滤掉 LineString（name=c）。
+        let points_only = layer.query("name != c").unwrap();
+        let text = Layer::to_csv_string(&points_only).unwrap();
+        // 表头：x,y + 属性并集。
+        assert!(text.lines().next().unwrap().starts_with("x,y,"));
+        assert!(text.contains("height"));
+        // 写回临时文件再加载，闭环验证。
+        let dir = std::env::temp_dir().join("kanyu_core_csv_roundtrip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rt.csv");
+        std::fs::write(&path, &text).unwrap();
+        let reloaded = Layer::load("rt", path.to_str().unwrap()).unwrap();
+        assert_eq!(reloaded.len(), 2);
+        // 数值属性在往返后仍可比较查询。
+        assert_eq!(reloaded.query("height > 50").unwrap().features.len(), 1);
     }
 }

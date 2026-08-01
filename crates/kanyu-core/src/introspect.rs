@@ -22,9 +22,9 @@ pub struct ModuleInfo {
 /// MCP 工具清单中的一项（名称 + 分组）。
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolInfo {
-    /// 工具全名，如 `kanyu.data.load`。
+    /// 工具全名（真实 MCP 表面名），如 `kanyu_data_load`。
     pub name: &'static str,
-    /// 分组：data / analysis / render / system。
+    /// 分组：data / agents / analysis / render / system。
     pub group: &'static str,
     /// 状态。
     pub status: &'static str,
@@ -89,64 +89,78 @@ pub fn modules() -> Vec<ModuleInfo> {
 }
 
 /// MCP 工具清单（单一事实来源；docs/MCP.md 由此生成）。
+///
+/// 命名为真实 MCP 表面名：协议限制工具名为 `[a-zA-Z0-9_-]`，
+/// 总规中的点式逻辑名（如 `kanyu.data.load`）落地为下划线式。
 pub fn tools() -> Vec<ToolInfo> {
     vec![
         // 数据工具
         ToolInfo {
-            name: "kanyu.data.load",
+            name: "kanyu_data_load",
             group: "data",
             status: "stable",
         },
         ToolInfo {
-            name: "kanyu.data.query",
+            name: "kanyu_data_query",
             group: "data",
             status: "stable",
         },
         ToolInfo {
-            name: "kanyu.data.export",
+            name: "kanyu_data_export",
             group: "data",
+            status: "stable",
+        },
+        // 项目语义工具
+        ToolInfo {
+            name: "kanyu_agents_init",
+            group: "agents",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_agents_validate",
+            group: "agents",
             status: "stable",
         },
         // 空间分析工具
         ToolInfo {
-            name: "kanyu.analysis.buffer",
+            name: "kanyu_analysis_buffer",
             group: "analysis",
             status: "planned",
         },
         ToolInfo {
-            name: "kanyu.analysis.overlay",
+            name: "kanyu_analysis_overlay",
             group: "analysis",
             status: "planned",
         },
         ToolInfo {
-            name: "kanyu.analysis.topology",
+            name: "kanyu_analysis_topology",
             group: "analysis",
             status: "planned",
         },
         // 渲染工具
         ToolInfo {
-            name: "kanyu.render.symbolize",
+            name: "kanyu_render_symbolize",
             group: "render",
             status: "planned",
         },
         ToolInfo {
-            name: "kanyu.render.camera",
+            name: "kanyu_render_camera",
             group: "render",
             status: "planned",
         },
         // 系统工具
         ToolInfo {
-            name: "kanyu.system.introspect",
+            name: "kanyu_system_introspect",
             group: "system",
             status: "stable",
         },
         ToolInfo {
-            name: "kanyu.system.generate",
+            name: "kanyu_system_generate",
             group: "system",
             status: "planned",
         },
         ToolInfo {
-            name: "kanyu.system.hotload",
+            name: "kanyu_system_hotload",
             group: "system",
             status: "planned",
         },
@@ -174,7 +188,7 @@ mod tests {
         let r = report();
         let json = serde_json::to_string_pretty(&r).unwrap();
         assert!(json.contains("kanyu-core"));
-        assert!(json.contains("kanyu.data.load"));
+        assert!(json.contains("kanyu_data_load"));
         assert!(!r.formats.is_empty());
     }
 }

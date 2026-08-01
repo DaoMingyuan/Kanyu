@@ -85,7 +85,8 @@ cargo build --release
 │  ├─ kanyu-cli    脊髓（kanyu 命令行）                │
 │  ├─ kanyu-render 眼睛（wgpu GPU 渲染）  [planned]    │
 │  ├─ kanyu-edit   手（DCEL 拓扑编辑）    [planned]    │
-│  └─ kanyu-gene   基因（wasmtime 插件）  [planned]    │
+│  ├─ kanyu-gene   基因（wasmtime 插件）  [planned]    │
+│  └─ kanyu-shell  壳层（egui 桌面 UI）   [planned]    │
 └─────────────────────────────────────────────────────┘
 ```
 

@@ -85,7 +85,7 @@ fn introspect_lists_modules_and_tools() {
         .iter()
         .filter_map(|t| t["name"].as_str())
         .collect();
-    assert!(tool_names.contains(&"kanyu.data.load"));
+    assert!(tool_names.contains(&"kanyu_data_load"));
 }
 
 #[test]

@@ -1075,7 +1075,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] MCP Server（rmcp，stdio）+ 6 个确定性工具 + 系统自省。
 - [ ] GeoArrow RecordBatch 内存模型替换 GeoJSON 载体（Layer API 不变）。
 - [ ] FlatGeobuf / GeoParquet / Shapefile / DXF / KML 原生读写（geozero 抽象层）。
-- [ ] CSV 坐标列自动识别（lon/lat/x/y 启发式）。
+- [x] CSV/TSV 坐标列自动识别（lon/lat/x/y/经度/纬度）与 CSV 导出闭环。
 - [ ] **里程碑**：全部主流矢量格式免 GDAL 读写；内存占用 ≤ QGIS 50%。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）

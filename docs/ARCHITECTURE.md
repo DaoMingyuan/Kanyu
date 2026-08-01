@@ -101,7 +101,7 @@
 | `layout` | 布局保留（打印布局 → Paper Space 等） |
 
 支持级别为三态枚举 `Support`：`Full` / `Partial` / `None`（`usable()` = 非 None）。
-每条记录还带 `driver`（`native` / `gdal-bridge` / `libredwg`）与 `note` 备注。
+每条记录还带 `driver`（`native` / `gdal-bridge` / `libredwg-wasm` 等）与 `note` 备注。
 v0.1 内置 17 种格式，与总规附录 A.1 一一对应（有单元测试保证不漏）。
 
 **能力矩阵如何驱动决策**：CLI 与 MCP 不写任何格式特判，一律走注册表：
@@ -113,9 +113,9 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
   │    ├─ by_id("dwg") 未命中 → KanyuError::UnknownFormat
   │    └─ write 为 None      → KanyuError::UnsupportedOperation
   │         （例：-f wfs 在此被拒绝，WFS 只读）
-  ├─ require 通过（dwg.write = Full）
-  └─ driver = "libredwg" 非原生且未启用
-       → 结构化错误："格式 'dwg' 的原生导出尚未启用（driver: libredwg）。
+  ├─ require 通过（dwg.write = Partial，可用）
+  └─ driver = "libredwg-wasm" 非原生且未启用
+       → 结构化错误："格式 'dwg' 的原生导出尚未启用（driver: libredwg-wasm）。
           桥接/插件驱动将在对应阶段就绪后开放"
 ```
 
@@ -171,9 +171,9 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
 | MCP | 手写 MCP Server | **官方 rmcp 3.x SDK** | 协议升级（tasks、streamable HTTP）由上游跟进；注意 MCP 工具名只允许 `[a-zA-Z0-9_-]`，总规的 `kanyu.data.load` 落地为 `kanyu_data_load` |
 | 插件 | WASM（wasmtime） | 维持 **wasmtime + WIT 组件模型** | 沙箱安全、热重载、多语言基因 |
 
-> 注：格式注册表中 DWG 一行的能力矩阵（write: Full 等）描述的是**目标能力**，
-> 与总规附录 A 对齐；上表描述的是**实现路线**。DWG 沙箱读取与 DXF 替代写出落地后，
-> 矩阵 note 会同步更新。
+> 注：格式注册表中 DWG 一行的能力矩阵已按实现路线诚实标注（read: Full、
+> write: Partial、driver: `libredwg-wasm`）；总规附录 A 描述的是目标能力，
+> 两者差异以注册表（代码）为准。
 
 ## 8. 性能目标
 

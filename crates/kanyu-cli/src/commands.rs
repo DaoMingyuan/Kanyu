@@ -70,6 +70,11 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (geojson)", layer.len());
                 }
+                "csv" => {
+                    let text = Layer::to_csv_string(layer.collection())?;
+                    std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!("已导出 {} 个要素 → {out} (csv)", layer.len());
+                }
                 other => {
                     bail!(
                         "格式 '{other}' 的原生导出尚未启用（driver: {}）。\n\
@@ -135,9 +140,10 @@ pub fn agents_cmd(cmd: &AgentsCommand, json: bool) -> Result<()> {
             let doc = agents::load(path)?;
             let issues = doc.validate();
             if json {
+                let payload = serde_json::json!({ "valid": issues.is_empty(), "issues": issues, "document": doc });
                 println!(
                     "{}",
-                    serde_json::json!({ "valid": issues.is_empty(), "issues": issues, "document": doc })
+                    serde_json::to_string_pretty(&payload).expect("序列化失败")
                 );
             } else if issues.is_empty() {
                 println!(

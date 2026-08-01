@@ -115,7 +115,7 @@ impl KanyuServer {
     /// 将数据导出为目标格式。
     #[tool(
         name = "kanyu_data_export",
-        description = "将数据文件导出为目标格式（当前原生支持 geojson；其余格式受格式能力矩阵与驱动状态约束）"
+        description = "将数据文件导出为目标格式（当前原生支持 geojson/csv；其余格式受格式能力矩阵与驱动状态约束）"
     )]
     async fn data_export(
         &self,
@@ -123,18 +123,21 @@ impl KanyuServer {
     ) -> Result<Json<serde_json::Value>, McpError> {
         let registry = FormatRegistry::builtin();
         let caps = registry.require(&req.format, "write").map_err(to_mcp)?;
-        if caps.id != "geojson" {
-            return Err(to_mcp(kanyu_core::KanyuError::UnsupportedOperation {
-                format: caps.id.to_string(),
-                operation: format!("native-export (driver {} not enabled)", caps.driver),
-            }));
-        }
         let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
-        let text = Layer::to_geojson_string(layer.collection());
+        let text = match caps.id {
+            "geojson" => Layer::to_geojson_string(layer.collection()),
+            "csv" => Layer::to_csv_string(layer.collection()).map_err(to_mcp)?,
+            _ => {
+                return Err(to_mcp(kanyu_core::KanyuError::UnsupportedOperation {
+                    format: caps.id.to_string(),
+                    operation: format!("native-export (driver {} not enabled)", caps.driver),
+                }))
+            }
+        };
         std::fs::write(&req.out, text).map_err(to_mcp)?;
         Ok(Json(serde_json::json!({
             "exported": layer.len(),
-            "format": "geojson",
+            "format": caps.id,
             "out": req.out,
         })))
     }
@@ -202,10 +205,14 @@ impl KanyuServer {
 #[tool_handler]
 impl ServerHandler for KanyuServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
-            "堪舆 (Kanyu) GIS 内核：data/analysis/render/system 四组工具。\
-             所有结果为结构化 JSON 并携带 CRS/单位元数据；不提供任意代码执行。",
-        )
+        let mut info = ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_instructions(
+                "堪舆 (Kanyu) GIS 内核：data/agents/analysis/render/system 五组工具。\
+                 所有结果为结构化 JSON 并携带 CRS/单位元数据；不提供任意代码执行。",
+            );
+        info.server_info.name = "kanyu-mcp".to_string();
+        info.server_info.version = env!("CARGO_PKG_VERSION").to_string();
+        info
     }
 }
 
