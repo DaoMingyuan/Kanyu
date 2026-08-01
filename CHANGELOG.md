@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-02
+
+**属性驱动符号化：graduated 分级设色 / categorical 分类符号（总规 §3.4 落地）。**
+
 ### 新增
 
 - **kanyu-render / CLI / MCP**：属性驱动符号化（总规 §3.4 符号系统第一块，
@@ -243,7 +247,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.10.0
 [0.9.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.9.0
 [0.8.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.8.0
 [0.7.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.7.0
