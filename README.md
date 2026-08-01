@@ -37,6 +37,16 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 - **基因热加载**：MCP `kanyu_system_hotload` / `kanyu_gene_run` / `kanyu_gene_list`——WASM 基因（wasmtime 沙箱）远程加载校验与执行，AI 代理可远程扩展内核能力。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 
+## 渲染效果（自家管线实拍）
+
+`kanyu render map examples/buildings.geojson --out map.png` —— 晨山（左）/ 夜观星（中）/ 按 height 分级设色（右）：
+
+<p align="center">
+  <img src="docs/images/render_light.png" width="31%" alt="晨山主题" />
+  <img src="docs/images/render_dark.png" width="31%" alt="夜观星主题" />
+  <img src="docs/images/render_graduated.png" width="31%" alt="graduated 分级设色" />
+</p>
+
 ## 快速开始
 
 ```bash
