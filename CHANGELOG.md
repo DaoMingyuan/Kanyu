@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-02
+
+**矢量分析面补全：空间连接 sjoin 与分区统计 zonal_stats。**
+
 ### 新增
 
 - **kanyu-core / CLI / MCP**：空间连接与分区统计（补全矢量分析面）——
@@ -165,7 +169,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.6.0
 [0.5.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.5.0
 [0.4.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.4.0
 [0.3.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.3.0
