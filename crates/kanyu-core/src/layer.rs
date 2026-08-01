@@ -43,9 +43,9 @@ impl Layer {
             .ok_or_else(|| KanyuError::UnknownFormat(path.to_string()))?;
         registry.require(caps.id, "read")?;
 
-        let text = std::fs::read_to_string(path)?;
         let collection = match caps.id {
             "geojson" => {
+                let text = std::fs::read_to_string(path)?;
                 let gj: geojson::GeoJson = text.parse()?;
                 geojson::FeatureCollection::try_from(gj)
                     .map_err(|e| KanyuError::GeoJson(e.to_string()))?
@@ -63,8 +63,10 @@ impl Layer {
                 } else {
                     b','
                 };
+                let text = std::fs::read_to_string(path)?;
                 csv_to_collection(&text, delimiter)?
             }
+            "shp" => shp_to_collection(path)?,
             other => {
                 return Err(KanyuError::UnsupportedOperation {
                     format: other.to_string(),
@@ -221,6 +223,134 @@ fn csv_to_collection(text: &str, delimiter: u8) -> Result<geojson::FeatureCollec
         features,
         foreign_members: None,
     })
+}
+
+/// Shapefile → FeatureCollection：几何按类型映射（Point/MultiPoint/Polyline/
+/// Polygon 及其 M/Z 变体；PointZ 的 z 保留为第三坐标，其余 M/Z 附加量舍弃），
+/// dbase 属性类型化为 JSON（空值跳过）。不支持的几何（Multipatch/NullShape）
+/// 整条要素跳过，不留脏属性。
+fn shp_to_collection(path: &str) -> Result<geojson::FeatureCollection> {
+    let mut reader = shapefile::Reader::from_path(path).map_err(|e| {
+        KanyuError::Other(format!(
+            "shapefile 读取失败（{path}）：{e}；请确认 .shp/.shx/.dbf 侧边文件齐备且未损坏"
+        ))
+    })?;
+
+    let mut features = Vec::new();
+    for (rec_no, item) in reader.iter_shapes_and_records().enumerate() {
+        let (shape, record) = item.map_err(|e| {
+            KanyuError::Other(format!("shapefile 第 {} 条记录解析失败: {e}", rec_no + 1))
+        })?;
+        let Some(geometry) = shp_shape_to_geojson(&shape) else {
+            continue;
+        };
+        let mut properties = serde_json::Map::new();
+        for (name, value) in record {
+            if let Some(json) = dbase_field_to_json(&value) {
+                properties.insert(name, json);
+            }
+        }
+        features.push(geojson::Feature {
+            bbox: None,
+            geometry: Some(geojson::Geometry::new(geometry)),
+            id: None,
+            properties: Some(properties),
+            foreign_members: None,
+        });
+    }
+
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
+
+/// Shape → GeoJSON 几何值；不支持的类型返回 None。
+fn shp_shape_to_geojson(shape: &shapefile::Shape) -> Option<geojson::Value> {
+    use shapefile::Shape;
+    match shape {
+        Shape::Point(p) => Some(geojson::Value::Point(vec![p.x, p.y])),
+        Shape::PointM(p) => Some(geojson::Value::Point(vec![p.x, p.y])),
+        Shape::PointZ(p) => Some(geojson::Value::Point(vec![p.x, p.y, p.z])),
+        Shape::Multipoint(mp) => Some(geojson::Value::MultiPoint(shp_positions(mp.points()))),
+        Shape::MultipointM(mp) => Some(geojson::Value::MultiPoint(shp_positions(mp.points()))),
+        Shape::MultipointZ(mp) => Some(geojson::Value::MultiPoint(shp_positions(mp.points()))),
+        Shape::Polyline(pl) => Some(shp_parts_to_geojson(pl.parts())),
+        Shape::PolylineM(pl) => Some(shp_parts_to_geojson(pl.parts())),
+        Shape::PolylineZ(pl) => Some(shp_parts_to_geojson(pl.parts())),
+        Shape::Polygon(pg) => Some(shp_rings_to_geojson(pg.rings())),
+        Shape::PolygonM(pg) => Some(shp_rings_to_geojson(pg.rings())),
+        Shape::PolygonZ(pg) => Some(shp_rings_to_geojson(pg.rings())),
+        // Multipatch / NullShape：无 GeoJSON 对应，跳过。
+        _ => None,
+    }
+}
+
+/// 点列 → GeoJSON 位置数组（仅取 x/y）。
+fn shp_positions<P: shapefile::record::traits::HasXY>(points: &[P]) -> Vec<Vec<f64>> {
+    points.iter().map(|p| vec![p.x(), p.y()]).collect()
+}
+
+/// Polyline parts → 单 part 为 LineString，多 part 为 MultiLineString。
+fn shp_parts_to_geojson<P: shapefile::record::traits::HasXY>(parts: &[Vec<P>]) -> geojson::Value {
+    let lines: Vec<Vec<Vec<f64>>> = parts.iter().map(|part| shp_positions(part)).collect();
+    if lines.len() == 1 {
+        geojson::Value::LineString(lines.into_iter().next().unwrap_or_default())
+    } else {
+        geojson::Value::MultiLineString(lines)
+    }
+}
+
+/// Polygon rings → 每个外环开启一个多边形，后续内环（洞）挂到最近的外环；
+/// 单外环为 Polygon，多外环为 MultiPolygon。畸形文件（内环先于外环）丢弃该环。
+fn shp_rings_to_geojson<P: shapefile::record::traits::HasXY>(
+    rings: &[shapefile::PolygonRing<P>],
+) -> geojson::Value {
+    let mut polygons: Vec<Vec<Vec<Vec<f64>>>> = Vec::new();
+    for ring in rings {
+        let (points, is_outer) = match ring {
+            shapefile::PolygonRing::Outer(pts) => (pts, true),
+            shapefile::PolygonRing::Inner(pts) => (pts, false),
+        };
+        let line = shp_positions(points);
+        if is_outer {
+            polygons.push(vec![line]);
+        } else if let Some(last) = polygons.last_mut() {
+            last.push(line);
+        }
+    }
+    match polygons.len() {
+        0 => geojson::Value::Polygon(Vec::new()),
+        1 => geojson::Value::Polygon(polygons.pop().unwrap_or_default()),
+        _ => geojson::Value::MultiPolygon(polygons),
+    }
+}
+
+/// dbase 字段值 → JSON 值；空值（NULL）返回 None 以跳过。
+fn dbase_field_to_json(value: &shapefile::dbase::FieldValue) -> Option<serde_json::Value> {
+    use shapefile::dbase::FieldValue;
+    match value {
+        FieldValue::Numeric(v) => v.map(serde_json::Value::from),
+        FieldValue::Float(v) => v.map(serde_json::Value::from),
+        FieldValue::Double(v) => Some(serde_json::Value::from(*v)),
+        FieldValue::Character(v) => v.clone().map(serde_json::Value::String),
+        FieldValue::Logical(v) => v.map(serde_json::Value::Bool),
+        FieldValue::Date(v) => v.map(|d| serde_json::Value::String(d.to_string())),
+        FieldValue::DateTime(dt) => {
+            let t = dt.time();
+            Some(serde_json::Value::String(format!(
+                "{} {:02}:{:02}:{:02}",
+                dt.date(),
+                t.hours(),
+                t.minutes(),
+                t.seconds()
+            )))
+        }
+        FieldValue::Memo(s) => Some(serde_json::Value::String(s.clone())),
+        FieldValue::Integer(i) => Some(serde_json::Value::from(*i)),
+        FieldValue::Currency(c) => Some(serde_json::Value::from(*c)),
+    }
 }
 
 /// FeatureCollection → CSV：`x,y` 坐标列（仅 Point 取值）+ 属性字段并集。
@@ -472,5 +602,110 @@ mod tests {
         assert_eq!(reloaded.len(), 2);
         // 数值属性在往返后仍可比较查询。
         assert_eq!(reloaded.query("height > 50").unwrap().features.len(), 1);
+    }
+
+    /// 在临时目录写出测试 shapefile：sites.shp（2 个 Point，name/height 字段）
+    /// 与 zones.shp（1 个带洞 Polygon）。shapefile 规范单文件单几何类型，故分两个文件。
+    fn write_test_shps(dir: &std::path::Path) -> (std::path::PathBuf, std::path::PathBuf) {
+        use shapefile::dbase::{FieldValue, Record, TableWriterBuilder};
+
+        std::fs::create_dir_all(dir).unwrap();
+        let table = || {
+            TableWriterBuilder::new()
+                .add_character_field("name".try_into().unwrap(), 50)
+                .add_numeric_field("height".try_into().unwrap(), 18, 5)
+        };
+        let record = |name: &str, height: f64| {
+            let mut rec = Record::default();
+            rec.insert(
+                "name".to_string(),
+                FieldValue::Character(Some(name.to_string())),
+            );
+            rec.insert("height".to_string(), FieldValue::Numeric(Some(height)));
+            rec
+        };
+
+        let pts_path = dir.join("sites.shp");
+        let mut wtr = shapefile::Writer::from_path(&pts_path, table()).unwrap();
+        wtr.write_shape_and_record(&shapefile::Point::new(116.39, 39.90), &record("甲", 80.0))
+            .unwrap();
+        wtr.write_shape_and_record(&shapefile::Point::new(116.40, 39.91), &record("乙", 30.0))
+            .unwrap();
+
+        let poly_path = dir.join("zones.shp");
+        let mut wtr = shapefile::Writer::from_path(&poly_path, table()).unwrap();
+        // 外环 + 内环（洞）；with_rings 自动闭合环并按 ESRI 规范整向，无需手写绕向。
+        let polygon = shapefile::Polygon::with_rings(vec![
+            shapefile::PolygonRing::Outer(vec![
+                shapefile::Point::new(0.0, 0.0),
+                shapefile::Point::new(0.0, 10.0),
+                shapefile::Point::new(10.0, 10.0),
+                shapefile::Point::new(10.0, 0.0),
+            ]),
+            shapefile::PolygonRing::Inner(vec![
+                shapefile::Point::new(2.0, 2.0),
+                shapefile::Point::new(2.0, 4.0),
+                shapefile::Point::new(4.0, 4.0),
+                shapefile::Point::new(4.0, 2.0),
+            ]),
+        ]);
+        wtr.write_shape_and_record(&polygon, &record("丙", 55.0))
+            .unwrap();
+
+        (pts_path, poly_path)
+    }
+
+    #[test]
+    fn shp_load_points_with_typed_dbase_fields() {
+        let dir = std::env::temp_dir().join("kanyu_core_shp_points");
+        let (pts_path, _) = write_test_shps(&dir);
+        let layer = Layer::load("sites", pts_path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 2);
+        let s = layer.summary();
+        assert_eq!(s.format, "shp");
+        assert_eq!(s.geometry_types, vec!["Point"]);
+        assert_eq!(s.fields, vec!["height", "name"]);
+        // dbase Numeric → JSON 数值，可参与数值比较查询。
+        assert_eq!(layer.query("height > 50").unwrap().features.len(), 1);
+        // dbase Character → JSON 字符串。
+        let props = layer.collection().features[0].properties.as_ref().unwrap();
+        assert_eq!(props["name"].as_str().unwrap().trim_end(), "甲");
+    }
+
+    #[test]
+    fn shp_load_polygon_preserves_holes() {
+        let dir = std::env::temp_dir().join("kanyu_core_shp_hole");
+        let (_, poly_path) = write_test_shps(&dir);
+        let layer = Layer::load("zones", poly_path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 1);
+        assert_eq!(layer.summary().geometry_types, vec!["Polygon"]);
+        let geojson::Value::Polygon(rings) = &layer.collection().features[0]
+            .geometry
+            .as_ref()
+            .unwrap()
+            .value
+        else {
+            panic!("应为 Polygon 几何");
+        };
+        // 外环 + 1 个内环（洞）：interiors 非空。
+        assert_eq!(rings.len(), 2);
+    }
+
+    #[test]
+    fn shp_missing_dbf_gives_clear_error() {
+        let dir = std::env::temp_dir().join("kanyu_core_shp_nodbf");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("noattr.shp");
+        let mut wtr = shapefile::ShapeWriter::from_path(&path).unwrap();
+        wtr.write_shape(&shapefile::Point::new(1.0, 1.0)).unwrap();
+        drop(wtr);
+        assert!(!path.with_extension("dbf").exists());
+        let err = Layer::load("noattr", path.to_str().unwrap())
+            .err()
+            .expect("缺少 .dbf 应报错");
+        assert!(
+            err.to_string().contains("侧边文件"),
+            "错误应提示侧边文件齐备问题: {err}"
+        );
     }
 }

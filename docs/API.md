@@ -89,7 +89,7 @@ v0.1 以 GeoJSON `FeatureCollection` 为原生载体；后续迁移 GeoArrow `Re
 
 | 方法 | 签名 | 说明 |
 |---|---|---|
-| `load` | `fn load(id: impl Into<String>, path: &str) -> Result<Self>` | 加载图层。格式自动探测；v0.1 原生支持 geojson 与 csv/tsv（坐标列自动识别 lon/lat/x/y/经度/纬度；xlsx 暂返回 `UnsupportedOperation`），桥接驱动格式返回 `UnsupportedOperation`；无法探测返回 `UnknownFormat` |
+| `load` | `fn load(id: impl Into<String>, path: &str) -> Result<Self>` | 加载图层。格式自动探测；v0.1 原生支持 geojson、csv/tsv（坐标列自动识别 lon/lat/x/y/经度/纬度；xlsx 暂返回 `UnsupportedOperation`）与 shp（读取：Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化），桥接驱动格式返回 `UnsupportedOperation`；无法探测返回 `UnknownFormat` |
 | `id` | `fn id(&self) -> &str` | 图层标识 |
 | `len` | `fn len(&self) -> usize` | 要素数量 |
 | `is_empty` | `fn is_empty(&self) -> bool` | 是否空图层 |

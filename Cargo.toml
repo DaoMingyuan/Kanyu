@@ -33,6 +33,7 @@ csv = "1"
 clap = { version = "4", features = ["derive", "cargo"] }
 geojson = "0.24"
 schemars = "0.8"
+shapefile = "0.9"
 
 [profile.release]
 lto = "thin"

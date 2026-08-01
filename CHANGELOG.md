@@ -6,6 +6,10 @@
 
 ### 新增
 
+- **kanyu-core**：Shapefile 原生读取（shapefile crate，免 GDAL）——Point/MultiPoint/
+  Polyline/Polygon（含 M/Z 变体与带洞多边形），dbase 属性类型化为 JSON
+  （Numeric/Float→Number、Character→String、Logical→Bool、Date/DateTime/Memo→String、
+  空值跳过）；缺少 .dbf 侧边文件时返回中文结构化错误。写出待 Phase 1 后续。
 - **kanyu-core**：CSV/TSV 原生加载，坐标列自动识别（lon/lat、longitude/latitude、
   x/y、经度/纬度），其余列自动作为属性（数值单元格转为 JSON 数值）。
   xlsx 暂返回结构化错误提示（待 calamine 集成）。

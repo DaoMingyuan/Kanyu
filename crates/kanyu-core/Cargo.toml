@@ -17,3 +17,4 @@ serde_json.workspace = true
 thiserror.workspace = true
 geojson.workspace = true
 csv.workspace = true
+shapefile.workspace = true
