@@ -3,7 +3,9 @@
 use anyhow::{bail, Context, Result};
 use kanyu_core::{agents, introspect, FormatRegistry, Layer};
 
-use crate::cli::{AgentsCommand, AnalysisCommand, DataCommand, McpCommand, Transport};
+use crate::cli::{
+    AgentsCommand, AnalysisCommand, DataCommand, McpCommand, RenderCommand, Transport,
+};
 
 /// `kanyu data ...`
 pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
@@ -243,6 +245,60 @@ fn write_geojson_result(result: &geojson::FeatureCollection, output: Option<&str
             eprintln!("已写出 {} 个要素 → {path}", result.features.len());
         }
         None => println!("{text}"),
+    }
+    Ok(())
+}
+
+/// `kanyu render ...`
+pub fn render(cmd: &RenderCommand) -> Result<()> {
+    match cmd {
+        RenderCommand::Map {
+            file,
+            out,
+            width,
+            height,
+            theme,
+        } => {
+            let opts = kanyu_render::RenderOptions {
+                width: *width,
+                height: *height,
+                theme: theme.parse()?,
+                ..Default::default()
+            };
+            let layer = Layer::load(stem_of(file), file)?;
+            let ext = out
+                .rsplit('.')
+                .next()
+                .map(str::to_ascii_lowercase)
+                .unwrap_or_default();
+            match ext.as_str() {
+                "png" => {
+                    let bytes = kanyu_render::render_png(&layer.collection(), &opts)?;
+                    std::fs::write(out, &bytes).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!(
+                        "已渲染 {} 个要素 → {out} (png, {}x{}, {})",
+                        layer.len(),
+                        opts.width,
+                        opts.height,
+                        opts.theme.name()
+                    );
+                }
+                "svg" => {
+                    let text = kanyu_render::render_svg(&layer.collection(), &opts)?;
+                    std::fs::write(out, &text).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!(
+                        "已渲染 {} 个要素 → {out} (svg, {}x{}, {})",
+                        layer.len(),
+                        opts.width,
+                        opts.height,
+                        opts.theme.name()
+                    );
+                }
+                other => {
+                    bail!("输出格式按扩展名判定，仅支持 .png/.svg（实际: '.{other}'）")
+                }
+            }
+        }
     }
     Ok(())
 }

@@ -67,8 +67,8 @@ pub fn modules() -> Vec<ModuleInfo> {
         },
         ModuleInfo {
             name: "kanyu-render",
-            role: "眼睛：GPU 渲染管线（wgpu），GeoArrow→SSBO 直通",
-            status: "planned",
+            role: "眼睛：离屏地图渲染（tiny-skia PNG + SVG，晨山/夜观星主题），wgpu 实时管线待壳层",
+            status: "incubating",
         },
         ModuleInfo {
             name: "kanyu-edit",
@@ -158,6 +158,11 @@ pub fn tools() -> Vec<ToolInfo> {
             status: "stable",
         },
         // 渲染工具
+        ToolInfo {
+            name: "kanyu_render_map",
+            group: "render",
+            status: "stable",
+        },
         ToolInfo {
             name: "kanyu_render_symbolize",
             group: "render",

@@ -381,6 +381,26 @@ join 侧属性与 `join_index` 缺省。
   "properties":{"name":"z1","height_count":2,"height_sum":30.0,"height_mean":15.0}}]}}
 ```
 
+### 3.14 `kanyu_render_map`
+
+> 离屏渲染数据文件为地图图片（AI 代理可直接"看见"数据；晨山/夜观星主题，见 [MASTERPLAN.md](MASTERPLAN.md) §1.2）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 数据文件路径 |
+| `format` | string | 是 | `png`（base64 图片回传）/ `svg`（源码文本回传） |
+| `width` | integer \| null | 否 | 图片宽度（像素，默认 800） |
+| `height` | integer \| null | 否 | 图片高度（像素，默认 600） |
+| `theme` | string \| null | 否 | `light`（晨山，默认）/ `dark`（夜观星） |
+
+返回（不写文件，直接回传内容）：
+
+- `format=png`：`content` 两块——`image`（base64 `image/png`）+ `text`
+  （摘要 JSON 字符串）；客户端可直接展示图片。
+- `format=svg`：`content` 两块——`text`（SVG 源码）+ `text`（摘要 JSON）。
+- `structuredContent` 恒为摘要：
+  `{"feature_count": 4, "bbox": null, "width": 800, "height": 600, "theme": "light", "format": "png"}`。
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
@@ -399,6 +419,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | —（analysis 组扩展） | `kanyu_analysis_measure` | ✅ |
 | —（analysis 组扩展） | `kanyu_analysis_sjoin` / `kanyu_analysis_zonal_stats` | ✅ |
 | `kanyu.render.symbolize/camera` | `kanyu_render_*` | 📋 |
+| —（render 组首工具） | `kanyu_render_map` | ✅ |
 | `kanyu.system.generate/hotload` | `kanyu_system_*` | 📋 |
 
 即：点号映射为下划线，分组（data/analysis/render/system/agents）保留。

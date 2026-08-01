@@ -33,6 +33,10 @@ pub enum Command {
     #[command(subcommand)]
     Analysis(AnalysisCommand),
 
+    /// 地图渲染：离屏出图（PNG/SVG）。
+    #[command(subcommand)]
+    Render(RenderCommand),
+
     /// 系统自省 —— AI 读取自身（源码树、能力矩阵、工具清单）。
     Introspect,
 
@@ -179,6 +183,28 @@ pub enum AnalysisCommand {
         /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
         #[arg(long)]
         output: Option<String>,
+    },
+}
+
+/// `kanyu render ...`
+#[derive(Subcommand, Debug)]
+pub enum RenderCommand {
+    /// 渲染数据文件为地图图片（输出格式按 --out 扩展名判定：png/svg）。
+    Map {
+        /// 数据文件路径。
+        file: String,
+        /// 输出路径（.png 或 .svg）。
+        #[arg(long)]
+        out: String,
+        /// 图片宽度（像素，默认 800）。
+        #[arg(long, default_value_t = 800)]
+        width: u32,
+        /// 图片高度（像素，默认 600）。
+        #[arg(long, default_value_t = 600)]
+        height: u32,
+        /// 主题：light（晨山）/dark（夜观星）。
+        #[arg(long, default_value = "light")]
+        theme: String,
     },
 }
 

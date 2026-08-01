@@ -23,15 +23,16 @@ cargo fmt --all
 | 路径 | 职责 |
 |------|------|
 | `crates/kanyu-core/` | 内核：格式注册表、图层模型、AGENTS.md 语义、系统自省 |
+| `crates/kanyu-render/` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG，晨山/夜观星主题） |
 | `crates/kanyu-cli/` | `kanyu` 命令行（clap derive） |
-| `crates/kanyu-mcp/` | MCP Server（rmcp 3.x，stdio） |
+| `crates/kanyu-mcp/` | MCP Server（rmcp 3.x，stdio + streamable HTTP，SEP-2663 长任务） |
 | `docs/` | 总规 + 架构/API/SDK/MCP/CLI 文档 |
 | `examples/` | 示例数据（GeoJSON） |
 | `tests/` | 跨 crate 集成测试 |
 
 ## 不可逾越的约定
 
-1. **依赖方向**：`kanyu-core` 不依赖兄弟 crate；cli/mcp 只依赖 core。
+1. **依赖方向**：`kanyu-core` 不依赖兄弟 crate；render 依赖 core；cli/mcp 依赖 core+render。
 2. **内核零 C 依赖**：GDAL/GEOS/LibreDWG 只能以可选 feature 或 WASM 插件存在；
    默认构建必须在三大桌面平台开箱通过。
 3. **单一事实来源**：模块清单、MCP 工具清单、格式矩阵只写在 `kanyu-core` 代码中

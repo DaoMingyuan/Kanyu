@@ -17,6 +17,7 @@ path = "src/lib.rs"
 
 [dependencies]
 kanyu-core.workspace = true
+kanyu-render.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -32,3 +33,4 @@ tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "net"] }
 # rmcp 的 dep:hyper 仅带 client feature；服务端 accept 需自声明 server。
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "service"] }
+base64.workspace = true

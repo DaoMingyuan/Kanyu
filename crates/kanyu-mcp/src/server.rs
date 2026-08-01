@@ -162,6 +162,21 @@ pub struct AnalysisZonalStatsReq {
     pub stats: Vec<String>,
 }
 
+/// `kanyu_render_map` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RenderMapReq {
+    /// 数据文件路径。
+    pub path: String,
+    /// 输出格式：png（base64 图片回传）/ svg（源码文本回传）。
+    pub format: String,
+    /// 图片宽度（像素，默认 800）。
+    pub width: Option<u32>,
+    /// 图片高度（像素，默认 600）。
+    pub height: Option<u32>,
+    /// 主题：light（晨山）/ dark（夜观星）。
+    pub theme: Option<String>,
+}
+
 #[tool_router]
 impl KanyuServer {
     /// 构造 Server 并注册全部工具。
@@ -347,6 +362,69 @@ impl KanyuServer {
         Parameters(req): Parameters<AnalysisZonalStatsReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
         analysis_zonal_stats_sync(req).map(Json).map_err(to_mcp)
+    }
+
+    /// 离屏地图渲染。
+    #[tool(
+        name = "kanyu_render_map",
+        description = "离屏渲染数据文件为地图图片（format=png 时 content 携带 base64 image/png，format=svg 时携带 SVG 源码文本；structuredContent 携带要素数/bbox/尺寸/主题/格式摘要；主题为晨山 light 或夜观星 dark）"
+    )]
+    async fn render_map(
+        &self,
+        Parameters(req): Parameters<RenderMapReq>,
+    ) -> Result<CallToolResult, McpError> {
+        use base64::Engine as _;
+
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let opts = kanyu_render::RenderOptions {
+            width: req.width.unwrap_or(800),
+            height: req.height.unwrap_or(600),
+            theme: req
+                .theme
+                .as_deref()
+                .unwrap_or("light")
+                .parse()
+                .map_err(to_mcp)?,
+            ..Default::default()
+        };
+        let collection = layer.collection();
+        let bbox = collection.bbox.clone().map(serde_json::Value::from);
+        let summary = serde_json::json!({
+            "feature_count": layer.len(),
+            "bbox": bbox,
+            "width": opts.width,
+            "height": opts.height,
+            "theme": opts.theme.name(),
+            "format": req.format.to_ascii_lowercase(),
+        });
+
+        let mut result = match req.format.to_ascii_lowercase().as_str() {
+            "png" => {
+                let bytes = kanyu_render::render_png(&collection, &opts).map_err(to_mcp)?;
+                CallToolResult::success(vec![
+                    ContentBlock::image(
+                        base64::engine::general_purpose::STANDARD.encode(&bytes),
+                        "image/png",
+                    ),
+                    ContentBlock::text(summary.to_string()),
+                ])
+            }
+            "svg" => {
+                let svg = kanyu_render::render_svg(&collection, &opts).map_err(to_mcp)?;
+                CallToolResult::success(vec![
+                    ContentBlock::text(svg),
+                    ContentBlock::text(summary.to_string()),
+                ])
+            }
+            other => {
+                return Err(McpError::invalid_params(
+                    format!("未知渲染格式 '{other}'（支持 png/svg）"),
+                    None,
+                ));
+            }
+        };
+        result.structured_content = Some(summary);
+        Ok(result)
     }
 
     /// 系统自省：架构、模块、格式矩阵、工具清单。

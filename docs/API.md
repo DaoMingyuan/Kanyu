@@ -15,6 +15,7 @@
 6. [agents —— AGENTS.md 语义](#6-agents--agentsmd-语义)
 7. [introspect —— 系统自省](#7-introspect--系统自省)
 8. [error —— 错误处理约定](#8-error--错误处理约定)
+9. [kanyu-render —— 离屏地图渲染](#9-kanyu-render--离屏地图渲染)
 
 ## 1. crate 总览
 
@@ -30,6 +31,8 @@
 
 模块划分：`format`（能力矩阵）、`layer`（图层模型）、`agents`（项目语义）、
 `introspect`（系统自省）、`error`（统一错误）。
+
+> 兄弟 crate `kanyu-render`（离屏地图渲染）见 §9。
 
 ## 2. format —— 格式注册表
 
@@ -311,3 +314,41 @@ match Layer::load("roads", "roads.shp") {
     other => { let _ = other?; }
 }
 ```
+
+## 9. kanyu-render —— 离屏地图渲染
+
+兄弟 crate（依赖 kanyu-core；CLI/MCP 依赖它出图）。SVG 纯字符串零依赖；
+PNG 经 tiny-skia 纯 Rust CPU 光栅化。色彩取自
+[MASTERPLAN.md](MASTERPLAN.md) §1.2（晨山/夜观星），点/线/面样式集中于
+`style_for` 单一事实来源。wgpu 实时渲染管线属交互壳层 kanyu-shell，不在此 crate。
+
+### `RenderOptions`
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `width` | `u32` | 800 | 输出宽度（像素，1–8192） |
+| `height` | `u32` | 600 | 输出高度（像素，1–8192） |
+| `padding` | `f64` | 20.0 | 四周边距（像素） |
+| `theme` | `Theme` | `Light` | `Light` 晨山 / `Dark` 夜观星（`FromStr`：`light`/`dark`） |
+| `background` | `Option<String>` | `None` | 自定义背景色 `#RRGGBB`（缺省用主题画布色） |
+
+### 函数
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `render_svg` | `fn render_svg(collection: &geojson::FeatureCollection, opts: &RenderOptions) -> Result<String, RenderError>` | 渲染为 SVG 字符串（viewBox + 背景 rect + 注释头；面 `fill-rule="evenodd"` 出洞） |
+| `render_png` | `fn render_png(collection: &geojson::FeatureCollection, opts: &RenderOptions) -> Result<Vec<u8>, RenderError>` | 渲染为 PNG 字节串（tiny-skia Pixmap → `encode_png`） |
+
+视口变换：集合 bbox 等比缩放、居中、padding、y 轴翻转；空集合仅背景、
+单点给 0.001° 默认视野（不除零）；经度跨度 >350° 或含 NaN/Inf 坐标报
+中文错误。绘制顺序：面 → 线 → 点（点最上层）；Multi* 逐部件、
+GeometryCollection 递归；无几何要素跳过。
+
+### `RenderError`
+
+| 变体 | 触发 |
+|---|---|
+| `InvalidSize(u32, u32)` | 宽高为 0 或 > 8192 |
+| `InvalidExtent(String)` | 经度跨度 >350°、NaN/Inf 坐标 |
+| `Encode(String)` | PNG 编码失败 |
+| `InvalidColor(String)` | 主题名/颜色值非法 |

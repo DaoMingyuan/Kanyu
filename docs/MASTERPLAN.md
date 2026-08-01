@@ -1096,7 +1096,8 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）
 
-- [ ] wgpu 渲染管线（Vulkan/Metal/DX12/GL 一套代码）。
+- [x] 离屏渲染 render_map（tiny-skia PNG + SVG 双通道，晨山/夜观星主题，2026-08-02）。
+- [ ] wgpu 渲染管线（Vulkan/Metal/DX12/GL 一套代码；交互实时渲染，随 kanyu-shell）。
 - [ ] GeoArrow → SSBO 直通映射；视窗裁剪 + LOD 瓦片。
 - [ ] glyphon SDF 文字；亮/暗主题渲染适配（晨山/夜观星色彩系统）。
 - [ ] MLT（MapLibre Tile）列式瓦片支持——与 GeoArrow 内存模型同构。
@@ -1133,6 +1134,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 | §3.2 格式矩阵 | ✅ 代码化（FormatRegistry，17 格式） | `crates/kanyu-core/src/format.rs` |
 | §4.2 MCP 工具（数据组） | ✅ 3/4 组首工具落地（命名修正为下划线式） | `crates/kanyu-mcp/src/server.rs` |
 | §4.2.2 分析工具组 | ✅ 3/3 首工具（buffer/overlay/topology，geo crate）+ measure（测地线度量） | `crates/kanyu-core/src/analysis.rs`、`crates/kanyu-core/src/crs.rs` |
+| §4.2.3 渲染工具组 | ✅ 首个工具 render_map（离屏 PNG/SVG，晨山/夜观星主题） | `crates/kanyu-render/src/lib.rs` |
 | §4.3.1 CLI | ✅ data/analysis/introspect/agents/mcp 五组；plugin/benchmark 📋 | `crates/kanyu-cli/` |
 | §4.3.2 AGENTS.md | ✅ 解析/校验/模板 | `crates/kanyu-core/src/agents.rs` |
 | §4.4 自省（Phase 1 观察） | ✅ `kanyu.system.introspect` | `crates/kanyu-core/src/introspect.rs` |

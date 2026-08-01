@@ -11,10 +11,11 @@
 2. [全局约定](#2-全局约定)
 3. [kanyu data](#3-kanyu-data)
 4. [kanyu analysis](#4-kanyu-analysis)
-5. [kanyu introspect](#5-kanyu-introspect)
-6. [kanyu agents](#6-kanyu-agents)
-7. [kanyu mcp serve](#7-kanyu-mcp-serve)
-8. [计划中的命令（📋）](#8-计划中的命令-)
+5. [kanyu render](#5-kanyu-render)
+6. [kanyu introspect](#6-kanyu-introspect)
+7. [kanyu agents](#7-kanyu-agents)
+8. [kanyu mcp serve](#8-kanyu-mcp-serve)
+9. [计划中的命令（📋）](#9-计划中的命令-)
 
 ## 1. 安装
 
@@ -278,7 +279,30 @@ $ ./target/debug/kanyu.exe analysis zonal zones.geojson pts.geojson --field heig
 已写出 2 个要素 → zoned.geojson        # 该提示在 stderr
 ```
 
-## 5. kanyu introspect ✅
+## 5. kanyu render ✅
+
+离屏地图渲染（kanyu-render crate；色彩系统见 [MASTERPLAN.md](MASTERPLAN.md) §1.2）。
+
+### 5.1 `kanyu render map <file> --out <path>` ✅
+
+渲染数据文件为地图图片，输出格式按 `--out` 扩展名判定（`png`/`svg`，
+其他扩展名中文报错）。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--out <path>` | （必填） | 输出路径（`.png` 或 `.svg`） |
+| `--width <n>` | `800` | 图片宽度（像素） |
+| `--height <n>` | `600` | 图片高度（像素） |
+| `--theme <light\|dark>` | `light` | 主题：`light` 晨山 / `dark` 夜观星 |
+
+```bash
+$ ./target/debug/kanyu.exe render map examples/buildings.geojson --out map.png
+已渲染 4 个要素 → map.png (png, 800x600, light)        # 该提示在 stderr
+$ ./target/debug/kanyu.exe render map examples/buildings.geojson --out map.svg --theme dark
+已渲染 4 个要素 → map.svg (svg, 800x600, dark)
+```
+
+## 6. kanyu introspect ✅
 
 系统自省 —— AI 读取自身（模块清单、能力矩阵、工具清单）。
 输出即 `Introspection` 报告（字段见 [API.md](API.md#5-introspect--系统自省)）。
@@ -311,12 +335,12 @@ MCP 工具:
 工具清单中的名称即真实 MCP 工具名（下划线式，映射规则见
 [MCP.md](MCP.md#4-命名规范)）。
 
-## 6. kanyu agents
+## 7. kanyu agents
 
 `AGENTS.md` 项目语义文件：生成与校验（语义层设计见
 [ARCHITECTURE.md](ARCHITECTURE.md#5-agentsmd-语义层设计)）。
 
-### 6.1 `kanyu agents init` ✅
+### 7.1 `kanyu agents init` ✅
 
 在指定目录生成 AGENTS.md 模板。
 
@@ -333,7 +357,7 @@ $ ./target/debug/kanyu.exe agents init --project ./my_project --name 演示项�
 # 已存在且未加 --force 时：Error: ...AGENTS.md 已存在（使用 --force 覆盖），退出码 1
 ```
 
-### 6.2 `kanyu agents validate` ✅
+### 7.2 `kanyu agents validate` ✅
 
 校验 AGENTS.md 完整性（元数据 name/crs、图层语义、业务规则）。
 
@@ -362,7 +386,7 @@ Error: AGENTS.md 校验未通过：3 个问题
 {"document":{"business_rules":[...],"custom_tools":[...],"layers":[...],"meta":{...}},"issues":[],"valid":true}
 ```
 
-## 7. kanyu mcp serve ✅
+## 8. kanyu mcp serve ✅
 
 启动 MCP Server，供 AI 代理接入（协议与工具详见 [MCP.md](MCP.md)）。
 
@@ -388,7 +412,7 @@ kanyu-mcp streamable HTTP 监听 http://127.0.0.1:3000/mcp （⚠️ 无鉴权/T
 带 `"task": true` 异步执行，`tasks/get|cancel|update` 驱动生命周期
 （语义见 [MCP.md](MCP.md#21-长任务sep-2663-)）。
 
-## 8. 计划中的命令（📋）
+## 9. 计划中的命令（📋）
 
 对应 [MASTERPLAN.md](MASTERPLAN.md) §4.3.1，随各 Phase 落地：
 

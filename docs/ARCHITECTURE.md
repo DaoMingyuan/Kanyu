@@ -36,7 +36,7 @@
 │  Object-Level  堪舆内核                                  │
 │  ├─ kanyu-core    数据心脏（格式矩阵/图层/AGENTS.md） ✅  │
 │  ├─ kanyu-cli     脊髓（kanyu 命令行）              ✅  │
-│  ├─ kanyu-render  眼睛（wgpu GPU 渲染）             📋  │
+│  ├─ kanyu-render  眼睛（离屏渲染 tiny-skia+SVG） 🚧  │
 │  ├─ kanyu-edit    手（DCEL 拓扑编辑）               📋  │
 │  ├─ kanyu-gene    基因（wasmtime 插件）             📋  │
 │  └─ kanyu-shell   壳层（桌面 UI）                   📋  │
@@ -51,9 +51,9 @@
 | crate | 角色 | 状态 | 依赖的兄弟 crate |
 |---|---|---|---|
 | `kanyu-core` | 数据心脏：格式注册表、图层模型、空间分析（buffer/overlay/topology）、投影/度量（reproject/measure）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
-| `kanyu-cli` | 脊髓：`kanyu` 命令行（clap derive） | ✅ stable | kanyu-core, kanyu-mcp |
-| `kanyu-mcp` | 神经接口：MCP Server（rmcp，stdio） | ✅ incubating | kanyu-core |
-| `kanyu-render` | 眼睛：wgpu 渲染管线，GeoArrow→SSBO 直通 | 📋 planned | kanyu-core |
+| `kanyu-cli` | 脊髓：`kanyu` 命令行（clap derive） | ✅ stable | kanyu-core, kanyu-mcp, kanyu-render |
+| `kanyu-mcp` | 神经接口：MCP Server（rmcp，stdio + streamable HTTP，SEP-2663 长任务） | ✅ incubating | kanyu-core, kanyu-render |
+| `kanyu-render` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG 光栅化，晨山/夜观星主题）；wgpu 实时管线待壳层 | 🚧 incubating | kanyu-core |
 | `kanyu-edit` | 手：DCEL 增量拓扑编辑，Undo/Redo | 📋 planned | kanyu-core |
 | `kanyu-gene` | 基因：WASM 插件系统（wasmtime 沙箱 + 热加载） | 📋 planned | kanyu-core |
 | `kanyu-shell` | 壳层：桌面 UI（egui/slint 方向） | 📋 planned | kanyu-core |
@@ -62,6 +62,7 @@
 
 - `kanyu-core` **不依赖任何兄弟 crate**，是依赖图的根。所有能力下沉到 core，
   cli/mcp 只是"薄壳"：解析参数 → 调 core → 格式化输出。
+- `kanyu-render` 只依赖 core；cli/mcp 依赖 core+render。
 - 兄弟 crate 之间禁止横向依赖（如 mcp 不得依赖 cli）。
 - 该清单的单一事实来源是 `introspect::modules()`（kanyu-core/src/introspect.rs），
   `kanyu introspect` 与 `kanyu_system_introspect` 工具的输出即由此生成。

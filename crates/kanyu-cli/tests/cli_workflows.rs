@@ -501,3 +501,62 @@ fn mcp_stdio_task_lifecycle_end_to_end() {
         20.0
     );
 }
+
+#[test]
+fn render_map_writes_valid_png() {
+    let dir = std::env::temp_dir().join("kanyu_itest_render");
+    std::fs::create_dir_all(&dir).unwrap();
+    let sample = write_sample(&dir);
+    let out_path = dir.join("map.png");
+
+    let out = kanyu()
+        .args([
+            "render",
+            "map",
+            sample.to_str().unwrap(),
+            "--out",
+            out_path.to_str().unwrap(),
+            "--width",
+            "400",
+            "--height",
+            "300",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let bytes = std::fs::read(&out_path).unwrap();
+    assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "PNG 魔数");
+    assert!(bytes.len() > 500, "PNG 应包含实际像素数据");
+
+    // SVG 路径。
+    let svg_path = dir.join("map.svg");
+    let out = kanyu()
+        .args([
+            "render",
+            "map",
+            sample.to_str().unwrap(),
+            "--out",
+            svg_path.to_str().unwrap(),
+            "--theme",
+            "dark",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let svg = std::fs::read_to_string(&svg_path).unwrap();
+    assert!(svg.contains("viewBox=\"0 0 800 600\""));
+    assert!(svg.contains("#0D0F12"), "夜观星画布色: {svg}");
+
+    // 非法扩展名报错。
+    let bad = kanyu()
+        .args(["render", "map", sample.to_str().unwrap(), "--out", "x.bmp"])
+        .output()
+        .unwrap();
+    assert!(!bad.status.success());
+    assert!(String::from_utf8_lossy(&bad.stderr).contains(".png/.svg"));
+}

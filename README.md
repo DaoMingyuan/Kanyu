@@ -33,6 +33,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 - **数据心脏**：统一格式注册表（17 种格式的能力矩阵），GeoJSON 原生加载与属性查询。
 - **脊髓 CLI**：`kanyu data info/load/query/export`、`kanyu introspect`、`kanyu agents init/validate`、`kanyu mcp serve`，全局 `--json`。
 - **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。
+- **离屏渲染**：`kanyu render map` / MCP `kanyu_render_map`——数据 → PNG（tiny-skia）/ SVG 地图图片，晨山/夜观星双主题，AI 代理可直接"看见"数据。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 
 ## 快速开始
@@ -91,7 +92,7 @@ kanyu mcp serve --transport http --port 3000
 │  Object-Level 堪舆内核                                │
 │  ├─ kanyu-core   数据心脏（格式矩阵/图层/AGENTS.md）  │
 │  ├─ kanyu-cli    脊髓（kanyu 命令行）                │
-│  ├─ kanyu-render 眼睛（wgpu GPU 渲染）  [planned]    │
+│  ├─ kanyu-render 眼睛（离屏渲染 tiny-skia+SVG）🚧     │
 │  ├─ kanyu-edit   手（DCEL 拓扑编辑）    [planned]    │
 │  ├─ kanyu-gene   基因（wasmtime 插件）  [planned]    │
 │  └─ kanyu-shell  壳层（egui 桌面 UI）   [planned]    │

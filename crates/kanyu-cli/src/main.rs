@@ -12,6 +12,7 @@ fn main() -> anyhow::Result<()> {
     match &args.command {
         Command::Data(cmd) => commands::data(cmd, args.json),
         Command::Analysis(cmd) => commands::analysis(cmd, args.json),
+        Command::Render(cmd) => commands::render(cmd),
         Command::Introspect => commands::introspect_cmd(args.json),
         Command::Agents(cmd) => commands::agents_cmd(cmd, args.json),
         Command::Mcp(cmd) => commands::mcp_cmd(cmd),

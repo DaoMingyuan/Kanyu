@@ -4,6 +4,23 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-render / CLI / MCP**：Phase 2「视界」启幕——离屏地图渲染
+  `kanyu_render_map`（新 crate `kanyu-render`，依赖方向更新为
+  core ← render ← cli/mcp）：SVG 纯字符串零依赖生成（同时兑现注册表
+  svg 导出 write:Full 承诺）、PNG 经 tiny-skia 纯 Rust CPU 光栅化
+  （CI 无 GPU 依赖；wgpu 实时管线留给交互壳层 kanyu-shell）。
+  色彩取自总规 §1.2：晨山（米白 #F0EDE8/墨黑/远黛青 #2D6A5E）与
+  夜观星（极暗 #0D0F12/月白/青玉 #4DB8A8）双主题，点/线/面样式
+  集中于 `style_for` 单一事实来源；bbox 等比自适应（y 翻转、居中、
+  padding，单点/空集合退化安全）。CLI 新命令组 `kanyu render map`
+  （格式按扩展名判定）；MCP `kanyu_render_map`——PNG 时 content 携带
+  base64 image/png + 摘要文本，SVG 时携带 SVG 源码，structuredContent
+  恒带 feature_count/bbox/尺寸/主题/格式摘要（AI 代理可直接"看见"数据）。
+  introspect：kanyu-render 模块 planned→incubating，新增
+  `kanyu_render_map`（render 组 stable）。
+
 ## [0.8.0] - 2026-08-02
 
 **长任务一等特性：SEP-2663 协议级 MCP tasks，分析工具异步化。Phase 1.5 收官。**
