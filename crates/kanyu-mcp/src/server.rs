@@ -115,7 +115,7 @@ impl KanyuServer {
     /// 将数据导出为目标格式。
     #[tool(
         name = "kanyu_data_export",
-        description = "将数据文件导出为目标格式（当前原生支持 geojson/csv/fgb；其余格式受格式能力矩阵与驱动状态约束）"
+        description = "将数据文件导出为目标格式（当前原生支持 geojson/csv/fgb/geoparquet；其余格式受格式能力矩阵与驱动状态约束）"
     )]
     async fn data_export(
         &self,
@@ -130,6 +130,7 @@ impl KanyuServer {
                 .map_err(to_mcp)?
                 .into_bytes(),
             "fgb" => Layer::to_fgb_bytes(layer.collection()).map_err(to_mcp)?,
+            "geoparquet" => Layer::to_geoparquet_bytes(layer.collection()).map_err(to_mcp)?,
             _ => {
                 return Err(to_mcp(kanyu_core::KanyuError::UnsupportedOperation {
                     format: caps.id.to_string(),

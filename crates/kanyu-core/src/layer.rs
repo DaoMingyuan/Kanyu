@@ -68,6 +68,7 @@ impl Layer {
             }
             "shp" => shp_to_collection(path)?,
             "fgb" => fgb_to_collection(path)?,
+            "geoparquet" => parquet_to_collection(path)?,
             other => {
                 return Err(KanyuError::UnsupportedOperation {
                     format: other.to_string(),
@@ -168,6 +169,13 @@ impl Layer {
     /// 单一几何类型按声明写出；混合几何按 FGB Unknown 异构声明（逐要素带类型）。
     pub fn to_fgb_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
         collection_to_fgb(collection)
+    }
+
+    /// 导出为 GeoParquet 字节串：几何列按 GeoParquet 1.x 规范的 WKB 编码
+    /// （列名 `geometry`，geo 元数据由 geoparquet crate 生成，CRS 缺省 EPSG:4326）；
+    /// 属性列 schema 推断规则同 [`Layer::to_fgb_bytes`]。
+    pub fn to_geoparquet_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
+        collection_to_geoparquet(collection)
     }
 }
 
@@ -513,16 +521,16 @@ impl flatgeobuf::geozero::PropertyProcessor for JsonProperties {
     }
 }
 
-/// FGB 列类型（schema 推断的中间表示）。
+/// 列式格式（FGB/GeoParquet）列类型（schema 推断的中间表示）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FgbColKind {
+enum ColKind {
     Int,
     Double,
     Bool,
     Str,
 }
 
-impl FgbColKind {
+impl ColKind {
     /// 单个 JSON 值对应的列类型（Null 不贡献类型）。
     fn of_value(value: &serde_json::Value) -> Option<Self> {
         match value {
@@ -537,7 +545,7 @@ impl FgbColKind {
 
     /// 同列多个值的类型合并：数值内部 Int+Double→Double，其余冲突退化为 String。
     fn merge(self, other: Self) -> Self {
-        use FgbColKind::*;
+        use ColKind::*;
         match (self, other) {
             (Int, Double) | (Double, Int) => Double,
             (a, b) if a == b => a,
@@ -553,17 +561,26 @@ impl FgbColKind {
             Self::Str => flatgeobuf::ColumnType::String,
         }
     }
+
+    fn arrow_data_type(self) -> arrow_schema::DataType {
+        match self {
+            Self::Int => arrow_schema::DataType::Int64,
+            Self::Double => arrow_schema::DataType::Float64,
+            Self::Bool => arrow_schema::DataType::Boolean,
+            Self::Str => arrow_schema::DataType::Utf8,
+        }
+    }
 }
 
 /// 扫描全集合推断列 schema（按字段首次出现顺序，列序稳定）。
-fn infer_fgb_schema(collection: &geojson::FeatureCollection) -> Vec<(String, FgbColKind)> {
-    let mut schema: Vec<(String, FgbColKind)> = Vec::new();
+fn infer_property_schema(collection: &geojson::FeatureCollection) -> Vec<(String, ColKind)> {
+    let mut schema: Vec<(String, ColKind)> = Vec::new();
     for feature in &collection.features {
         let Some(props) = &feature.properties else {
             continue;
         };
         for (name, value) in props {
-            let Some(kind) = FgbColKind::of_value(value) else {
+            let Some(kind) = ColKind::of_value(value) else {
                 continue;
             };
             match schema.iter_mut().find(|(n, _)| n == name) {
@@ -636,7 +653,7 @@ fn collection_to_fgb(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>
     }
     .map_err(|e| KanyuError::Other(format!("flatgeobuf 写出失败: {e}")))?;
 
-    let schema = infer_fgb_schema(collection);
+    let schema = infer_property_schema(collection);
     for (name, kind) in &schema {
         fgb.add_column(name, kind.column_type(), |_, _| {});
     }
@@ -658,10 +675,10 @@ fn collection_to_fgb(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>
                 // 退化列（Str）中的非字符串值需物化为 String 以延长借用。
                 let owned;
                 let colval = match kind {
-                    FgbColKind::Int => ColumnValue::Long(value.as_i64().unwrap_or_default()),
-                    FgbColKind::Double => ColumnValue::Double(value.as_f64().unwrap_or_default()),
-                    FgbColKind::Bool => ColumnValue::Bool(value.as_bool().unwrap_or_default()),
-                    FgbColKind::Str => {
+                    ColKind::Int => ColumnValue::Long(value.as_i64().unwrap_or_default()),
+                    ColKind::Double => ColumnValue::Double(value.as_f64().unwrap_or_default()),
+                    ColKind::Bool => ColumnValue::Bool(value.as_bool().unwrap_or_default()),
+                    ColKind::Str => {
                         owned = match value {
                             serde_json::Value::String(s) => s.clone(),
                             other => other.to_string(),
@@ -678,6 +695,500 @@ fn collection_to_fgb(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>
     let mut out: Vec<u8> = Vec::new();
     fgb.write(&mut out)
         .map_err(|e| KanyuError::Other(format!("flatgeobuf 写出失败: {e}")))?;
+    Ok(out)
+}
+
+/// geojson 几何 → WKB 字节（ISO，小端，2D；z 维度丢弃，与 FGB 导出口径一致）。
+fn wkb_encode_geom(value: &geojson::Value, out: &mut Vec<u8>) {
+    out.push(1); // 小端字节序
+    match value {
+        geojson::Value::Point(pos) => {
+            wkb_write_u32(out, 1);
+            wkb_write_position(out, pos);
+        }
+        geojson::Value::MultiPoint(pts) => {
+            wkb_write_u32(out, 4);
+            wkb_write_u32(out, pts.len() as u32);
+            for p in pts {
+                wkb_encode_geom(&geojson::Value::Point(p.clone()), out);
+            }
+        }
+        geojson::Value::LineString(line) => {
+            wkb_write_u32(out, 2);
+            wkb_write_positions(out, line);
+        }
+        geojson::Value::MultiLineString(lines) => {
+            wkb_write_u32(out, 5);
+            wkb_write_u32(out, lines.len() as u32);
+            for l in lines {
+                wkb_encode_geom(&geojson::Value::LineString(l.clone()), out);
+            }
+        }
+        geojson::Value::Polygon(rings) => {
+            wkb_write_u32(out, 3);
+            wkb_write_u32(out, rings.len() as u32);
+            for r in rings {
+                wkb_write_positions(out, r);
+            }
+        }
+        geojson::Value::MultiPolygon(polys) => {
+            wkb_write_u32(out, 6);
+            wkb_write_u32(out, polys.len() as u32);
+            for p in polys {
+                wkb_encode_geom(&geojson::Value::Polygon(p.clone()), out);
+            }
+        }
+        geojson::Value::GeometryCollection(geoms) => {
+            wkb_write_u32(out, 7);
+            wkb_write_u32(out, geoms.len() as u32);
+            for g in geoms {
+                wkb_encode_geom(&g.value, out);
+            }
+        }
+    }
+}
+
+fn wkb_write_u32(out: &mut Vec<u8>, v: u32) {
+    out.extend_from_slice(&v.to_le_bytes());
+}
+
+fn wkb_write_position(out: &mut Vec<u8>, pos: &[f64]) {
+    let x = pos.first().copied().unwrap_or(0.0);
+    let y = pos.get(1).copied().unwrap_or(0.0);
+    out.extend_from_slice(&x.to_le_bytes());
+    out.extend_from_slice(&y.to_le_bytes());
+}
+
+fn wkb_write_positions(out: &mut Vec<u8>, positions: &[Vec<f64>]) {
+    wkb_write_u32(out, positions.len() as u32);
+    for p in positions {
+        wkb_write_position(out, p);
+    }
+}
+
+/// WKB → geojson 几何（大小端均支持；严格校验长度，损坏数据报中文错误）。
+fn wkb_decode_geom(bytes: &[u8]) -> Result<geojson::Value> {
+    let mut cur = WkbCursor {
+        bytes,
+        pos: 0,
+        le: true,
+    };
+    let value = cur.read_geometry()?;
+    if cur.pos != bytes.len() {
+        return Err(KanyuError::Other("WKB 几何存在尾部多余字节".to_string()));
+    }
+    Ok(value)
+}
+
+/// WKB 字节流游标（带边界校验）。
+struct WkbCursor<'a> {
+    bytes: &'a [u8],
+    pos: usize,
+    le: bool,
+}
+
+impl<'a> WkbCursor<'a> {
+    fn take(&mut self, n: usize) -> Result<&'a [u8]> {
+        let end = self
+            .pos
+            .checked_add(n)
+            .ok_or_else(|| KanyuError::Other("WKB 声明的长度溢出，数据损坏".to_string()))?;
+        let slice = self
+            .bytes
+            .get(self.pos..end)
+            .ok_or_else(|| KanyuError::Other("WKB 数据长度不足，数据损坏".to_string()))?;
+        self.pos = end;
+        Ok(slice)
+    }
+
+    fn read_u8(&mut self) -> Result<u8> {
+        Ok(self.take(1)?[0])
+    }
+
+    fn read_u32(&mut self) -> Result<u32> {
+        let b: [u8; 4] = self.take(4)?.try_into().expect("长度已校验");
+        Ok(if self.le {
+            u32::from_le_bytes(b)
+        } else {
+            u32::from_be_bytes(b)
+        })
+    }
+
+    fn read_f64(&mut self) -> Result<f64> {
+        let b: [u8; 8] = self.take(8)?.try_into().expect("长度已校验");
+        Ok(if self.le {
+            f64::from_le_bytes(b)
+        } else {
+            f64::from_be_bytes(b)
+        })
+    }
+
+    fn read_position(&mut self) -> Result<Vec<f64>> {
+        Ok(vec![self.read_f64()?, self.read_f64()?])
+    }
+
+    fn read_positions(&mut self) -> Result<Vec<Vec<f64>>> {
+        let n = self.read_u32()?;
+        (0..n).map(|_| self.read_position()).collect()
+    }
+
+    fn read_geometry(&mut self) -> Result<geojson::Value> {
+        self.le = match self.read_u8()? {
+            0 => false,
+            1 => true,
+            other => {
+                return Err(KanyuError::Other(format!(
+                    "WKB 字节序标记非法（{other}），数据损坏"
+                )))
+            }
+        };
+        match self.read_u32()? {
+            1 => Ok(geojson::Value::Point(self.read_position()?)),
+            2 => Ok(geojson::Value::LineString(self.read_positions()?)),
+            3 => {
+                let n = self.read_u32()?;
+                let rings = (0..n)
+                    .map(|_| self.read_positions())
+                    .collect::<Result<_>>()?;
+                Ok(geojson::Value::Polygon(rings))
+            }
+            4 => {
+                // MultiPoint：n 个完整 Point 子 WKB。
+                let n = self.read_u32()?;
+                let mut pts = Vec::with_capacity(n as usize);
+                for _ in 0..n {
+                    match self.read_geometry()? {
+                        geojson::Value::Point(p) => pts.push(p),
+                        other => {
+                            return Err(KanyuError::Other(format!(
+                                "WKB MultiPoint 内出现非法子类型（{}）",
+                                other.type_name()
+                            )))
+                        }
+                    }
+                }
+                Ok(geojson::Value::MultiPoint(pts))
+            }
+            5 => {
+                let n = self.read_u32()?;
+                let mut lines = Vec::with_capacity(n as usize);
+                for _ in 0..n {
+                    match self.read_geometry()? {
+                        geojson::Value::LineString(l) => lines.push(l),
+                        other => {
+                            return Err(KanyuError::Other(format!(
+                                "WKB MultiLineString 内出现非法子类型（{}）",
+                                other.type_name()
+                            )))
+                        }
+                    }
+                }
+                Ok(geojson::Value::MultiLineString(lines))
+            }
+            6 => {
+                let n = self.read_u32()?;
+                let mut polys = Vec::with_capacity(n as usize);
+                for _ in 0..n {
+                    match self.read_geometry()? {
+                        geojson::Value::Polygon(p) => polys.push(p),
+                        other => {
+                            return Err(KanyuError::Other(format!(
+                                "WKB MultiPolygon 内出现非法子类型（{}）",
+                                other.type_name()
+                            )))
+                        }
+                    }
+                }
+                Ok(geojson::Value::MultiPolygon(polys))
+            }
+            7 => {
+                let n = self.read_u32()?;
+                let geoms = (0..n)
+                    .map(|_| Ok(geojson::Geometry::new(self.read_geometry()?)))
+                    .collect::<Result<_>>()?;
+                Ok(geojson::Value::GeometryCollection(geoms))
+            }
+            other => Err(KanyuError::Other(format!(
+                "WKB 几何类型码不支持（{other}），仅支持 1-7（2D）"
+            ))),
+        }
+    }
+}
+
+/// GeoParquet → FeatureCollection：几何列按 geo 元数据定位（v0.1 要求 WKB 编码），
+/// 属性列按 Arrow 类型原生映射 JSON 类型（数值/布尔/字符串不丢型）。
+fn parquet_to_collection(path: &str) -> Result<geojson::FeatureCollection> {
+    use arrow_array::Array;
+    use geoparquet::metadata::GeoParquetColumnEncoding;
+    use geoparquet::reader::GeoParquetReaderBuilder;
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+
+    let file = std::fs::File::open(path)?;
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file).map_err(|e| {
+        KanyuError::Other(format!(
+            "geoparquet 读取失败（{path}）：{e}；文件可能损坏或不是有效的 Parquet"
+        ))
+    })?;
+
+    let meta = builder
+        .geoparquet_metadata()
+        .ok_or_else(|| {
+            KanyuError::Other(format!(
+                "geoparquet 读取失败（{path}）：缺少 geo 元数据，不是 GeoParquet 文件"
+            ))
+        })?
+        .map_err(|e| KanyuError::Other(format!("geoparquet 元数据解析失败（{path}）：{e}")))?;
+    let geom_col = meta.primary_column.clone();
+    if let Some(col_meta) = meta.columns.get(&geom_col) {
+        if col_meta.encoding != GeoParquetColumnEncoding::WKB {
+            return Err(KanyuError::Other(format!(
+                "geoparquet 读取失败（{path}）：几何列 '{geom_col}' 编码为 {:?}，v0.1 仅支持 WKB 编码",
+                col_meta.encoding
+            )));
+        }
+    }
+
+    let reader = builder
+        .build()
+        .map_err(|e| KanyuError::Other(format!("geoparquet 读取失败（{path}）：{e}")))?;
+    let mut features = Vec::new();
+    for batch in reader {
+        let batch = batch
+            .map_err(|e| KanyuError::Other(format!("geoparquet 数据页解析失败（{path}）：{e}")))?;
+        let schema = batch.schema();
+        let geom_idx = schema.index_of(&geom_col).map_err(|_| {
+            KanyuError::Other(format!(
+                "geoparquet 读取失败（{path}）：缺少几何列 '{geom_col}'"
+            ))
+        })?;
+        let geom_arr = batch.column(geom_idx);
+        for row in 0..batch.num_rows() {
+            let geometry = if geom_arr.is_null(row) {
+                None
+            } else {
+                let wkb = parquet_binary_value(geom_arr, row)?;
+                let value = wkb_decode_geom(wkb).map_err(|e| {
+                    KanyuError::Other(format!(
+                        "geoparquet 第 {} 行几何 WKB 解析失败（{path}）：{e}",
+                        row + 1
+                    ))
+                })?;
+                Some(geojson::Geometry::new(value))
+            };
+            let mut properties = serde_json::Map::new();
+            for (idx, field) in schema.fields().iter().enumerate() {
+                if idx == geom_idx {
+                    continue;
+                }
+                if let Some(v) = arrow_value_to_json(batch.column(idx), row, field.name())? {
+                    properties.insert(field.name().clone(), v);
+                }
+            }
+            features.push(geojson::Feature {
+                bbox: None,
+                geometry,
+                id: None,
+                properties: Some(properties),
+                foreign_members: None,
+            });
+        }
+    }
+
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
+
+/// 读取 Binary/LargeBinary 列的单行字节。
+fn parquet_binary_value(array: &arrow_array::ArrayRef, row: usize) -> Result<&[u8]> {
+    use arrow_array::{BinaryArray, LargeBinaryArray};
+    use arrow_schema::DataType;
+    match array.data_type() {
+        DataType::Binary => Ok(array
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .expect("类型已匹配")
+            .value(row)),
+        DataType::LargeBinary => Ok(array
+            .as_any()
+            .downcast_ref::<LargeBinaryArray>()
+            .expect("类型已匹配")
+            .value(row)),
+        dt => Err(KanyuError::Other(format!(
+            "geoparquet 几何列类型应为 Binary（WKB），实际为 {dt}"
+        ))),
+    }
+}
+
+/// Arrow 单元格 → JSON 值；Null 与 NaN/Inf 浮点返回 None 以跳过。
+/// 不支持的列类型返回带列名的中文错误（拒绝静默丢列）。
+fn arrow_value_to_json(
+    array: &arrow_array::ArrayRef,
+    row: usize,
+    name: &str,
+) -> Result<Option<serde_json::Value>> {
+    use arrow_array::*;
+    use arrow_schema::DataType;
+
+    /// 按数组类型 downcast 并取值的宏（match 已保证类型一致）。
+    macro_rules! val {
+        ($t:ty) => {
+            array
+                .as_any()
+                .downcast_ref::<$t>()
+                .expect("类型已匹配")
+                .value(row)
+        };
+    }
+
+    if array.is_null(row) {
+        return Ok(None);
+    }
+    let unsupported = || {
+        KanyuError::Other(format!(
+            "geoparquet 暂不支持读取列 '{name}' 的类型 {}",
+            array.data_type()
+        ))
+    };
+    let v = match array.data_type() {
+        DataType::Utf8 => serde_json::Value::from(val!(StringArray)),
+        DataType::LargeUtf8 => serde_json::Value::from(val!(LargeStringArray)),
+        DataType::Utf8View => serde_json::Value::from(val!(StringViewArray)),
+        DataType::Int8 => serde_json::Value::from(val!(Int8Array)),
+        DataType::Int16 => serde_json::Value::from(val!(Int16Array)),
+        DataType::Int32 => serde_json::Value::from(val!(Int32Array)),
+        DataType::Int64 => serde_json::Value::from(val!(Int64Array)),
+        DataType::UInt8 => serde_json::Value::from(val!(UInt8Array)),
+        DataType::UInt16 => serde_json::Value::from(val!(UInt16Array)),
+        DataType::UInt32 => serde_json::Value::from(val!(UInt32Array)),
+        DataType::UInt64 => serde_json::Value::from(val!(UInt64Array)),
+        DataType::Float32 => match serde_json::Number::from_f64(val!(Float32Array) as f64) {
+            Some(n) => serde_json::Value::Number(n),
+            None => return Ok(None),
+        },
+        DataType::Float64 => match serde_json::Number::from_f64(val!(Float64Array)) {
+            Some(n) => serde_json::Value::Number(n),
+            None => return Ok(None),
+        },
+        DataType::Boolean => serde_json::Value::Bool(val!(BooleanArray)),
+        _ => return Err(unsupported()),
+    };
+    Ok(Some(v))
+}
+
+/// 取要素的非 Null 属性值。
+fn json_prop<'a>(feature: &'a geojson::Feature, name: &str) -> Option<&'a serde_json::Value> {
+    feature
+        .properties
+        .as_ref()
+        .and_then(|p| p.get(name))
+        .filter(|v| !v.is_null())
+}
+
+/// FeatureCollection → GeoParquet 字节串：属性列 schema 推断（同 FGB），
+/// 几何列 `geometry` 为 WKB Binary + geoarrow 扩展元数据；geo 元数据、
+/// geometry_types 与 bbox 由 geoparquet crate 编码器生成。
+fn collection_to_geoparquet(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
+    use arrow_array::{
+        ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray,
+    };
+    use arrow_schema::{Field, Schema};
+    use geoarrow_schema::{GeoArrowType, Metadata as GeoMetadata, WkbType};
+    use geoparquet::writer::{GeoParquetRecordBatchEncoder, GeoParquetWriterOptionsBuilder};
+    use parquet::arrow::ArrowWriter;
+    use std::sync::Arc;
+
+    let prop_schema = infer_property_schema(collection);
+    let mut fields: Vec<Field> = prop_schema
+        .iter()
+        .map(|(name, kind)| Field::new(name, kind.arrow_data_type(), true))
+        .collect();
+    let geom_type = GeoArrowType::Wkb(WkbType::new(Arc::new(GeoMetadata::default())));
+    fields.push(geom_type.to_field("geometry", true));
+    let schema = Arc::new(Schema::new(fields));
+
+    let mut columns: Vec<ArrayRef> = Vec::new();
+    for (name, kind) in &prop_schema {
+        let col: ArrayRef = match kind {
+            ColKind::Int => Arc::new(Int64Array::from(
+                collection
+                    .features
+                    .iter()
+                    .map(|f| json_prop(f, name).and_then(|v| v.as_i64()))
+                    .collect::<Vec<_>>(),
+            )),
+            ColKind::Double => Arc::new(Float64Array::from(
+                collection
+                    .features
+                    .iter()
+                    .map(|f| json_prop(f, name).and_then(|v| v.as_f64()))
+                    .collect::<Vec<_>>(),
+            )),
+            ColKind::Bool => Arc::new(BooleanArray::from(
+                collection
+                    .features
+                    .iter()
+                    .map(|f| json_prop(f, name).and_then(|v| v.as_bool()))
+                    .collect::<Vec<_>>(),
+            )),
+            ColKind::Str => Arc::new(StringArray::from(
+                collection
+                    .features
+                    .iter()
+                    .map(|f| {
+                        json_prop(f, name).map(|v| match v {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )),
+        };
+        columns.push(col);
+    }
+    let wkb_owned: Vec<Option<Vec<u8>>> = collection
+        .features
+        .iter()
+        .map(|f| {
+            f.geometry.as_ref().map(|g| {
+                let mut buf = Vec::new();
+                wkb_encode_geom(&g.value, &mut buf);
+                buf
+            })
+        })
+        .collect();
+    columns.push(Arc::new(BinaryArray::from(
+        wkb_owned.iter().map(|o| o.as_deref()).collect::<Vec<_>>(),
+    )));
+
+    let batch = RecordBatch::try_new(schema.clone(), columns)
+        .map_err(|e| KanyuError::Other(format!("geoparquet 批次构造失败: {e}")))?;
+
+    let options = GeoParquetWriterOptionsBuilder::default().build();
+    let mut encoder = GeoParquetRecordBatchEncoder::try_new(&schema, &options)
+        .map_err(|e| KanyuError::Other(format!("geoparquet 编码器构造失败: {e}")))?;
+    let target_schema = encoder.target_schema();
+    let encoded = encoder
+        .encode_record_batch(&batch)
+        .map_err(|e| KanyuError::Other(format!("geoparquet 几何编码失败: {e}")))?;
+    let kv = encoder
+        .into_keyvalue()
+        .map_err(|e| KanyuError::Other(format!("geoparquet 元数据生成失败: {e}")))?;
+
+    let mut out: Vec<u8> = Vec::new();
+    {
+        let mut writer = ArrowWriter::try_new(&mut out, target_schema, None)
+            .map_err(|e| KanyuError::Other(format!("geoparquet 写出失败: {e}")))?;
+        writer
+            .write(&encoded)
+            .map_err(|e| KanyuError::Other(format!("geoparquet 写出失败: {e}")))?;
+        writer.append_key_value_metadata(kv);
+        writer
+            .close()
+            .map_err(|e| KanyuError::Other(format!("geoparquet 写出失败: {e}")))?;
+    }
     Ok(out)
 }
 
@@ -1067,6 +1578,52 @@ mod tests {
         assert!(
             err.to_string().contains("flatgeobuf"),
             "错误应指出 flatgeobuf 读取问题: {err}"
+        );
+    }
+
+    #[test]
+    fn geoparquet_roundtrip_preserves_features_and_types() {
+        let bytes = Layer::to_geoparquet_bytes(&fgb_test_collection()).unwrap();
+        let dir = std::env::temp_dir().join("kanyu_core_geoparquet_roundtrip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("mixed.parquet");
+        std::fs::write(&path, &bytes).unwrap();
+
+        let layer = Layer::load("mixed", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 3);
+        let s = layer.summary();
+        assert_eq!(s.format, "geoparquet");
+        assert_eq!(s.geometry_types, vec!["LineString", "Point", "Polygon"]);
+        assert_eq!(s.fields, vec!["active", "height", "name"]);
+        // 整浮混合列合并为 Double，数值比较查询结果一致（80 与 55.5 > 50）。
+        assert_eq!(layer.query("height > 50").unwrap().features.len(), 2);
+        // Bool/数值列读回后 JSON 类型保持。
+        let a = find_by_name(&layer, "甲");
+        let props = a.properties.as_ref().unwrap();
+        assert_eq!(props["active"], serde_json::Value::Bool(true));
+        assert_eq!(props["height"].as_f64(), Some(80.0));
+    }
+
+    #[test]
+    fn geoparquet_export_bytes_have_parquet_magic() {
+        let bytes = Layer::to_geoparquet_bytes(&fgb_test_collection()).unwrap();
+        // Parquet 规范：文件以 "PAR1" 开头并以 "PAR1" 结尾。
+        assert_eq!(&bytes[..4], b"PAR1");
+        assert_eq!(&bytes[bytes.len() - 4..], b"PAR1");
+    }
+
+    #[test]
+    fn geoparquet_corrupt_file_gives_clear_error() {
+        let dir = std::env::temp_dir().join("kanyu_core_geoparquet_corrupt");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("garbage.parquet");
+        std::fs::write(&path, b"this is not a parquet file").unwrap();
+        let err = Layer::load("garbage", path.to_str().unwrap())
+            .err()
+            .expect("损坏文件应报错");
+        assert!(
+            err.to_string().contains("geoparquet"),
+            "错误应指出 geoparquet 读取问题: {err}"
         );
     }
 }

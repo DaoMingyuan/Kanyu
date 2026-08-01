@@ -80,6 +80,11 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                     std::fs::write(out, bytes).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (fgb)", layer.len());
                 }
+                "geoparquet" => {
+                    let bytes = Layer::to_geoparquet_bytes(layer.collection())?;
+                    std::fs::write(out, bytes).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!("已导出 {} 个要素 → {out} (geoparquet)", layer.len());
+                }
                 other => {
                     bail!(
                         "格式 '{other}' 的原生导出尚未启用（driver: {}）。\n\

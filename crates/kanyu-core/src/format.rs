@@ -126,7 +126,7 @@ impl FormatRegistry {
                 symbol: Full,
                 layout: None,
                 driver: "native",
-                note: "云原生列式",
+                note: "原生读写（geoparquet crate）；云原生列式，WKB 几何编码 + geo 元数据，列 schema 自动推断",
             },
             FormatCapabilities {
                 id: "dwg",

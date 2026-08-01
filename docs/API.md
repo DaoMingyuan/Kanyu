@@ -89,7 +89,7 @@ v0.1 以 GeoJSON `FeatureCollection` 为原生载体；后续迁移 GeoArrow `Re
 
 | 方法 | 签名 | 说明 |
 |---|---|---|
-| `load` | `fn load(id: impl Into<String>, path: &str) -> Result<Self>` | 加载图层。格式自动探测；v0.1 原生支持 geojson、csv/tsv（坐标列自动识别 lon/lat/x/y/经度/纬度；xlsx 暂返回 `UnsupportedOperation`）、shp（读取：Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化）与 fgb（读写），桥接驱动格式返回 `UnsupportedOperation`；无法探测返回 `UnknownFormat` |
+| `load` | `fn load(id: impl Into<String>, path: &str) -> Result<Self>` | 加载图层。格式自动探测；v0.1 原生支持 geojson、csv/tsv（坐标列自动识别 lon/lat/x/y/经度/纬度；xlsx 暂返回 `UnsupportedOperation`）、shp（读取：Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化）、fgb（读写）与 geoparquet（读写，WKB 几何编码），桥接驱动格式返回 `UnsupportedOperation`；无法探测返回 `UnknownFormat` |
 | `id` | `fn id(&self) -> &str` | 图层标识 |
 | `len` | `fn len(&self) -> usize` | 要素数量 |
 | `is_empty` | `fn is_empty(&self) -> bool` | 是否空图层 |
@@ -99,6 +99,7 @@ v0.1 以 GeoJSON `FeatureCollection` 为原生载体；后续迁移 GeoArrow `Re
 | `to_geojson_string` | `fn to_geojson_string(collection: &geojson::FeatureCollection) -> String` | 关联函数：集合 → GeoJSON 字符串 |
 | `to_csv_string` | `fn to_csv_string(collection: &geojson::FeatureCollection) -> Result<String>` | 关联函数：集合 → CSV 字符串（`x,y` 坐标列仅 Point 取值，后接属性字段并集） |
 | `to_fgb_bytes` | `fn to_fgb_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>` | 关联函数：集合 → FlatGeobuf 字节串（列 schema 自动推断：String→String、整数→Long、浮点→Double、Bool→Bool，混合类型列退化为 String；单一几何类型按声明写出，混合几何按 Unknown 异构声明；Hilbert 空间索引，CRS 声明 EPSG:4326） |
+| `to_geoparquet_bytes` | `fn to_geoparquet_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>` | 关联函数：集合 → GeoParquet 字节串（几何列 `geometry` 按 GeoParquet 1.x 规范 WKB 编码，geo 元数据/geometry_types/bbox 由 geoparquet crate 生成；属性列 schema 推断规则同 `to_fgb_bytes`） |
 
 **查询表达式**：`"field op value"`，`op ∈ == != > >= < <=`。
 右值解析顺序：数值 → 布尔 → 字符串（可带单/双引号）。

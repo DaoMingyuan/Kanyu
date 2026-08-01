@@ -6,6 +6,12 @@
 
 ### 新增
 
+- **kanyu-core / CLI / MCP**：GeoParquet 原生读写（geoparquet crate，免 GDAL）——
+  几何列按 GeoParquet 1.x 规范 WKB 编码（列名 `geometry`，自研小端 2D WKB
+  编解码，六类基础几何 + GeometryCollection 可往返），geo 元数据/geometry_types/
+  bbox 由 geoparquet crate 编码器生成；属性列 schema 推断规则与 FGB 一致，
+  Arrow 列类型原生映射 JSON 类型（不支持的列类型读侧报中文错误，拒绝静默丢列）。
+  `Layer::to_geoparquet_bytes`、CLI/MCP export `-f geoparquet` 可用。
 - **kanyu-core / CLI / MCP**：FlatGeobuf 原生读写（flatgeobuf crate，免 GDAL）——
   读取逐要素转换（几何经 geozero `ToJson`、属性经自研 PropertyProcessor），
   FGB 列类型原生映射为 JSON 类型；

@@ -39,6 +39,13 @@ flatgeobuf = { version = "6", default-features = false }
 # 与 flatgeobuf 内部依赖同版本锁定；仅为其开启 with-geojson 特性
 #（flatgeobuf 自身以 default-features=false 引入 geozero，不含 geojson 模块）。
 geozero = { version = "0.15.1", default-features = false, features = ["with-geojson"] }
+# GeoParquet：geoparquet crate 负责 geo 元数据与 RecordBatch 编解码；
+# arrow/parquet 版本须与 geoparquet 内部依赖同系列（58），类型才能互通。
+geoparquet = "0.8"
+geoarrow-schema = "0.8"
+arrow-array = "58"
+arrow-schema = "58"
+parquet = { version = "58", features = ["arrow"] }
 
 [profile.release]
 lto = "thin"
