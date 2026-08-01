@@ -50,6 +50,21 @@ impl Layer {
                 geojson::FeatureCollection::try_from(gj)
                     .map_err(|e| KanyuError::GeoJson(e.to_string()))?
             }
+            "csv" => {
+                if path.to_ascii_lowercase().ends_with(".xlsx") {
+                    return Err(KanyuError::UnsupportedOperation {
+                        format: "xlsx".to_string(),
+                        operation: "native-load（xlsx 二进制解析待 calamine 集成，请先转 CSV）"
+                            .to_string(),
+                    });
+                }
+                let delimiter = if path.to_ascii_lowercase().ends_with(".tsv") {
+                    b'\t'
+                } else {
+                    b','
+                };
+                csv_to_collection(&text, delimiter)?
+            }
             other => {
                 return Err(KanyuError::UnsupportedOperation {
                     format: other.to_string(),
@@ -138,6 +153,81 @@ impl Layer {
     pub fn to_geojson_string(collection: &geojson::FeatureCollection) -> String {
         geojson::GeoJson::from(collection.clone()).to_string()
     }
+}
+
+/// CSV/TSV → FeatureCollection：自动识别坐标列（lon/lat/x/y/经度/纬度），
+/// 其余列作为属性；数值型单元格自动转为 JSON 数值。
+fn csv_to_collection(text: &str, delimiter: u8) -> Result<geojson::FeatureCollection> {
+    let mut rdr = csv::ReaderBuilder::new()
+        .delimiter(delimiter)
+        .trim(csv::Trim::All)
+        .from_reader(text.as_bytes());
+    let headers = rdr
+        .headers()
+        .map_err(|e| KanyuError::Other(format!("csv 表头解析失败: {e}")))?
+        .clone();
+    let (x_idx, y_idx) = detect_coord_columns(&headers).ok_or_else(|| {
+        KanyuError::Other(format!(
+            "CSV 缺少可识别的坐标列（支持 lon/lat、longitude/latitude、x/y、经度/纬度）；实际表头: {}",
+            headers.iter().collect::<Vec<_>>().join(", ")
+        ))
+    })?;
+
+    let mut features = Vec::new();
+    for (row_no, record) in rdr.records().enumerate() {
+        let record = record
+            .map_err(|e| KanyuError::Other(format!("csv 第 {} 行解析失败: {e}", row_no + 2)))?;
+        let x: f64 = record
+            .get(x_idx)
+            .and_then(|v| v.parse().ok())
+            .ok_or_else(|| KanyuError::Other(format!("csv 第 {} 行 X 坐标不是数值", row_no + 2)))?;
+        let y: f64 = record
+            .get(y_idx)
+            .and_then(|v| v.parse().ok())
+            .ok_or_else(|| KanyuError::Other(format!("csv 第 {} 行 Y 坐标不是数值", row_no + 2)))?;
+
+        let mut properties = serde_json::Map::new();
+        for (i, header) in headers.iter().enumerate() {
+            if i == x_idx || i == y_idx {
+                continue;
+            }
+            if let Some(raw) = record.get(i) {
+                // 数值优先，退化为字符串。
+                let value = raw
+                    .parse::<f64>()
+                    .map(serde_json::Value::from)
+                    .unwrap_or_else(|_| serde_json::Value::String(raw.to_string()));
+                properties.insert(header.to_string(), value);
+            }
+        }
+
+        features.push(geojson::Feature {
+            bbox: None,
+            geometry: Some(geojson::Geometry::new(geojson::Value::Point(vec![x, y]))),
+            id: None,
+            properties: Some(properties),
+            foreign_members: None,
+        });
+    }
+
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
+
+/// 在表头中定位 X/Y 坐标列（大小写不敏感）。
+fn detect_coord_columns(headers: &csv::StringRecord) -> Option<(usize, usize)> {
+    const X_NAMES: [&str; 5] = ["lon", "lng", "longitude", "x", "经度"];
+    const Y_NAMES: [&str; 4] = ["lat", "latitude", "y", "纬度"];
+    let find = |names: &[&str]| {
+        headers.iter().position(|h| {
+            let h = h.trim().to_ascii_lowercase();
+            names.contains(&h.as_str())
+        })
+    };
+    Some((find(&X_NAMES)?, find(&Y_NAMES)?))
 }
 
 /// 比较运算符。
@@ -272,5 +362,38 @@ mod tests {
     #[test]
     fn query_rejects_garbage() {
         assert!(sample_layer().query("not a query").is_err());
+    }
+
+    #[test]
+    fn csv_load_detects_coord_columns() {
+        let dir = std::env::temp_dir().join("kanyu_core_csv_ok");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("pts.csv");
+        std::fs::write(
+            &path,
+            "name,lon,lat,height\n甲,116.39,39.90,80\n乙,116.40,39.91,30\n",
+        )
+        .unwrap();
+        let layer = Layer::load("pts", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 2);
+        let s = layer.summary();
+        assert_eq!(s.format, "csv");
+        assert_eq!(s.geometry_types, vec!["Point"]);
+        // 坐标列不进入属性字段。
+        assert_eq!(s.fields, vec!["height", "name"]);
+        assert_eq!(layer.query("height > 50").unwrap().features.len(), 1);
+    }
+
+    #[test]
+    fn csv_without_coord_columns_gives_clear_error() {
+        let dir = std::env::temp_dir().join("kanyu_core_csv_bad");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("no_coords.csv");
+        std::fs::write(&path, "a,b\n1,2\n").unwrap();
+        let err = Layer::load("bad", path.to_str().unwrap()).err().expect("缺少坐标列应报错");
+        assert!(
+            err.to_string().contains("坐标列"),
+            "错误应指出坐标列问题: {err}"
+        );
     }
 }

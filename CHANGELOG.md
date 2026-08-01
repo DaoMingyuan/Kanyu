@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-core**：CSV/TSV 原生加载，坐标列自动识别（lon/lat、longitude/latitude、
+  x/y、经度/纬度），其余列自动作为属性（数值单元格转为 JSON 数值）。
+  xlsx 暂返回结构化错误提示（待 calamine 集成）。
+
 ## [0.1.0] - 2026-08-01
 
 首个公开版本：堪舆的地基。
