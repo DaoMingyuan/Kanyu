@@ -1033,6 +1033,7 @@ A/B 测试 (与旧版本并行)
 | 15 | GeoPackage/SpatiaLite/PostGIS/WFS 进内核 | **降级** | 可选 feature 插件（`sqlite-io`：rusqlite bundled；`net-io`：PostGIS/WFS 客户端） | rusqlite bundled 编译 C SQLite，违反内核零 C 依赖红线；服务类协议无文件语义，独立 feature 保持默认构建纯净 |
 | 16 | 阶段顺序：Phase 2 渲染 → Phase 3 编辑 → Phase 4 AI/分析 | **调序** | Phase 1（地基）→ **分析内核**（geo crate：buffer/overlay/topology，CLI/MCP 先行）→ Phase 2 渲染 → Phase 3 编辑 → Phase 4 AI 融合 | CLI/MCP 是已交付的产品面，分析工具组可立即兑现总规 §4.2.2 的 MCP 承诺；UI 壳层（egui/wgpu）体量大、不阻塞内核能力沉淀。内核优先让 AI 代理用户尽早获得完整工作流 |
 | 17 | MCP 工具 kanyu_render_symbolize 独立存在 | **合并** | 符号化并入 kanyu_render_map 的 style 参数（graduated/categorical 规则） | 避免两个工具做同一件事的冗余面；无 style 调用行为不变，向后兼容 |
+| 18 | DWG 读取 = LibreDWG 编译 WASM 沙箱（裁决 #7 路线） | **改道** | **首选 acadrust 0.4（纯 Rust、MPL-2.0、R13–R2018 读写）原生进内核**（driver: acadrust，只读起步）；LibreDWG-wasm 降为备选（覆盖率不足时启用，GPL 制品独立可选分发） | 2026-08-03 调研：① @mlightcad/libredwg-web 为 emscripten 模块，wasmtime 跑不了；② LibreDWG→wasi-sdk 无人做过，autoconf 交叉编译中偏大工作量且 GPL 分发受限；③ acadrust 纯 Rust 内存安全（沙箱隔离的理由从"GPL+CVE"消失）、MPL-2.0 文件级弱 copyleft 与双许可兼容、已有 dwgdxf npm 包的 WASM 实证。风险：0.4.x 年轻、真实图纸覆盖率待实测——以 421 个真实 DWG 样本 spike 验证后再定稿 |
 
 ### 6.2 竞品格局与差异化定位（调研摘要）
 
@@ -1125,7 +1126,8 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 #### Phase 5：魂 —— 自迭代（Months 13–18）
 
 - [x] wasmtime + WIT 基因宿主（加载/校验/fuel 沙箱执行，2026-08-03）。
-- [ ] libredwg-wasm 基因（DWG 只读沙箱，需 wasi-sdk 工具链）。
+- [ ] DWG 原生读取（acadrust，裁决 #18；421 样本 spike → 覆盖率报告 → 进内核）。
+- [ ] libredwg-wasm 基因（备选路线：覆盖率不足时启用，wasi-sdk + wasi-virt，GPL 制品独立分发）。
 - [x] MCP 热加载接线（kanyu_system_hotload 实质化，2026-08-03）。
 - [ ] AI 代码生成 → WASM 编译 → 沙箱验证 → A/B 测试流水线。
 - [ ] 基因市场（Gene Marketplace）；知识库 RAG。
