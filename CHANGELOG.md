@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-03
+
+**Phase 5 魂启幕：WASM 基因系统宿主（wasmtime + WIT 组件模型，fuel 沙箱）。**
+
 ### 新增
 
 - **kanyu-gene / CLI**：Phase 5「魂」启幕——WASM 基因系统宿主（总规 §4.5
@@ -265,7 +269,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.11.0
 [0.10.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.10.0
 [0.9.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.9.0
 [0.8.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.8.0
