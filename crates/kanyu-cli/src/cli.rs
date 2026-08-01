@@ -151,6 +151,35 @@ pub enum AnalysisCommand {
         #[arg(long)]
         kind: String,
     },
+    /// 空间连接（左连接 + 匹配展开；一对多匹配各输出一条）。
+    Sjoin {
+        /// 目标图层文件。
+        target: String,
+        /// 连接图层文件。
+        join: String,
+        /// 空间谓词：intersects/contains/within。
+        #[arg(long)]
+        predicate: String,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 分区统计（values 按质心/代表点归属 zones 面要素）。
+    Zonal {
+        /// 分区图层文件（仅面要素）。
+        zones: String,
+        /// 数值图层文件。
+        values: String,
+        /// 数值字段名。
+        #[arg(long)]
+        field: String,
+        /// 统计项（逗号分隔：count,sum,mean,min,max）。
+        #[arg(long)]
+        stats: String,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
 }
 
 /// `kanyu agents ...`

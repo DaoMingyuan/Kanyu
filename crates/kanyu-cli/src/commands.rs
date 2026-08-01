@@ -193,6 +193,43 @@ pub fn analysis(cmd: &AnalysisCommand, json: bool) -> Result<()> {
                 )
             });
         }
+        AnalysisCommand::Sjoin {
+            target,
+            join,
+            predicate,
+            output,
+        } => {
+            let target_layer = Layer::load(stem_of(target), target)?;
+            let join_layer = Layer::load(stem_of(join), join)?;
+            let predicate: kanyu_core::analysis::SpatialPredicate = predicate.parse()?;
+            let result = kanyu_core::analysis::sjoin(
+                &target_layer.collection(),
+                &join_layer.collection(),
+                predicate,
+            )?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Zonal {
+            zones,
+            values,
+            field,
+            stats,
+            output,
+        } => {
+            let zones_layer = Layer::load(stem_of(zones), zones)?;
+            let values_layer = Layer::load(stem_of(values), values)?;
+            let stats: Vec<kanyu_core::analysis::ZonalStat> = stats
+                .split(',')
+                .map(|s| s.trim().parse())
+                .collect::<std::result::Result<_, _>>()?;
+            let result = kanyu_core::analysis::zonal_stats(
+                &zones_layer.collection(),
+                &values_layer.collection(),
+                field,
+                &stats,
+            )?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
     }
     Ok(())
 }

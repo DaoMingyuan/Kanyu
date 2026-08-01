@@ -147,6 +147,16 @@ pub fn tools() -> Vec<ToolInfo> {
             group: "analysis",
             status: "stable",
         },
+        ToolInfo {
+            name: "kanyu_analysis_sjoin",
+            group: "analysis",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_analysis_zonal_stats",
+            group: "analysis",
+            status: "stable",
+        },
         // 渲染工具
         ToolInfo {
             name: "kanyu_render_symbolize",

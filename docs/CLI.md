@@ -241,6 +241,43 @@ $ ./target/debug/kanyu.exe analysis measure examples/buildings.geojson --kind le
 测地线长度总计: 2802.824 m（4 个要素；--json 见逐要素明细）
 ```
 
+### 4.5 `kanyu analysis sjoin <target> <join> --predicate <pred>` ✅
+
+空间连接（**左连接 + 匹配展开**：保留全部 target 要素、无匹配 join 侧缺省、
+一对多匹配各输出一条）。结果属性 = target 属性 + join 属性（键冲突加
+`join_` 前缀）+ `join_index`（join 要素序号）。
+
+| 参数 | 说明 |
+|---|---|
+| `<target>` | 目标图层文件 |
+| `<join>` | 连接图层文件 |
+| `--predicate <pred>` | `intersects` / `contains` / `within`（contains=target 包含 join，within=join 包含 target） |
+| `--output <path>` | 结果输出路径（GeoJSON）；缺省打印到 stdout |
+
+```bash
+$ ./target/debug/kanyu.exe analysis sjoin pts.geojson zones.geojson --predicate within --output joined.geojson
+已写出 4 个要素 → joined.geojson        # 该提示在 stderr
+```
+
+### 4.6 `kanyu analysis zonal <zones> <values> --field <name> --stats <list>` ✅
+
+分区统计：values 按质心/代表点归属 zones 面要素（一值多区取首个匹配），
+zones 追加 `{field}_{stat}` 统计列；区外值计入结果
+`foreign_members.unzoned_count`。
+
+| 参数 | 说明 |
+|---|---|
+| `<zones>` | 分区图层文件（仅面要素） |
+| `<values>` | 数值图层文件 |
+| `--field <name>` | 数值字段名（缺失或非数值时报中文错误） |
+| `--stats <list>` | 统计项（逗号分隔：`count,sum,mean,min,max`） |
+| `--output <path>` | 结果输出路径（GeoJSON）；缺省打印到 stdout |
+
+```bash
+$ ./target/debug/kanyu.exe analysis zonal zones.geojson pts.geojson --field height --stats count,sum,mean --output zoned.geojson
+已写出 2 个要素 → zoned.geojson        # 该提示在 stderr
+```
+
 ## 5. kanyu introspect ✅
 
 系统自省 —— AI 读取自身（模块清单、能力矩阵、工具清单）。

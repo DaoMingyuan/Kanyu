@@ -276,3 +276,62 @@ fn data_reproject_4326_to_3857_end_to_end() {
     // 属性不受影响。
     assert_eq!(written["features"][0]["properties"]["name"], "北京");
 }
+
+#[test]
+fn analysis_zonal_end_to_end_with_stats_columns() {
+    let dir = std::env::temp_dir().join("kanyu_itest_zonal");
+    std::fs::create_dir_all(&dir).unwrap();
+    let zones = dir.join("zones.geojson");
+    std::fs::write(
+        &zones,
+        r#"{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                [[0,0],[0,4],[4,4],[4,0],[0,0]]]},"properties":{"name":"z1"}}
+        ]}"#,
+    )
+    .unwrap();
+    let values = dir.join("values.geojson");
+    std::fs::write(
+        &values,
+        r#"{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[1,1]},
+             "properties":{"height":10}},
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[2,2]},
+             "properties":{"height":30}},
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[100,100]},
+             "properties":{"height":99}}
+        ]}"#,
+    )
+    .unwrap();
+    let out_path = dir.join("zoned.geojson");
+
+    let out = kanyu()
+        .args([
+            "analysis",
+            "zonal",
+            zones.to_str().unwrap(),
+            values.to_str().unwrap(),
+            "--field",
+            "height",
+            "--stats",
+            "count,sum,mean",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let written: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&out_path).unwrap()).unwrap();
+    let props = &written["features"][0]["properties"];
+    assert_eq!(props["height_count"], 2);
+    assert_eq!(props["height_sum"], 40.0);
+    assert_eq!(props["height_mean"], 20.0);
+    // 区外值计入 unzoned_count。
+    assert_eq!(written["unzoned_count"], 1);
+}

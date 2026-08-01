@@ -121,6 +121,30 @@ pub struct AnalysisMeasureReq {
     pub kind: String,
 }
 
+/// `kanyu_analysis_sjoin` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisSjoinReq {
+    /// 目标图层文件路径。
+    pub target: String,
+    /// 连接图层文件路径。
+    pub join: String,
+    /// 空间谓词：intersects/contains/within。
+    pub predicate: String,
+}
+
+/// `kanyu_analysis_zonal_stats` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisZonalStatsReq {
+    /// 分区图层文件路径（仅面要素）。
+    pub zones: String,
+    /// 数值图层文件路径。
+    pub values: String,
+    /// 数值字段名。
+    pub field: String,
+    /// 统计项清单（count/sum/mean/min/max）。
+    pub stats: Vec<String>,
+}
+
 #[tool_router]
 impl KanyuServer {
     /// 构造 Server 并注册全部工具。
@@ -316,6 +340,65 @@ impl KanyuServer {
         let kind: kanyu_core::crs::MeasureKind = req.kind.parse().map_err(to_mcp)?;
         let report = kanyu_core::crs::measure(&layer.collection(), kind).map_err(to_mcp)?;
         Ok(Json(report))
+    }
+
+    /// 空间连接。
+    #[tool(
+        name = "kanyu_analysis_sjoin",
+        description = "空间连接（左连接 + 匹配展开：保留全部 target 要素，一对多匹配各输出一条；属性合并、键冲突加 join_ 前缀并附 join_index；predicate ∈ intersects/contains/within），返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_sjoin(
+        &self,
+        Parameters(req): Parameters<AnalysisSjoinReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let target = Layer::load(stem_of(&req.target), &req.target).map_err(to_mcp)?;
+        let join = Layer::load(stem_of(&req.join), &req.join).map_err(to_mcp)?;
+        let predicate: kanyu_core::analysis::SpatialPredicate =
+            req.predicate.parse().map_err(to_mcp)?;
+        let result =
+            kanyu_core::analysis::sjoin(&target.collection(), &join.collection(), predicate)
+                .map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "collection": result,
+        })))
+    }
+
+    /// 分区统计。
+    #[tool(
+        name = "kanyu_analysis_zonal_stats",
+        description = "分区统计（values 按质心/代表点归属 zones 面要素，一值多区取首个匹配；zones 追加 {field}_{stat} 统计列；区外值计入 unzoned_count），返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_zonal_stats(
+        &self,
+        Parameters(req): Parameters<AnalysisZonalStatsReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let zones = Layer::load(stem_of(&req.zones), &req.zones).map_err(to_mcp)?;
+        let values = Layer::load(stem_of(&req.values), &req.values).map_err(to_mcp)?;
+        let stats: Vec<kanyu_core::analysis::ZonalStat> = req
+            .stats
+            .iter()
+            .map(|s| s.parse())
+            .collect::<std::result::Result<_, _>>()
+            .map_err(to_mcp)?;
+        let result = kanyu_core::analysis::zonal_stats(
+            &zones.collection(),
+            &values.collection(),
+            &req.field,
+            &stats,
+        )
+        .map_err(to_mcp)?;
+        let unzoned = result
+            .foreign_members
+            .as_ref()
+            .and_then(|m| m.get("unzoned_count"))
+            .cloned()
+            .unwrap_or_else(|| serde_json::Value::from(0));
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "unzoned_count": unzoned,
+            "collection": result,
+        })))
     }
 
     /// 系统自省：架构、模块、格式矩阵、工具清单。

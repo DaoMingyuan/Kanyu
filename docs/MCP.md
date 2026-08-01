@@ -283,6 +283,38 @@ overlay 属性（键冲突加 `overlay_` 前缀；difference 仅 target 属性�
  "per_feature":[{"index":0,"value":0.0},{"index":3,"value":2802.82},…]}
 ```
 
+### 3.12 `kanyu_analysis_sjoin`
+
+> 空间连接（左连接 + 匹配展开：保留全部 target 要素、一对多匹配各输出一条；属性合并、键冲突加 `join_` 前缀并附 `join_index`）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `target` | string | 是 | 目标图层文件路径 |
+| `join` | string | 是 | 连接图层文件路径 |
+| `predicate` | string | 是 | `intersects` / `contains` / `within`（contains=target 包含 join，within=join 包含 target） |
+
+输出：`{"feature_count": 4, "collection": {…}}`；无匹配的 target 要素
+join 侧属性与 `join_index` 缺省。
+
+### 3.13 `kanyu_analysis_zonal_stats`
+
+> 分区统计（values 按质心/代表点归属 zones 面要素，一值多区取首个匹配；zones 追加 `{field}_{stat}` 统计列）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `zones` | string | 是 | 分区图层文件路径（仅面要素） |
+| `values` | string | 是 | 数值图层文件路径 |
+| `field` | string | 是 | 数值字段名（缺失或非数值时报中文错误） |
+| `stats` | string[] | 是 | 统计项清单（`count`/`sum`/`mean`/`min`/`max`） |
+
+输出：
+
+```json
+{"feature_count": 2, "unzoned_count": 1,
+ "collection": {"type":"FeatureCollection","features":[{"type":"Feature","geometry":{…},
+  "properties":{"name":"z1","height_count":2,"height_sum":30.0,"height_mean":15.0}}]}}
+```
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
@@ -299,6 +331,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | — | `kanyu_agents_init` | ✅ |
 | `kanyu.analysis.buffer/overlay/topology` | `kanyu_analysis_*` | ✅ |
 | —（analysis 组扩展） | `kanyu_analysis_measure` | ✅ |
+| —（analysis 组扩展） | `kanyu_analysis_sjoin` / `kanyu_analysis_zonal_stats` | ✅ |
 | `kanyu.render.symbolize/camera` | `kanyu_render_*` | 📋 |
 | `kanyu.system.generate/hotload` | `kanyu_system_*` | 📋 |
 
@@ -324,7 +357,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| analysis 工具组扩展 | 📋 | sjoin / zonal_stats / MCP tasks 长任务；buffer/overlay/topology（§3.7–3.9）与 reproject/measure（§3.10–3.11）已 ✅ |
+| analysis 工具组扩展 | 📋 | MCP tasks 长任务；buffer/overlay/topology（§3.7–3.9）、reproject/measure（§3.10–3.11）与 sjoin/zonal_stats（§3.12–3.13）已 ✅ |
 | render 工具组 | 📋 | `kanyu_render_symbolize` / `camera`（随 kanyu-render/wgpu 落地） |
 | system 工具组扩展 | 📋 | `kanyu_system_generate` / `hotload`（代码生成→WASM 沙箱流水线，须人类审核） |
 | MCP tasks | 📋 | SEP-1686 长任务：大文件导入、批量导出等异步化，进度可查询 |

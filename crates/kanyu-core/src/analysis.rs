@@ -335,6 +335,305 @@ pub fn topology_check(
     })
 }
 
+/// 空间谓词（sjoin 用）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpatialPredicate {
+    /// 相交（任一公共点）。
+    Intersects,
+    /// target 包含 join。
+    Contains,
+    /// target 位于 join 内（join 包含 target）。
+    Within,
+}
+
+impl std::str::FromStr for SpatialPredicate {
+    type Err = KanyuError;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "intersects" => Ok(Self::Intersects),
+            "contains" => Ok(Self::Contains),
+            "within" => Ok(Self::Within),
+            other => Err(KanyuError::Other(format!(
+                "未知空间谓词 '{other}'（支持 intersects/contains/within）"
+            ))),
+        }
+    }
+}
+
+/// 空间连接：**左连接 + 匹配展开**语义（与 GeoPandas 默认 inner 不同——
+/// 本实现保留全部 target 要素：无匹配时输出一条、join 侧属性缺省；
+/// 一对多匹配时每个匹配各输出一条，rustdoc 即契约）。
+///
+/// 属性合并：target 属性 + join 属性（键冲突加 `join_` 前缀），另加
+/// `join_index`（join 要素序号，便于溯源；无匹配时缺省）。
+/// 无几何或类型不可转换的 target 要素按无匹配处理；join 侧同类要素对跳过
+/// （不产生脏数据）。O(n·m) 朴素实现——rstar 空间索引加速 📋
+/// （与 [`topology_check`] 同一待优化项）。
+pub fn sjoin(
+    target: &geojson::FeatureCollection,
+    join: &geojson::FeatureCollection,
+    predicate: SpatialPredicate,
+) -> Result<geojson::FeatureCollection> {
+    use geo::{Contains, Intersects};
+
+    let join_side: Vec<Option<geo_types::Geometry<f64>>> = join
+        .features
+        .iter()
+        .map(|f| f.geometry.as_ref().and_then(|g| to_geo(&g.value)))
+        .collect();
+
+    let mut features = Vec::new();
+    for t in &target.features {
+        let t_geom = t.geometry.as_ref().and_then(|g| to_geo(&g.value));
+        let mut matched = false;
+        if let Some(tg) = &t_geom {
+            for (j_idx, jg) in join_side.iter().enumerate() {
+                let Some(jg) = jg else { continue };
+                let hit = match predicate {
+                    SpatialPredicate::Intersects => tg.intersects(jg),
+                    SpatialPredicate::Contains => tg.contains(jg),
+                    SpatialPredicate::Within => jg.contains(tg),
+                };
+                if hit {
+                    matched = true;
+                    features.push(sjoined_feature(t, Some((j_idx, &join.features[j_idx]))));
+                }
+            }
+        }
+        if !matched {
+            features.push(sjoined_feature(t, None));
+        }
+    }
+
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
+
+/// 组装 sjoin 输出要素：target 几何与属性 + join 属性（冲突加 `join_` 前缀）
+/// + `join_index`。
+fn sjoined_feature(
+    target: &geojson::Feature,
+    join: Option<(usize, &geojson::Feature)>,
+) -> geojson::Feature {
+    let mut properties = target.properties.clone().unwrap_or_default();
+    if let Some((j_idx, j_feature)) = join {
+        if let Some(j_props) = &j_feature.properties {
+            for (key, value) in j_props {
+                let key = if properties.contains_key(key) {
+                    format!("join_{key}")
+                } else {
+                    key.clone()
+                };
+                properties.insert(key, value.clone());
+            }
+        }
+        properties.insert("join_index".to_string(), serde_json::Value::from(j_idx));
+    }
+    geojson::Feature {
+        bbox: None,
+        geometry: target.geometry.clone(),
+        id: None,
+        properties: Some(properties),
+        foreign_members: None,
+    }
+}
+
+/// 分区统计项。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ZonalStat {
+    /// 落入要素数（要求 field 存在且为数值，见 [`zonal_stats`]）。
+    Count,
+    /// 数值和。
+    Sum,
+    /// 平均值。
+    Mean,
+    /// 最小值。
+    Min,
+    /// 最大值。
+    Max,
+}
+
+impl ZonalStat {
+    /// 输出列名后缀（小写）。
+    fn suffix(self) -> &'static str {
+        match self {
+            Self::Count => "count",
+            Self::Sum => "sum",
+            Self::Mean => "mean",
+            Self::Min => "min",
+            Self::Max => "max",
+        }
+    }
+}
+
+impl std::str::FromStr for ZonalStat {
+    type Err = KanyuError;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "count" => Ok(Self::Count),
+            "sum" => Ok(Self::Sum),
+            "mean" => Ok(Self::Mean),
+            "min" => Ok(Self::Min),
+            "max" => Ok(Self::Max),
+            other => Err(KanyuError::Other(format!(
+                "未知统计项 '{other}'（支持 count/sum/mean/min/max）"
+            ))),
+        }
+    }
+}
+
+/// 分区统计：values 要素按代表点归属 zones 面要素，对数值字段 `field`
+/// 计算统计列并追加到 zones 要素属性（命名 `{field}_{stat}` 小写，
+/// 如 `height_mean`；`stats` 去重保序）。
+///
+/// 归属语义（rustdoc 即契约）：
+/// - 代表点：Point 直接用坐标；LineString/Polygon 等用 `geo::Centroid` 质心；
+///   无几何或质心不可得的值跳过（计入 `unzoned_count`）。
+/// - 一值落入多个区时计入**首个**匹配区；不属任何区计入 `unzoned_count`，
+///   写入返回集合的 `foreign_members.unzoned_count`（为 0 时该键缺省）。
+/// - zones 仅接受 Polygon/MultiPolygon（其余类型报中文错误并指出序号）。
+/// - `field` 必须在 values 中至少一个要素上存在且可转 f64，否则中文报错；
+///   **count 同样只统计 field 存在且为数值的要素**（直白发语义，注释即契约）。
+/// - 某区无有效值时 `{field}_count` 写 0，其余统计列缺省（不产生脏数据）。
+pub fn zonal_stats(
+    zones: &geojson::FeatureCollection,
+    values: &geojson::FeatureCollection,
+    field: &str,
+    stats: &[ZonalStat],
+) -> Result<geojson::FeatureCollection> {
+    use geo::Contains;
+
+    if stats.is_empty() {
+        return Err(KanyuError::Other(
+            "分区统计至少需指定一项统计（支持 count/sum/mean/min/max）".to_string(),
+        ));
+    }
+    let zone_polys = collect_polygons(zones, "zones")?;
+
+    // field 校验：至少一个 values 要素存在且为数值。
+    let field_ok = values.features.iter().any(|f| {
+        f.properties
+            .as_ref()
+            .and_then(|p| p.get(field))
+            .and_then(|v| v.as_f64())
+            .is_some()
+    });
+    if !field_ok {
+        return Err(KanyuError::Other(format!(
+            "字段 '{field}' 在 values 中不存在或非数值（分区统计要求数值字段）"
+        )));
+    }
+
+    // 逐值归属：每个 zone 收集落入的数值。
+    let mut buckets: Vec<Vec<f64>> = vec![Vec::new(); zone_polys.len()];
+    let mut unzoned_count = 0usize;
+    for feature in &values.features {
+        let Some(v) = feature
+            .properties
+            .as_ref()
+            .and_then(|p| p.get(field))
+            .and_then(|v| v.as_f64())
+        else {
+            continue; // field 缺失/非数值：不参与任何统计（含 count）。
+        };
+        let Some(repr) = representative_point(feature) else {
+            unzoned_count += 1;
+            continue;
+        };
+        let mut assigned = false;
+        for (z_idx, zone) in zone_polys.iter().enumerate() {
+            if zone.geom.contains(&repr) {
+                buckets[z_idx].push(v);
+                assigned = true;
+                break; // 首个匹配区。
+            }
+        }
+        if !assigned {
+            unzoned_count += 1;
+        }
+    }
+
+    // stats 去重保序。
+    let mut ordered: Vec<ZonalStat> = Vec::new();
+    for s in stats {
+        if !ordered.contains(s) {
+            ordered.push(*s);
+        }
+    }
+
+    let mut features = Vec::with_capacity(zone_polys.len());
+    for (z_idx, zone) in zone_polys.iter().enumerate() {
+        let bucket = &buckets[z_idx];
+        let mut properties = zone.feature.properties.clone().unwrap_or_default();
+        for stat in &ordered {
+            let column = format!("{field}_{}", stat.suffix());
+            let value = match stat {
+                ZonalStat::Count => Some(serde_json::Value::from(bucket.len())),
+                ZonalStat::Sum if !bucket.is_empty() => {
+                    Some(serde_json::Value::from(bucket.iter().sum::<f64>()))
+                }
+                ZonalStat::Mean if !bucket.is_empty() => Some(serde_json::Value::from(
+                    bucket.iter().sum::<f64>() / bucket.len() as f64,
+                )),
+                ZonalStat::Min if !bucket.is_empty() => bucket
+                    .iter()
+                    .copied()
+                    .reduce(f64::min)
+                    .map(serde_json::Value::from),
+                ZonalStat::Max if !bucket.is_empty() => bucket
+                    .iter()
+                    .copied()
+                    .reduce(f64::max)
+                    .map(serde_json::Value::from),
+                _ => None,
+            };
+            if let Some(value) = value {
+                properties.insert(column, value);
+            }
+        }
+        features.push(geojson::Feature {
+            bbox: None,
+            geometry: zone.feature.geometry.clone(),
+            id: None,
+            properties: Some(properties),
+            foreign_members: None,
+        });
+    }
+
+    let foreign_members = (unzoned_count > 0).then(|| {
+        let mut m = serde_json::Map::new();
+        m.insert(
+            "unzoned_count".to_string(),
+            serde_json::Value::from(unzoned_count),
+        );
+        m
+    });
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members,
+    })
+}
+
+/// 要素代表点：Point 直接用坐标；其余类型用 geo::Centroid 质心；
+/// 无几何或质心不可得返回 None。
+fn representative_point(feature: &geojson::Feature) -> Option<geo_types::Point<f64>> {
+    use geo::Centroid;
+    let geom = feature.geometry.as_ref()?;
+    match &geom.value {
+        geojson::Value::Point(pos) => Some(geo_types::Point::new(
+            pos.first().copied().unwrap_or(0.0),
+            pos.get(1).copied().unwrap_or(0.0),
+        )),
+        other => to_geo(other).and_then(|g| g.centroid()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,5 +771,169 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("拓扑规则"));
+    }
+
+    /// sjoin 测试集：两个重叠面（name 键与点目标冲突，用于验证 join_ 前缀）。
+    fn sjoin_zones() -> geojson::FeatureCollection {
+        collection_from_str(&format!(
+            r#"{{"type":"FeatureCollection","features":[{},{}]}}"#,
+            square(0.0, 0.0, 4.0, 4.0, "z1"),
+            square(2.0, 2.0, 6.0, 6.0, "z2")
+        ))
+    }
+
+    #[test]
+    fn sjoin_left_explode_with_join_prefix_and_index() {
+        let target = collection_from_str(
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[3,3]},
+                 "properties":{"name":"p_in_both"}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[1,1]},
+                 "properties":{"name":"p_in_z1"}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[100,100]},
+                 "properties":{"name":"p_outside"}}
+            ]}"#,
+        );
+        let out = sjoin(&target, &sjoin_zones(), SpatialPredicate::Within).unwrap();
+        // 左连接 + explode：3 个 target → 2(双区命中) + 1 + 1(无匹配) = 4 条。
+        assert_eq!(out.features.len(), 4);
+        // 双区命中点展开为两条，join_index 分别为 0/1。
+        let both: Vec<_> = out
+            .features
+            .iter()
+            .filter(|f| {
+                f.properties
+                    .as_ref()
+                    .and_then(|p| p.get("name"))
+                    .and_then(|v| v.as_str())
+                    == Some("p_in_both")
+            })
+            .collect();
+        assert_eq!(both.len(), 2);
+        let mut indices: Vec<i64> = both
+            .iter()
+            .map(|f| {
+                f.properties
+                    .as_ref()
+                    .and_then(|p| p.get("join_index"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap()
+            })
+            .collect();
+        indices.sort_unstable();
+        assert_eq!(indices, vec![0, 1]);
+        // 键冲突：target 的 name 保留，join 的 name 进 join_name。
+        let props = both[0].properties.as_ref().unwrap();
+        assert_eq!(
+            props["name"],
+            serde_json::Value::String("p_in_both".to_string())
+        );
+        assert!(props.get("join_name").is_some());
+        // 无匹配：join 侧属性与 join_index 缺省。
+        let outside = out
+            .features
+            .iter()
+            .find(|f| {
+                f.properties
+                    .as_ref()
+                    .and_then(|p| p.get("name"))
+                    .and_then(|v| v.as_str())
+                    == Some("p_outside")
+            })
+            .unwrap();
+        let props = outside.properties.as_ref().unwrap();
+        assert!(props.get("join_index").is_none());
+        assert!(props.get("join_name").is_none());
+    }
+
+    /// zonal 测试集：两区四点（一值跨区取首匹配、一值在区外）。
+    fn zonal_fixtures() -> (geojson::FeatureCollection, geojson::FeatureCollection) {
+        let zones = collection_from_str(&format!(
+            r#"{{"type":"FeatureCollection","features":[{},{}]}}"#,
+            square(0.0, 0.0, 4.0, 4.0, "z1"),
+            square(2.0, 2.0, 6.0, 6.0, "z2")
+        ));
+        let values = collection_from_str(
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[1,1]},
+                 "properties":{"height":10}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[3,3]},
+                 "properties":{"height":20}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[5,5]},
+                 "properties":{"height":40}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[100,100]},
+                 "properties":{"height":99}}
+            ]}"#,
+        );
+        (zones, values)
+    }
+
+    #[test]
+    fn zonal_stats_first_match_and_unzoned_count() {
+        let (zones, values) = zonal_fixtures();
+        let out = zonal_stats(
+            &zones,
+            &values,
+            "height",
+            &[
+                ZonalStat::Count,
+                ZonalStat::Sum,
+                ZonalStat::Mean,
+                ZonalStat::Min,
+                ZonalStat::Max,
+            ],
+        )
+        .unwrap();
+        assert_eq!(out.features.len(), 2);
+        // (3,3) 同时落入两区 → 计入首个匹配区 z1。
+        // z1: {10, 20}；z2: {40}；区外 99 → unzoned_count=1。
+        let z1 = out.features[0].properties.as_ref().unwrap();
+        assert_eq!(z1["height_count"], serde_json::Value::from(2));
+        assert_eq!(z1["height_sum"].as_f64(), Some(30.0));
+        assert_eq!(z1["height_mean"].as_f64(), Some(15.0));
+        assert_eq!(z1["height_min"].as_f64(), Some(10.0));
+        assert_eq!(z1["height_max"].as_f64(), Some(20.0));
+        let z2 = out.features[1].properties.as_ref().unwrap();
+        assert_eq!(z2["height_count"], serde_json::Value::from(1));
+        assert_eq!(z2["height_sum"].as_f64(), Some(40.0));
+        // unzoned_count 写入 foreign_members。
+        assert_eq!(
+            out.foreign_members.as_ref().unwrap()["unzoned_count"],
+            serde_json::Value::from(1)
+        );
+        // zone 原有属性保留。
+        assert_eq!(z1["name"], serde_json::Value::String("z1".to_string()));
+    }
+
+    #[test]
+    fn zonal_stats_errors_on_non_polygon_zone_and_missing_field() {
+        let (_, values) = zonal_fixtures();
+        let err = zonal_stats(&values, &values, "height", &[ZonalStat::Count]).unwrap_err();
+        assert!(
+            err.to_string().contains("第 1 个要素"),
+            "非面 zone 应报错: {err}"
+        );
+        let (zones, _) = zonal_fixtures();
+        let err = zonal_stats(&zones, &values, "nonexist", &[ZonalStat::Count]).unwrap_err();
+        assert!(
+            err.to_string().contains("nonexist"),
+            "缺失字段应点名: {err}"
+        );
+    }
+
+    #[test]
+    fn spatial_predicate_and_zonal_stat_parse_chinese_errors() {
+        assert!("within".parse::<SpatialPredicate>().is_ok());
+        assert!("bogus"
+            .parse::<SpatialPredicate>()
+            .unwrap_err()
+            .to_string()
+            .contains("空间谓词"));
+        assert!("mean".parse::<ZonalStat>().is_ok());
+        assert!("bogus"
+            .parse::<ZonalStat>()
+            .unwrap_err()
+            .to_string()
+            .contains("统计项"));
     }
 }

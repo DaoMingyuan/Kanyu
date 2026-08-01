@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-core / CLI / MCP**：空间连接与分区统计（补全矢量分析面）——
+  - `analysis::sjoin`：空间连接（`SpatialPredicate::Intersects/Contains/Within`；
+    **左连接 + 匹配展开**：保留全部 target 要素、无匹配 join 侧缺省、
+    一对多各输出一条；属性合并、键冲突加 `join_` 前缀并附 `join_index`
+    溯源；O(n·m)，rstar 加速 📋）。
+  - `analysis::zonal_stats`：分区统计（`ZonalStat::Count/Sum/Mean/Min/Max`；
+    values 按质心/代表点归属 zones 面要素、一值多区取首个匹配、区外值
+    计入 `foreign_members.unzoned_count`；统计列命名 `{field}_{stat}`；
+    count 同样要求 field 存在且数值）。
+  - CLI：`kanyu analysis sjoin/zonal`；MCP：`kanyu_analysis_sjoin`、
+    `kanyu_analysis_zonal_stats`（introspect 新增两项 stable）。
+
 ## [0.5.0] - 2026-08-02
 
 **米制分析链路打通：投影变换（proj4rs + EPSG 数据库）与测地线度量。**

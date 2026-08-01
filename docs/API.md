@@ -147,13 +147,17 @@ EPSG:4326 下是度而非米；米制分析请先用 [`crs::reproject`](#5-crs--
 | `buffer` | `fn buffer(collection: &geojson::FeatureCollection, distance: f64, segments: usize) -> Result<geojson::FeatureCollection>` | 缓冲区分析：结果为 Polygon/MultiPolygon，属性随行；`segments` 为每象限圆弧分段数（≥1，对应圆角连接角 `π/2 / segments`）；几何缺失/不可转换的要素跳过并计入返回集合 `foreign_members.skipped` |
 | `overlay` | `fn overlay(target: &geojson::FeatureCollection, overlay: &geojson::FeatureCollection, op: OverlayOp) -> Result<geojson::FeatureCollection>` | 叠加分析：仅 Polygon/MultiPolygon（其余类型报中文错误并指出要素序号）。Union/Intersection/Xor 为 target×overlay 逐要素对布尔（未做跨对融合 dissolve）；Difference 为每 target 连续减全部 overlay。属性：target + overlay（键冲突加 `overlay_` 前缀；Difference 仅 target 属性） |
 | `topology_check` | `fn topology_check(collection: &geojson::FeatureCollection, rules: &[TopologyRule]) -> Result<TopologyReport>` | 拓扑检查：NoOverlap 对面要素两两判定（intersects 粗筛 + 交集面积 > 1e-10 确认）；非面要素跳过；O(n²) 朴素实现（rstar 加速 📋） |
+| `sjoin` | `fn sjoin(target: &geojson::FeatureCollection, join: &geojson::FeatureCollection, predicate: SpatialPredicate) -> Result<geojson::FeatureCollection>` | 空间连接：**左连接 + 匹配展开**（与 GeoPandas 默认 inner 不同）：保留全部 target 要素、无匹配 join 侧缺省、一对多各输出一条；属性合并、键冲突加 `join_` 前缀并附 `join_index`（join 要素序号）；无几何 target 按无匹配处理；O(n·m)（rstar 📋） |
+| `zonal_stats` | `fn zonal_stats(zones: &geojson::FeatureCollection, values: &geojson::FeatureCollection, field: &str, stats: &[ZonalStat]) -> Result<geojson::FeatureCollection>` | 分区统计：zones 仅面要素；values 按代表点归属（Point 直接取坐标，其余用 Centroid 质心）；一值多区计入**首个**匹配区；区外值计入 `foreign_members.unzoned_count`；统计列命名 `{field}_{stat}` 小写；`field` 必须存在且可转 f64（count 同样只统计数值要素）；某区无有效值时 count 写 0、其余列缺省 |
 
-### `OverlayOp` / `TopologyRule`
+### `OverlayOp` / `TopologyRule` / `SpatialPredicate` / `ZonalStat`
 
 | 类型 | 变体 | FromStr |
 |---|---|---|
 | `OverlayOp` | `Union` / `Intersection` / `Difference` / `Xor` | `union` / `intersection` / `difference` / `xor`（大小写不敏感，未知值报中文错误） |
 | `TopologyRule` | `NoOverlap` | `no_overlap`（同上） |
+| `SpatialPredicate` | `Intersects` / `Contains` / `Within` | `intersects` / `contains` / `within`（同上；Contains=target 包含 join，Within=join 包含 target） |
+| `ZonalStat` | `Count` / `Sum` / `Mean` / `Min` / `Max` | `count` / `sum` / `mean` / `min` / `max`（同上） |
 
 ### `TopologyReport` / `TopologyViolation`
 
