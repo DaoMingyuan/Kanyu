@@ -263,14 +263,19 @@ impl KanyuServer {
     /// 将数据导出为目标格式。
     #[tool(
         name = "kanyu_data_export",
-        description = "将数据文件导出为目标格式（当前原生支持 geojson/csv/fgb/geoparquet/dxf/kml；其余格式受格式能力矩阵与驱动状态约束）"
+        description = "将数据文件导出为目标格式（当前原生支持 geojson/csv/fgb/geoparquet/dxf/kml/kmz；其余格式受格式能力矩阵与驱动状态约束）"
     )]
     async fn data_export(
         &self,
         Parameters(req): Parameters<DataExportReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
         let registry = FormatRegistry::builtin();
-        let caps = registry.require(&req.format, "write").map_err(to_mcp)?;
+        // kmz 是 kml 的 zip 容器变体（非独立格式条目）：按 kml 校验后分流。
+        let caps = if req.format == "kmz" {
+            registry.require("kml", "write").map_err(to_mcp)?
+        } else {
+            registry.require(&req.format, "write").map_err(to_mcp)?
+        };
         let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
         let bytes: Vec<u8> = match caps.id {
             "geojson" => Layer::to_geojson_string(&layer.collection()).into_bytes(),
@@ -282,6 +287,9 @@ impl KanyuServer {
             "dxf" => Layer::to_dxf_string(&layer.collection())
                 .map_err(to_mcp)?
                 .into_bytes(),
+            "kml" if req.format == "kmz" => {
+                Layer::to_kmz_bytes(&layer.collection()).map_err(to_mcp)?
+            }
             "kml" => Layer::to_kml_string(&layer.collection())
                 .map_err(to_mcp)?
                 .into_bytes(),

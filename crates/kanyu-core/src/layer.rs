@@ -224,9 +224,15 @@ impl Layer {
 
     /// 导出为 KML 字符串：每要素一个 Placemark（全六类型，Multi* → MultiGeometry，
     /// Polygon 含洞保留为内环）；`name`/`description` 属性写为同名字段，
-    /// 其余属性写入 ExtendedData/SimpleData（值转字符串）；z 丢弃。KMZ 📋。
+    /// 其余属性写入 ExtendedData/SimpleData（值转字符串）；z 丢弃。
     pub fn to_kml_string(collection: &geojson::FeatureCollection) -> Result<String> {
         collection_to_kml(collection)
+    }
+
+    /// 导出为 KMZ 字节串（zip 容器，deflate 压缩）：内含 doc.kml 单条目
+    ///（内容同 [`Layer::to_kml_string`]）。
+    pub fn to_kmz_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
+        collection_to_kmz(collection)
     }
 }
 
@@ -1533,9 +1539,9 @@ fn dxf_lwpolyline(positions: &[Vec<f64>], closed: bool) -> dxf::entities::LwPoly
 /// KMZ（zip 容器）本轮不支持，返回待集成错误。
 fn kml_to_collection(path: &str) -> Result<geojson::FeatureCollection> {
     if path.to_ascii_lowercase().ends_with(".kmz") {
-        return Err(KanyuError::Other(
-            "KMZ（zip 容器）支持待 zip 集成，请先解压为 .kml 再加载".to_string(),
-        ));
+        // KMZ（zip 容器）：内存解包 → 主 doc.kml（或首个 .kml 条目）→ KML 路径。
+        let kml_text = kmz_extract_kml(path)?;
+        return kml_text_to_collection(&kml_text, path);
     }
     let mut reader = kml::KmlReader::from_path(path)
         .map_err(|e| KanyuError::Other(format!("kml 读取失败（{path}）：{e}")))?;
@@ -1544,14 +1550,68 @@ fn kml_to_collection(path: &str) -> Result<geojson::FeatureCollection> {
             "kml 解析失败（{path}）：{e}；文件可能损坏或不是有效的 KML"
         ))
     })?;
+    Ok(kml_doc_to_collection(&doc))
+}
 
+/// KMZ → KML 文本：主条目 doc.kml 优先，否则首个 .kml 条目（多 KML 条目
+/// 只取首个，注释即契约）；zip 损坏/无 KML 条目中文结构化错误。
+fn kmz_extract_kml(path: &str) -> Result<String> {
+    let file = std::fs::File::open(path)?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| {
+        KanyuError::Other(format!(
+            "kmz 解包失败（{path}）：{e}；文件可能损坏或不是有效的 zip 容器"
+        ))
+    })?;
+    // doc.kml 优先；否则按文件名排序后的首个 .kml 条目（确定性）。
+    let mut candidates: Vec<String> = (0..archive.len())
+        .filter_map(|i| archive.by_index(i).ok().map(|f| f.name().to_string()))
+        .filter(|name| name.to_ascii_lowercase().ends_with(".kml"))
+        .collect();
+    candidates.sort();
+    let entry_name = if candidates.iter().any(|n| n == "doc.kml") {
+        "doc.kml".to_string()
+    } else {
+        match candidates.into_iter().next() {
+            Some(name) => name,
+            None => {
+                return Err(KanyuError::Other(format!(
+                    "kmz 容器内无 .kml 条目（{path}）：不是有效的 KMZ"
+                )))
+            }
+        }
+    };
+    let mut entry = archive.by_name(&entry_name).map_err(|e| {
+        KanyuError::Other(format!("kmz 条目 '{entry_name}' 读取失败（{path}）：{e}"))
+    })?;
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut entry, &mut text).map_err(|e| {
+        KanyuError::Other(format!(
+            "kmz 条目 '{entry_name}' 非合法 UTF-8（{path}）：{e}"
+        ))
+    })?;
+    Ok(text)
+}
+
+/// KML 文本 → FeatureCollection（kmz 解包路径与直接 .kml 路径共用）。
+fn kml_text_to_collection(text: &str, path: &str) -> Result<geojson::FeatureCollection> {
+    let mut reader = kml::KmlReader::from_string(text);
+    let doc: kml::Kml<f64> = reader.read().map_err(|e| {
+        KanyuError::Other(format!(
+            "kml 解析失败（{path}）：{e}；文件可能损坏或不是有效的 KML"
+        ))
+    })?;
+    Ok(kml_doc_to_collection(&doc))
+}
+
+/// KML 文档树 → FeatureCollection（Placemark 展平）。
+fn kml_doc_to_collection(doc: &kml::Kml<f64>) -> geojson::FeatureCollection {
     let mut features = Vec::new();
-    kml_collect_placemarks(&doc, &mut features);
-    Ok(geojson::FeatureCollection {
+    kml_collect_placemarks(doc, &mut features);
+    geojson::FeatureCollection {
         bbox: None,
         features,
         foreign_members: None,
-    })
+    }
 }
 
 /// 递归遍历 KML 文档树，收集 Placemark 要素。
@@ -1755,6 +1815,26 @@ fn collection_to_kml(collection: &geojson::FeatureCollection) -> Result<String> 
             .map_err(|e| KanyuError::Other(format!("kml 写出失败: {e}")))?;
     }
     String::from_utf8(buf).map_err(|e| KanyuError::Other(format!("kml 编码失败: {e}")))
+}
+
+/// FeatureCollection → KMZ 字节串：zip 容器（deflate）+ doc.kml 单条目。
+fn collection_to_kmz(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
+    let kml_text = collection_to_kml(collection)?;
+    let mut cursor = std::io::Cursor::new(Vec::new());
+    {
+        let mut writer = zip::ZipWriter::new(&mut cursor);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        writer
+            .start_file("doc.kml", options)
+            .map_err(|e| KanyuError::Other(format!("kmz 写出失败: {e}")))?;
+        std::io::Write::write_all(&mut writer, kml_text.as_bytes())
+            .map_err(|e| KanyuError::Other(format!("kmz 写出失败: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| KanyuError::Other(format!("kmz 写出失败: {e}")))?;
+    }
+    Ok(cursor.into_inner())
 }
 
 /// Feature → Placemark：`name`/`description` 写为同名字段，其余属性写入
@@ -2467,17 +2547,62 @@ mod tests {
     }
 
     #[test]
-    fn kmz_returns_pending_error() {
-        let dir = std::env::temp_dir().join("kanyu_core_kmz_pending");
+    fn kmz_roundtrip_preserves_features() {
+        let bytes = Layer::to_kmz_bytes(&fgb_test_collection()).unwrap();
+        let dir = std::env::temp_dir().join("kanyu_core_kmz_roundtrip");
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("packed.kmz");
-        std::fs::write(&path, b"PK\x03\x04 fake zip").unwrap();
-        let err = Layer::load("packed", path.to_str().unwrap())
+        let path = dir.join("mixed.kmz");
+        std::fs::write(&path, &bytes).unwrap();
+
+        let layer = Layer::load("mixed", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 3);
+        let s = layer.summary();
+        assert_eq!(s.format, "kml");
+        assert_eq!(s.geometry_types, vec!["LineString", "Point", "Polygon"]);
+        // 属性经 SimpleData 数值化读回。
+        let a = find_by_name(&layer, "甲");
+        assert_eq!(
+            a.properties.as_ref().unwrap()["height"].as_f64(),
+            Some(80.0)
+        );
+    }
+
+    #[test]
+    fn kmz_corrupt_zip_gives_clear_error() {
+        let dir = std::env::temp_dir().join("kanyu_core_kmz_corrupt");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("garbage.kmz");
+        std::fs::write(&path, b"this is not a zip file").unwrap();
+        let err = Layer::load("garbage", path.to_str().unwrap())
             .err()
-            .expect("KMZ 应返回待集成错误");
+            .expect("损坏 zip 应报错");
         assert!(
-            err.to_string().contains("KMZ"),
-            "错误应指出 KMZ 待集成: {err}"
+            err.to_string().contains("kmz 解包失败"),
+            "错误应指出 kmz 解包问题: {err}"
+        );
+    }
+
+    #[test]
+    fn kmz_without_kml_entry_gives_clear_error() {
+        // 合法 zip 但无 .kml 条目。
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut cursor);
+            let options = zip::write::SimpleFileOptions::default();
+            writer.start_file("readme.txt", options).unwrap();
+            std::io::Write::write_all(&mut writer, b"no kml here").unwrap();
+            writer.finish().unwrap();
+        }
+        let dir = std::env::temp_dir().join("kanyu_core_kmz_nokml");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("nokml.kmz");
+        std::fs::write(&path, cursor.into_inner()).unwrap();
+        let err = Layer::load("nokml", path.to_str().unwrap())
+            .err()
+            .expect("无 kml 条目应报错");
+        assert!(
+            err.to_string().contains("无 .kml 条目"),
+            "错误应指出无 kml 条目: {err}"
         );
     }
 

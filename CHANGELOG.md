@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-core / CLI / MCP**：KMZ 支持（kml 的 zip 容器，zip crate
+  default-features=false + deflate 纯 Rust 后端）——`.kmz` 内存解包
+  （doc.kml 优先、否则首个 .kml 条目，多 KML 条目取首个注释即契约），
+  zip 损坏/无 .kml 条目中文结构化错误；`Layer::to_kmz_bytes`
+  （doc.kml 单条目 deflate）。CLI/MCP export `-f kmz` 分流
+  （kmz 为 kml 容器变体非独立格式条目，按 format 值区分 kml/kmz）。
+  format.rs kml 条目 note：KMZ 📋→✅。
+
 ## [0.12.0] - 2026-08-03
 
 **AI 代理远程热加载基因：kanyu_system_hotload 实质化 + gene_run/gene_list。**

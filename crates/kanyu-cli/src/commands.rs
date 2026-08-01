@@ -61,7 +61,12 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
             symbol_mapping,
         } => {
             let registry = FormatRegistry::builtin();
-            let caps = registry.require(format, "write")?;
+            // kmz 是 kml 的 zip 容器变体（非独立格式条目）：按 kml 校验后分流。
+            let caps = if format == "kmz" {
+                registry.require("kml", "write")?
+            } else {
+                registry.require(format, "write")?
+            };
             if *symbol_mapping && !caps.symbol.usable() {
                 bail!("格式 '{format}' 不支持符号化保留（--symbol-mapping 不可用）");
             }
@@ -91,6 +96,11 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                     let text = Layer::to_dxf_string(&layer.collection())?;
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (dxf)", layer.len());
+                }
+                "kml" if format == "kmz" => {
+                    let bytes = Layer::to_kmz_bytes(&layer.collection())?;
+                    std::fs::write(out, bytes).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!("已导出 {} 个要素 → {out} (kmz)", layer.len());
                 }
                 "kml" => {
                     let text = Layer::to_kml_string(&layer.collection())?;

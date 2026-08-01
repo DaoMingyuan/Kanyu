@@ -1080,7 +1080,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] FlatGeobuf 原生读写（内部首选交换格式，列 schema 自动推断）。
 - [x] GeoParquet 原生读写（云原生列式，WKB 几何编码 + geo 元数据）。
 - [x] DXF 原生读写（CAD 互操作：POINT/LINE/LWPOLYLINE/CIRCLE/ARC 映射，图层→layer 属性）。
-- [x] KML 原生读写（Placemark 展平、ExtendedData 属性、含洞 Polygon；KMZ 📋）。
+- [x] KML/KMZ 原生读写（Placemark 展平、ExtendedData 属性、含洞 Polygon；KMZ zip 容器 ✅）。
 - [x] Shapefile 原生读取（Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化）。
 - [x] CSV/TSV 坐标列自动识别（lon/lat/x/y/经度/纬度）与 CSV 导出闭环。
 - [x] **里程碑（格式部分）**：主流矢量文件格式（shp/geojson/fgb/geoparquet/dxf/kml/csv）免 GDAL 读写 ✅（2026-08-02 达成；gpkg/spatialite/postgis/wfs 按裁决 #15 走可选 feature 路线，内存基准测试待 GeoArrow 迁移后统一进行）。

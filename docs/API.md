@@ -110,7 +110,8 @@ Int64/Float64/Boolean/Utf8，arrow 58 / geoarrow-schema 0.8）。各格式解析
 | `to_fgb_bytes` | `fn to_fgb_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>` | 关联函数：集合 → FlatGeobuf 字节串（列 schema 自动推断：String→String、整数→Long、浮点→Double、Bool→Bool，混合类型列退化为 String；单一几何类型按声明写出，混合几何按 Unknown 异构声明；Hilbert 空间索引，CRS 声明 EPSG:4326） |
 | `to_geoparquet_bytes` | `fn to_geoparquet_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>` | 关联函数：集合 → GeoParquet 字节串（几何列 `geometry` 按 GeoParquet 1.x 规范 WKB 编码，geo 元数据/geometry_types/bbox 由 geoparquet crate 生成；属性列 schema 推断规则同 `to_fgb_bytes`） |
 | `to_dxf_string` | `fn to_dxf_string(collection: &geojson::FeatureCollection) -> Result<String>` | 关联函数：集合 → DXF 字符串（R2000；Point/MultiPoint→POINT，LineString/MultiLineString→开放 LWPOLYLINE，Polygon/MultiPolygon→闭合 LWPOLYLINE 仅外环、洞舍弃；统一图层 "0"；properties/XDATA 写出 📋；z 丢弃） |
-| `to_kml_string` | `fn to_kml_string(collection: &geojson::FeatureCollection) -> Result<String>` | 关联函数：集合 → KML 字符串（KML 2.2；每要素一个 Placemark，全六类型、Multi*→MultiGeometry，Polygon 含洞保留为内环；`name`/`description` 写为同名字段，其余属性入 ExtendedData/SimpleData；z 丢弃；KMZ 📋） |
+| `to_kml_string` | `fn to_kml_string(collection: &geojson::FeatureCollection) -> Result<String>` | 关联函数：集合 → KML 字符串（KML 2.2；每要素一个 Placemark，全六类型、Multi*→MultiGeometry，Polygon 含洞保留为内环；`name`/`description` 写为同名字段，其余属性入 ExtendedData/SimpleData；z 丢弃） |
+| `to_kmz_bytes` | `fn to_kmz_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>` | 关联函数：集合 → KMZ 字节串（zip 容器 deflate 压缩，doc.kml 单条目，内容同 `to_kml_string`） |
 
 **查询表达式**：`"field op value"`，`op ∈ == != > >= < <=`。
 右值解析顺序：数值 → 布尔 → 字符串（可带单/双引号）。
