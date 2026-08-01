@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-02
+
+**GeoArrow 成为内核血液：`Layer` 内存模型迁移至 RecordBatch 列式零拷贝。**
+
 ### 新增
 
 - **kanyu-core**：`Layer::batch()` 零拷贝访问底层 GeoArrow RecordBatch
@@ -104,6 +108,7 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.3.0
 [0.2.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.2.0
 [0.1.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.1.0

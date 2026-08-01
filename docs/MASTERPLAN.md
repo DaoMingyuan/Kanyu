@@ -1031,6 +1031,7 @@ A/B 测试 (与旧版本并行)
 | 13 | proj 未明确 | **确定** | proj4rs（纯 Rust、WASM 兼容）进内核；`proj` C 绑定为可选 feature | proj4rs 月下载 30 万；PROJ 9 C 库不进默认构建 |
 | 14 | 无基准评测 | **新增** | 首日接入 GeoAnalystBench 类基准 | GISclaw（arXiv 2603.26845）证明：schema 清晰度 + 领域知识注入 + 错误记忆决定 agent 成功率；单 agent ReAct 优于多 agent 管线 |
 | 15 | GeoPackage/SpatiaLite/PostGIS/WFS 进内核 | **降级** | 可选 feature 插件（`sqlite-io`：rusqlite bundled；`net-io`：PostGIS/WFS 客户端） | rusqlite bundled 编译 C SQLite，违反内核零 C 依赖红线；服务类协议无文件语义，独立 feature 保持默认构建纯净 |
+| 16 | 阶段顺序：Phase 2 渲染 → Phase 3 编辑 → Phase 4 AI/分析 | **调序** | Phase 1（地基）→ **分析内核**（geo crate：buffer/overlay/topology，CLI/MCP 先行）→ Phase 2 渲染 → Phase 3 编辑 → Phase 4 AI 融合 | CLI/MCP 是已交付的产品面，分析工具组可立即兑现总规 §4.2.2 的 MCP 承诺；UI 壳层（egui/wgpu）体量大、不阻塞内核能力沉淀。内核优先让 AI 代理用户尽早获得完整工作流 |
 
 ### 6.2 竞品格局与差异化定位（调研摘要）
 
