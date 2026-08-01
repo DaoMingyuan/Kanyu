@@ -67,6 +67,7 @@ impl Layer {
                 csv_to_collection(&text, delimiter)?
             }
             "shp" => shp_to_collection(path)?,
+            "fgb" => fgb_to_collection(path)?,
             other => {
                 return Err(KanyuError::UnsupportedOperation {
                     format: other.to_string(),
@@ -160,6 +161,13 @@ impl Layer {
     /// 后接全部属性字段的并集（排序去重）。
     pub fn to_csv_string(collection: &geojson::FeatureCollection) -> Result<String> {
         collection_to_csv(collection)
+    }
+
+    /// 导出为 FlatGeobuf 字节串：列 schema 从属性值推断（String→String、
+    /// 整数→Long、浮点→Double、Bool→Bool；混合类型列退化为 String，空值跳过）。
+    /// 单一几何类型按声明写出；混合几何按 FGB Unknown 异构声明（逐要素带类型）。
+    pub fn to_fgb_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
+        collection_to_fgb(collection)
     }
 }
 
@@ -400,6 +408,277 @@ fn collection_to_csv(collection: &geojson::FeatureCollection) -> Result<String> 
         .into_inner()
         .map_err(|e| KanyuError::Other(format!("csv 写出失败: {e}")))?;
     String::from_utf8(bytes).map_err(|e| KanyuError::Other(format!("csv 编码失败: {e}")))
+}
+
+/// FlatGeobuf → FeatureCollection：逐要素转换——几何经 geozero `ToJson`
+/// 转为 geojson::Geometry，属性由自研 PropertyProcessor 按 FGB 列类型
+/// 原生映射为 JSON 类型（数值/布尔/字符串不丢型）。
+/// 注：不使用 geozero GeoJsonWriter 整体转换——其按列索引插逗号，
+/// 稀疏属性（某要素缺第 0 列）会产生非法 JSON（`{, "name": …}`）。
+fn fgb_to_collection(path: &str) -> Result<geojson::FeatureCollection> {
+    use flatgeobuf::geozero::{FeatureProperties, ToJson};
+    use flatgeobuf::FallibleStreamingIterator;
+
+    let file = std::fs::File::open(path)?;
+    let mut buf = std::io::BufReader::new(file);
+    let mut fgb = flatgeobuf::FgbReader::open(&mut buf)
+        .and_then(|r| r.select_all())
+        .map_err(|e| {
+            KanyuError::Other(format!(
+                "flatgeobuf 读取失败（{path}）：{e}；文件可能损坏或不是有效的 FlatGeobuf"
+            ))
+        })?;
+
+    let mut features = Vec::new();
+    let mut rec_no = 0usize;
+    while let Some(feature) = fgb.next().map_err(|e| {
+        KanyuError::Other(format!(
+            "flatgeobuf 第 {} 条要素解析失败（{path}）：{e}",
+            rec_no + 1
+        ))
+    })? {
+        rec_no += 1;
+        let geometry = if feature.fbs_feature().geometry().is_some() {
+            let text = feature.to_json().map_err(|e| {
+                KanyuError::Other(format!(
+                    "flatgeobuf 第 {rec_no} 条要素几何解析失败（{path}）：{e}"
+                ))
+            })?;
+            let gj: geojson::GeoJson = text.parse()?;
+            match gj {
+                geojson::GeoJson::Geometry(g) => Some(g),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        let mut props = JsonProperties::default();
+        feature.process_properties(&mut props).map_err(|e| {
+            KanyuError::Other(format!(
+                "flatgeobuf 第 {rec_no} 条要素属性解析失败（{path}）：{e}"
+            ))
+        })?;
+
+        features.push(geojson::Feature {
+            bbox: None,
+            geometry,
+            id: None,
+            properties: Some(props.0),
+            foreign_members: None,
+        });
+    }
+
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
+
+/// FGB 属性处理器：列值 → 类型化 JSON properties（Binary 列跳过）。
+#[derive(Default)]
+struct JsonProperties(serde_json::Map<String, serde_json::Value>);
+
+impl flatgeobuf::geozero::PropertyProcessor for JsonProperties {
+    fn property(
+        &mut self,
+        _i: usize,
+        name: &str,
+        value: &flatgeobuf::geozero::ColumnValue,
+    ) -> flatgeobuf::geozero::error::Result<bool> {
+        use flatgeobuf::geozero::ColumnValue;
+        let json = match value {
+            ColumnValue::Byte(v) => serde_json::Value::from(*v),
+            ColumnValue::UByte(v) => serde_json::Value::from(*v),
+            ColumnValue::Short(v) => serde_json::Value::from(*v),
+            ColumnValue::UShort(v) => serde_json::Value::from(*v),
+            ColumnValue::Int(v) => serde_json::Value::from(*v),
+            ColumnValue::UInt(v) => serde_json::Value::from(*v),
+            ColumnValue::Long(v) => serde_json::Value::from(*v),
+            ColumnValue::ULong(v) => serde_json::Value::from(*v),
+            ColumnValue::Float(v) => serde_json::Value::from(*v),
+            ColumnValue::Double(v) => serde_json::Value::from(*v),
+            ColumnValue::Bool(v) => serde_json::Value::Bool(*v),
+            ColumnValue::String(v) | ColumnValue::DateTime(v) => {
+                serde_json::Value::String(v.to_string())
+            }
+            ColumnValue::Json(v) => {
+                serde_json::from_str(v).unwrap_or_else(|_| serde_json::Value::String(v.to_string()))
+            }
+            ColumnValue::Binary(_) => return Ok(false),
+        };
+        self.0.insert(name.to_string(), json);
+        Ok(false)
+    }
+}
+
+/// FGB 列类型（schema 推断的中间表示）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FgbColKind {
+    Int,
+    Double,
+    Bool,
+    Str,
+}
+
+impl FgbColKind {
+    /// 单个 JSON 值对应的列类型（Null 不贡献类型）。
+    fn of_value(value: &serde_json::Value) -> Option<Self> {
+        match value {
+            // as_i64 对整数值的 f64（如 80.0）同样成立。
+            serde_json::Value::Number(n) if n.as_i64().is_some() => Some(Self::Int),
+            serde_json::Value::Number(_) => Some(Self::Double),
+            serde_json::Value::Bool(_) => Some(Self::Bool),
+            serde_json::Value::String(_) => Some(Self::Str),
+            _ => None,
+        }
+    }
+
+    /// 同列多个值的类型合并：数值内部 Int+Double→Double，其余冲突退化为 String。
+    fn merge(self, other: Self) -> Self {
+        use FgbColKind::*;
+        match (self, other) {
+            (Int, Double) | (Double, Int) => Double,
+            (a, b) if a == b => a,
+            _ => Str,
+        }
+    }
+
+    fn column_type(self) -> flatgeobuf::ColumnType {
+        match self {
+            Self::Int => flatgeobuf::ColumnType::Long,
+            Self::Double => flatgeobuf::ColumnType::Double,
+            Self::Bool => flatgeobuf::ColumnType::Bool,
+            Self::Str => flatgeobuf::ColumnType::String,
+        }
+    }
+}
+
+/// 扫描全集合推断列 schema（按字段首次出现顺序，列序稳定）。
+fn infer_fgb_schema(collection: &geojson::FeatureCollection) -> Vec<(String, FgbColKind)> {
+    let mut schema: Vec<(String, FgbColKind)> = Vec::new();
+    for feature in &collection.features {
+        let Some(props) = &feature.properties else {
+            continue;
+        };
+        for (name, value) in props {
+            let Some(kind) = FgbColKind::of_value(value) else {
+                continue;
+            };
+            match schema.iter_mut().find(|(n, _)| n == name) {
+                Some((_, existing)) => *existing = existing.merge(kind),
+                None => schema.push((name.clone(), kind)),
+            }
+        }
+    }
+    schema
+}
+
+/// geojson 几何类型名 → FGB 几何类型。
+fn fgb_geometry_type(value: &geojson::Value) -> flatgeobuf::GeometryType {
+    use flatgeobuf::GeometryType;
+    match value {
+        geojson::Value::Point(_) => GeometryType::Point,
+        geojson::Value::MultiPoint(_) => GeometryType::MultiPoint,
+        geojson::Value::LineString(_) => GeometryType::LineString,
+        geojson::Value::MultiLineString(_) => GeometryType::MultiLineString,
+        geojson::Value::Polygon(_) => GeometryType::Polygon,
+        geojson::Value::MultiPolygon(_) => GeometryType::MultiPolygon,
+        geojson::Value::GeometryCollection(_) => GeometryType::GeometryCollection,
+    }
+}
+
+/// FeatureCollection → FlatGeobuf 字节串（Hilbert 排序 + 空间索引，
+/// CRS 声明为 GeoJSON 默认的 EPSG:4326）。
+fn collection_to_fgb(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
+    use flatgeobuf::geozero::{geojson::GeoJson, ColumnValue, PropertyProcessor};
+    use flatgeobuf::{FgbCrs, FgbWriter, FgbWriterOptions, GeometryType};
+
+    let crs = FgbCrs {
+        code: 4326,
+        ..Default::default()
+    };
+    // 几何类型集合：唯一则按声明写出（对 QGIS 等读取方更友好）；
+    // 混合（或空集合）按 Unknown 异构声明，逐要素携带类型。
+    let mut geom_types: Vec<GeometryType> = Vec::new();
+    for feature in &collection.features {
+        let Some(geom) = &feature.geometry else {
+            return Err(KanyuError::Other(
+                "flatgeobuf 导出失败：存在无几何要素，FGB 要求每个要素都有几何".to_string(),
+            ));
+        };
+        let t = fgb_geometry_type(&geom.value);
+        if !geom_types.contains(&t) {
+            geom_types.push(t);
+        }
+    }
+    let mut fgb = if let [only] = geom_types[..] {
+        FgbWriter::create_with_options(
+            "kanyu",
+            only,
+            FgbWriterOptions {
+                crs,
+                ..Default::default()
+            },
+        )
+    } else {
+        FgbWriter::create_with_options(
+            "kanyu",
+            GeometryType::Unknown,
+            FgbWriterOptions {
+                crs,
+                detect_type: false,
+                promote_to_multi: false,
+                ..Default::default()
+            },
+        )
+    }
+    .map_err(|e| KanyuError::Other(format!("flatgeobuf 写出失败: {e}")))?;
+
+    let schema = infer_fgb_schema(collection);
+    for (name, kind) in &schema {
+        fgb.add_column(name, kind.column_type(), |_, _| {});
+    }
+
+    for feature in &collection.features {
+        let geom = feature.geometry.as_ref().expect("前置检查已排除无几何要素");
+        let geom_json = geom.to_string();
+        fgb.add_feature_geom(GeoJson(&geom_json), |feat| {
+            let Some(props) = &feature.properties else {
+                return;
+            };
+            for (i, (name, kind)) in schema.iter().enumerate() {
+                let Some(value) = props.get(name) else {
+                    continue;
+                };
+                if value.is_null() {
+                    continue;
+                }
+                // 退化列（Str）中的非字符串值需物化为 String 以延长借用。
+                let owned;
+                let colval = match kind {
+                    FgbColKind::Int => ColumnValue::Long(value.as_i64().unwrap_or_default()),
+                    FgbColKind::Double => ColumnValue::Double(value.as_f64().unwrap_or_default()),
+                    FgbColKind::Bool => ColumnValue::Bool(value.as_bool().unwrap_or_default()),
+                    FgbColKind::Str => {
+                        owned = match value {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        };
+                        ColumnValue::String(&owned)
+                    }
+                };
+                let _ = feat.property(i, name, &colval);
+            }
+        })
+        .map_err(|e| KanyuError::Other(format!("flatgeobuf 要素写出失败: {e}")))?;
+    }
+
+    let mut out: Vec<u8> = Vec::new();
+    fgb.write(&mut out)
+        .map_err(|e| KanyuError::Other(format!("flatgeobuf 写出失败: {e}")))?;
+    Ok(out)
 }
 
 /// 在表头中定位 X/Y 坐标列（大小写不敏感）。
@@ -706,6 +985,88 @@ mod tests {
         assert!(
             err.to_string().contains("侧边文件"),
             "错误应提示侧边文件齐备问题: {err}"
+        );
+    }
+
+    /// 混合几何测试集合：Point/LineString/Polygon 各一，
+    /// 属性覆盖 string（name）/number（height，整浮混合）/bool（active）。
+    fn fgb_test_collection() -> geojson::FeatureCollection {
+        let gj: geojson::GeoJson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[116.39,39.90]},
+                 "properties":{"name":"甲","height":80,"active":true}},
+                {"type":"Feature","geometry":{"type":"LineString","coordinates":[[0,0],[1,1]]},
+                 "properties":{"name":"乙","height":30,"active":false}},
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[0,4],[4,4],[4,0],[0,0]]]},
+                 "properties":{"name":"丙","height":55.5,"active":true}}
+            ]
+        }"#
+        .parse()
+        .unwrap();
+        geojson::FeatureCollection::try_from(gj).unwrap()
+    }
+
+    /// 按 name 属性找回要素（FGB 写出按 Hilbert 空间排序，不能假设读回顺序）。
+    fn find_by_name(layer: &Layer, name: &str) -> geojson::Feature {
+        layer
+            .collection()
+            .features
+            .iter()
+            .find(|f| {
+                f.properties
+                    .as_ref()
+                    .and_then(|p| p.get("name"))
+                    .and_then(|v| v.as_str())
+                    == Some(name)
+            })
+            .unwrap_or_else(|| panic!("应存在 name={name} 的要素"))
+            .clone()
+    }
+
+    #[test]
+    fn fgb_roundtrip_preserves_features_and_types() {
+        let bytes = Layer::to_fgb_bytes(&fgb_test_collection()).unwrap();
+        let dir = std::env::temp_dir().join("kanyu_core_fgb_roundtrip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("mixed.fgb");
+        std::fs::write(&path, &bytes).unwrap();
+
+        let layer = Layer::load("mixed", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 3);
+        let s = layer.summary();
+        assert_eq!(s.format, "fgb");
+        assert_eq!(s.geometry_types, vec!["LineString", "Point", "Polygon"]);
+        assert_eq!(s.fields, vec!["active", "height", "name"]);
+        // 整浮混合列合并为 Double，数值比较查询结果一致（80 与 55.5 > 50）。
+        assert_eq!(layer.query("height > 50").unwrap().features.len(), 2);
+        // Bool/String 列读回后 JSON 类型保持；数值列按数值断言
+        //（JSON 文本层面 80.0 会写作 80，不区分整浮表示）。
+        let a = find_by_name(&layer, "甲");
+        let props = a.properties.as_ref().unwrap();
+        assert_eq!(props["active"], serde_json::Value::Bool(true));
+        assert_eq!(props["height"].as_f64(), Some(80.0));
+    }
+
+    #[test]
+    fn fgb_export_bytes_start_with_magic() {
+        let bytes = Layer::to_fgb_bytes(&fgb_test_collection()).unwrap();
+        // FGB 规范魔数：ASCII "fgb" + 主版本号 3 + "fgb" + 0x00。
+        assert_eq!(&bytes[..8], &[b'f', b'g', b'b', 3, b'f', b'g', b'b', 0]);
+    }
+
+    #[test]
+    fn fgb_corrupt_file_gives_clear_error() {
+        let dir = std::env::temp_dir().join("kanyu_core_fgb_corrupt");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("garbage.fgb");
+        std::fs::write(&path, b"this is not a flatgeobuf file").unwrap();
+        let err = Layer::load("garbage", path.to_str().unwrap())
+            .err()
+            .expect("损坏文件应报错");
+        assert!(
+            err.to_string().contains("flatgeobuf"),
+            "错误应指出 flatgeobuf 读取问题: {err}"
         );
     }
 }

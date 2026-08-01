@@ -115,7 +115,7 @@ impl KanyuServer {
     /// 将数据导出为目标格式。
     #[tool(
         name = "kanyu_data_export",
-        description = "将数据文件导出为目标格式（当前原生支持 geojson/csv；其余格式受格式能力矩阵与驱动状态约束）"
+        description = "将数据文件导出为目标格式（当前原生支持 geojson/csv/fgb；其余格式受格式能力矩阵与驱动状态约束）"
     )]
     async fn data_export(
         &self,
@@ -124,9 +124,12 @@ impl KanyuServer {
         let registry = FormatRegistry::builtin();
         let caps = registry.require(&req.format, "write").map_err(to_mcp)?;
         let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
-        let text = match caps.id {
-            "geojson" => Layer::to_geojson_string(layer.collection()),
-            "csv" => Layer::to_csv_string(layer.collection()).map_err(to_mcp)?,
+        let bytes: Vec<u8> = match caps.id {
+            "geojson" => Layer::to_geojson_string(layer.collection()).into_bytes(),
+            "csv" => Layer::to_csv_string(layer.collection())
+                .map_err(to_mcp)?
+                .into_bytes(),
+            "fgb" => Layer::to_fgb_bytes(layer.collection()).map_err(to_mcp)?,
             _ => {
                 return Err(to_mcp(kanyu_core::KanyuError::UnsupportedOperation {
                     format: caps.id.to_string(),
@@ -134,7 +137,7 @@ impl KanyuServer {
                 }))
             }
         };
-        std::fs::write(&req.out, text).map_err(to_mcp)?;
+        std::fs::write(&req.out, bytes).map_err(to_mcp)?;
         Ok(Json(serde_json::json!({
             "exported": layer.len(),
             "format": caps.id,

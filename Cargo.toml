@@ -34,6 +34,11 @@ clap = { version = "4", features = ["derive", "cargo"] }
 geojson = "0.24"
 schemars = "0.8"
 shapefile = "0.9"
+# 本地文件读写无需 HTTP 能力，关闭默认的 http/reqwest 特性以控制依赖体积。
+flatgeobuf = { version = "6", default-features = false }
+# 与 flatgeobuf 内部依赖同版本锁定；仅为其开启 with-geojson 特性
+#（flatgeobuf 自身以 default-features=false 引入 geozero，不含 geojson 模块）。
+geozero = { version = "0.15.1", default-features = false, features = ["with-geojson"] }
 
 [profile.release]
 lto = "thin"

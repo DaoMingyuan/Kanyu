@@ -113,7 +113,7 @@ $ ./target/debug/kanyu.exe data query examples/buildings.geojson --filter "usage
 
 > 注意：`query` 的 stdout 恒为 GeoJSON 文本（一行），不受 `--json` 影响。
 
-### 3.4 `kanyu data export <file> -f <format> --out <path>` ✅（原生支持 geojson / csv）
+### 3.4 `kanyu data export <file> -f <format> --out <path>` ✅（原生支持 geojson / csv / fgb）
 
 导出为目标格式，受格式能力矩阵约束（决策路径见
 [ARCHITECTURE.md](ARCHITECTURE.md#4-格式注册表设计)）。
@@ -130,6 +130,8 @@ $ ./target/debug/kanyu.exe data export examples/buildings.geojson -f geojson --o
 已导出 4 个要素 → deliver.geojson (geojson)      # stderr
 $ ./target/debug/kanyu.exe data export examples/buildings.geojson -f csv --out deliver.csv
 已导出 4 个要素 → deliver.csv (csv)              # x,y 坐标列仅 Point 取值
+$ ./target/debug/kanyu.exe data export examples/buildings.geojson -f fgb --out deliver.fgb
+已导出 4 个要素 → deliver.fgb (fgb)              # 二进制，列 schema 自动推断，混合几何按 Unknown 异构声明
 $ echo $?
 0
 ```

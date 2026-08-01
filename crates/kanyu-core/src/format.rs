@@ -114,7 +114,7 @@ impl FormatRegistry {
                 symbol: Full,
                 layout: None,
                 driver: "native",
-                note: "内部首选交换格式，MMAP 零拷贝",
+                note: "原生读写（flatgeobuf crate）；内部首选交换格式，列 schema 自动推断，混合几何按 Unknown 异构声明",
             },
             FormatCapabilities {
                 id: "geoparquet",

@@ -6,6 +6,13 @@
 
 ### 新增
 
+- **kanyu-core / CLI / MCP**：FlatGeobuf 原生读写（flatgeobuf crate，免 GDAL）——
+  读取逐要素转换（几何经 geozero `ToJson`、属性经自研 PropertyProcessor），
+  FGB 列类型原生映射为 JSON 类型；
+  写出列 schema 自动推断（String→String、整数→Long、浮点→Double、Bool→Bool，
+  混合类型列退化为 String），单一几何类型按声明写出、混合几何按 Unknown 异构声明，
+  Hilbert 空间索引 + EPSG:4326 CRS 声明。`Layer::to_fgb_bytes`、
+  CLI/MCP export `-f fgb` 可用。
 - **kanyu-core**：Shapefile 原生读取（shapefile crate，免 GDAL）——Point/MultiPoint/
   Polyline/Polygon（含 M/Z 变体与带洞多边形），dbase 属性类型化为 JSON
   （Numeric/Float→Number、Character→String、Logical→Bool、Date/DateTime/Memo→String、

@@ -18,3 +18,5 @@ thiserror.workspace = true
 geojson.workspace = true
 csv.workspace = true
 shapefile.workspace = true
+flatgeobuf.workspace = true
+geozero.workspace = true
