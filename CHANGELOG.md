@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-02
+
+**米制分析链路打通：投影变换（proj4rs + EPSG 数据库）与测地线度量。**
+
 ### 新增
 
 - **kanyu-core / CLI / MCP**：坐标投影工具 + 测地线度量（新模块 `crs`，
@@ -147,7 +151,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.5.0
 [0.4.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.4.0
 [0.3.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.3.0
 [0.2.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.2.0
