@@ -68,6 +68,37 @@ pub struct AgentsInitReq {
     pub crs: Option<String>,
 }
 
+/// `kanyu_analysis_buffer` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisBufferReq {
+    /// 数据文件路径。
+    pub path: String,
+    /// 缓冲距离（数据 CRS 单位；EPSG:4326 下是度，米制缓冲需先投影）。
+    pub distance: f64,
+    /// 圆弧拟合的每象限分段数（默认 8）。
+    pub segments: Option<usize>,
+}
+
+/// `kanyu_analysis_overlay` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisOverlayReq {
+    /// 目标图层文件路径。
+    pub target: String,
+    /// 叠加图层文件路径。
+    pub overlay: String,
+    /// 操作：union/intersection/difference/xor。
+    pub operation: String,
+}
+
+/// `kanyu_analysis_topology` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisTopologyReq {
+    /// 数据文件路径。
+    pub path: String,
+    /// 规则清单（支持 no_overlap）。
+    pub rules: Vec<String>,
+}
+
 #[tool_router]
 impl KanyuServer {
     /// 构造 Server 并注册全部工具。
@@ -150,6 +181,77 @@ impl KanyuServer {
             "format": caps.id,
             "out": req.out,
         })))
+    }
+
+    /// 缓冲区分析。
+    #[tool(
+        name = "kanyu_analysis_buffer",
+        description = "对数据文件做缓冲区分析（distance 单位为数据 CRS 单位；EPSG:4326 下是度而非米，米制缓冲需先投影），属性随行，返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_buffer(
+        &self,
+        Parameters(req): Parameters<AnalysisBufferReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let result = kanyu_core::analysis::buffer(
+            &layer.collection(),
+            req.distance,
+            req.segments.unwrap_or(8),
+        )
+        .map_err(to_mcp)?;
+        let skipped = result
+            .foreign_members
+            .as_ref()
+            .and_then(|m| m.get("skipped"))
+            .cloned()
+            .unwrap_or_else(|| serde_json::Value::from(0));
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "skipped": skipped,
+            "collection": result,
+        })))
+    }
+
+    /// 叠加分析。
+    #[tool(
+        name = "kanyu_analysis_overlay",
+        description = "叠加分析（仅 Polygon/MultiPolygon 面要素；operation ∈ union/intersection/difference/xor；逐要素对布尔、未做跨对融合），返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_overlay(
+        &self,
+        Parameters(req): Parameters<AnalysisOverlayReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let target = Layer::load(stem_of(&req.target), &req.target).map_err(to_mcp)?;
+        let overlay_layer = Layer::load(stem_of(&req.overlay), &req.overlay).map_err(to_mcp)?;
+        let op: kanyu_core::analysis::OverlayOp = req.operation.parse().map_err(to_mcp)?;
+        let result =
+            kanyu_core::analysis::overlay(&target.collection(), &overlay_layer.collection(), op)
+                .map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "collection": result,
+        })))
+    }
+
+    /// 拓扑检查。
+    #[tool(
+        name = "kanyu_analysis_topology",
+        description = "拓扑检查（rules 支持 no_overlap：面要素两两交集面积 > 1e-10 判违规），返回违规报告（规则、要素数、违规条数与明细）"
+    )]
+    async fn analysis_topology(
+        &self,
+        Parameters(req): Parameters<AnalysisTopologyReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let rules: Vec<kanyu_core::analysis::TopologyRule> = req
+            .rules
+            .iter()
+            .map(|s| s.parse())
+            .collect::<std::result::Result<_, _>>()
+            .map_err(to_mcp)?;
+        let report =
+            kanyu_core::analysis::topology_check(&layer.collection(), &rules).map_err(to_mcp)?;
+        Ok(Json(serde_json::to_value(report).map_err(to_mcp)?))
     }
 
     /// 系统自省：架构、模块、格式矩阵、工具清单。

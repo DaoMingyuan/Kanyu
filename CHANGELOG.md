@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-core / CLI / MCP**：空间分析工具组（geo crate，总规 §4.2.2 落地，
+  裁决 #16 分析内核优先于 UI 壳层）——
+  - `analysis::buffer`：缓冲区分析（圆角连接/端帽，segments 控制每象限
+    分段数；属性随行；不可转换要素跳过并计入 `foreign_members.skipped`）。
+  - `analysis::overlay`：叠加分析（BooleanOps/i_overlay：
+    union/intersection/difference/xor；仅面要素，非面报错指出序号；
+    target×overlay 逐要素对布尔、未做跨对融合；属性合并、键冲突加
+    `overlay_` 前缀；Difference 为连续差、仅带 target 属性）。
+  - `analysis::topology_check`：拓扑检查（NoOverlap：面要素两两交集
+    面积 > 1e-10 判违规；`TopologyReport` 结构化报告；O(n²) 朴素实现，
+    rstar 加速 📋）。
+  - CLI 新命令组 `kanyu analysis buffer/overlay/topology`；
+    MCP 新工具 `kanyu_analysis_buffer/overlay/topology`（introspect
+    三项状态 planned→stable）。
+  - 单位警示：distance/面积均为数据 CRS 单位，EPSG:4326 下是度；
+    米制分析需先投影（proj4rs 📋）。
+
 ## [0.3.0] - 2026-08-02
 
 **GeoArrow 成为内核血液：`Layer` 内存模型迁移至 RecordBatch 列式零拷贝。**

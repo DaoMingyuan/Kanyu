@@ -10,9 +10,10 @@
 1. [crate 总览](#1-crate-总览)
 2. [format —— 格式注册表](#2-format--格式注册表)
 3. [layer —— 图层内存模型](#3-layer--图层内存模型)
-4. [agents —— AGENTS.md 语义](#4-agents--agentsmd-语义)
-5. [introspect —— 系统自省](#5-introspect--系统自省)
-6. [error —— 错误处理约定](#6-error--错误处理约定)
+4. [analysis —— 空间分析内核](#4-analysis--空间分析内核)
+5. [agents —— AGENTS.md 语义](#5-agents--agentsmd-语义)
+6. [introspect —— 系统自省](#6-introspect--系统自省)
+7. [error —— 错误处理约定](#7-error--错误处理约定)
 
 ## 1. crate 总览
 
@@ -132,7 +133,38 @@ println!("{}", Layer::to_geojson_string(&high));
 | `geometry_types` | `Vec<String>` | 几何类型集合（去重、排序），如 `["LineString", "Point"]` |
 | `fields` | `Vec<String>` | 属性字段名集合（去重、排序） |
 
-## 4. agents —— AGENTS.md 语义
+## 4. analysis —— 空间分析内核
+
+对应 [MASTERPLAN.md](MASTERPLAN.md) §4.2.2（裁决 #16：分析内核优先于 UI 壳层）。
+三个函数均以 GeoJSON `FeatureCollection` 为边界格式，结果可直接走任意
+`Layer::to_*` 序列化器。**单位警示**：距离/面积以数据 CRS 单位计，
+EPSG:4326 下是度而非米；米制分析需先投影（proj4rs 📋）。
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `buffer` | `fn buffer(collection: &geojson::FeatureCollection, distance: f64, segments: usize) -> Result<geojson::FeatureCollection>` | 缓冲区分析：结果为 Polygon/MultiPolygon，属性随行；`segments` 为每象限圆弧分段数（≥1，对应圆角连接角 `π/2 / segments`）；几何缺失/不可转换的要素跳过并计入返回集合 `foreign_members.skipped` |
+| `overlay` | `fn overlay(target: &geojson::FeatureCollection, overlay: &geojson::FeatureCollection, op: OverlayOp) -> Result<geojson::FeatureCollection>` | 叠加分析：仅 Polygon/MultiPolygon（其余类型报中文错误并指出要素序号）。Union/Intersection/Xor 为 target×overlay 逐要素对布尔（未做跨对融合 dissolve）；Difference 为每 target 连续减全部 overlay。属性：target + overlay（键冲突加 `overlay_` 前缀；Difference 仅 target 属性） |
+| `topology_check` | `fn topology_check(collection: &geojson::FeatureCollection, rules: &[TopologyRule]) -> Result<TopologyReport>` | 拓扑检查：NoOverlap 对面要素两两判定（intersects 粗筛 + 交集面积 > 1e-10 确认）；非面要素跳过；O(n²) 朴素实现（rstar 加速 📋） |
+
+### `OverlayOp` / `TopologyRule`
+
+| 类型 | 变体 | FromStr |
+|---|---|---|
+| `OverlayOp` | `Union` / `Intersection` / `Difference` / `Xor` | `union` / `intersection` / `difference` / `xor`（大小写不敏感，未知值报中文错误） |
+| `TopologyRule` | `NoOverlap` | `no_overlap`（同上） |
+
+### `TopologyReport` / `TopologyViolation`
+
+`Clone + Serialize`，MCP `kanyu_analysis_topology` 与 CLI `analysis topology --json` 的返回形状：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `rule` | `String` | 执行的规则（逗号分隔） |
+| `feature_count` | `usize` | 输入要素总数 |
+| `violation_count` | `usize` | 违规条数（= `violations.len()`） |
+| `violations` | `Vec<TopologyViolation>` | 违规明细：`feature_a`/`feature_b`（输入集合中的要素序号，0 起）+ `note`（如重叠面积） |
+
+## 5. agents —— AGENTS.md 语义
 
 对应 [MASTERPLAN.md](MASTERPLAN.md) §4.3.2；设计理念见
 [ARCHITECTURE.md](ARCHITECTURE.md#5-agentsmd-语义层设计)。
@@ -191,7 +223,7 @@ if issues.is_empty() {
 }
 ```
 
-## 5. introspect —— 系统自省
+## 6. introspect —— 系统自省
 
 `kanyu introspect` 与 MCP `kanyu_system_introspect` 的内核实现，
 是自迭代闭环 Phase 1（观察）的入口。
@@ -219,7 +251,7 @@ if issues.is_empty() {
 | `ModuleInfo` | `name`, `role`, `status`: 均 `&'static str` | `status` ∈ `stable` / `incubating` / `planned` |
 | `ToolInfo` | `name`, `group`, `status`: 均 `&'static str` | `group` ∈ `data` / `agents` / `analysis` / `render` / `system`；`name` 即真实 MCP 工具名（下划线式，如 `kanyu_data_load`），与总规点式逻辑命名的映射见 [MCP.md](MCP.md#命名规范) |
 
-## 6. error —— 错误处理约定
+## 7. error —— 错误处理约定
 
 所有公共 API 返回 `kanyu_core::Result<T>`；错误为单一枚举 `KanyuError`（thiserror 派生，
 `Display` 面向最终用户）。CLI 把它转成非零退出码，MCP 把它转成 `internal_error`

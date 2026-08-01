@@ -52,7 +52,7 @@ pub fn modules() -> Vec<ModuleInfo> {
     vec![
         ModuleInfo {
             name: "kanyu-core",
-            role: "数据心脏：格式注册表、图层模型、AGENTS.md 语义、系统自省",
+            role: "数据心脏：格式注册表、图层模型、空间分析（buffer/overlay/topology）、AGENTS.md 语义、系统自省",
             status: "stable",
         },
         ModuleInfo {
@@ -125,17 +125,17 @@ pub fn tools() -> Vec<ToolInfo> {
         ToolInfo {
             name: "kanyu_analysis_buffer",
             group: "analysis",
-            status: "planned",
+            status: "stable",
         },
         ToolInfo {
             name: "kanyu_analysis_overlay",
             group: "analysis",
-            status: "planned",
+            status: "stable",
         },
         ToolInfo {
             name: "kanyu_analysis_topology",
             group: "analysis",
-            status: "planned",
+            status: "stable",
         },
         // 渲染工具
         ToolInfo {

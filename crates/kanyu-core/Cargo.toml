@@ -28,3 +28,5 @@ arrow-select.workspace = true
 parquet.workspace = true
 dxf.workspace = true
 kml.workspace = true
+geo.workspace = true
+geo-types.workspace = true

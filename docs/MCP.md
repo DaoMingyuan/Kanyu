@@ -199,6 +199,55 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
 输出：`{"created": "<project>/AGENTS.md"}`。目标已存在时返回 `invalid_params`
 错误（"…已存在"），不会静默覆盖。
 
+### 3.7 `kanyu_analysis_buffer`
+
+> 对数据文件做缓冲区分析（distance 单位为数据 CRS 单位；EPSG:4326 下是度而非米，米制缓冲需先投影），属性随行。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 数据文件路径 |
+| `distance` | number | 是 | 缓冲距离（数据 CRS 单位） |
+| `segments` | integer \| null | 否 | 圆弧拟合的每象限分段数（默认 8） |
+
+输出（`structuredContent`）：
+
+```json
+{
+  "feature_count": 4,
+  "skipped": 0,
+  "collection": {"type": "FeatureCollection", "features": [{"type":"Feature","geometry":{"type":"MultiPolygon","coordinates":[…]},"properties":{"name":"示例大厦A",…}}]}
+}
+```
+
+### 3.8 `kanyu_analysis_overlay`
+
+> 叠加分析（仅 Polygon/MultiPolygon 面要素；target×overlay 逐要素对布尔、未做跨对融合；非面要素返回中文错误并指出序号）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `target` | string | 是 | 目标图层文件路径 |
+| `overlay` | string | 是 | 叠加图层文件路径 |
+| `operation` | string | 是 | `union` / `intersection` / `difference` / `xor` |
+
+输出：`{"feature_count": 1, "collection": {…}}`；结果属性 = target 属性 +
+overlay 属性（键冲突加 `overlay_` 前缀；difference 仅 target 属性）。
+
+### 3.9 `kanyu_analysis_topology`
+
+> 拓扑检查（面要素两两交集面积 > 1e-10 判违规；非面要素跳过）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 数据文件路径 |
+| `rules` | string[] | 是 | 规则清单（当前支持 `no_overlap`） |
+
+输出（`TopologyReport`，字段见 [API.md](API.md#4-analysis--空间分析内核)）：
+
+```json
+{"rule":"no_overlap","feature_count":2,"violation_count":1,
+ "violations":[{"feature_a":0,"feature_b":1,"note":"面要素重叠，交集面积 4.000000"}]}
+```
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
@@ -212,7 +261,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | `kanyu.system.introspect` | `kanyu_system_introspect` | ✅ |
 | —（agents 组，总规后增） | `kanyu_agents_validate` | ✅ |
 | — | `kanyu_agents_init` | ✅ |
-| `kanyu.analysis.buffer/overlay/topology` | `kanyu_analysis_*` | 📋 |
+| `kanyu.analysis.buffer/overlay/topology` | `kanyu_analysis_*` | ✅ |
 | `kanyu.render.symbolize/camera` | `kanyu_render_*` | 📋 |
 | `kanyu.system.generate/hotload` | `kanyu_system_*` | 📋 |
 
@@ -238,7 +287,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| analysis 工具组 | 📋 | `kanyu_analysis_buffer` / `overlay` / `topology`（geo crate 布尔/DE-9IM/buffer） |
+| analysis 工具组扩展 | 📋 | sjoin / zonal_stats / 测地线距离（proj4rs 投影）；buffer/overlay/topology 已 ✅（§3.7–3.9） |
 | render 工具组 | 📋 | `kanyu_render_symbolize` / `camera`（随 kanyu-render/wgpu 落地） |
 | system 工具组扩展 | 📋 | `kanyu_system_generate` / `hotload`（代码生成→WASM 沙箱流水线，须人类审核） |
 | MCP tasks | 📋 | SEP-1686 长任务：大文件导入、批量导出等异步化，进度可查询 |

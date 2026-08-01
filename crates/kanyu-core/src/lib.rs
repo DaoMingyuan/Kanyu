@@ -3,7 +3,8 @@
 //! 堪舆 (Kanyu) 的数据心脏。本 crate 提供：
 //!
 //! - [`format`]：统一格式注册表与能力矩阵（读/写/编辑/符号/布局）。
-//! - [`layer`]：图层内存模型，GeoJSON 等格式的加载与属性查询。
+//! - [`layer`]：图层内存模型，GeoArrow RecordBatch 载体与属性查询。
+//! - [`analysis`]：空间分析内核（buffer/overlay/topology，geo crate）。
 //! - [`agents`]：`AGENTS.md` 项目语义文件解析，AI 理解项目的"罗盘"。
 //! - [`introspect`]：系统自省，输出架构、能力与格式矩阵（供 AI 读取自身）。
 //!
@@ -11,6 +12,7 @@
 //! 以可选 feature 形式存在，不进入默认构建，保证任何平台 `cargo build` 即可用。
 
 pub mod agents;
+pub mod analysis;
 pub mod error;
 pub mod format;
 pub mod introspect;

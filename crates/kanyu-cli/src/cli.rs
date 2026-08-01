@@ -29,6 +29,10 @@ pub enum Command {
     #[command(subcommand)]
     Data(DataCommand),
 
+    /// 空间分析：缓冲、叠加、拓扑检查。
+    #[command(subcommand)]
+    Analysis(AnalysisCommand),
+
     /// 系统自省 —— AI 读取自身（源码树、能力矩阵、工具清单）。
     Introspect,
 
@@ -84,6 +88,46 @@ pub enum DataCommand {
         /// 保留符号化映射。
         #[arg(long)]
         symbol_mapping: bool,
+    },
+}
+
+/// `kanyu analysis ...`
+#[derive(Subcommand, Debug)]
+pub enum AnalysisCommand {
+    /// 缓冲区分析（distance 单位为数据 CRS 单位；EPSG:4326 下是度，米制缓冲需先投影）。
+    Buffer {
+        /// 数据文件路径。
+        file: String,
+        /// 缓冲距离。
+        #[arg(long)]
+        distance: f64,
+        /// 圆弧拟合的每象限分段数（默认 8）。
+        #[arg(long, default_value_t = 8)]
+        segments: usize,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 叠加分析（仅 Polygon/MultiPolygon 面要素）。
+    Overlay {
+        /// 目标图层文件。
+        target: String,
+        /// 叠加图层文件。
+        overlay: String,
+        /// 操作：union/intersection/difference/xor。
+        #[arg(long)]
+        operation: String,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 拓扑检查（--json 输出 TopologyReport）。
+    Topology {
+        /// 数据文件路径。
+        file: String,
+        /// 规则（逗号分隔，支持 no_overlap）。
+        #[arg(long)]
+        rules: String,
     },
 }
 

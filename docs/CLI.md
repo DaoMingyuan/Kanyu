@@ -10,10 +10,11 @@
 1. [安装](#1-安装)
 2. [全局约定](#2-全局约定)
 3. [kanyu data](#3-kanyu-data)
-4. [kanyu introspect](#4-kanyu-introspect)
-5. [kanyu agents](#5-kanyu-agents)
-6. [kanyu mcp serve](#6-kanyu-mcp-serve)
-7. [计划中的命令（📋）](#7-计划中的命令-)
+4. [kanyu analysis](#4-kanyu-analysis)
+5. [kanyu introspect](#5-kanyu-introspect)
+6. [kanyu agents](#6-kanyu-agents)
+7. [kanyu mcp serve](#7-kanyu-mcp-serve)
+8. [计划中的命令（📋）](#8-计划中的命令-)
 
 ## 1. 安装
 
@@ -153,7 +154,59 @@ Error: 格式 'dwg' 的原生导出尚未启用（driver: libredwg-wasm）。
 矩阵不允许时更早被拦截：`kanyu data export ... -f wfs ...` →
 `Error: format 'wfs' does not support operation 'write'`。
 
-## 4. kanyu introspect ✅
+## 4. kanyu analysis ✅
+
+空间分析工具组（geo crate；对应 [MASTERPLAN.md](MASTERPLAN.md) §4.2.2）。
+**单位警示**：`--distance` 与面积均为数据 CRS 单位，EPSG:4326 下是度而非米；
+米制分析需先投影（proj4rs 📋）。
+
+### 4.1 `kanyu analysis buffer <file> --distance <f64> [--segments <n>]` ✅
+
+缓冲区分析：逐要素缓冲为面几何，**属性随行**；不可转换要素跳过
+（跳过数计入结果 `foreign_members.skipped`）。
+
+| 参数 | 说明 |
+|---|---|
+| `<file>` | 数据文件路径 |
+| `--distance <f64>` | 缓冲距离（数据 CRS 单位） |
+| `--segments <n>` | 圆弧拟合的每象限分段数（默认 8，越大越圆滑） |
+| `--output <path>` | 结果输出路径（GeoJSON）；缺省打印到 stdout |
+
+```bash
+$ ./target/debug/kanyu.exe analysis buffer examples/buildings.geojson --distance 0.001 --segments 16 --output buf.geojson
+已写出 4 个要素 → buf.geojson        # 该提示在 stderr
+```
+
+### 4.2 `kanyu analysis overlay <target> <overlay> --operation <op>` ✅
+
+叠加分析（仅 Polygon/MultiPolygon 面要素）：target×overlay 逐要素对布尔
+（未做跨对融合 dissolve，语义细节见 [API.md](API.md#4-analysis--空间分析内核)）。
+结果属性 = target 属性 + overlay 属性（键冲突加 `overlay_` 前缀）。
+
+| 参数 | 说明 |
+|---|---|
+| `<target>` | 目标图层文件 |
+| `<overlay>` | 叠加图层文件 |
+| `--operation <op>` | `union` / `intersection` / `difference` / `xor` |
+| `--output <path>` | 结果输出路径（GeoJSON）；缺省打印到 stdout |
+
+### 4.3 `kanyu analysis topology <file> --rules <rules>` ✅
+
+拓扑检查（面要素两两交集面积 > 1e-10 判违规）。人读输出违规摘要，
+`--json` 输出 `TopologyReport`（字段见 [API.md](API.md#4-analysis--空间分析内核)）。
+
+| 参数 | 说明 |
+|---|---|
+| `<file>` | 数据文件路径 |
+| `--rules <rules>` | 规则（逗号分隔，当前支持 `no_overlap`） |
+
+```bash
+$ ./target/debug/kanyu.exe analysis topology overlap.geojson --rules no_overlap
+拓扑检查发现 1 条违规（规则 no_overlap，2 个要素）:
+  要素 0 × 要素 1：面要素重叠，交集面积 4.000000
+```
+
+## 5. kanyu introspect ✅
 
 系统自省 —— AI 读取自身（模块清单、能力矩阵、工具清单）。
 输出即 `Introspection` 报告（字段见 [API.md](API.md#5-introspect--系统自省)）。
@@ -177,7 +230,7 @@ MCP 工具:
   kanyu_data_query             data      [stable]
   kanyu_data_export            data      [stable]
   kanyu_agents_init            agents    [stable]
-  kanyu_analysis_buffer        analysis  [planned]
+  kanyu_analysis_buffer        analysis  [stable]
   …
 格式矩阵: 17 种格式（详见 --json 或 docs/）
 ```
@@ -186,12 +239,12 @@ MCP 工具:
 工具清单中的名称即真实 MCP 工具名（下划线式，映射规则见
 [MCP.md](MCP.md#4-命名规范)）。
 
-## 5. kanyu agents
+## 6. kanyu agents
 
 `AGENTS.md` 项目语义文件：生成与校验（语义层设计见
 [ARCHITECTURE.md](ARCHITECTURE.md#5-agentsmd-语义层设计)）。
 
-### 5.1 `kanyu agents init` ✅
+### 6.1 `kanyu agents init` ✅
 
 在指定目录生成 AGENTS.md 模板。
 
@@ -208,7 +261,7 @@ $ ./target/debug/kanyu.exe agents init --project ./my_project --name 演示项�
 # 已存在且未加 --force 时：Error: ...AGENTS.md 已存在（使用 --force 覆盖），退出码 1
 ```
 
-### 5.2 `kanyu agents validate` ✅
+### 6.2 `kanyu agents validate` ✅
 
 校验 AGENTS.md 完整性（元数据 name/crs、图层语义、业务规则）。
 
@@ -237,7 +290,7 @@ Error: AGENTS.md 校验未通过：3 个问题
 {"document":{"business_rules":[...],"custom_tools":[...],"layers":[...],"meta":{...}},"issues":[],"valid":true}
 ```
 
-## 6. kanyu mcp serve ✅
+## 7. kanyu mcp serve ✅
 
 启动 MCP Server，供 AI 代理接入（协议与工具详见 [MCP.md](MCP.md)）。
 
@@ -258,16 +311,15 @@ $ ./target/debug/kanyu.exe mcp serve --transport sse --port 3000
 Error: SSE 传输（端口 3000）将在 kanyu-mcp v0.2 提供（rmcp streamable HTTP）；当前请使用 --transport=stdio
 ```
 
-## 7. 计划中的命令（📋）
+## 8. 计划中的命令（📋）
 
 对应 [MASTERPLAN.md](MASTERPLAN.md) §4.3.1，随各 Phase 落地：
 
 | 命令 | 状态 | 说明 |
 |---|---|---|
-| `kanyu analysis buffer/topology ...` | 📋 | 空间分析（geo crate：buffer/布尔/拓扑检查） |
 | `kanyu codegen --prompt ... --target rust` | 📋 | AI 代码生成（Phase 4，须人类审核） |
 | `kanyu plugin build/load <wasm>` | 📋 | WASM 基因构建与热加载（wasmtime 沙箱） |
 | `kanyu benchmark --plugin ... --metric fps` | 📋 | A/B 基准对比 |
 | `kanyu regression test --suite ...` | 📋 | 回归测试套件，性能阈值断言 |
 
-当前 v0.1.0 命令全集即本文 §3–§6；以 `kanyu --help` 与 `kanyu introspect` 输出为准。
+当前命令全集即本文 §3–§7；以 `kanyu --help` 与 `kanyu introspect` 输出为准。

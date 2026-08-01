@@ -1084,6 +1084,13 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] CSV/TSV 坐标列自动识别（lon/lat/x/y/经度/纬度）与 CSV 导出闭环。
 - [x] **里程碑（格式部分）**：主流矢量文件格式（shp/geojson/fgb/geoparquet/dxf/kml/csv）免 GDAL 读写 ✅（2026-08-02 达成；gpkg/spatialite/postgis/wfs 按裁决 #15 走可选 feature 路线，内存基准测试待 GeoArrow 迁移后统一进行）。
 
+#### Phase 1.5：分析内核（裁决 #16 调序前置，v0.4.0 落地）
+
+- [x] buffer 缓冲分析（geo crate Buffer，圆角分段可调，属性随行，2026-08-02）。
+- [x] overlay 叠加分析（geo crate BooleanOps/i_overlay：union/intersection/difference/xor，2026-08-02）。
+- [x] topology 拓扑检查（NoOverlap 面重叠检测，2026-08-02）。
+- [ ] sjoin / zonal_stats / 测地线距离（proj4rs 投影）与 rstar 索引加速，后续迭代。
+
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）
 
 - [ ] wgpu 渲染管线（Vulkan/Metal/DX12/GL 一套代码）。
@@ -1122,7 +1129,8 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 |---------|------|------|
 | §3.2 格式矩阵 | ✅ 代码化（FormatRegistry，17 格式） | `crates/kanyu-core/src/format.rs` |
 | §4.2 MCP 工具（数据组） | ✅ 3/4 组首工具落地（命名修正为下划线式） | `crates/kanyu-mcp/src/server.rs` |
-| §4.3.1 CLI | ✅ data/introspect/agents/mcp 四组；analysis/plugin/benchmark 📋 | `crates/kanyu-cli/` |
+| §4.2.2 分析工具组 | ✅ 3/3 首工具（buffer/overlay/topology，geo crate） | `crates/kanyu-core/src/analysis.rs` |
+| §4.3.1 CLI | ✅ data/analysis/introspect/agents/mcp 五组；plugin/benchmark 📋 | `crates/kanyu-cli/` |
 | §4.3.2 AGENTS.md | ✅ 解析/校验/模板 | `crates/kanyu-core/src/agents.rs` |
 | §4.4 自省（Phase 1 观察） | ✅ `kanyu.system.introspect` | `crates/kanyu-core/src/introspect.rs` |
 | §5.2 Phase 1 | 🚧 首块基石完成 | 见 §6.4 |

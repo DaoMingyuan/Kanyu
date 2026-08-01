@@ -154,3 +154,76 @@ fn export_to_unsupported_driver_fails_with_structured_message() {
         "stderr 应指出驱动状态: {stderr}"
     );
 }
+
+#[test]
+fn analysis_buffer_produces_polygon_with_props() {
+    let dir = std::env::temp_dir().join("kanyu_itest_buffer");
+    std::fs::create_dir_all(&dir).unwrap();
+    let sample = write_sample(&dir);
+
+    let out = kanyu()
+        .args([
+            "analysis",
+            "buffer",
+            sample.to_str().unwrap(),
+            "--distance",
+            "0.5",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let features = json["features"].as_array().unwrap();
+    assert_eq!(features.len(), 2);
+    // 缓冲结果为面几何（geo 返回 MultiPolygon 包装），属性随行。
+    let geom_type = features[0]["geometry"]["type"].as_str().unwrap();
+    assert!(
+        geom_type == "Polygon" || geom_type == "MultiPolygon",
+        "缓冲结果应为面几何，实际: {geom_type}"
+    );
+    assert_eq!(features[0]["properties"]["name"], "a");
+}
+
+#[test]
+fn analysis_topology_json_reports_violation() {
+    let dir = std::env::temp_dir().join("kanyu_itest_topology");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("overlap.geojson");
+    std::fs::write(
+        &path,
+        r#"{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                [[0,0],[0,4],[4,4],[4,0],[0,0]]]},"properties":{"name":"a"}},
+            {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                [[2,2],[2,6],[6,6],[6,2],[2,2]]]},"properties":{"name":"b"}}
+        ]}"#,
+    )
+    .unwrap();
+
+    let out = kanyu()
+        .args([
+            "analysis",
+            "topology",
+            path.to_str().unwrap(),
+            "--rules",
+            "no_overlap",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(json["rule"], "no_overlap");
+    assert_eq!(json["feature_count"], 2);
+    assert_eq!(json["violation_count"], 1);
+    assert_eq!(json["violations"][0]["feature_a"], 0);
+    assert_eq!(json["violations"][0]["feature_b"], 1);
+}

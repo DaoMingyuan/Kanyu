@@ -3,7 +3,7 @@
 use anyhow::{bail, Context, Result};
 use kanyu_core::{agents, introspect, FormatRegistry, Layer};
 
-use crate::cli::{AgentsCommand, DataCommand, McpCommand, Transport};
+use crate::cli::{AgentsCommand, AnalysisCommand, DataCommand, McpCommand, Transport};
 
 /// `kanyu data ...`
 pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
@@ -104,6 +104,80 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                 }
             }
         }
+    }
+    Ok(())
+}
+
+/// `kanyu analysis ...`
+pub fn analysis(cmd: &AnalysisCommand, json: bool) -> Result<()> {
+    match cmd {
+        AnalysisCommand::Buffer {
+            file,
+            distance,
+            segments,
+            output,
+        } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let result = kanyu_core::analysis::buffer(&layer.collection(), *distance, *segments)?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Overlay {
+            target,
+            overlay,
+            operation,
+            output,
+        } => {
+            let target_layer = Layer::load(stem_of(target), target)?;
+            let overlay_layer = Layer::load(stem_of(overlay), overlay)?;
+            let op: kanyu_core::analysis::OverlayOp = operation.parse()?;
+            let result = kanyu_core::analysis::overlay(
+                &target_layer.collection(),
+                &overlay_layer.collection(),
+                op,
+            )?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Topology { file, rules } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let rules: Vec<kanyu_core::analysis::TopologyRule> = rules
+                .split(',')
+                .map(|s| s.trim().parse())
+                .collect::<std::result::Result<_, _>>()?;
+            let report = kanyu_core::analysis::topology_check(&layer.collection(), &rules)?;
+            print_value(&report, json, |r| {
+                if r.violation_count == 0 {
+                    format!(
+                        "拓扑检查通过：{} 个要素，规则 {}，无违规",
+                        r.feature_count, r.rule
+                    )
+                } else {
+                    let mut s = format!(
+                        "拓扑检查发现 {} 条违规（规则 {}，{} 个要素）:",
+                        r.violation_count, r.rule, r.feature_count
+                    );
+                    for v in &r.violations {
+                        s.push_str(&format!(
+                            "\n  要素 {} × 要素 {}：{}",
+                            v.feature_a, v.feature_b, v.note
+                        ));
+                    }
+                    s
+                }
+            });
+        }
+    }
+    Ok(())
+}
+
+/// buffer/overlay 结果写出：有 --output 写文件（提示走 stderr），否则打 stdout。
+fn write_geojson_result(result: &geojson::FeatureCollection, output: Option<&str>) -> Result<()> {
+    let text = Layer::to_geojson_string(result);
+    match output {
+        Some(path) => {
+            std::fs::write(path, &text).with_context(|| format!("写入 {path} 失败"))?;
+            eprintln!("已写出 {} 个要素 → {path}", result.features.len());
+        }
+        None => println!("{text}"),
     }
     Ok(())
 }
