@@ -32,7 +32,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 
 - **数据心脏**：统一格式注册表（17 种格式的能力矩阵），GeoJSON 原生加载与属性查询。
 - **脊髓 CLI**：`kanyu data info/load/query/export`、`kanyu introspect`、`kanyu agents init/validate`、`kanyu mcp serve`，全局 `--json`。
-- **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio），6 个确定性工具，结构化输出。
+- **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 
 ## 快速开始
@@ -71,6 +71,14 @@ cargo build --release
 ```
 
 之后即可用自然语言驱动："*加载 buildings.geojson，找出所有高于 50 米的建筑并导出*"。
+
+远程接入（streamable HTTP）：
+
+```bash
+kanyu mcp serve --transport http --port 3000
+# 客户端将 URL 指向 http://127.0.0.1:3000/mcp
+# ⚠️ 无鉴权/TLS，远程暴露请自行加反向代理与鉴权
+```
 
 ## 架构总览
 

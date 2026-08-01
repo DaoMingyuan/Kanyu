@@ -335,3 +335,59 @@ fn analysis_zonal_end_to_end_with_stats_columns() {
     // 区外值计入 unzoned_count。
     assert_eq!(written["unzoned_count"], 1);
 }
+
+#[test]
+fn mcp_serve_http_accepts_initialize_over_tcp() {
+    use std::io::{Read, Write};
+
+    let port = 39177u16; // 随机高端口，避开常见冲突。
+    let mut child = kanyu()
+        .args([
+            "mcp",
+            "serve",
+            "--transport",
+            "http",
+            "--port",
+            &port.to_string(),
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+
+    // 等待端口就绪（~5s 上限）。
+    let mut ready = false;
+    for _ in 0..50 {
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            ready = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    assert!(ready, "HTTP 服务端口未在 5s 内就绪");
+
+    // 裸 TCP 手写最小 HTTP/1.1 POST initialize（不引入 reqwest，保持依赖精简）。
+    let body = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"itest","version":"0"}}}"#;
+    let request = format!(
+        "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    stream
+        .set_read_timeout(Some(std::time::Duration::from_secs(10)))
+        .unwrap();
+    stream.write_all(request.as_bytes()).unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+
+    let _ = child.kill();
+    let _ = child.wait();
+
+    // SSE 帧（text/event-stream）或纯 JSON 响应均可接受——
+    // rmcp 默认 legacy session 模式下 initialize 走 SSE 通道。
+    assert!(
+        response.contains("serverInfo") && response.contains("kanyu-mcp"),
+        "响应应含 serverInfo/kanyu-mcp：\n{response}"
+    );
+}

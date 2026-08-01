@@ -213,10 +213,10 @@ pub enum AgentsCommand {
 pub enum McpCommand {
     /// 启动 MCP Server。
     Serve {
-        /// 传输方式：stdio（本地 AI 助手）或 sse（远程代理）。
+        /// 传输方式：stdio（本地 AI 助手）或 http（streamable HTTP，远程代理）。
         #[arg(long, value_enum, default_value_t = Transport::Stdio)]
         transport: Transport,
-        /// SSE 模式监听端口。
+        /// HTTP 模式监听端口（绑定 127.0.0.1）。
         #[arg(long, default_value_t = 3000)]
         port: u16,
     },
@@ -227,6 +227,6 @@ pub enum McpCommand {
 pub enum Transport {
     /// 标准输入输出（本地 AI 助手默认）。
     Stdio,
-    /// HTTP SSE（远程 AI 代理）。
-    Sse,
+    /// streamable HTTP（远程 AI 代理；官方已取代旧 SSE）。
+    Http,
 }

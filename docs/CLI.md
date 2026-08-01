@@ -368,20 +368,23 @@ Error: AGENTS.md 校验未通过：3 个问题
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `--transport <stdio\|sse>` | `stdio` | 传输方式 |
-| `--port <port>` | `3000` | SSE 模式监听端口（预留） |
+| `--transport <stdio\|http>` | `stdio` | 传输方式：`stdio` 本地 AI 助手；`http` streamable HTTP（官方已取代旧 SSE；`sse` 值自 v0.6 起不再接受） |
+| `--port <port>` | `3000` | HTTP 模式监听端口（绑定 127.0.0.1，endpoint `/mcp`） |
 
 ```bash
 $ ./target/debug/kanyu.exe mcp serve
 kanyu-mcp: MCP server 监听 stdio（initialize / tools/list / tools/call）   # stderr，随后阻塞服务
 ```
 
-SSE 暂未实现，选择后得到提示（退出码 1）：
+streamable HTTP（远程 AI 代理接入）：
 
 ```bash
-$ ./target/debug/kanyu.exe mcp serve --transport sse --port 3000
-Error: SSE 传输（端口 3000）将在 kanyu-mcp v0.2 提供（rmcp streamable HTTP）；当前请使用 --transport=stdio
+$ ./target/debug/kanyu.exe mcp serve --transport http --port 3000
+kanyu-mcp streamable HTTP 监听 http://127.0.0.1:3000/mcp （⚠️ 无鉴权/TLS，远程暴露请自行加反代；Ctrl-C 停止）
 ```
+
+⚠️ HTTP 模式无鉴权/TLS（📋）；暴露到局域网/公网前必须自行加反向代理与鉴权。
+MCP tasks（SEP-1686 长任务）📋。
 
 ## 8. 计划中的命令（📋）
 

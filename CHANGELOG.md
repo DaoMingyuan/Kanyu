@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-mcp / CLI**：MCP streamable HTTP 传输（裁决 #11：官方 streamable
+  HTTP 已取代旧 SSE；裁决 #16 第二承诺）——`kanyu mcp serve --transport http
+  --port <port>` 绑定 `127.0.0.1`，endpoint `/mcp`（POST=JSON-RPC、
+  GET=SSE 流、DELETE=会话终止；`Mcp-Session-Id` 头 + LocalSessionManager
+  内存会话存储；service factory 模式每会话一个无状态 KanyuServer 实例）。
+  ⚠️ 无鉴权/TLS（📋），远程暴露需自行加反代与鉴权（eprintln 与文档双警示）；
+  MCP tasks（SEP-1686 长任务）📋。
+
+### 变更（Breaking）
+
+- **CLI**：`kanyu mcp serve --transport` 的取值 `sse` 改为 `http`
+  （旧 `sse` 值不再接受，clap 直接报无效值；此前 `sse` 仅返回
+  "待 v0.2" 错误提示，无实际行为损失）。
+
 ## [0.6.0] - 2026-08-02
 
 **矢量分析面补全：空间连接 sjoin 与分区统计 zonal_stats。**

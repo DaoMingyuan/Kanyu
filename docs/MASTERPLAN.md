@@ -1091,6 +1091,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] topology 拓扑检查（NoOverlap 面重叠检测，2026-08-02）。
 - [x] 投影变换 reproject + 测地线度量 measure（proj4rs + geo geodesic，2026-08-02）。
 - [x] sjoin 空间连接 + zonal_stats 分区统计（2026-08-02）。
+- [x] MCP streamable HTTP 传输（远程 AI 代理接入，2026-08-02）。
 - [ ] MCP tasks 长任务。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）

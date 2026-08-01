@@ -1,6 +1,6 @@
 # 堪舆 MCP 接口文档（MCP）
 
-> 版本：v0.1.0 ｜ 基于官方 [rmcp](https://crates.io/crates/rmcp) 3.x SDK ｜ 传输：stdio（✅）
+> 版本：v0.1.0 ｜ 基于官方 [rmcp](https://crates.io/crates/rmcp) 3.x SDK ｜ 传输：stdio（✅）+ streamable HTTP（✅）
 >
 > 客户端接入示例见 [SDK.md](SDK.md#2-作为-mcp-客户端集成)；同名 CLI 命令见
 > [CLI.md](CLI.md#kanyu-mcp-serve)；安全与命名背景见 [ARCHITECTURE.md](ARCHITECTURE.md#6-安全模型)。
@@ -40,6 +40,18 @@ kanyu mcp serve --transport stdio
 }
 ```
 
+远程接入（streamable HTTP）：
+
+```bash
+kanyu mcp serve --transport http --port 3000
+# kanyu-mcp streamable HTTP 监听 http://127.0.0.1:3000/mcp
+# （⚠️ 无鉴权/TLS，远程暴露请自行加反代；Ctrl-C 停止）
+```
+
+支持 HTTP 传输的客户端将 URL 指向 `http://127.0.0.1:3000/mcp` 即可。
+⚠️ 服务绑定 localhost 且**无鉴权/TLS（📋）**；暴露到局域网/公网前
+必须自行加反向代理（nginx/caddy）与鉴权。
+
 之后即可用自然语言驱动："*加载 buildings.geojson，找出所有高于 50 米的建筑并导出*"。
 Windows 下 `kanyu` 不在 PATH 时用绝对路径（如 `target/release/kanyu.exe`）。
 
@@ -47,11 +59,28 @@ Windows 下 `kanyu` 不在 PATH 时用绝对路径（如 `target/release/kanyu.e
 
 | 项 | 值 |
 |---|---|
-| 传输 | stdio（JSON-RPC 2.0，每行一条消息） |
+| 传输 | stdio（JSON-RPC 2.0，每行一条消息）；streamable HTTP（`http://127.0.0.1:<port>/mcp`，POST=JSON-RPC、GET=SSE 流、DELETE=会话终止；`Mcp-Session-Id` 头管理会话，内存会话存储） |
 | 协议版本 | `2025-06-18`（initialize 握手协商） |
 | SDK | rmcp 3.x（`ServerInfo.name` 为 `"kanyu-mcp"`，version 随内核版本） |
-| Server capabilities | 仅 `tools`（resources/prompts 📋） |
+| Server capabilities | 仅 `tools`（resources/prompts 📋；tasks 长任务 📋） |
 | Server instructions | "堪舆 (Kanyu) GIS 内核：data/agents/analysis/render/system 五组工具。所有结果为结构化 JSON 并携带 CRS/单位元数据；不提供任意代码执行。" |
+
+streamable HTTP 实测（`kanyu mcp serve --transport http --port 39178`）：
+
+```bash
+$ curl -i -X POST http://127.0.0.1:39178/mcp \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"8"}}}'
+HTTP/1.1 200 OK
+content-type: text/event-stream
+mcp-session-id: 39cd01a2-c69c-410a-9ab2-85107970dc78
+…
+data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26",
+      "capabilities":{"tools":{}},"serverInfo":{"name":"kanyu-mcp","version":"0.6.0"},…}}
+# 后续请求带 Mcp-Session-Id 头；notifications/initialized → 202；
+# tools/list 返回全部 12 个工具；tools/call 正常返回结构化结果。
+```
 
 initialize 握手（实测）：
 
@@ -363,7 +392,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | MCP tasks | 📋 | SEP-1686 长任务：大文件导入、批量导出等异步化，进度可查询 |
 | resources | 📋 | `layer://<id>`、`crs://EPSG/4326` 等资源只读暴露 |
 | prompts | 📋 | 常用工作流提示模板（制图/分析/导出） |
-| SSE / streamable HTTP | 📋 | `kanyu mcp serve --transport sse` 当前返回提示，v0.2 由 rmcp streamable HTTP 提供 |
+| SSE / streamable HTTP | ✅ | `kanyu mcp serve --transport http`（§1/§2；官方 streamable HTTP 已取代旧 SSE）；tasks 长任务 📋 |
 
 ## 8. 与现有 GIS MCP 项目的差异
 

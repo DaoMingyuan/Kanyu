@@ -493,6 +493,47 @@ pub fn serve_stdio() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     })
 }
 
+/// 以 streamable HTTP 传输启动 MCP Server（阻塞）。
+///
+/// 绑定 `127.0.0.1:{port}`，endpoint 为 `/mcp`（rmcp tower service 按
+/// HTTP 方法分派 POST/GET/DELETE，不区分路径）。KanyuServer 无状态，
+/// 按 rmcp service factory 模式每会话一个实例（LocalSessionManager
+/// 内存会话存储）。
+///
+/// ⚠️ 安全边界：无鉴权/TLS（📋），远程暴露请自行加反向代理与鉴权；
+/// MCP tasks（SEP-1686 长任务）📋。
+pub fn serve_http(port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use rmcp::transport::streamable_http_server::{
+        session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+    };
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(async move {
+        let service = StreamableHttpService::new(
+            || Ok(KanyuServer::new()),
+            std::sync::Arc::new(LocalSessionManager::default()),
+            StreamableHttpServerConfig::default(),
+        );
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
+        eprintln!(
+            "kanyu-mcp streamable HTTP 监听 http://127.0.0.1:{port}/mcp \
+             （⚠️ 无鉴权/TLS，远程暴露请自行加反代；Ctrl-C 停止）"
+        );
+        loop {
+            let (stream, _) = listener.accept().await?;
+            let io = hyper_util::rt::TokioIo::new(stream);
+            let svc = hyper_util::service::TowerToHyperService::new(service.clone());
+            tokio::spawn(async move {
+                let _ = hyper::server::conn::http1::Builder::new()
+                    .serve_connection(io, svc)
+                    .await;
+            });
+        }
+    })
+}
+
 /// 内核错误 → MCP 错误。
 fn to_mcp(e: impl std::fmt::Display) -> McpError {
     McpError::internal_error(e.to_string(), None)

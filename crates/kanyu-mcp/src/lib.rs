@@ -13,4 +13,4 @@
 
 mod server;
 
-pub use server::{serve_stdio, KanyuServer};
+pub use server::{serve_http, serve_stdio, KanyuServer};

@@ -331,8 +331,8 @@ pub fn mcp_cmd(cmd: &McpCommand) -> Result<()> {
                 );
                 kanyu_mcp::serve_stdio().map_err(|e| anyhow::anyhow!(e.to_string()))?;
             }
-            Transport::Sse => {
-                bail!("SSE 传输（端口 {port}）将在 kanyu-mcp v0.2 提供（rmcp streamable HTTP）；当前请使用 --transport=stdio");
+            Transport::Http => {
+                kanyu_mcp::serve_http(*port).map_err(|e| anyhow::anyhow!(e.to_string()))?;
             }
         },
     }
