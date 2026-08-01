@@ -1124,7 +1124,9 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 
 #### Phase 5：魂 —— 自迭代（Months 13–18）
 
-- [ ] wasmtime + WIT 基因系统；首个样板基因：libredwg-wasm（DWG 只读沙箱）。
+- [x] wasmtime + WIT 基因宿主（加载/校验/fuel 沙箱执行，2026-08-03）。
+- [ ] libredwg-wasm 基因（DWG 只读沙箱，需 wasi-sdk 工具链）。
+- [ ] MCP 热加载接线（kanyu_system_hotload 实质化）。
 - [ ] AI 代码生成 → WASM 编译 → 沙箱验证 → A/B 测试流水线。
 - [ ] 基因市场（Gene Marketplace）；知识库 RAG。
 - [ ] **里程碑**：AI 自动发现并修复真实性能瓶颈，人类仅需审核。

@@ -39,7 +39,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 ## 快速开始
 
 ```bash
-# 构建（需要 Rust 1.88+）
+# 构建（需要 Rust 1.94+）
 cargo build --release
 
 # 检视数据
@@ -94,7 +94,7 @@ kanyu mcp serve --transport http --port 3000
 │  ├─ kanyu-cli    脊髓（kanyu 命令行）                │
 │  ├─ kanyu-render 眼睛（离屏渲染 tiny-skia+SVG）🚧     │
 │  ├─ kanyu-edit   手（DCEL 拓扑编辑）    [planned]    │
-│  ├─ kanyu-gene   基因（wasmtime 插件）  [planned]    │
+│  ├─ kanyu-gene   基因（wasmtime 插件宿主）🚧         │
 │  └─ kanyu-shell  壳层（egui 桌面 UI）   [planned]    │
 └─────────────────────────────────────────────────────┘
 ```

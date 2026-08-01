@@ -12,15 +12,16 @@
 3. [kanyu data](#3-kanyu-data)
 4. [kanyu analysis](#4-kanyu-analysis)
 5. [kanyu render](#5-kanyu-render)
-6. [kanyu introspect](#6-kanyu-introspect)
-7. [kanyu agents](#7-kanyu-agents)
-8. [kanyu mcp serve](#8-kanyu-mcp-serve)
-9. [计划中的命令（📋）](#9-计划中的命令-)
+6. [kanyu gene](#6-kanyu-gene)
+7. [kanyu introspect](#7-kanyu-introspect)
+8. [kanyu agents](#8-kanyu-agents)
+9. [kanyu mcp serve](#9-kanyu-mcp-serve)
+10. [计划中的命令（📋）](#10-计划中的命令-)
 
 ## 1. 安装
 
 ```bash
-# 需要 Rust 1.88+（rust-toolchain.toml 锁定）
+# 需要 Rust 1.94+（rust-toolchain.toml 锁定）
 cargo install --path crates/kanyu-cli     # 安装到 ~/.cargo/bin/kanyu
 # 或仅构建：
 cargo build --release                     # 产物 target/release/kanyu（Windows 为 kanyu.exe）
@@ -310,7 +311,43 @@ $ ./target/debug/kanyu.exe render map examples/buildings.geojson --out styled.pn
 # 实测：height=33 的住宅为青绿（低档）、88.5 的大厦A 为琥珀（中档）、120 的大厦C 为赭红（高档）
 ```
 
-## 6. kanyu introspect ✅
+## 6. kanyu gene ✅
+
+WASM 基因系统宿主（kanyu-gene crate；ABI 与沙箱模型见
+[API.md](API.md#10-kanyu-gene--wasm-基因系统宿主)；MCP 热加载接线 📋）。
+
+### 6.1 `kanyu gene info <plugin.wasm>` ✅
+
+检视基因元数据（加载校验通过即打印）。
+
+```bash
+$ ./target/debug/kanyu.exe gene info crates/kanyu-gene/testdata/attr_scaler.wasm
+基因:    attr_scaler
+版本:    0.1.0
+能力:    analyzer
+```
+
+`--json` 输出 GeneMeta（`{"name","version","capabilities":[...]}`）。
+
+### 6.2 `kanyu gene run <plugin.wasm> <file>` ✅
+
+在数据上执行分析基因（FeatureCollection 进/出，fuel 配额 10 亿）。
+
+| 参数 | 说明 |
+|---|---|
+| `<plugin>` | 基因文件路径（.wasm 组件） |
+| `<file>` | 数据文件路径 |
+| `--output <path>` | 结果输出路径（GeoJSON）；缺省打印到 stdout |
+
+```bash
+$ ./target/debug/kanyu.exe gene run crates/kanyu-gene/testdata/attr_scaler.wasm examples/buildings.geojson
+{"type":"FeatureCollection","features":[
+  {"type":"Feature","geometry":{"type":"Point","coordinates":[116.3914,39.9072]},
+   "properties":{"height":177.0,"name":"示例大厦A","usage":"office"}}, …]}
+# attr_scaler 把 height 精确 ×2（88.5→177.0、33→66.0），几何与名称不变
+```
+
+## 7. kanyu introspect ✅
 
 系统自省 —— AI 读取自身（模块清单、能力矩阵、工具清单）。
 输出即 `Introspection` 报告（字段见 [API.md](API.md#5-introspect--系统自省)）。
@@ -343,12 +380,12 @@ MCP 工具:
 工具清单中的名称即真实 MCP 工具名（下划线式，映射规则见
 [MCP.md](MCP.md#4-命名规范)）。
 
-## 7. kanyu agents
+## 8. kanyu agents
 
 `AGENTS.md` 项目语义文件：生成与校验（语义层设计见
 [ARCHITECTURE.md](ARCHITECTURE.md#5-agentsmd-语义层设计)）。
 
-### 7.1 `kanyu agents init` ✅
+### 8.1 `kanyu agents init` ✅
 
 在指定目录生成 AGENTS.md 模板。
 
@@ -365,7 +402,7 @@ $ ./target/debug/kanyu.exe agents init --project ./my_project --name 演示项�
 # 已存在且未加 --force 时：Error: ...AGENTS.md 已存在（使用 --force 覆盖），退出码 1
 ```
 
-### 7.2 `kanyu agents validate` ✅
+### 8.2 `kanyu agents validate` ✅
 
 校验 AGENTS.md 完整性（元数据 name/crs、图层语义、业务规则）。
 
@@ -394,7 +431,7 @@ Error: AGENTS.md 校验未通过：3 个问题
 {"document":{"business_rules":[...],"custom_tools":[...],"layers":[...],"meta":{...}},"issues":[],"valid":true}
 ```
 
-## 8. kanyu mcp serve ✅
+## 9. kanyu mcp serve ✅
 
 启动 MCP Server，供 AI 代理接入（协议与工具详见 [MCP.md](MCP.md)）。
 
@@ -420,7 +457,7 @@ kanyu-mcp streamable HTTP 监听 http://127.0.0.1:3000/mcp （⚠️ 无鉴权/T
 带 `"task": true` 异步执行，`tasks/get|cancel|update` 驱动生命周期
 （语义见 [MCP.md](MCP.md#21-长任务sep-2663-)）。
 
-## 9. 计划中的命令（📋）
+## 10. 计划中的命令（📋）
 
 对应 [MASTERPLAN.md](MASTERPLAN.md) §4.3.1，随各 Phase 落地：
 

@@ -77,8 +77,8 @@ pub fn modules() -> Vec<ModuleInfo> {
         },
         ModuleInfo {
             name: "kanyu-gene",
-            role: "基因：WASM 插件系统（wasmtime 沙箱 + 热加载）",
-            status: "planned",
+            role: "基因：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）；MCP 热加载接线 📋",
+            status: "incubating",
         },
         ModuleInfo {
             name: "kanyu-shell",

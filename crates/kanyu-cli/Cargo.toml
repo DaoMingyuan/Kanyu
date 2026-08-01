@@ -18,6 +18,7 @@ path = "src/main.rs"
 [dependencies]
 kanyu-core.workspace = true
 kanyu-render.workspace = true
+kanyu-gene.workspace = true
 kanyu-mcp = { path = "../kanyu-mcp", version = "0.10.0" }
 serde.workspace = true
 serde_json.workspace = true

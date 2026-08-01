@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-gene / CLI**：Phase 5「魂」启幕——WASM 基因系统宿主（总规 §4.5
+  "以 WASM 为基因"落地，新 crate `kanyu-gene`）：wasmtime 47 组件模型
+  + WIT 强类型 ABI（`wit/gene.wit`：`meta() -> string`、
+  `run(string) -> result<string, string>`，FeatureCollection JSON 进/出）；
+  沙箱无 WASI 导入（纯计算）+ fuel 配额（10 亿/次执行，耗尽即 trap；
+  无 IO 挂起故不设墙钟超时，注释即契约）。`GeneHost::load`（编译校验 +
+  实例化 + meta() 元数据校验）与 `run`（每次执行重置 fuel），
+  LoadFailed/MetaInvalid/Trap/Timeout/ResultInvalid 五类中文结构化错误。
+  样板分析基因 `attr_scaler`（真 Rust guest：wit-bindgen 0.60
+  `generate!`/`export!`，height ×2；wasm32-unknown-unknown 核心模块 +
+  `wasm-tools component new` 组件化，fixture 提交于 testdata/）。
+  CLI 新命令组 `kanyu gene info/run`。
+  introspect：kanyu-gene 模块 planned→incubating。
+  **MSRV 1.88 → 1.94**（wasmtime 47 要求）。
+  MCP 热加载接线（kanyu_system_hotload 实质化）与 libredwg-wasm 基因 📋。
+
 ## [0.10.0] - 2026-08-02
 
 **属性驱动符号化：graduated 分级设色 / categorical 分类符号（总规 §3.4 落地）。**

@@ -11,7 +11,7 @@
 2. [作为 MCP 客户端集成](#2-作为-mcp-客户端集成)
 3. [作为 CLI 脚本集成](#3-作为-cli-脚本集成)
 4. [Python SDK（📋 规划中）](#4-python-sdk--规划中)
-5. [WASM 基因 SDK（📋 规划中）](#5-wasm-基因-sdk--规划中)
+5. [WASM 基因 SDK（🚧 v0.1 已落地）](#5-wasm-基因-sdk-v01-已落地最小子集)
 
 ## 1. 作为 Rust 库集成
 
@@ -185,28 +185,38 @@ $ echo $?
 > （`kanyu.Layer.load(...).query("height > 50")`），错误映射为单一
 > `kanyu.KanyuError` 层次；不引入 GIL 持有的长临界区，重活在 Rust 侧 `py.allow_threads` 中执行。
 
-## 5. WASM 基因 SDK（📋 规划中）
+## 5. WASM 基因 SDK（🚧 v0.1 已落地最小子集）
 
 堪舆的可扩展功能是 WASM 模块，称为"基因"（[MASTERPLAN.md](MASTERPLAN.md) §4.5），
-在 wasmtime + WIT 组件模型沙箱中运行。WIT 接口预览（未定稿）：
+在 wasmtime 组件模型沙箱中运行（kanyu-gene crate 宿主，见
+[API.md](API.md#10-kanyu-gene--wasm-基因系统宿主)）。已定稿的 v0.1 ABI
+（[wit/gene.wit](../crates/kanyu-gene/wit/gene.wit)）：
 
 ```wit
-// kanyu-gene.wit（预览，随 kanyu-gene crate 落地定稿）
-package kanyu:gene@0.2.0;
+package kanyu:gene@0.1.0;
 
-interface gene {
-    record capability-set { render2d: bool, spatial-query: bool, io-format: bool }
-    init: func() -> capability-set;
-
-    // 数据以 GeoArrow RecordBatch 进出（C Data Interface 零拷贝）
-    on-batch: func(batch: list<u8>) -> result<list<u8>, string>;
+interface analyzer {
+    /// 基因元数据（JSON：{"name","version","capabilities":[...]}）。
+    meta: func() -> string;
+    /// FeatureCollection JSON 进/出（或中文错误串）。
+    run: func(input: string) -> result<string, string>;
 }
 
-world kanyu-gene {
-    export gene;
+world gene {
+    export analyzer;
 }
 ```
 
-基因类型沿用总规：`renderer`(.ren.wasm) / `analyzer`(.ana.wasm) / `io`(.io.wasm) /
-`panel`(.ui.wasm) / `tool`(.tool.wasm)。生命周期（生成→沙箱验证→热加载→A/B 测试→
-激活/废弃）见 [ARCHITECTURE.md](ARCHITECTURE.md#6-安全模型) 与总规 §4.5.3。
+**Rust guest 编写**：参照样板基因
+[`crates/kanyu-gene/testdata/attr_scaler/`](../crates/kanyu-gene/testdata/attr_scaler/)
+（`wit-bindgen` `generate!`/`export!` 实现 `exports::kanyu::gene::analyzer::Guest`）：
+
+```bash
+cargo build --target wasm32-unknown-unknown --release
+wasm-tools component new target/wasm32-unknown-unknown/release/<gene>.wasm -o <gene>.wasm
+kanyu gene info <gene>.wasm   # 校验元数据
+kanyu gene run <gene>.wasm data.geojson
+```
+
+后续迭代方向：GeoArrow RecordBatch 进出（C Data Interface 零拷贝）、
+`renderer/io/panel/tool` 基因类型、热加载与 A/B 测试生命周期（总规 §4.5.3）。

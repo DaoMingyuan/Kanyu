@@ -38,7 +38,7 @@
 │  ├─ kanyu-cli     脊髓（kanyu 命令行）              ✅  │
 │  ├─ kanyu-render  眼睛（离屏渲染 tiny-skia+SVG） 🚧  │
 │  ├─ kanyu-edit    手（DCEL 拓扑编辑）               📋  │
-│  ├─ kanyu-gene    基因（wasmtime 插件）             📋  │
+│  ├─ kanyu-gene    基因（wasmtime 插件宿主）       🚧  │
 │  └─ kanyu-shell   壳层（桌面 UI）                   📋  │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -55,14 +55,14 @@
 | `kanyu-mcp` | 神经接口：MCP Server（rmcp，stdio + streamable HTTP，SEP-2663 长任务） | ✅ incubating | kanyu-core, kanyu-render |
 | `kanyu-render` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG 光栅化，晨山/夜观星主题，属性驱动符号化 graduated/categorical）；wgpu 实时管线待壳层 | 🚧 incubating | kanyu-core |
 | `kanyu-edit` | 手：DCEL 增量拓扑编辑，Undo/Redo | 📋 planned | kanyu-core |
-| `kanyu-gene` | 基因：WASM 插件系统（wasmtime 沙箱 + 热加载） | 📋 planned | kanyu-core |
+| `kanyu-gene` | 基因：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）；MCP 热加载接线 📋 | 🚧 incubating | kanyu-core |
 | `kanyu-shell` | 壳层：桌面 UI（egui/slint 方向） | 📋 planned | kanyu-core |
 
 依赖规则（编译期强制，review 时核对）：
 
 - `kanyu-core` **不依赖任何兄弟 crate**，是依赖图的根。所有能力下沉到 core，
   cli/mcp 只是"薄壳"：解析参数 → 调 core → 格式化输出。
-- `kanyu-render` 只依赖 core；cli/mcp 依赖 core+render。
+- `kanyu-render`/`kanyu-gene` 只依赖 core；cli/mcp 依赖 core+render（cli 另依赖 gene）。
 - 兄弟 crate 之间禁止横向依赖（如 mcp 不得依赖 cli）。
 - 该清单的单一事实来源是 `introspect::modules()`（kanyu-core/src/introspect.rs），
   `kanyu introspect` 与 `kanyu_system_introspect` 工具的输出即由此生成。
@@ -155,7 +155,7 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
 | 确定性输出 | ✅ | 工具返回结构化 JSON（`structuredContent`），携带 CRS/单位/要素数元数据，可审计、可回放 |
 | 长任务隔离 | ✅ | SEP-2663 任务执行在 blocking 线程池（不阻塞调度线程）；任务注册表为内存态（rmcp TaskManager，TTL 10 分钟惰性清扫，**重启即丢**）；无任务落盘，无持久化副作用 |
 | 内核零 C 依赖 | ✅ | 默认构建不链接任何 C/C++ 库，消除整条 FFI 攻击面 |
-| WASM 沙箱 | 📋 | 插件（"基因"）在 wasmtime + WIT 组件模型沙箱中运行，无宿主任意权限 |
+| WASM 沙箱 | ✅ | 基因在 wasmtime 组件模型沙箱中运行：WIT 强类型 ABI（无 WASI 导入 = 纯计算，无文件/网络/环境访问）+ fuel 配额（10 亿/次执行，耗尽即 trap）；MCP 热加载接线 📋 |
 | LibreDWG 隔离 | 📋 | LibreDWG（GPLv3+，2026 年披露多个 CVE）编译为 WASM，在 wasmtime 沙箱中**只读**运行，崩溃/越界不殃及内核 |
 | 伦理约束 | 📋（随 Phase 4–5） | 堪舆灵**不能修改自己的目标函数**；不能绕过 MCP 直接操作文件系统；代码生成须人类审核方可合并内核（WASM 热加载除外）——[MASTERPLAN.md](MASTERPLAN.md) §4.4 |
 
