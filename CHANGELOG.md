@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-02
+
+**长任务一等特性：SEP-2663 协议级 MCP tasks，分析工具异步化。Phase 1.5 收官。**
+
 ### 新增
 
 - **kanyu-mcp**：长任务能力（总规"MCP tasks 为一等特性"承诺落地）——
@@ -203,7 +207,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.8.0
 [0.7.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.7.0
 [0.6.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.6.0
 [0.5.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.5.0
