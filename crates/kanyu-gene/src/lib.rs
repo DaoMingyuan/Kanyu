@@ -103,10 +103,12 @@ impl GeneHost {
         store
             .set_fuel(FUEL_LIMIT)
             .map_err(|e| GeneError::Trap(format!("fuel 配置失败: {e}")))?;
-        let bindings = wit_bindings::Gene::instantiate(&mut store, &component, &linker)
-            .map_err(|e| GeneError::LoadFailed {
-                path: path.to_string(),
-                reason: format!("实例化失败（WIT 接口 kanyu:gene/analyzer 不匹配？）: {e}"),
+        let bindings =
+            wit_bindings::Gene::instantiate(&mut store, &component, &linker).map_err(|e| {
+                GeneError::LoadFailed {
+                    path: path.to_string(),
+                    reason: format!("实例化失败（WIT 接口 kanyu:gene/analyzer 不匹配？）: {e}"),
+                }
             })?;
         let meta_json = bindings
             .kanyu_gene_analyzer()
