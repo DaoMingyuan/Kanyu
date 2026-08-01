@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build kanyu
+        run: cargo build --release --locked --package kanyu-cli --target ${{ matrix.target }}
+
+      - name: Package (windows)
+        if: matrix.archive == 'zip'
+        shell: bash
+        run: |
+          mkdir -p dist/kanyu
+          cp target/${{ matrix.target }}/release/kanyu.exe dist/kanyu/
+          cp README.md LICENSE-MIT LICENSE-APACHE dist/kanyu/
+          cd dist && 7z a kanyu-${{ github.ref_name }}-${{ matrix.target }}.zip kanyu
+
+      - name: Package (unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          mkdir -p dist/kanyu
+          cp target/${{ matrix.target }}/release/kanyu dist/kanyu/
+          cp README.md LICENSE-MIT LICENSE-APACHE dist/kanyu/
+          tar -czf kanyu-${{ github.ref_name }}-${{ matrix.target }}.tar.gz -C dist kanyu
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/kanyu-${{ github.ref_name }}-${{ matrix.target }}.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
