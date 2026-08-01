@@ -294,12 +294,20 @@ $ ./target/debug/kanyu.exe analysis zonal zones.geojson pts.geojson --field heig
 | `--width <n>` | `800` | 图片宽度（像素） |
 | `--height <n>` | `600` | 图片高度（像素） |
 | `--theme <light\|dark>` | `light` | 主题：`light` 晨山 / `dark` 夜观星 |
+| `--style <json>` | （无） | 属性驱动样式规则（内联 JSON；与 `--style-file` 二选一，同给中文报错） |
+| `--style-file <path>` | （无） | 样式规则 JSON 文件路径 |
+
+样式 JSON 两种形态（语义见 [API.md](API.md#9-kanyu-render--离屏地图渲染)）：
+`{"type":"graduated","field":..,"stops":[[阈值,"#RRGGBB"],…]}` 数值分档、
+`{"type":"categorical","field":..,"colors":{..},"default":..}` 类别映射。
 
 ```bash
 $ ./target/debug/kanyu.exe render map examples/buildings.geojson --out map.png
 已渲染 4 个要素 → map.png (png, 800x600, light)        # 该提示在 stderr
-$ ./target/debug/kanyu.exe render map examples/buildings.geojson --out map.svg --theme dark
-已渲染 4 个要素 → map.svg (svg, 800x600, dark)
+$ ./target/debug/kanyu.exe render map examples/buildings.geojson --out styled.png \
+    --style '{"type":"graduated","field":"height","stops":[[0,"#2D6A5E"],[50,"#D4A843"],[100,"#C75B3A"]]}'
+已渲染 4 个要素 → styled.png (png, 800x600, light)
+# 实测：height=33 的住宅为青绿（低档）、88.5 的大厦A 为琥珀（中档）、120 的大厦C 为赭红（高档）
 ```
 
 ## 6. kanyu introspect ✅

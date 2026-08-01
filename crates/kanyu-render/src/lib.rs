@@ -26,6 +26,9 @@ pub enum RenderError {
     /// 颜色值非法。
     #[error("颜色值非法: {0}")]
     InvalidColor(String),
+    /// 样式规则非法。
+    #[error("样式规则非法：{0}")]
+    InvalidStyle(String),
 }
 
 /// 渲染主题（总规 §1.2 色彩系统）。
@@ -75,6 +78,8 @@ pub struct RenderOptions {
     pub theme: Theme,
     /// 自定义背景色（`#RRGGBB`；缺省用主题画布色）。
     pub background: Option<String>,
+    /// 属性驱动样式规则（缺省走主题默认样式，行为与旧版一致）。
+    pub style: Option<StyleRule>,
 }
 
 impl Default for RenderOptions {
@@ -85,6 +90,118 @@ impl Default for RenderOptions {
             padding: 20.0,
             theme: Theme::Light,
             background: None,
+            style: None,
+        }
+    }
+}
+
+/// 属性驱动样式规则（总规 §3.4 符号定义子集，JSON `type` 判别）。
+///
+/// - `{"type":"graduated","field":"height","stops":[[0,"#2D6A5E"],[50,"#D4A843"],[100,"#C75B3A"]]}`
+///   数值字段分档：取**最后一个满足 `值 ≥ 阈值` 的档**（恰等阈值取该档，
+///   低于首档走默认样式）；stops 须非空且阈值严格升序。
+/// - `{"type":"categorical","field":"usage","colors":{"office":"#2D6A5E"},"default":"#888888"}`
+///   字符串字段类别映射；无匹配取 `default`（亦缺省则走默认样式）。
+///
+/// 颜色为 `#RRGGBB`；字段缺失或类型不符的要素走主题默认样式（不产生脏样式）。
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum StyleRule {
+    /// 数值分档。
+    Graduated {
+        /// 数值字段名。
+        field: String,
+        /// `[[阈值, 颜色], …]`（严格升序）。
+        stops: Vec<(f64, String)>,
+    },
+    /// 字符串类别。
+    Categorical {
+        /// 字符串字段名。
+        field: String,
+        /// 类别值 → 颜色。
+        colors: std::collections::HashMap<String, String>,
+        /// 无匹配时的颜色（可选）。
+        default: Option<String>,
+    },
+}
+
+impl StyleRule {
+    /// 语义校验（render 入口统一调用）：空 stops、非升序、非法颜色值
+    /// 均报中文错误并指出出错项。
+    pub fn validate(&self) -> Result<(), RenderError> {
+        match self {
+            Self::Graduated { field, stops } => {
+                if stops.is_empty() {
+                    return Err(RenderError::InvalidStyle(format!(
+                        "graduated（字段 '{field}'）stops 不能为空"
+                    )));
+                }
+                for (i, (threshold, color)) in stops.iter().enumerate() {
+                    parse_hex_color(color).map_err(|e| {
+                        RenderError::InvalidStyle(format!(
+                            "graduated（字段 '{field}'）第 {} 档颜色非法: {e}",
+                            i + 1
+                        ))
+                    })?;
+                    if i > 0 && *threshold <= stops[i - 1].0 {
+                        return Err(RenderError::InvalidStyle(format!(
+                            "graduated（字段 '{field}'）stops 阈值须严格升序（第 {} 档 {threshold} 不大于前档）",
+                            i + 1
+                        )));
+                    }
+                }
+            }
+            Self::Categorical {
+                field,
+                colors,
+                default,
+            } => {
+                for (key, color) in colors {
+                    parse_hex_color(color).map_err(|e| {
+                        RenderError::InvalidStyle(format!(
+                            "categorical（字段 '{field}'）类别 '{key}' 颜色非法: {e}"
+                        ))
+                    })?;
+                }
+                if let Some(d) = default {
+                    parse_hex_color(d).map_err(|e| {
+                        RenderError::InvalidStyle(format!(
+                            "categorical（字段 '{field}'）default 颜色非法: {e}"
+                        ))
+                    })?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// 要素属性 → 命中颜色（`#RRGGBB` 原样返回；未命中走默认样式返回 None）。
+    pub fn color_for(
+        &self,
+        properties: &serde_json::Map<String, serde_json::Value>,
+    ) -> Option<String> {
+        match self {
+            Self::Graduated { field, stops } => {
+                let v = properties.get(field)?.as_f64()?;
+                // 最后一个满足 v >= threshold 的档（升序遍历遇 false 即止）。
+                let mut chosen = None;
+                for (threshold, color) in stops {
+                    if v >= *threshold {
+                        chosen = Some(color.clone());
+                    } else {
+                        break;
+                    }
+                }
+                chosen
+            }
+            Self::Categorical {
+                field,
+                colors,
+                default,
+            } => {
+                let key = properties.get(field)?.as_str()?;
+                colors.get(key).cloned().or_else(|| default.clone())
+            }
         }
     }
 }
@@ -100,11 +217,11 @@ enum GeomKind {
 /// 一类几何的样式（单一事实来源：全部样式的唯一定义处）。
 struct GeometryStyle {
     /// 填充色（`#RRGGBB`；None = 不填充）。
-    fill: Option<&'static str>,
+    fill: Option<String>,
     /// 填充不透明度（0–1；面 20%，点 100%）。
     fill_opacity: f64,
     /// 描边色。
-    stroke: &'static str,
+    stroke: String,
     /// 描边宽度（像素）。
     stroke_width: f64,
     /// 点半径（像素）。
@@ -127,25 +244,50 @@ fn style_for(kind: GeomKind, theme: Theme) -> GeometryStyle {
     };
     match kind {
         GeomKind::Polygon => GeometryStyle {
-            fill: Some(accent),
+            fill: Some(accent.to_string()),
             fill_opacity: 0.2,
-            stroke: ink,
+            stroke: ink.to_string(),
             stroke_width: 1.5,
             point_radius: 0.0,
         },
         GeomKind::Line => GeometryStyle {
             fill: None,
             fill_opacity: 1.0,
-            stroke: ink,
+            stroke: ink.to_string(),
             stroke_width: 2.0,
             point_radius: 0.0,
         },
         GeomKind::Point => GeometryStyle {
-            fill: Some(accent),
+            fill: Some(accent.to_string()),
             fill_opacity: 1.0,
-            stroke: ink,
+            stroke: ink.to_string(),
             stroke_width: 1.0,
             point_radius: 4.0,
+        },
+    }
+}
+
+/// 有效样式：属性驱动命中时按几何类型派生（面=该色 20% 透明填充 + 同色
+/// 描边、线=该色描边、点=该色填充），未命中走主题默认（样式决策仍在一处）。
+fn effective_style(kind: GeomKind, theme: Theme, override_color: Option<&str>) -> GeometryStyle {
+    let base = style_for(kind, theme);
+    let Some(color) = override_color else {
+        return base;
+    };
+    match kind {
+        GeomKind::Polygon => GeometryStyle {
+            fill: Some(color.to_string()),
+            stroke: color.to_string(),
+            ..base
+        },
+        GeomKind::Line => GeometryStyle {
+            stroke: color.to_string(),
+            ..base
+        },
+        GeomKind::Point => GeometryStyle {
+            fill: Some(color.to_string()),
+            stroke: color.to_string(),
+            ..base
         },
     }
 }
@@ -307,7 +449,17 @@ fn validate_options(opts: &RenderOptions) -> Result<(), RenderError> {
     if let Some(bg) = &opts.background {
         parse_hex_color(bg)?;
     }
+    if let Some(rule) = &opts.style {
+        rule.validate()?;
+    }
     Ok(())
+}
+
+/// 要素命中色（有 style 规则时按属性求色）。
+fn feature_color(opts: &RenderOptions, feature: &geojson::Feature) -> Option<String> {
+    opts.style
+        .as_ref()
+        .and_then(|rule| feature.properties.as_ref().and_then(|p| rule.color_for(p)))
 }
 
 /// `#RRGGBB` → (r, g, b)。
@@ -364,11 +516,11 @@ pub fn render_svg(
     ));
     // 绘制顺序：面 → 线 → 点（点最上层）。
     for kind in [GeomKind::Polygon, GeomKind::Line, GeomKind::Point] {
-        let style = style_for(kind, opts.theme);
         for feature in &collection.features {
             let Some(geom) = &feature.geometry else {
                 continue;
             };
+            let style = effective_style(kind, opts.theme, feature_color(opts, feature).as_deref());
             svg_value(&mut out, &geom.value, kind, &style, &viewport);
         }
     }
@@ -418,7 +570,7 @@ fn svg_common(style: &GeometryStyle) -> String {
         style.stroke,
         fmt(style.stroke_width as f32)
     );
-    if let Some(fill) = style.fill {
+    if let Some(fill) = &style.fill {
         s.push_str(&format!(
             " fill=\"{fill}\" fill-opacity=\"{}\"",
             fmt(style.fill_opacity as f32)
@@ -507,12 +659,12 @@ pub fn render_png(
     pixmap.fill(Color::from_rgba8(r, g, b, 255));
 
     for kind in [GeomKind::Polygon, GeomKind::Line, GeomKind::Point] {
-        let style = style_for(kind, opts.theme);
-        let stroke_rgb = parse_hex_color(style.stroke)?;
         for feature in &collection.features {
             let Some(geom) = &feature.geometry else {
                 continue;
             };
+            let style = effective_style(kind, opts.theme, feature_color(opts, feature).as_deref());
+            let stroke_rgb = parse_hex_color(&style.stroke)?;
             png_value(
                 &mut pixmap,
                 &geom.value,
@@ -541,8 +693,8 @@ fn png_value(
 
     let fill_paint = || {
         let mut p = Paint::default();
-        if let Some(fill) = style.fill {
-            let (r, g, b) = parse_hex_color(fill).unwrap_or((0, 0, 0));
+        if let Some(fill) = &style.fill {
+            let (r, g, b) = parse_hex_color(fill.as_str()).unwrap_or((0, 0, 0));
             p.set_color(Color::from_rgba8(
                 r,
                 g,
@@ -806,6 +958,172 @@ mod tests {
         assert!(
             err.to_string().contains("非有限坐标"),
             "应报非有限坐标错误: {err}"
+        );
+    }
+
+    fn height_graduated_rule() -> StyleRule {
+        serde_json::from_str(
+            r##"{"type":"graduated","field":"height","stops":[[0,"#2D6A5E"],[50,"#D4A843"],[100,"#C75B3A"]]}"##,
+        )
+        .unwrap()
+    }
+
+    fn props(pairs: &[(&str, serde_json::Value)]) -> serde_json::Map<String, serde_json::Value> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn style_rule_parses_and_validates() {
+        // 合法 graduated / categorical。
+        let g = height_graduated_rule();
+        assert!(g.validate().is_ok());
+        let c: StyleRule = serde_json::from_str(
+            r##"{"type":"categorical","field":"usage","colors":{"office":"#2D6A5E"},"default":"#888888"}"##,
+        )
+        .unwrap();
+        assert!(c.validate().is_ok());
+
+        // 坏 hex（指出出错档）。
+        let bad_hex: StyleRule =
+            serde_json::from_str(r##"{"type":"graduated","field":"h","stops":[[0,"red"]]}"##)
+                .unwrap();
+        let err = bad_hex.validate().unwrap_err();
+        assert!(err.to_string().contains("第 1 档颜色非法"), "{err}");
+
+        // 空 stops。
+        let empty: StyleRule =
+            serde_json::from_str(r#"{"type":"graduated","field":"h","stops":[]}"#).unwrap();
+        assert!(empty
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("不能为空"));
+
+        // 非升序 stops（指出出错档与值）。
+        let unordered: StyleRule = serde_json::from_str(
+            r##"{"type":"graduated","field":"h","stops":[[50,"#2D6A5E"],[50,"#D4A843"]]}"##,
+        )
+        .unwrap();
+        let err = unordered.validate().unwrap_err();
+        assert!(err.to_string().contains("严格升序"), "{err}");
+    }
+
+    #[test]
+    fn graduated_color_for_boundaries() {
+        let rule = height_graduated_rule();
+        // 恰等阈值 → 该档；恰等上一档 → 上一档。
+        assert_eq!(
+            rule.color_for(&props(&[("height", serde_json::Value::from(50))])),
+            Some("#D4A843".to_string())
+        );
+        assert_eq!(
+            rule.color_for(&props(&[("height", serde_json::Value::from(0))])),
+            Some("#2D6A5E".to_string())
+        );
+        // 超最大档 → 最后一档。
+        assert_eq!(
+            rule.color_for(&props(&[("height", serde_json::Value::from(999))])),
+            Some("#C75B3A".to_string())
+        );
+        // 低于首档 → None（走默认样式）。
+        assert_eq!(
+            rule.color_for(&props(&[("height", serde_json::Value::from(-1))])),
+            None
+        );
+        // 缺失字段 / 非数值字段 → None。
+        assert_eq!(rule.color_for(&props(&[])), None);
+        assert_eq!(
+            rule.color_for(&props(&[("height", serde_json::Value::from("abc"))])),
+            None
+        );
+    }
+
+    #[test]
+    fn categorical_color_for_hit_default_miss() {
+        let rule: StyleRule = serde_json::from_str(
+            r##"{"type":"categorical","field":"usage","colors":{"office":"#2D6A5E"},"default":"#888888"}"##,
+        )
+        .unwrap();
+        assert_eq!(
+            rule.color_for(&props(&[("usage", serde_json::Value::from("office"))])),
+            Some("#2D6A5E".to_string())
+        );
+        // 无匹配 → default。
+        assert_eq!(
+            rule.color_for(&props(&[("usage", serde_json::Value::from("park"))])),
+            Some("#888888".to_string())
+        );
+        // 缺失字段 → None。
+        assert_eq!(rule.color_for(&props(&[])), None);
+        // 无 default 且无匹配 → None。
+        let no_default: StyleRule = serde_json::from_str(
+            r##"{"type":"categorical","field":"usage","colors":{"office":"#2D6A5E"}}"##,
+        )
+        .unwrap();
+        assert_eq!(
+            no_default.color_for(&props(&[("usage", serde_json::Value::from("park"))])),
+            None
+        );
+    }
+
+    #[test]
+    fn svg_graduated_renders_distinct_fills() {
+        let collection = collection_from_str(
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[0,2],[2,2],[2,0],[0,0]]]},
+                 "properties":{"height":30}},
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[3,0],[3,2],[5,2],[5,0],[3,0]]]},
+                 "properties":{"height":120}}
+            ]}"#,
+        );
+        let opts = RenderOptions {
+            style: Some(height_graduated_rule()),
+            ..Default::default()
+        };
+        let svg = render_svg(&collection, &opts).unwrap();
+        assert!(svg.contains("#2D6A5E"), "30m 应低档色: {svg}");
+        assert!(svg.contains("#C75B3A"), "120m 应高档色: {svg}");
+        assert!(!svg.contains("fill=\"#D4A843\""), "无中档要素: {svg}");
+    }
+
+    #[test]
+    fn png_graduated_renders_distinct_colors() {
+        let collection = collection_from_str(
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[0,2],[2,2],[2,0],[0,0]]]},
+                 "properties":{"height":10}},
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[3,0],[3,2],[5,2],[5,0],[3,0]]]},
+                 "properties":{"height":120}}
+            ]}"#,
+        );
+        let opts = RenderOptions {
+            width: 200,
+            height: 100,
+            padding: 5.0,
+            style: Some(height_graduated_rule()),
+            ..Default::default()
+        };
+        let png = render_png(&collection, &opts).unwrap();
+        let pixmap = tiny_skia::Pixmap::decode_png(&png).unwrap();
+        // 两多边形中心采样（x 各 1/3、2/3 附近，y 居中）：颜色应分别为
+        // 低档 #2D6A5E（20% 透明叠底）与高档 #C75B3A 的混合色，且互不相同。
+        let at = |fx: f32| {
+            let x = (200.0 * fx) as u32;
+            let p = pixmap.pixel(x, 50).unwrap();
+            (p.red(), p.green(), p.blue())
+        };
+        let left = at(0.25);
+        let right = at(0.75);
+        assert_ne!(left, right, "两档要素应异色: left={left:?} right={right:?}");
+        // 高档色偏红（R 明显大于 G；20% 透明叠底后差值仍显著）。
+        assert!(right.0 > right.1 + 15, "右侧应偏红(#C75B3A 系): {right:?}");
+        // 低档色偏青绿（G 最大）。
+        assert!(
+            left.1 >= left.0 && left.1 >= left.2,
+            "左侧应偏青绿(#2D6A5E 系): {left:?}"
         );
     }
 }

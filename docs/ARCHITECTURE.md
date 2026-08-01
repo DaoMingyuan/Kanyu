@@ -53,7 +53,7 @@
 | `kanyu-core` | 数据心脏：格式注册表、图层模型、空间分析（buffer/overlay/topology）、投影/度量（reproject/measure）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
 | `kanyu-cli` | 脊髓：`kanyu` 命令行（clap derive） | ✅ stable | kanyu-core, kanyu-mcp, kanyu-render |
 | `kanyu-mcp` | 神经接口：MCP Server（rmcp，stdio + streamable HTTP，SEP-2663 长任务） | ✅ incubating | kanyu-core, kanyu-render |
-| `kanyu-render` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG 光栅化，晨山/夜观星主题）；wgpu 实时管线待壳层 | 🚧 incubating | kanyu-core |
+| `kanyu-render` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG 光栅化，晨山/夜观星主题，属性驱动符号化 graduated/categorical）；wgpu 实时管线待壳层 | 🚧 incubating | kanyu-core |
 | `kanyu-edit` | 手：DCEL 增量拓扑编辑，Undo/Redo | 📋 planned | kanyu-core |
 | `kanyu-gene` | 基因：WASM 插件系统（wasmtime 沙箱 + 热加载） | 📋 planned | kanyu-core |
 | `kanyu-shell` | 壳层：桌面 UI（egui/slint 方向） | 📋 planned | kanyu-core |

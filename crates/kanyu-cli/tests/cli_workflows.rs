@@ -441,7 +441,7 @@ fn mcp_stdio_task_lifecycle_end_to_end() {
     let init = rpc(
         &mut stdin,
         &mut reader,
-        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"extensions":{"io.modelcontextprotocol/tasks":{}}},"clientInfo":{"name":"itest","version":"0"}}}"#,
+        r##"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"extensions":{"io.modelcontextprotocol/tasks":{}}},"clientInfo":{"name":"itest","version":"0"}}}"##,
     );
     assert_eq!(init["result"]["serverInfo"]["name"], "kanyu-mcp");
     // 服务端声明 tasks 扩展。
@@ -459,7 +459,7 @@ fn mcp_stdio_task_lifecycle_end_to_end() {
         &mut stdin,
         &mut reader,
         &format!(
-            r#"{{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{{"name":"kanyu_analysis_zonal_stats","arguments":{{"zones":"{}","values":"{}","field":"height","stats":["count","mean"],"task":true}}}}}}"#,
+            r##"{{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{{"name":"kanyu_analysis_zonal_stats","arguments":{{"zones":"{}","values":"{}","field":"height","stats":["count","mean"],"task":true}}}}}}"##,
             zones.to_str().unwrap().replace('\\', "\\\\"),
             values.to_str().unwrap().replace('\\', "\\\\")
         ),
@@ -559,4 +559,81 @@ fn render_map_writes_valid_png() {
         .unwrap();
     assert!(!bad.status.success());
     assert!(String::from_utf8_lossy(&bad.stderr).contains(".png/.svg"));
+}
+
+#[test]
+fn render_map_with_graduated_style_end_to_end() {
+    let dir = std::env::temp_dir().join("kanyu_itest_style");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("polys.geojson");
+    std::fs::write(
+        &path,
+        r#"{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                [[0,0],[0,2],[2,2],[2,0],[0,0]]]},"properties":{"height":10}},
+            {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                [[3,0],[3,2],[5,2],[5,0],[3,0]]]},"properties":{"height":120}}
+        ]}"#,
+    )
+    .unwrap();
+    let out_path = dir.join("styled.svg");
+
+    let out = kanyu()
+        .args([
+            "render",
+            "map",
+            path.to_str().unwrap(),
+            "--out",
+            out_path.to_str().unwrap(),
+            "--style",
+            r##"{"type":"graduated","field":"height","stops":[[0,"#2D6A5E"],[50,"#D4A843"],[100,"#C75B3A"]]}"##,
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let svg = std::fs::read_to_string(&out_path).unwrap();
+    assert!(svg.contains("#2D6A5E"), "低档色: {svg}");
+    assert!(svg.contains("#C75B3A"), "高档色: {svg}");
+
+    // 非法 style 报错。
+    let bad = kanyu()
+        .args([
+            "render",
+            "map",
+            path.to_str().unwrap(),
+            "--out",
+            dir.join("x.svg").to_str().unwrap(),
+            "--style",
+            r##"{"type":"graduated","field":"height","stops":[[50,"#2D6A5E"],[50,"#D4A843"]]}"##,
+        ])
+        .output()
+        .unwrap();
+    assert!(!bad.status.success());
+    assert!(
+        String::from_utf8_lossy(&bad.stderr).contains("严格升序"),
+        "stderr: {}",
+        String::from_utf8_lossy(&bad.stderr)
+    );
+
+    // --style 与 --style-file 互斥。
+    let conflict = kanyu()
+        .args([
+            "render",
+            "map",
+            path.to_str().unwrap(),
+            "--out",
+            dir.join("y.svg").to_str().unwrap(),
+            "--style",
+            "{}",
+            "--style-file",
+            path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!conflict.status.success());
+    assert!(String::from_utf8_lossy(&conflict.stderr).contains("二选一"));
 }

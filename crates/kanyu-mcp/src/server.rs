@@ -175,6 +175,10 @@ pub struct RenderMapReq {
     pub height: Option<u32>,
     /// 主题：light（晨山）/ dark（夜观星）。
     pub theme: Option<String>,
+    /// 属性驱动样式规则（可选 JSON 对象，缺省走主题默认样式）：
+    /// {"type":"graduated","field":"height","stops":[[阈值,"#RRGGBB"],…]}（数值分档，取最后满足 值≥阈值 的档，阈值严格升序）或
+    /// {"type":"categorical","field":"usage","colors":{"类别":"#RRGGBB"},"default":"#RRGGBB"}（字符串类别映射）。
+    pub style: Option<serde_json::Value>,
 }
 
 #[tool_router]
@@ -367,7 +371,7 @@ impl KanyuServer {
     /// 离屏地图渲染。
     #[tool(
         name = "kanyu_render_map",
-        description = "离屏渲染数据文件为地图图片（format=png 时 content 携带 base64 image/png，format=svg 时携带 SVG 源码文本；structuredContent 携带要素数/bbox/尺寸/主题/格式摘要；主题为晨山 light 或夜观星 dark）"
+        description = "离屏渲染数据文件为地图图片（format=png 时 content 携带 base64 image/png，format=svg 时携带 SVG 源码文本；structuredContent 携带要素数/bbox/尺寸/主题/格式摘要；主题为晨山 light 或夜观星 dark；可选 style 属性驱动样式：{\"type\":\"graduated\",\"field\":..,\"stops\":[[阈值,\"#RRGGBB\"],..]} 数值分档或 {\"type\":\"categorical\",\"field\":..,\"colors\":{..},\"default\":..} 类别映射，缺省走主题默认样式）"
     )]
     async fn render_map(
         &self,
@@ -376,6 +380,12 @@ impl KanyuServer {
         use base64::Engine as _;
 
         let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let style_rule: Option<kanyu_render::StyleRule> = match req.style {
+            Some(v) => Some(serde_json::from_value(v).map_err(|e| {
+                McpError::invalid_params(format!("样式规则 JSON 解析失败: {e}"), None)
+            })?),
+            None => None,
+        };
         let opts = kanyu_render::RenderOptions {
             width: req.width.unwrap_or(800),
             height: req.height.unwrap_or(600),
@@ -385,6 +395,7 @@ impl KanyuServer {
                 .unwrap_or("light")
                 .parse()
                 .map_err(to_mcp)?,
+            style: style_rule,
             ..Default::default()
         };
         let collection = layer.collection();

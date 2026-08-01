@@ -1032,6 +1032,7 @@ A/B 测试 (与旧版本并行)
 | 14 | 无基准评测 | **新增** | 首日接入 GeoAnalystBench 类基准 | GISclaw（arXiv 2603.26845）证明：schema 清晰度 + 领域知识注入 + 错误记忆决定 agent 成功率；单 agent ReAct 优于多 agent 管线 |
 | 15 | GeoPackage/SpatiaLite/PostGIS/WFS 进内核 | **降级** | 可选 feature 插件（`sqlite-io`：rusqlite bundled；`net-io`：PostGIS/WFS 客户端） | rusqlite bundled 编译 C SQLite，违反内核零 C 依赖红线；服务类协议无文件语义，独立 feature 保持默认构建纯净 |
 | 16 | 阶段顺序：Phase 2 渲染 → Phase 3 编辑 → Phase 4 AI/分析 | **调序** | Phase 1（地基）→ **分析内核**（geo crate：buffer/overlay/topology，CLI/MCP 先行）→ Phase 2 渲染 → Phase 3 编辑 → Phase 4 AI 融合 | CLI/MCP 是已交付的产品面，分析工具组可立即兑现总规 §4.2.2 的 MCP 承诺；UI 壳层（egui/wgpu）体量大、不阻塞内核能力沉淀。内核优先让 AI 代理用户尽早获得完整工作流 |
+| 17 | MCP 工具 kanyu_render_symbolize 独立存在 | **合并** | 符号化并入 kanyu_render_map 的 style 参数（graduated/categorical 规则） | 避免两个工具做同一件事的冗余面；无 style 调用行为不变，向后兼容 |
 
 ### 6.2 竞品格局与差异化定位（调研摘要）
 
@@ -1097,6 +1098,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）
 
 - [x] 离屏渲染 render_map（tiny-skia PNG + SVG 双通道，晨山/夜观星主题，2026-08-02）。
+- [x] 属性驱动符号化（graduated/categorical 样式规则，并入 render_map style 参数——裁决 #17，2026-08-02）。
 - [ ] wgpu 渲染管线（Vulkan/Metal/DX12/GL 一套代码；交互实时渲染，随 kanyu-shell）。
 - [ ] GeoArrow → SSBO 直通映射；视窗裁剪 + LOD 瓦片。
 - [ ] glyphon SDF 文字；亮/暗主题渲染适配（晨山/夜观星色彩系统）。

@@ -392,6 +392,7 @@ join 侧属性与 `join_index` 缺省。
 | `width` | integer \| null | 否 | 图片宽度（像素，默认 800） |
 | `height` | integer \| null | 否 | 图片高度（像素，默认 600） |
 | `theme` | string \| null | 否 | `light`（晨山，默认）/ `dark`（夜观星） |
+| `style` | object \| null | 否 | 属性驱动样式规则（缺省走主题默认样式）：`{"type":"graduated","field":"height","stops":[[0,"#2D6A5E"],[50,"#D4A843"],[100,"#C75B3A"]]}` 数值分档（取最后满足 值≥阈值 的档，阈值严格升序），或 `{"type":"categorical","field":"usage","colors":{"office":"#2D6A5E"},"default":"#888888"}` 类别映射 |
 
 返回（不写文件，直接回传内容）：
 
@@ -418,8 +419,8 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | `kanyu.analysis.buffer/overlay/topology` | `kanyu_analysis_*` | ✅ |
 | —（analysis 组扩展） | `kanyu_analysis_measure` | ✅ |
 | —（analysis 组扩展） | `kanyu_analysis_sjoin` / `kanyu_analysis_zonal_stats` | ✅ |
-| `kanyu.render.symbolize/camera` | `kanyu_render_*` | 📋 |
-| —（render 组首工具） | `kanyu_render_map` | ✅ |
+| `kanyu.render.camera` | `kanyu_render_*` | 📋 |
+| —（render 组首工具；符号化并入其 style 参数，裁决 #17） | `kanyu_render_map` | ✅ |
 | `kanyu.system.generate/hotload` | `kanyu_system_*` | 📋 |
 
 即：点号映射为下划线，分组（data/analysis/render/system/agents）保留。

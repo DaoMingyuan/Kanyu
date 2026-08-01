@@ -67,7 +67,7 @@ pub fn modules() -> Vec<ModuleInfo> {
         },
         ModuleInfo {
             name: "kanyu-render",
-            role: "眼睛：离屏地图渲染（tiny-skia PNG + SVG，晨山/夜观星主题），wgpu 实时管线待壳层",
+            role: "眼睛：离屏地图渲染（tiny-skia PNG + SVG，晨山/夜观星主题，属性驱动符号化），wgpu 实时管线待壳层",
             status: "incubating",
         },
         ModuleInfo {
@@ -162,11 +162,6 @@ pub fn tools() -> Vec<ToolInfo> {
             name: "kanyu_render_map",
             group: "render",
             status: "stable",
-        },
-        ToolInfo {
-            name: "kanyu_render_symbolize",
-            group: "render",
-            status: "planned",
         },
         ToolInfo {
             name: "kanyu_render_camera",

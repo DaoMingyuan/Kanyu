@@ -331,6 +331,29 @@ PNG 经 tiny-skia 纯 Rust CPU 光栅化。色彩取自
 | `padding` | `f64` | 20.0 | 四周边距（像素） |
 | `theme` | `Theme` | `Light` | `Light` 晨山 / `Dark` 夜观星（`FromStr`：`light`/`dark`） |
 | `background` | `Option<String>` | `None` | 自定义背景色 `#RRGGBB`（缺省用主题画布色） |
+| `style` | `Option<StyleRule>` | `None` | 属性驱动样式规则（缺省走主题默认样式，行为与旧版一致） |
+
+### `StyleRule`
+
+JSON `type` 判别（`serde(tag = "type", rename_all = "lowercase")`），
+总规 §3.4 符号定义子集：
+
+| 变体 | 字段 | 语义 |
+|---|---|---|
+| `Graduated` | `field: String`；`stops: Vec<(f64, String)>` | 数值分档：`stops` 为 `[[阈值, "#RRGGBB"], …]`（须非空且阈值**严格升序**）；取**最后一个满足 `值 ≥ 阈值` 的档**（恰等阈值取该档、超最大档取末档、低于首档走默认样式）；字段缺失/非数值走默认 |
+| `Categorical` | `field: String`；`colors: HashMap<String, String>`；`default: Option<String>` | 字符串类别映射：命中取对应色，无匹配取 `default`（亦缺省则走默认）；字段缺失/非字符串走默认 |
+
+`validate()` 语义校验（render 入口统一调用）：空 stops、非升序、坏 hex
+均报中文错误并指出出错项。`color_for(properties) -> Option<String>`
+返回命中色 `#RRGGBB` 原样；未命中为 None。命中色按几何类型派生：
+面=该色 20% 透明填充 + 同色描边、线=该色描边、点=该色填充。
+
+完整示例：
+
+```json
+{"type":"graduated","field":"height","stops":[[0,"#2D6A5E"],[50,"#D4A843"],[100,"#C75B3A"]]}
+{"type":"categorical","field":"usage","colors":{"office":"#2D6A5E","residential":"#D4A843"},"default":"#888888"}
+```
 
 ### 函数
 
@@ -352,3 +375,4 @@ GeometryCollection 递归；无几何要素跳过。
 | `InvalidExtent(String)` | 经度跨度 >350°、NaN/Inf 坐标 |
 | `Encode(String)` | PNG 编码失败 |
 | `InvalidColor(String)` | 主题名/颜色值非法 |
+| `InvalidStyle(String)` | 样式规则非法（空 stops、非升序、坏颜色值；消息指出出错项） |

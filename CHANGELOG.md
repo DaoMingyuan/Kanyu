@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-render / CLI / MCP**：属性驱动符号化（总规 §3.4 符号系统第一块，
+  裁决 #17：并入 `kanyu_render_map` 的 `style` 参数而非独立工具）——
+  `StyleRule` 两型（JSON `type` 判别）：`graduated`（数值字段分档，
+  `stops: [[阈值, "#RRGGBB"], …]` 严格升序，取最后满足 值≥阈值 的档，
+  恰等阈值取该档、低于首档走默认）与 `categorical`（字符串字段类别映射，
+  无匹配取 `default`）。字段缺失/类型不符的要素走主题默认样式（不产生
+  脏样式）；样式决策仍集中于 `style_for`/`effective_style` 一处；
+  命中色按几何类型派生（面=该色 20% 透明填充+同色描边、线=该色描边、
+  点=该色填充）。空 stops/非升序/坏 hex 报中文错误并指出出错项。
+  CLI `render map --style/--style-file`（互斥中文报错）；MCP `style`
+  参数 JSON 原样透传。introspect：移除 `kanyu_render_symbolize`
+  （`kanyu_render_camera` 保持 planned）。无 style 调用行为完全不变。
+
 ## [0.9.0] - 2026-08-02
 
 **Phase 2 视界启幕：离屏地图渲染 render_map（PNG/SVG 双通道），AI 代理能"看见"数据。**

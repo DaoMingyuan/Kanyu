@@ -205,6 +205,12 @@ pub enum RenderCommand {
         /// 主题：light（晨山）/dark（夜观星）。
         #[arg(long, default_value = "light")]
         theme: String,
+        /// 属性驱动样式规则（内联 JSON；与 --style-file 二选一）。
+        #[arg(long)]
+        style: Option<String>,
+        /// 样式规则 JSON 文件路径（与 --style 二选一）。
+        #[arg(long)]
+        style_file: Option<String>,
     },
 }
 

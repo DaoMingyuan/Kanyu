@@ -258,11 +258,32 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
             width,
             height,
             theme,
+            style,
+            style_file,
         } => {
+            let style_rule: Option<kanyu_render::StyleRule> = match (style, style_file) {
+                (Some(_), Some(_)) => {
+                    bail!("--style 与 --style-file 二选一，不可同时指定")
+                }
+                (Some(s), None) => Some(
+                    serde_json::from_str(s)
+                        .map_err(|e| anyhow::anyhow!("样式规则 JSON 解析失败: {e}"))?,
+                ),
+                (None, Some(p)) => {
+                    let text = std::fs::read_to_string(p)
+                        .with_context(|| format!("读取样式文件 {p} 失败"))?;
+                    Some(
+                        serde_json::from_str(&text)
+                            .map_err(|e| anyhow::anyhow!("样式规则 JSON 解析失败（{p}）: {e}"))?,
+                    )
+                }
+                (None, None) => None,
+            };
             let opts = kanyu_render::RenderOptions {
                 width: *width,
                 height: *height,
                 theme: theme.parse()?,
+                style: style_rule,
                 ..Default::default()
             };
             let layer = Layer::load(stem_of(file), file)?;
