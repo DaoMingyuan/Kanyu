@@ -150,7 +150,7 @@ impl FormatRegistry {
                 symbol: Full,
                 layout: Full,
                 driver: "native",
-                note: "完整块/图层/标注支持",
+                note: "原生读写（dxf crate）：POINT/LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC 映射，图层→layer 属性；写出 R2000 仅外环，属性/XDATA 📋",
             },
             FormatCapabilities {
                 id: "dgn",

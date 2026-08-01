@@ -69,6 +69,7 @@ impl Layer {
             "shp" => shp_to_collection(path)?,
             "fgb" => fgb_to_collection(path)?,
             "geoparquet" => parquet_to_collection(path)?,
+            "dxf" => dxf_to_collection(path)?,
             other => {
                 return Err(KanyuError::UnsupportedOperation {
                     format: other.to_string(),
@@ -176,6 +177,13 @@ impl Layer {
     /// 属性列 schema 推断规则同 [`Layer::to_fgb_bytes`]。
     pub fn to_geoparquet_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
         collection_to_geoparquet(collection)
+    }
+
+    /// 导出为 DXF 字符串：Point/MultiPoint→POINT、LineString/MultiLineString→
+    /// 开放 LWPOLYLINE、Polygon/MultiPolygon→闭合 LWPOLYLINE（仅外环，洞舍弃）。
+    /// 所有要素写到默认图层 "0"；properties/XDATA 写出 📋 暂不支持；z 丢弃。
+    pub fn to_dxf_string(collection: &geojson::FeatureCollection) -> Result<String> {
+        collection_to_dxf(collection)
     }
 }
 
@@ -1192,6 +1200,218 @@ fn collection_to_geoparquet(collection: &geojson::FeatureCollection) -> Result<V
     Ok(out)
 }
 
+/// DXF → FeatureCollection：POINT/LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC 映射为
+/// GeoJSON 几何（CIRCLE/ARC 按 64 分段折线近似），其余实体跳过不报错。
+/// 每个要素写属性 `layer`（DXF 图层名）；实体颜色非 ByLayer 时写 `color_index`（ACI）。
+fn dxf_to_collection(path: &str) -> Result<geojson::FeatureCollection> {
+    let drawing = dxf::Drawing::load_file(path).map_err(|e| {
+        KanyuError::Other(format!(
+            "dxf 读取失败（{path}）：{e}；文件可能损坏或不是有效的 DXF"
+        ))
+    })?;
+
+    let mut features = Vec::new();
+    for entity in drawing.entities() {
+        let Some(value) = dxf_entity_to_geojson(&entity.specific) else {
+            continue;
+        };
+        let mut properties = serde_json::Map::new();
+        properties.insert(
+            "layer".to_string(),
+            serde_json::Value::String(entity.common.layer.clone()),
+        );
+        if !entity.common.color.is_by_layer() {
+            if let Some(idx) = entity.common.color.index() {
+                properties.insert("color_index".to_string(), serde_json::Value::from(idx));
+            }
+        }
+        features.push(geojson::Feature {
+            bbox: None,
+            geometry: Some(geojson::Geometry::new(value)),
+            id: None,
+            properties: Some(properties),
+            foreign_members: None,
+        });
+    }
+
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
+
+/// DXF 实体 → GeoJSON 几何；不支持的实体类型返回 None（跳过）。
+fn dxf_entity_to_geojson(specific: &dxf::entities::EntityType) -> Option<geojson::Value> {
+    use dxf::entities::EntityType;
+    match specific {
+        EntityType::ModelPoint(p) => Some(geojson::Value::Point(vec![p.location.x, p.location.y])),
+        EntityType::Line(l) => Some(geojson::Value::LineString(vec![
+            vec![l.p1.x, l.p1.y],
+            vec![l.p2.x, l.p2.y],
+        ])),
+        EntityType::LwPolyline(pl) => {
+            let positions: Vec<Vec<f64>> = pl.vertices.iter().map(|v| vec![v.x, v.y]).collect();
+            dxf_polyline_to_geojson(positions, pl.is_closed())
+        }
+        EntityType::Polyline(pl) => {
+            // 跳过 3D 多边形网格（16）与多面网格（64）：非线/面几何。
+            if pl.flags & (0x10 | 0x40) != 0 {
+                return None;
+            }
+            let positions: Vec<Vec<f64>> = pl
+                .vertices()
+                .map(|v| vec![v.location.x, v.location.y])
+                .collect();
+            dxf_polyline_to_geojson(positions, pl.is_closed())
+        }
+        EntityType::Circle(c) => {
+            if c.radius <= 0.0 {
+                return None;
+            }
+            let ring = dxf_arc_positions(c.center.x, c.center.y, c.radius, 0.0, 360.0);
+            Some(geojson::Value::Polygon(vec![ring]))
+        }
+        EntityType::Arc(a) => {
+            if a.radius <= 0.0 {
+                return None;
+            }
+            Some(geojson::Value::LineString(dxf_arc_positions(
+                a.center.x,
+                a.center.y,
+                a.radius,
+                a.start_angle,
+                a.end_angle,
+            )))
+        }
+        _ => None,
+    }
+}
+
+/// 折线顶点列 → 开放 LineString / 闭合 Polygon（单环，首尾自动闭合）。
+/// 顶点不足以构成线（<2）或面（<3）时返回 None。
+fn dxf_polyline_to_geojson(mut positions: Vec<Vec<f64>>, closed: bool) -> Option<geojson::Value> {
+    if closed {
+        if positions.len() < 3 {
+            return None;
+        }
+        if positions.first() != positions.last() {
+            positions.push(positions[0].clone());
+        }
+        Some(geojson::Value::Polygon(vec![positions]))
+    } else {
+        if positions.len() < 2 {
+            return None;
+        }
+        Some(geojson::Value::LineString(positions))
+    }
+}
+
+/// 圆/弧按 64 分段折线近似（DXF 角度为度数，逆时针；end<=start 时按跨 360° 处理）。
+fn dxf_arc_positions(cx: f64, cy: f64, r: f64, start_deg: f64, end_deg: f64) -> Vec<Vec<f64>> {
+    const SEGMENTS: usize = 64;
+    let sweep = if end_deg > start_deg {
+        end_deg - start_deg
+    } else {
+        end_deg + 360.0 - start_deg
+    };
+    (0..=SEGMENTS)
+        .map(|i| {
+            let theta = (start_deg + sweep * i as f64 / SEGMENTS as f64).to_radians();
+            vec![cx + r * theta.cos(), cy + r * theta.sin()]
+        })
+        .collect()
+}
+
+/// FeatureCollection → DXF 字符串（显式 R2000 版本写出：crate 默认 R12
+/// 不支持 LWPOLYLINE（MinVersion=R14），实体将被静默跳过）。
+/// 无几何要素与 GeometryCollection 跳过；Polygon 仅写外环（洞舍弃）。
+fn collection_to_dxf(collection: &geojson::FeatureCollection) -> Result<String> {
+    let mut drawing = dxf::Drawing::new();
+    drawing.header.version = dxf::enums::AcadVersion::R2000;
+    for feature in &collection.features {
+        let Some(geom) = &feature.geometry else {
+            continue;
+        };
+        dxf_push_geometry(&mut drawing, &geom.value);
+    }
+
+    let mut buf: Vec<u8> = Vec::new();
+    drawing
+        .save(&mut buf)
+        .map_err(|e| KanyuError::Other(format!("dxf 写出失败: {e}")))?;
+    String::from_utf8(buf).map_err(|e| KanyuError::Other(format!("dxf 编码失败: {e}")))
+}
+
+/// 单个 geojson 几何 → DXF 实体（Multi* 拆为多个实体）。
+fn dxf_push_geometry(drawing: &mut dxf::Drawing, value: &geojson::Value) {
+    use dxf::entities::{Entity, EntityType, ModelPoint};
+
+    match value {
+        geojson::Value::Point(pos) => {
+            drawing.add_entity(Entity::new(EntityType::ModelPoint(ModelPoint {
+                location: dxf::Point::new(pos[0], pos[1], 0.0),
+                ..Default::default()
+            })));
+        }
+        geojson::Value::MultiPoint(pts) => {
+            for pos in pts {
+                dxf_push_geometry(drawing, &geojson::Value::Point(pos.clone()));
+            }
+        }
+        geojson::Value::LineString(line) => {
+            if line.len() < 2 {
+                return;
+            }
+            drawing.add_entity(Entity::new(EntityType::LwPolyline(dxf_lwpolyline(
+                line, false,
+            ))));
+        }
+        geojson::Value::MultiLineString(lines) => {
+            for line in lines {
+                dxf_push_geometry(drawing, &geojson::Value::LineString(line.clone()));
+            }
+        }
+        geojson::Value::Polygon(rings) => {
+            if let Some(outer) = rings.first() {
+                drawing.add_entity(Entity::new(EntityType::LwPolyline(dxf_lwpolyline(
+                    outer, true,
+                ))));
+            }
+        }
+        geojson::Value::MultiPolygon(polys) => {
+            for rings in polys {
+                dxf_push_geometry(drawing, &geojson::Value::Polygon(rings.clone()));
+            }
+        }
+        // GeometryCollection 暂不展开（见 to_dxf_string 文档）。
+        geojson::Value::GeometryCollection(_) => {}
+    }
+}
+
+/// 顶点列 → LwPolyline（closed 时设闭合标志并去掉重复的首尾点）。
+fn dxf_lwpolyline(positions: &[Vec<f64>], closed: bool) -> dxf::entities::LwPolyline {
+    let mut positions = positions;
+    if closed && positions.len() > 1 && positions.first() == positions.last() {
+        positions = &positions[..positions.len() - 1];
+    }
+    let mut polyline = dxf::entities::LwPolyline {
+        vertices: positions
+            .iter()
+            .map(|p| dxf::LwPolylineVertex {
+                x: p[0],
+                y: p[1],
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    };
+    if closed {
+        polyline.set_is_closed(true);
+    }
+    polyline
+}
+
 /// 在表头中定位 X/Y 坐标列（大小写不敏感）。
 fn detect_coord_columns(headers: &csv::StringRecord) -> Option<(usize, usize)> {
     const X_NAMES: [&str; 5] = ["lon", "lng", "longitude", "x", "经度"];
@@ -1624,6 +1844,93 @@ mod tests {
         assert!(
             err.to_string().contains("geoparquet"),
             "错误应指出 geoparquet 读取问题: {err}"
+        );
+    }
+
+    #[test]
+    fn dxf_roundtrip_preserves_geometries() {
+        let text = Layer::to_dxf_string(&fgb_test_collection()).unwrap();
+        let dir = std::env::temp_dir().join("kanyu_core_dxf_roundtrip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("mixed.dxf");
+        std::fs::write(&path, &text).unwrap();
+
+        let layer = Layer::load("mixed", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 3);
+        let s = layer.summary();
+        assert_eq!(s.format, "dxf");
+        assert_eq!(s.geometry_types, vec!["LineString", "Point", "Polygon"]);
+        // 每个要素都应带回图层属性（写出统一落图层 "0"）。
+        for f in &layer.collection().features {
+            let props = f.properties.as_ref().unwrap();
+            assert_eq!(props["layer"], serde_json::Value::String("0".to_string()));
+        }
+    }
+
+    #[test]
+    fn dxf_load_circle_approximates_polygon() {
+        let dir = std::env::temp_dir().join("kanyu_core_dxf_circle");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("circle.dxf");
+        let mut drawing = dxf::Drawing::new();
+        drawing.add_entity(dxf::entities::Entity::new(
+            dxf::entities::EntityType::Circle(dxf::entities::Circle {
+                center: dxf::Point::new(5.0, 5.0, 0.0),
+                radius: 2.0,
+                ..Default::default()
+            }),
+        ));
+        drawing.save_file(&path).unwrap();
+
+        let layer = Layer::load("circle", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 1);
+        let geojson::Value::Polygon(rings) = &layer.collection().features[0]
+            .geometry
+            .as_ref()
+            .unwrap()
+            .value
+        else {
+            panic!("CIRCLE 应近似为 Polygon");
+        };
+        // 64 分段 + 首尾闭合 = 65 个顶点。
+        assert!(
+            rings[0].len() >= 60,
+            "近似顶点数应 >= 60，实际 {}",
+            rings[0].len()
+        );
+    }
+
+    #[test]
+    fn dxf_skips_unknown_entities() {
+        let dir = std::env::temp_dir().join("kanyu_core_dxf_mtext");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("mtext.dxf");
+        let mut drawing = dxf::Drawing::new();
+        drawing.add_entity(dxf::entities::Entity::new(
+            dxf::entities::EntityType::MText(dxf::entities::MText {
+                text: "标注文字".to_string(),
+                ..Default::default()
+            }),
+        ));
+        drawing.save_file(&path).unwrap();
+
+        // MTEXT 读取不报错，且不产生要素。
+        let layer = Layer::load("mtext", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 0);
+    }
+
+    #[test]
+    fn dxf_corrupt_file_gives_clear_error() {
+        let dir = std::env::temp_dir().join("kanyu_core_dxf_corrupt");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("garbage.dxf");
+        std::fs::write(&path, b"this is not a dxf file\x00\x01\x02").unwrap();
+        let err = Layer::load("garbage", path.to_str().unwrap())
+            .err()
+            .expect("损坏文件应报错");
+        assert!(
+            err.to_string().contains("dxf"),
+            "错误应指出 dxf 读取问题: {err}"
         );
     }
 }

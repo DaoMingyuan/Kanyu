@@ -6,6 +6,12 @@
 
 ### 新增
 
+- **kanyu-core / CLI / MCP**：DXF 原生读写（dxf crate，免 GDAL）——
+  POINT/LINE/LWPOLYLINE/POLYLINE 映射（闭合折线→Polygon），CIRCLE/ARC 按 64 分段
+  折线近似，其余实体跳过不报错；要素带 `layer`（图层名）与非 ByLayer 时的
+  `color_index`（ACI）属性。写出为 R2000 LWPOLYLINE（Polygon 仅外环、洞舍弃、
+  属性/XDATA 📋、z 丢弃），统一落图层 "0"。`Layer::to_dxf_string`、
+  CLI/MCP export `-f dxf` 可用。
 - **kanyu-core / CLI / MCP**：GeoParquet 原生读写（geoparquet crate，免 GDAL）——
   几何列按 GeoParquet 1.x 规范 WKB 编码（列名 `geometry`，自研小端 2D WKB
   编解码，六类基础几何 + GeometryCollection 可往返），geo 元数据/geometry_types/
