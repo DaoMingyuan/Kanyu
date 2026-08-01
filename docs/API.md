@@ -11,9 +11,10 @@
 2. [format —— 格式注册表](#2-format--格式注册表)
 3. [layer —— 图层内存模型](#3-layer--图层内存模型)
 4. [analysis —— 空间分析内核](#4-analysis--空间分析内核)
-5. [agents —— AGENTS.md 语义](#5-agents--agentsmd-语义)
-6. [introspect —— 系统自省](#6-introspect--系统自省)
-7. [error —— 错误处理约定](#7-error--错误处理约定)
+5. [crs —— 坐标参考系工具](#5-crs--坐标参考系工具)
+6. [agents —— AGENTS.md 语义](#6-agents--agentsmd-语义)
+7. [introspect —— 系统自省](#7-introspect--系统自省)
+8. [error —— 错误处理约定](#8-error--错误处理约定)
 
 ## 1. crate 总览
 
@@ -138,7 +139,8 @@ println!("{}", Layer::to_geojson_string(&high));
 对应 [MASTERPLAN.md](MASTERPLAN.md) §4.2.2（裁决 #16：分析内核优先于 UI 壳层）。
 三个函数均以 GeoJSON `FeatureCollection` 为边界格式，结果可直接走任意
 `Layer::to_*` 序列化器。**单位警示**：距离/面积以数据 CRS 单位计，
-EPSG:4326 下是度而非米；米制分析需先投影（proj4rs 📋）。
+EPSG:4326 下是度而非米；米制分析请先用 [`crs::reproject`](#5-crs--坐标参考系工具)
+投影到米制 CRS，或用 `crs::measure` 做测地线度量。
 
 | 函数 | 签名 | 说明 |
 |---|---|---|
@@ -164,7 +166,35 @@ EPSG:4326 下是度而非米；米制分析需先投影（proj4rs 📋）。
 | `violation_count` | `usize` | 违规条数（= `violations.len()`） |
 | `violations` | `Vec<TopologyViolation>` | 违规明细：`feature_a`/`feature_b`（输入集合中的要素序号，0 起）+ `note`（如重叠面积） |
 
-## 5. agents —— AGENTS.md 语义
+## 5. crs —— 坐标参考系工具
+
+投影变换与测地线度量（EPSG:4326 数据做米制分析的配套能力）。
+投影基于 proj4rs（纯 Rust PROJ 改写）+ crs-definitions **内置 EPSG 数据库**；
+度量基于 geo crate（Karney 2013，WGS84 椭球）。
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `reproject` | `fn reproject(collection: &geojson::FeatureCollection, from: &str, to: &str) -> Result<geojson::FeatureCollection>` | 投影变换：逐坐标递归转换全几何类型；经纬度自动衔接度/弧度（GeoJSON 度 ↔ PROJ 弧度）；z 不变；`from == to` 原样返回；失败坐标（NaN/越界）报中文错误并指出要素序号 |
+| `measure` | `fn measure(collection: &geojson::FeatureCollection, kind: MeasureKind) -> Result<serde_json::Value>` | 测地线度量：Length 取线长与面外环周长（米）、Area 取面面积（平方米，含洞扣除，`Orient` 归一化绕向）；Point/无几何为 0。输出 `{"kind", "unit": "m"\|"m²", "total", "per_feature": [{"index", "value"}]}` |
+
+### `MeasureKind`
+
+| 变体 | FromStr | 单位 |
+|---|---|---|
+| `Length` | `length` | m（测地线长度） |
+| `Area` | `area` | m²（测地线面积） |
+
+### CRS 定义接受形式
+
+| 形式 | 示例 | 说明 |
+|---|---|---|
+| EPSG 码 | `EPSG:4326`、`EPSG:3857`、`EPSG:4490` | 内置 EPSG 数据库（crs-definitions crate，覆盖常用 CGCS2000/高斯克吕格带等全量条目） |
+| proj4 定义串 | `+proj=merc +datum=WGS84` | `+` 开头直接解析 |
+| 快捷方式 | `WGS84` | 等价 `+proj=longlat +ellps=WGS84` |
+
+无法解析时报中文错误并列出上述接受形式。
+
+## 6. agents —— AGENTS.md 语义
 
 对应 [MASTERPLAN.md](MASTERPLAN.md) §4.3.2；设计理念见
 [ARCHITECTURE.md](ARCHITECTURE.md#5-agentsmd-语义层设计)。
@@ -223,7 +253,7 @@ if issues.is_empty() {
 }
 ```
 
-## 6. introspect —— 系统自省
+## 7. introspect —— 系统自省
 
 `kanyu introspect` 与 MCP `kanyu_system_introspect` 的内核实现，
 是自迭代闭环 Phase 1（观察）的入口。
@@ -251,7 +281,7 @@ if issues.is_empty() {
 | `ModuleInfo` | `name`, `role`, `status`: 均 `&'static str` | `status` ∈ `stable` / `incubating` / `planned` |
 | `ToolInfo` | `name`, `group`, `status`: 均 `&'static str` | `group` ∈ `data` / `agents` / `analysis` / `render` / `system`；`name` 即真实 MCP 工具名（下划线式，如 `kanyu_data_load`），与总规点式逻辑命名的映射见 [MCP.md](MCP.md#命名规范) |
 
-## 7. error —— 错误处理约定
+## 8. error —— 错误处理约定
 
 所有公共 API 返回 `kanyu_core::Result<T>`；错误为单一枚举 `KanyuError`（thiserror 派生，
 `Display` 面向最终用户）。CLI 把它转成非零退出码，MCP 把它转成 `internal_error`

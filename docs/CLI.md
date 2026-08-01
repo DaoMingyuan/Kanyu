@@ -154,11 +154,30 @@ Error: 格式 'dwg' 的原生导出尚未启用（driver: libredwg-wasm）。
 矩阵不允许时更早被拦截：`kanyu data export ... -f wfs ...` →
 `Error: format 'wfs' does not support operation 'write'`。
 
+### 3.5 `kanyu data reproject <file> --from <crs> --to <crs>` ✅
+
+投影变换（内置 EPSG 数据库；`EPSG:xxxx` / proj4 定义串 / `WGS84` 均接受；
+经纬度自动衔接度/弧度，z 不变）。EPSG:4326 数据做米制 buffer 前先用它投影。
+
+| 参数 | 说明 |
+|---|---|
+| `<file>` | 数据文件路径 |
+| `--from <crs>` | 源 CRS（如 `EPSG:4326`） |
+| `--to <crs>` | 目标 CRS（如 `EPSG:3857`） |
+| `--output <path>` | 结果输出路径（GeoJSON）；缺省打印到 stdout |
+
+```bash
+$ ./target/debug/kanyu.exe data reproject examples/buildings.geojson --from EPSG:4326 --to EPSG:3857 --output bj3857.geojson
+已写出 4 个要素 → bj3857.geojson        # 该提示在 stderr
+```
+
 ## 4. kanyu analysis ✅
 
 空间分析工具组（geo crate；对应 [MASTERPLAN.md](MASTERPLAN.md) §4.2.2）。
 **单位警示**：`--distance` 与面积均为数据 CRS 单位，EPSG:4326 下是度而非米；
-米制分析需先投影（proj4rs 📋）。
+米制分析请先用 [`data reproject`](#35-kanyu-data-reproject-file---from-crs---to-crs-)
+投影到米制 CRS，或用 [`analysis measure`](#44-kanyu-analysis-measure-file---kind-lengtharea-)
+做测地线度量。
 
 ### 4.1 `kanyu analysis buffer <file> --distance <f64> [--segments <n>]` ✅
 
@@ -204,6 +223,22 @@ $ ./target/debug/kanyu.exe analysis buffer examples/buildings.geojson --distance
 $ ./target/debug/kanyu.exe analysis topology overlap.geojson --rules no_overlap
 拓扑检查发现 1 条违规（规则 no_overlap，2 个要素）:
   要素 0 × 要素 1：面要素重叠，交集面积 4.000000
+```
+
+### 4.4 `kanyu analysis measure <file> --kind <length|area>` ✅
+
+测地线度量（Karney 2013，WGS84 椭球；输入应为经纬度数据如 EPSG:4326，
+投影数据请先 `data reproject` 回地理 CRS）。人读输出总计与单位，
+`--json` 输出逐要素明细（结构见 [API.md](API.md#5-crs--坐标参考系工具)）。
+
+| 参数 | 说明 |
+|---|---|
+| `<file>` | 数据文件路径 |
+| `--kind <kind>` | `length`（线长与面外环周长，米）/ `area`（面面积，平方米） |
+
+```bash
+$ ./target/debug/kanyu.exe analysis measure examples/buildings.geojson --kind length
+测地线长度总计: 2802.824 m（4 个要素；--json 见逐要素明细）
 ```
 
 ## 5. kanyu introspect ✅

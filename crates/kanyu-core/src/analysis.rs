@@ -5,7 +5,8 @@
 //! 的导出管线同构——分析结果可直接走任意 `Layer::to_*` 序列化器。
 //!
 //! **坐标单位警示**：所有距离/面积均以数据 CRS 单位计。EPSG:4326 下
-//! distance 是"度"而非米；米制缓冲/面积请先投影（proj4rs 投影工具为后续迭代）。
+//! distance 是"度"而非米；米制缓冲/面积请先用 [`crate::crs::reproject`]
+//! 投影到米制 CRS，或对经纬度数据用 [`crate::crs::measure`] 做测地线度量。
 
 use crate::error::{KanyuError, Result};
 
@@ -28,7 +29,8 @@ fn with_geometry(feature: &geojson::Feature, value: geojson::Value) -> geojson::
 /// 缓冲区分析：逐要素 geojson→geo 转换并缓冲，结果为 Polygon/MultiPolygon，
 /// **属性随行**（原 properties 复制到缓冲结果要素）。
 ///
-/// - `distance`：缓冲距离（数据 CRS 单位；EPSG:4326 下是度）。
+/// - `distance`：缓冲距离（数据 CRS 单位；EPSG:4326 下是度，
+///   米制缓冲请先用 [`crate::crs::reproject`] 投影到米制 CRS）。
 /// - `segments`：圆弧拟合的每象限分段数（≥1；越大越圆滑，对应 geo 圆角
 ///   连接角 `π/2 / segments`）。
 /// - 几何缺失或类型不支持转换的要素跳过，跳过数计入返回集合的

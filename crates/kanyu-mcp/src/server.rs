@@ -99,6 +99,28 @@ pub struct AnalysisTopologyReq {
     pub rules: Vec<String>,
 }
 
+/// `kanyu_data_reproject` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DataReprojectReq {
+    /// 数据文件路径。
+    pub path: String,
+    /// 源 CRS（"EPSG:xxxx" 或 proj4 定义串；内置 EPSG 数据库）。
+    pub from: String,
+    /// 目标 CRS（同 from 格式）。
+    pub to: String,
+    /// 输出路径（可选；缺省返回转换后的 FeatureCollection）。
+    pub out: Option<String>,
+}
+
+/// `kanyu_analysis_measure` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisMeasureReq {
+    /// 数据文件路径。
+    pub path: String,
+    /// 度量类型：length（米）/ area（平方米）。
+    pub kind: String,
+}
+
 #[tool_router]
 impl KanyuServer {
     /// 构造 Server 并注册全部工具。
@@ -252,6 +274,48 @@ impl KanyuServer {
         let report =
             kanyu_core::analysis::topology_check(&layer.collection(), &rules).map_err(to_mcp)?;
         Ok(Json(serde_json::to_value(report).map_err(to_mcp)?))
+    }
+
+    /// 投影变换。
+    #[tool(
+        name = "kanyu_data_reproject",
+        description = "坐标投影变换（from/to 为 \"EPSG:xxxx\" 或 proj4 定义串，内置 EPSG 数据库；经纬度自动衔接度/弧度，z 不变），out 缺省返回 FeatureCollection"
+    )]
+    async fn data_reproject(
+        &self,
+        Parameters(req): Parameters<DataReprojectReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let result =
+            kanyu_core::crs::reproject(&layer.collection(), &req.from, &req.to).map_err(to_mcp)?;
+        match req.out {
+            Some(out) => {
+                std::fs::write(&out, Layer::to_geojson_string(&result)).map_err(to_mcp)?;
+                Ok(Json(serde_json::json!({
+                    "reprojected": result.features.len(),
+                    "out": out,
+                })))
+            }
+            None => Ok(Json(serde_json::json!({
+                "feature_count": result.features.len(),
+                "collection": result,
+            }))),
+        }
+    }
+
+    /// 测地线度量。
+    #[tool(
+        name = "kanyu_analysis_measure",
+        description = "测地线度量（Karney 2013；kind=length 长度米 / area 面积平方米；输入应为经纬度数据如 EPSG:4326），返回 total 与逐要素明细"
+    )]
+    async fn analysis_measure(
+        &self,
+        Parameters(req): Parameters<AnalysisMeasureReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let kind: kanyu_core::crs::MeasureKind = req.kind.parse().map_err(to_mcp)?;
+        let report = kanyu_core::crs::measure(&layer.collection(), kind).map_err(to_mcp)?;
+        Ok(Json(report))
     }
 
     /// 系统自省：架构、模块、格式矩阵、工具清单。

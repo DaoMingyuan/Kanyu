@@ -248,6 +248,41 @@ overlay 属性（键冲突加 `overlay_` 前缀；difference 仅 target 属性�
  "violations":[{"feature_a":0,"feature_b":1,"note":"面要素重叠，交集面积 4.000000"}]}
 ```
 
+### 3.10 `kanyu_data_reproject`
+
+> 坐标投影变换（内置 EPSG 数据库；经纬度自动衔接度/弧度，z 不变）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 数据文件路径 |
+| `from` | string | 是 | 源 CRS（`EPSG:xxxx` / proj4 定义串 / `WGS84`） |
+| `to` | string | 是 | 目标 CRS（同 from 格式） |
+| `out` | string \| null | 否 | 输出路径；缺省返回转换后的 FeatureCollection |
+
+输出（out 缺省时）：
+
+```json
+{"feature_count": 4, "collection": {"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[12956631.38,4852465.99]},"properties":{…}}]}}
+```
+
+提供 `out` 时：`{"reprojected": 4, "out": "bj3857.geojson"}`。
+
+### 3.11 `kanyu_analysis_measure`
+
+> 测地线度量（Karney 2013，WGS84 椭球；输入应为经纬度数据如 EPSG:4326，投影数据请先 `kanyu_data_reproject` 回地理 CRS）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 数据文件路径 |
+| `kind` | string | 是 | `length`（米）/ `area`（平方米） |
+
+输出：
+
+```json
+{"kind":"length","unit":"m","total":2802.82,
+ "per_feature":[{"index":0,"value":0.0},{"index":3,"value":2802.82},…]}
+```
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
@@ -258,10 +293,12 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | `kanyu.data.load` | `kanyu_data_load` | ✅ |
 | `kanyu.data.query` | `kanyu_data_query` | ✅ |
 | `kanyu.data.export` | `kanyu_data_export` | ✅ |
+| —（data 组扩展，裁决后增） | `kanyu_data_reproject` | ✅ |
 | `kanyu.system.introspect` | `kanyu_system_introspect` | ✅ |
 | —（agents 组，总规后增） | `kanyu_agents_validate` | ✅ |
 | — | `kanyu_agents_init` | ✅ |
 | `kanyu.analysis.buffer/overlay/topology` | `kanyu_analysis_*` | ✅ |
+| —（analysis 组扩展） | `kanyu_analysis_measure` | ✅ |
 | `kanyu.render.symbolize/camera` | `kanyu_render_*` | 📋 |
 | `kanyu.system.generate/hotload` | `kanyu_system_*` | 📋 |
 
@@ -287,7 +324,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| analysis 工具组扩展 | 📋 | sjoin / zonal_stats / 测地线距离（proj4rs 投影）；buffer/overlay/topology 已 ✅（§3.7–3.9） |
+| analysis 工具组扩展 | 📋 | sjoin / zonal_stats / MCP tasks 长任务；buffer/overlay/topology（§3.7–3.9）与 reproject/measure（§3.10–3.11）已 ✅ |
 | render 工具组 | 📋 | `kanyu_render_symbolize` / `camera`（随 kanyu-render/wgpu 落地） |
 | system 工具组扩展 | 📋 | `kanyu_system_generate` / `hotload`（代码生成→WASM 沙箱流水线，须人类审核） |
 | MCP tasks | 📋 | SEP-1686 长任务：大文件导入、批量导出等异步化，进度可查询 |

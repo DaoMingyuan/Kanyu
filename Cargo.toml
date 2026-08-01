@@ -53,6 +53,8 @@ kml = { version = "0.14", default-features = false }
 geo = "0.33"
 # 与 geojson 0.24 / geo 0.33 内部依赖同 0.7 系统一（geojson 的 geo 互转以其类型为准）。
 geo-types = "0.7"
+# crs-definitions 特性携带纯 Rust EPSG 数据库（Proj::from_epsg_code 可用）。
+proj4rs = { version = "0.1.10", features = ["crs-definitions"] }
 
 [profile.release]
 lto = "thin"

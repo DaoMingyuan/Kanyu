@@ -227,3 +227,52 @@ fn analysis_topology_json_reports_violation() {
     assert_eq!(json["violations"][0]["feature_a"], 0);
     assert_eq!(json["violations"][0]["feature_b"], 1);
 }
+
+#[test]
+fn data_reproject_4326_to_3857_end_to_end() {
+    let dir = std::env::temp_dir().join("kanyu_itest_reproject");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("bj.geojson");
+    std::fs::write(
+        &path,
+        r#"{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[116.3914,39.9072]},
+             "properties":{"name":"北京"}}
+        ]}"#,
+    )
+    .unwrap();
+    let out_path = dir.join("bj3857.geojson");
+
+    let out = kanyu()
+        .args([
+            "data",
+            "reproject",
+            path.to_str().unwrap(),
+            "--from",
+            "EPSG:4326",
+            "--to",
+            "EPSG:3857",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let written: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&out_path).unwrap()).unwrap();
+    let coords = written["features"][0]["geometry"]["coordinates"]
+        .as_array()
+        .unwrap();
+    // 球面 Web 墨卡托（R=6378137）：x ≈ 1.2957e7，y ≈ 4.85e6，量级校验（±1000m）。
+    let x = coords[0].as_f64().unwrap();
+    let y = coords[1].as_f64().unwrap();
+    assert!((x - 12_956_600.0).abs() < 1000.0, "x 量级错误: {x}");
+    assert!((y - 4_852_500.0).abs() < 1000.0, "y 量级错误: {y}");
+    // 属性不受影响。
+    assert_eq!(written["features"][0]["properties"]["name"], "北京");
+}

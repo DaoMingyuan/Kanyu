@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-core / CLI / MCP**：坐标投影工具 + 测地线度量（新模块 `crs`，
+  解决 EPSG:4326 数据无法做米制分析的痛点）——
+  - `crs::reproject`：投影变换（proj4rs + crs-definitions 内置 EPSG 数据库；
+    `"EPSG:xxxx"`/proj4 定义串/`WGS84` 均接受；逐坐标递归转换全几何类型，
+    经纬度自动衔接度/弧度，z 不变；失败坐标报中文错误并指出要素序号）。
+  - `crs::measure`：测地线度量（geo crate Karney 2013；`MeasureKind::Length`
+    线长与面外环周长（米）、`MeasureKind::Area` 面面积（平方米，含洞扣除，
+    `Orient` 归一化绕向防 ESRI 顺时针数据算出补集面积）；输出
+    total + 逐要素明细 JSON；Point/无几何为 0）。
+  - CLI：`kanyu data reproject`、`kanyu analysis measure`；
+    MCP：`kanyu_data_reproject`、`kanyu_analysis_measure`
+    （introspect 新增两项 stable）。
+  - buffer/measure 文档中的"需先投影"警示句统一指向 reproject 工具。
+
 ## [0.4.0] - 2026-08-02
 
 **分析内核落地：总规 §4.2.2 的 MCP 分析工具组兑现（裁决 #16 调序前置）。**

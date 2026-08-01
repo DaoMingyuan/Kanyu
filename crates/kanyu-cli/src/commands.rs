@@ -104,6 +104,16 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                 }
             }
         }
+        DataCommand::Reproject {
+            file,
+            from,
+            to,
+            output,
+        } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let result = kanyu_core::crs::reproject(&layer.collection(), from, to)?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
     }
     Ok(())
 }
@@ -163,6 +173,24 @@ pub fn analysis(cmd: &AnalysisCommand, json: bool) -> Result<()> {
                     }
                     s
                 }
+            });
+        }
+        AnalysisCommand::Measure { file, kind } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let kind: kanyu_core::crs::MeasureKind = kind.parse()?;
+            let report = kanyu_core::crs::measure(&layer.collection(), kind)?;
+            print_value(&report, json, |r| {
+                let kind_zh = if r["kind"] == "length" {
+                    "长度"
+                } else {
+                    "面积"
+                };
+                format!(
+                    "测地线{kind_zh}总计: {:.3} {}（{} 个要素；--json 见逐要素明细）",
+                    r["total"].as_f64().unwrap_or_default(),
+                    r["unit"].as_str().unwrap_or_default(),
+                    r["per_feature"].as_array().map(Vec::len).unwrap_or(0)
+                )
             });
         }
     }

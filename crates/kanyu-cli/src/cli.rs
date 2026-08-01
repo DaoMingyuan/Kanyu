@@ -89,6 +89,20 @@ pub enum DataCommand {
         #[arg(long)]
         symbol_mapping: bool,
     },
+    /// 投影变换（--from/--to 为 EPSG:xxxx 或 proj4 定义串；内置 EPSG 数据库）。
+    Reproject {
+        /// 数据文件路径。
+        file: String,
+        /// 源 CRS（如 EPSG:4326）。
+        #[arg(long)]
+        from: String,
+        /// 目标 CRS（如 EPSG:3857）。
+        #[arg(long)]
+        to: String,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
 }
 
 /// `kanyu analysis ...`
@@ -128,6 +142,14 @@ pub enum AnalysisCommand {
         /// 规则（逗号分隔，支持 no_overlap）。
         #[arg(long)]
         rules: String,
+    },
+    /// 测地线度量（Karney 2013；长度米/面积平方米；--json 输出明细）。
+    Measure {
+        /// 数据文件路径。
+        file: String,
+        /// 度量类型：length/area。
+        #[arg(long)]
+        kind: String,
     },
 }
 

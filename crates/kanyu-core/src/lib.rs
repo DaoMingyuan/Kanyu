@@ -5,6 +5,7 @@
 //! - [`format`]：统一格式注册表与能力矩阵（读/写/编辑/符号/布局）。
 //! - [`layer`]：图层内存模型，GeoArrow RecordBatch 载体与属性查询。
 //! - [`analysis`]：空间分析内核（buffer/overlay/topology，geo crate）。
+//! - [`crs`]：坐标参考系工具（投影变换/测地线度量，proj4rs + geo geodesic）。
 //! - [`agents`]：`AGENTS.md` 项目语义文件解析，AI 理解项目的"罗盘"。
 //! - [`introspect`]：系统自省，输出架构、能力与格式矩阵（供 AI 读取自身）。
 //!
@@ -13,6 +14,7 @@
 
 pub mod agents;
 pub mod analysis;
+pub mod crs;
 pub mod error;
 pub mod format;
 pub mod introspect;

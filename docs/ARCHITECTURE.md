@@ -50,7 +50,7 @@
 
 | crate | 角色 | 状态 | 依赖的兄弟 crate |
 |---|---|---|---|
-| `kanyu-core` | 数据心脏：格式注册表、图层模型、空间分析（buffer/overlay/topology，geo crate）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
+| `kanyu-core` | 数据心脏：格式注册表、图层模型、空间分析（buffer/overlay/topology）、投影/度量（reproject/measure）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
 | `kanyu-cli` | 脊髓：`kanyu` 命令行（clap derive） | ✅ stable | kanyu-core, kanyu-mcp |
 | `kanyu-mcp` | 神经接口：MCP Server（rmcp，stdio） | ✅ incubating | kanyu-core |
 | `kanyu-render` | 眼睛：wgpu 渲染管线，GeoArrow→SSBO 直通 | 📋 planned | kanyu-core |
