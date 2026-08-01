@@ -1127,7 +1127,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 
 - [x] wasmtime + WIT 基因宿主（加载/校验/fuel 沙箱执行，2026-08-03）。
 - [x] DWG 原生读取（acadrust，裁决 #18；421 样本 spike → 覆盖率报告 → 进内核）。**Spike 结论（2026-08-03，143 个真实 R2000 样本 / 52 万实体）**：acadrust 0.4.1 开箱 0%（AC15 objects 段定位推断缺陷：AuxHeader 在 Handles 之后时 size 为负）；手工按 ODA 约定以 [Classes_end, Handles_start) 定位后 **143/143 打开、521,750 实体 100% 读出、0 panic、123ms/文件**；可映射六类几何 48.0%，INSERT 22.4%、MTEXT/TEXT 25.9%、HATCH 3.6%；中文双乱码形态（GBK 未按 codepage 转码 + MIF \U+XXXX 未解码）已定位修法。**定稿：acadrust + 自持补丁层（locator workaround ~40 行 + 编码层后处理）进内核，read: Partial（六类几何，INSERT/HATCH/MTEXT 跳过+计数 📋），向上游提 issue/PR。**（2026-08-03 已落地 crates/kanyu-core/src/dwg.rs）
-- [x] DWG 原生读取进内核（acadrust + 自持补丁层：AC15 locator workaround + GBK/MIF 编码层；六类几何，INSERT/HATCH/MTEXT 跳过+计数 📋；R2018+ 待样本复测，2026-08-03）。
+- [x] DWG 原生读取进内核（acadrust + 自持补丁层：AC15 locator workaround + GBK/MIF 编码层；六类几何 + TEXT/MTEXT 标注要素化 + ELLIPSE 近似；INSERT/HATCH/SPLINE 跳过+计数 📋；R2018+ 待样本复测，2026-08-03）。
 - [ ] libredwg-wasm 基因（备选路线：覆盖率不足时启用，wasi-sdk + wasi-virt，GPL 制品独立分发）。
 - [x] MCP 热加载接线（kanyu_system_hotload 实质化，2026-08-03）。
 - [ ] AI 代码生成 → WASM 编译 → 沙箱验证 → A/B 测试流水线。

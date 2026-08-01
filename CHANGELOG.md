@@ -10,6 +10,19 @@
 
 ### 新增
 
+- **kanyu-core**：DWG 覆盖率二轮提升——TEXT/MTEXT 标注要素化 + ELLIPSE 近似：
+  - TEXT/MTEXT → 标注要素（插入点 Point；`feature_kind: "annotation"`
+    属性供消费者过滤、几何图层语义不被污染（文档即契约）；`text`
+    经 decode_dwg_string + `clean_mtext` 最小清洗（`\P`→换行、`~`/`\~`→
+    空格、`\\`→`\`、`{...}` 分组去括号保内容、`\f..\H..\W..\A..\C..\Q..\T..\X`
+    样式参数码丢弃、`\S上/下;` 堆叠保留）；`height`/`rotation`（弧度→度）；
+    空文本计 degenerate。fixture 标注命中数与 spike text 计数精确一致
+    （sample_r2000：645/645，a16_test：2194/2194）；
+  - ELLIPSE → 64 段参数方程近似（`ellipse_to_positions` pure fn：
+    P(t)=C+R(α)·(a·cos t, b·sin t)，acadrust 弧度制；全角→闭合 Polygon、
+    部分弧→LineString；ratio≤0/轴长≤0 计 degenerate）；
+  - skipped_by_type 现仅含 INSERT/HATCH/SPLINE/DIMENSION 系/其余，
+    `foreign_members["kanyu:dwg"]` 结构不变；format.rs dwg note 更新。
 - **kanyu-core**：DWG 原生读取进内核（新模块 `dwg`，acadrust 0.4 +
   自持补丁层，spike 定稿路线）——
   - **AC15 定位 workaround**：acadrust 0.4.1 的 objects 定位在

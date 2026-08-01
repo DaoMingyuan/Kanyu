@@ -138,7 +138,7 @@ impl FormatRegistry {
                 symbol: Full,
                 layout: Partial,
                 driver: "acadrust",
-                note: "acadrust + 自持补丁层（AC15 locator workaround + GBK/MIF 编码层）；六类几何读取（文件级打开 100%、实体级 INSERT/HATCH/MTEXT 跳过+计数 📋）；R2018+ 待样本复测",
+                note: "acadrust + 自持补丁层（AC15 locator workaround + GBK/MIF 编码层）；七类几何 + TEXT/MTEXT 标注要素化 + ELLIPSE 近似（实体级 INSERT/HATCH/SPLINE 跳过+计数 📋）；R2018+ 待样本复测",
             },
             FormatCapabilities {
                 id: "dxf",

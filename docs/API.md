@@ -450,7 +450,20 @@ Phase 5 spike 结论）：
 
 | 项 | 签名 | 说明 |
 |---|---|---|
-| `dwg_to_collection` | `fn dwg_to_collection(path: &str) -> Result<(geojson::FeatureCollection, DwgStats)>` | DWG → FeatureCollection + 统计。实体映射（z 丢弃）：POINT→Point、LINE→LineString、LWPOLYLINE/POLYLINE（2D/3D 取 xy，闭合→Polygon 单环）、CIRCLE→Polygon(64 段)、ARC→LineString(64 段，弧度)；ELLIPSE/SPLINE 与 INSERT/HATCH/MTEXT/TEXT/DIMENSION 系跳过+按类型计数；要素带解码后 `layer` 属性；退化几何（<2 开放/<3 闭合/半径≤0）单独计数（dxf 同口径） |
+| `dwg_to_collection` | `fn dwg_to_collection(path: &str) -> Result<(geojson::FeatureCollection, DwgStats)>` | DWG → FeatureCollection + 统计。实体映射（z 丢弃）：POINT→Point、LINE→LineString、LWPOLYLINE/POLYLINE（2D/3D 取 xy，闭合→Polygon 单环）、CIRCLE→Polygon(64 段)、ARC→LineString(64 段，弧度)、ELLIPSE→64 段参数方程近似（全角→Polygon、部分弧→LineString）；TEXT/MTEXT→标注要素（插入点 Point）；SPLINE/INSERT/HATCH/DIMENSION 系及其余跳过+按类型计数；退化几何（<2 开放/<3 闭合/半径或轴长≤0/空文本）单独计数（dxf 同口径） |
+
+**标注要素语义**（`feature_kind` 设计，文档即契约）：标注要素带
+`feature_kind: "annotation"` 属性，消费者可据此过滤——几何图层语义
+（"要素=空间对象"）不被标注污染，需要纯几何时 `query` 过滤即可
+（`feature_kind != annotation`）。其余属性：`text`（解码+清洗后）、
+`height`、`rotation`（度）、`layer`。
+
+### `clean_mtext` / `ellipse_to_positions`
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `clean_mtext` | `fn clean_mtext(raw: &str) -> String` | MTEXT 内联格式码最小清洗（保留内容、去控制码）：`\P`→`\n`、`~`/`\~`→空格、`\\`→`\`、`{...}` 分组去括号保内容（嵌套配对）、`\f..\H..\W..\A..\C..\Q..\T..\X` 样式参数码丢弃、`\S上/下;` 堆叠保留 |
+| `ellipse_to_positions` | `fn ellipse_to_positions(center: (f64,f64), major: (f64,f64), ratio: f64, start: f64, end: f64, segments: usize) -> Vec<Vec<f64>>` | 椭圆参数方程采样：P(t)=C+R(α)·(a·cos t, b·sin t)，a=|major|、b=a·ratio、α=atan2(major.y, major.x)；弧度制（acadrust 口径） |
 | `DwgStats` | `{ version: String, skipped_by_type: BTreeMap<String, usize>, degenerate: usize }` | 读取统计，写入 `foreign_members["kanyu:dwg"]`（与 buffer 的 `skipped` 上报同模式） |
 
 ### `decode_dwg_string`
