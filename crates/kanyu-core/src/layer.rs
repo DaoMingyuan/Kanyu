@@ -70,6 +70,7 @@ impl Layer {
             "fgb" => fgb_to_collection(path)?,
             "geoparquet" => parquet_to_collection(path)?,
             "dxf" => dxf_to_collection(path)?,
+            "kml" => kml_to_collection(path)?,
             other => {
                 return Err(KanyuError::UnsupportedOperation {
                     format: other.to_string(),
@@ -184,6 +185,13 @@ impl Layer {
     /// 所有要素写到默认图层 "0"；properties/XDATA 写出 📋 暂不支持；z 丢弃。
     pub fn to_dxf_string(collection: &geojson::FeatureCollection) -> Result<String> {
         collection_to_dxf(collection)
+    }
+
+    /// 导出为 KML 字符串：每要素一个 Placemark（全六类型，Multi* → MultiGeometry，
+    /// Polygon 含洞保留为内环）；`name`/`description` 属性写为同名字段，
+    /// 其余属性写入 ExtendedData/SimpleData（值转字符串）；z 丢弃。KMZ 📋。
+    pub fn to_kml_string(collection: &geojson::FeatureCollection) -> Result<String> {
+        collection_to_kml(collection)
     }
 }
 
@@ -1412,6 +1420,356 @@ fn dxf_lwpolyline(positions: &[Vec<f64>], closed: bool) -> dxf::entities::LwPoly
     polyline
 }
 
+/// KML → FeatureCollection：Document/Folder 嵌套展平取全部 Placemark；
+/// Point/LineString/LinearRing/Polygon（含内环洞）/MultiGeometry 映射，
+/// name/description/ExtendedData（Data/SimpleData/SchemaData）写为同名属性
+/// （ExtendedData 值按 CSV 规则数值化）。无几何的 Placemark 跳过。
+/// KMZ（zip 容器）本轮不支持，返回待集成错误。
+fn kml_to_collection(path: &str) -> Result<geojson::FeatureCollection> {
+    if path.to_ascii_lowercase().ends_with(".kmz") {
+        return Err(KanyuError::Other(
+            "KMZ（zip 容器）支持待 zip 集成，请先解压为 .kml 再加载".to_string(),
+        ));
+    }
+    let mut reader = kml::KmlReader::from_path(path)
+        .map_err(|e| KanyuError::Other(format!("kml 读取失败（{path}）：{e}")))?;
+    let doc: kml::Kml<f64> = reader.read().map_err(|e| {
+        KanyuError::Other(format!(
+            "kml 解析失败（{path}）：{e}；文件可能损坏或不是有效的 KML"
+        ))
+    })?;
+
+    let mut features = Vec::new();
+    kml_collect_placemarks(&doc, &mut features);
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
+
+/// 递归遍历 KML 文档树，收集 Placemark 要素。
+fn kml_collect_placemarks(kml: &kml::Kml<f64>, out: &mut Vec<geojson::Feature>) {
+    match kml {
+        kml::Kml::KmlDocument(d) => {
+            for e in &d.elements {
+                kml_collect_placemarks(e, out);
+            }
+        }
+        kml::Kml::Document { elements, .. } => {
+            for e in elements {
+                kml_collect_placemarks(e, out);
+            }
+        }
+        kml::Kml::Folder(f) => {
+            for e in &f.elements {
+                kml_collect_placemarks(e, out);
+            }
+        }
+        kml::Kml::Placemark(p) => {
+            if let Some(feature) = kml_placemark_to_feature(p) {
+                out.push(feature);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Placemark → Feature；无几何返回 None（跳过，不产生脏数据）。
+fn kml_placemark_to_feature(p: &kml::types::Placemark<f64>) -> Option<geojson::Feature> {
+    let geometry = p.geometry.as_ref().and_then(kml_geometry_to_geojson)?;
+    let mut properties = serde_json::Map::new();
+    if let Some(name) = &p.name {
+        properties.insert("name".to_string(), serde_json::Value::String(name.clone()));
+    }
+    if let Some(desc) = &p.description {
+        properties.insert(
+            "description".to_string(),
+            serde_json::Value::String(desc.clone()),
+        );
+    }
+    for el in &p.children {
+        if el.name == "ExtendedData" {
+            kml_extended_data_props(el, &mut properties);
+        }
+    }
+    Some(geojson::Feature {
+        bbox: None,
+        geometry: Some(geojson::Geometry::new(geometry)),
+        id: None,
+        properties: Some(properties),
+        foreign_members: None,
+    })
+}
+
+/// ExtendedData 元素 → 属性：支持 Data/value、SimpleData 与 SchemaData 三种
+/// 标准形式；值按 CSV 规则数值化（可解析为 f64 则 Number，否则 String）。
+fn kml_extended_data_props(
+    el: &kml::types::Element,
+    properties: &mut serde_json::Map<String, serde_json::Value>,
+) {
+    for child in &el.children {
+        match child.name.as_str() {
+            "Data" => {
+                if let Some(name) = child.attrs.get("name") {
+                    let text = child
+                        .children
+                        .iter()
+                        .find(|c| c.name == "value")
+                        .and_then(|c| c.content.as_deref());
+                    if let Some(text) = text {
+                        properties.insert(name.clone(), csv_like_value(text));
+                    }
+                }
+            }
+            "SimpleData" => {
+                if let (Some(name), Some(text)) = (child.attrs.get("name"), &child.content) {
+                    properties.insert(name.clone(), csv_like_value(text));
+                }
+            }
+            "SchemaData" => kml_extended_data_props(child, properties),
+            _ => {}
+        }
+    }
+}
+
+/// CSV 同款规则：数值优先，退化为字符串。
+fn csv_like_value(raw: &str) -> serde_json::Value {
+    raw.parse::<f64>()
+        .map(serde_json::Value::from)
+        .unwrap_or_else(|_| serde_json::Value::String(raw.to_string()))
+}
+
+/// KML 几何 → geojson 几何（z 丢弃；LinearRing 按闭合环 → 单环 Polygon）。
+fn kml_geometry_to_geojson(g: &kml::types::Geometry<f64>) -> Option<geojson::Value> {
+    use kml::types::Geometry;
+    match g {
+        Geometry::Point(p) => Some(geojson::Value::Point(vec![p.coord.x, p.coord.y])),
+        Geometry::LineString(l) => Some(geojson::Value::LineString(kml_positions(&l.coords))),
+        Geometry::LinearRing(r) => Some(geojson::Value::Polygon(vec![kml_positions(&r.coords)])),
+        Geometry::Polygon(p) => {
+            let mut rings = vec![kml_positions(&p.outer.coords)];
+            rings.extend(p.inner.iter().map(|r| kml_positions(&r.coords)));
+            Some(geojson::Value::Polygon(rings))
+        }
+        Geometry::MultiGeometry(m) => kml_multi_to_geojson(m),
+        // Element（Model 占位）及未来非穷举变体：跳过。
+        _ => None,
+    }
+}
+
+fn kml_positions(coords: &[kml::types::Coord<f64>]) -> Vec<Vec<f64>> {
+    coords.iter().map(|c| vec![c.x, c.y]).collect()
+}
+
+/// MultiGeometry：递归展平嵌套后，同类子几何合并为对应 Multi*，
+/// 异类合并为 GeometryCollection（不丢数据，1 Placemark 保持 1 Feature）。
+fn kml_multi_to_geojson(m: &kml::types::MultiGeometry<f64>) -> Option<geojson::Value> {
+    let mut flat = Vec::new();
+    kml_flatten_geometries(&m.geometries, &mut flat);
+    let values: Vec<geojson::Value> = flat
+        .into_iter()
+        .filter_map(kml_geometry_to_geojson)
+        .collect();
+    if values.is_empty() {
+        return None;
+    }
+    let all = |f: fn(&geojson::Value) -> bool| values.iter().all(f);
+    if all(|v| matches!(v, geojson::Value::Point(_))) {
+        let pts = values
+            .into_iter()
+            .map(|v| match v {
+                geojson::Value::Point(p) => p,
+                _ => unreachable!(),
+            })
+            .collect();
+        Some(geojson::Value::MultiPoint(pts))
+    } else if all(|v| matches!(v, geojson::Value::LineString(_))) {
+        let lines = values
+            .into_iter()
+            .map(|v| match v {
+                geojson::Value::LineString(l) => l,
+                _ => unreachable!(),
+            })
+            .collect();
+        Some(geojson::Value::MultiLineString(lines))
+    } else if all(|v| matches!(v, geojson::Value::Polygon(_))) {
+        let polys = values
+            .into_iter()
+            .map(|v| match v {
+                geojson::Value::Polygon(p) => p,
+                _ => unreachable!(),
+            })
+            .collect();
+        Some(geojson::Value::MultiPolygon(polys))
+    } else {
+        let geoms = values.into_iter().map(geojson::Geometry::new).collect();
+        Some(geojson::Value::GeometryCollection(geoms))
+    }
+}
+
+/// 递归展开嵌套的 MultiGeometry。
+fn kml_flatten_geometries<'a>(
+    geoms: &'a [kml::types::Geometry<f64>],
+    out: &mut Vec<&'a kml::types::Geometry<f64>>,
+) {
+    for g in geoms {
+        match g {
+            kml::types::Geometry::MultiGeometry(m) => kml_flatten_geometries(&m.geometries, out),
+            _ => out.push(g),
+        }
+    }
+}
+
+/// FeatureCollection → KML 字符串（KML 2.2；kml > Document > Placemark*）。
+/// 无几何要素跳过（KML Placemark 允许无几何，但与读取侧"跳过"口径保持一致）。
+fn collection_to_kml(collection: &geojson::FeatureCollection) -> Result<String> {
+    use std::collections::HashMap;
+
+    let placemarks: Vec<kml::Kml<f64>> = collection
+        .features
+        .iter()
+        .filter_map(kml_feature_to_placemark)
+        .map(kml::Kml::Placemark)
+        .collect();
+    let doc = kml::Kml::KmlDocument(kml::types::KmlDocument {
+        version: kml::KmlVersion::V22,
+        attrs: HashMap::new(),
+        elements: vec![kml::Kml::Document {
+            attrs: HashMap::new(),
+            elements: placemarks,
+        }],
+    });
+
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = kml::KmlWriter::from_writer(&mut buf);
+        writer
+            .write(&doc)
+            .map_err(|e| KanyuError::Other(format!("kml 写出失败: {e}")))?;
+    }
+    String::from_utf8(buf).map_err(|e| KanyuError::Other(format!("kml 编码失败: {e}")))
+}
+
+/// Feature → Placemark：`name`/`description` 写为同名字段，其余属性写入
+/// ExtendedData/SimpleData（值转字符串）；无几何返回 None。
+fn kml_feature_to_placemark(feature: &geojson::Feature) -> Option<kml::types::Placemark<f64>> {
+    use std::collections::HashMap;
+
+    let geometry = kml_geometry_from_geojson(&feature.geometry.as_ref()?.value);
+    let mut name = None;
+    let mut description = None;
+    let mut simple_data = Vec::new();
+    if let Some(props) = &feature.properties {
+        for (k, v) in props {
+            match k.as_str() {
+                "name" => name = v.as_str().map(str::to_string),
+                "description" => description = v.as_str().map(str::to_string),
+                _ => {
+                    if !v.is_null() {
+                        simple_data.push(kml::types::Element {
+                            name: "SimpleData".to_string(),
+                            attrs: HashMap::from([("name".to_string(), k.clone())]),
+                            content: Some(match v {
+                                serde_json::Value::String(s) => s.clone(),
+                                other => other.to_string(),
+                            }),
+                            children: vec![],
+                        });
+                    }
+                }
+            }
+        }
+    }
+    let children = if simple_data.is_empty() {
+        vec![]
+    } else {
+        vec![kml::types::Element {
+            name: "ExtendedData".to_string(),
+            attrs: HashMap::new(),
+            content: None,
+            children: simple_data,
+        }]
+    };
+    Some(kml::types::Placemark {
+        name,
+        description,
+        geometry: Some(geometry),
+        style_url: None,
+        attrs: HashMap::new(),
+        children,
+    })
+}
+
+/// geojson 几何 → KML 几何（全六类型；Multi* 与 GeometryCollection → MultiGeometry；z 丢弃）。
+fn kml_geometry_from_geojson(value: &geojson::Value) -> kml::types::Geometry<f64> {
+    use kml::types::{Geometry, LineString, LinearRing, MultiGeometry, Point, Polygon};
+
+    let point = |pos: &[f64]| {
+        Geometry::Point(Point {
+            coord: kml_coord(pos),
+            ..Default::default()
+        })
+    };
+    let line = |positions: &[Vec<f64>]| {
+        Geometry::LineString(LineString {
+            coords: positions.iter().map(|p| kml_coord(p)).collect(),
+            ..Default::default()
+        })
+    };
+    let polygon = |rings: &[Vec<Vec<f64>>]| {
+        let mut iter = rings.iter();
+        let outer = LinearRing {
+            coords: iter
+                .next()
+                .map(|r| r.iter().map(|p| kml_coord(p)).collect())
+                .unwrap_or_default(),
+            ..Default::default()
+        };
+        let inner = iter
+            .map(|r| LinearRing {
+                coords: r.iter().map(|p| kml_coord(p)).collect(),
+                ..Default::default()
+            })
+            .collect();
+        Geometry::Polygon(Polygon::new(outer, inner))
+    };
+
+    match value {
+        geojson::Value::Point(pos) => point(pos),
+        geojson::Value::MultiPoint(pts) => Geometry::MultiGeometry(MultiGeometry {
+            geometries: pts.iter().map(|p| point(p)).collect(),
+            ..Default::default()
+        }),
+        geojson::Value::LineString(l) => line(l),
+        geojson::Value::MultiLineString(lines) => Geometry::MultiGeometry(MultiGeometry {
+            geometries: lines.iter().map(|l| line(l)).collect(),
+            ..Default::default()
+        }),
+        geojson::Value::Polygon(rings) => polygon(rings),
+        geojson::Value::MultiPolygon(polys) => Geometry::MultiGeometry(MultiGeometry {
+            geometries: polys.iter().map(|p| polygon(p)).collect(),
+            ..Default::default()
+        }),
+        geojson::Value::GeometryCollection(geoms) => Geometry::MultiGeometry(MultiGeometry {
+            geometries: geoms
+                .iter()
+                .map(|g| kml_geometry_from_geojson(&g.value))
+                .collect(),
+            ..Default::default()
+        }),
+    }
+}
+
+/// geojson 位置 → KML 坐标（z 丢弃）。
+fn kml_coord(pos: &[f64]) -> kml::types::Coord<f64> {
+    kml::types::Coord {
+        x: pos.first().copied().unwrap_or(0.0),
+        y: pos.get(1).copied().unwrap_or(0.0),
+        z: None,
+    }
+}
+
 /// 在表头中定位 X/Y 坐标列（大小写不敏感）。
 fn detect_coord_columns(headers: &csv::StringRecord) -> Option<(usize, usize)> {
     const X_NAMES: [&str; 5] = ["lon", "lng", "longitude", "x", "经度"];
@@ -1931,6 +2289,94 @@ mod tests {
         assert!(
             err.to_string().contains("dxf"),
             "错误应指出 dxf 读取问题: {err}"
+        );
+    }
+
+    #[test]
+    fn kml_roundtrip_preserves_features_and_props() {
+        let text = Layer::to_kml_string(&fgb_test_collection()).unwrap();
+        let dir = std::env::temp_dir().join("kanyu_core_kml_roundtrip");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("mixed.kml");
+        std::fs::write(&path, &text).unwrap();
+
+        let layer = Layer::load("mixed", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 3);
+        let s = layer.summary();
+        assert_eq!(s.format, "kml");
+        assert_eq!(s.geometry_types, vec!["LineString", "Point", "Polygon"]);
+        assert!(s.fields.contains(&"height".to_string()));
+        assert!(s.fields.contains(&"name".to_string()));
+        // height 经 SimpleData 写出为文本，读回按规则数值化为 Number。
+        let a = find_by_name(&layer, "甲");
+        let props = a.properties.as_ref().unwrap();
+        assert_eq!(props["height"].as_f64(), Some(80.0));
+        assert_eq!(layer.query("height > 50").unwrap().features.len(), 2);
+    }
+
+    #[test]
+    fn kml_load_polygon_preserves_holes() {
+        let dir = std::env::temp_dir().join("kanyu_core_kml_hole");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("hole.kml");
+        std::fs::write(
+            &path,
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark>
+<name>带洞地块</name>
+<Polygon>
+  <outerBoundaryIs><LinearRing><coordinates>0,0 0,10 10,10 10,0 0,0</coordinates></LinearRing></outerBoundaryIs>
+  <innerBoundaryIs><LinearRing><coordinates>2,2 2,4 4,4 4,2 2,2</coordinates></LinearRing></innerBoundaryIs>
+</Polygon>
+</Placemark></Document></kml>"#,
+        )
+        .unwrap();
+
+        let layer = Layer::load("hole", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 1);
+        let geojson::Value::Polygon(rings) = &layer.collection().features[0]
+            .geometry
+            .as_ref()
+            .unwrap()
+            .value
+        else {
+            panic!("应为 Polygon 几何");
+        };
+        // 外环 + 1 个内环（洞）：interiors 非空。
+        assert_eq!(rings.len(), 2);
+        assert_eq!(
+            layer.collection().features[0].properties.as_ref().unwrap()["name"],
+            serde_json::Value::String("带洞地块".to_string())
+        );
+    }
+
+    #[test]
+    fn kml_corrupt_file_gives_clear_error() {
+        let dir = std::env::temp_dir().join("kanyu_core_kml_corrupt");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("garbage.kml");
+        std::fs::write(&path, b"this is not xml at all <<<").unwrap();
+        let err = Layer::load("garbage", path.to_str().unwrap())
+            .err()
+            .expect("损坏文件应报错");
+        assert!(
+            err.to_string().contains("kml"),
+            "错误应指出 kml 读取问题: {err}"
+        );
+    }
+
+    #[test]
+    fn kmz_returns_pending_error() {
+        let dir = std::env::temp_dir().join("kanyu_core_kmz_pending");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("packed.kmz");
+        std::fs::write(&path, b"PK\x03\x04 fake zip").unwrap();
+        let err = Layer::load("packed", path.to_str().unwrap())
+            .err()
+            .expect("KMZ 应返回待集成错误");
+        assert!(
+            err.to_string().contains("KMZ"),
+            "错误应指出 KMZ 待集成: {err}"
         );
     }
 }

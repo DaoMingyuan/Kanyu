@@ -26,3 +26,4 @@ arrow-array.workspace = true
 arrow-schema.workspace = true
 parquet.workspace = true
 dxf.workspace = true
+kml.workspace = true

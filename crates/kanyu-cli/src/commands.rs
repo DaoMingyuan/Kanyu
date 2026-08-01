@@ -90,6 +90,11 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (dxf)", layer.len());
                 }
+                "kml" => {
+                    let text = Layer::to_kml_string(layer.collection())?;
+                    std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!("已导出 {} 个要素 → {out} (kml)", layer.len());
+                }
                 other => {
                     bail!(
                         "格式 '{other}' 的原生导出尚未启用（driver: {}）。\n\

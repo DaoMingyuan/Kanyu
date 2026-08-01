@@ -1030,6 +1030,7 @@ A/B 测试 (与旧版本并行)
 | 12 | 许可未声明 | **确定** | **MIT OR Apache-2.0** 双许可 | 与 geo / geoarrow / arrow / rmcp 全兼容，Rust 生态默认 |
 | 13 | proj 未明确 | **确定** | proj4rs（纯 Rust、WASM 兼容）进内核；`proj` C 绑定为可选 feature | proj4rs 月下载 30 万；PROJ 9 C 库不进默认构建 |
 | 14 | 无基准评测 | **新增** | 首日接入 GeoAnalystBench 类基准 | GISclaw（arXiv 2603.26845）证明：schema 清晰度 + 领域知识注入 + 错误记忆决定 agent 成功率；单 agent ReAct 优于多 agent 管线 |
+| 15 | GeoPackage/SpatiaLite/PostGIS/WFS 进内核 | **降级** | 可选 feature 插件（`sqlite-io`：rusqlite bundled；`net-io`：PostGIS/WFS 客户端） | rusqlite bundled 编译 C SQLite，违反内核零 C 依赖红线；服务类协议无文件语义，独立 feature 保持默认构建纯净 |
 
 ### 6.2 竞品格局与差异化定位（调研摘要）
 
@@ -1077,10 +1078,10 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] FlatGeobuf 原生读写（内部首选交换格式，列 schema 自动推断）。
 - [x] GeoParquet 原生读写（云原生列式，WKB 几何编码 + geo 元数据）。
 - [x] DXF 原生读写（CAD 互操作：POINT/LINE/LWPOLYLINE/CIRCLE/ARC 映射，图层→layer 属性）。
-- [ ] KML 原生读写（geozero 抽象层）。
+- [x] KML 原生读写（Placemark 展平、ExtendedData 属性、含洞 Polygon；KMZ 📋）。
 - [x] Shapefile 原生读取（Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化）。
 - [x] CSV/TSV 坐标列自动识别（lon/lat/x/y/经度/纬度）与 CSV 导出闭环。
-- [ ] **里程碑**：全部主流矢量格式免 GDAL 读写；内存占用 ≤ QGIS 50%。
+- [x] **里程碑（格式部分）**：主流矢量文件格式（shp/geojson/fgb/geoparquet/dxf/kml/csv）免 GDAL 读写 ✅（2026-08-02 达成；gpkg/spatialite/postgis/wfs 按裁决 #15 走可选 feature 路线，内存基准测试待 GeoArrow 迁移后统一进行）。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）
 

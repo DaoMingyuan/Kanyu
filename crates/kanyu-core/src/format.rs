@@ -221,8 +221,8 @@ impl FormatRegistry {
                 edit: Partial,
                 symbol: Partial,
                 layout: None,
-                driver: "gdal-bridge",
-                note: "网络链接支持",
+                driver: "native",
+                note: "原生读写（kml crate）：Placemark 展平、ExtendedData 属性、含洞 Polygon；KMZ（zip 容器）📋 待 zip 集成",
             },
             FormatCapabilities {
                 id: "gml",

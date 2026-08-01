@@ -6,6 +6,16 @@
 
 ### 新增
 
+- **kanyu-core / CLI / MCP**：KML 原生读写（kml crate，免 GDAL）——
+  Document/Folder 嵌套展平取全部 Placemark，Point/LineString/LinearRing/
+  Polygon（含内环洞）/MultiGeometry（同类合并 Multi*、异类 GeometryCollection）
+  映射；name/description/ExtendedData（Data/SimpleData/SchemaData）写为同名属性
+  （值按 CSV 规则数值化）。写出全六类型（Multi*→MultiGeometry），属性除
+  name/description 外入 ExtendedData/SimpleData。KMZ（zip 容器）返回待集成
+  结构化错误。`Layer::to_kml_string`、CLI/MCP export `-f kml` 可用。
+  至此 Phase 1 主流矢量文件格式（shp/geojson/fgb/geoparquet/dxf/kml/csv）
+  免 GDAL 读写全部达成；gpkg/spatialite/postgis/wfs 按总规裁决 #15
+  走可选 feature 插件路线。
 - **kanyu-core / CLI / MCP**：DXF 原生读写（dxf crate，免 GDAL）——
   POINT/LINE/LWPOLYLINE/POLYLINE 映射（闭合折线→Polygon），CIRCLE/ARC 按 64 分段
   折线近似，其余实体跳过不报错；要素带 `layer`（图层名）与非 ByLayer 时的

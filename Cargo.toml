@@ -47,6 +47,8 @@ arrow-array = "58"
 arrow-schema = "58"
 parquet = { version = "58", features = ["arrow"] }
 dxf = "0.6"
+# KMZ（zip 容器）与 geo-types 转换本轮不需要，关闭默认特性保持依赖最小。
+kml = { version = "0.14", default-features = false }
 
 [profile.release]
 lto = "thin"

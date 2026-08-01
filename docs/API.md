@@ -89,7 +89,7 @@ v0.1 以 GeoJSON `FeatureCollection` 为原生载体；后续迁移 GeoArrow `Re
 
 | 方法 | 签名 | 说明 |
 |---|---|---|
-| `load` | `fn load(id: impl Into<String>, path: &str) -> Result<Self>` | 加载图层。格式自动探测；v0.1 原生支持 geojson、csv/tsv（坐标列自动识别 lon/lat/x/y/经度/纬度；xlsx 暂返回 `UnsupportedOperation`）、shp（读取：Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化）、fgb（读写）、geoparquet（读写，WKB 几何编码）与 dxf（读写：POINT/LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC，图层→layer 属性），桥接驱动格式返回 `UnsupportedOperation`；无法探测返回 `UnknownFormat` |
+| `load` | `fn load(id: impl Into<String>, path: &str) -> Result<Self>` | 加载图层。格式自动探测；v0.1 原生支持 geojson、csv/tsv（坐标列自动识别 lon/lat/x/y/经度/纬度；xlsx 暂返回 `UnsupportedOperation`）、shp（读取：Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化）、fgb（读写）、geoparquet（读写，WKB 几何编码）、dxf（读写：POINT/LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC，图层→layer 属性）与 kml（读写；KMZ 返回待集成错误），桥接驱动格式返回 `UnsupportedOperation`；无法探测返回 `UnknownFormat` |
 | `id` | `fn id(&self) -> &str` | 图层标识 |
 | `len` | `fn len(&self) -> usize` | 要素数量 |
 | `is_empty` | `fn is_empty(&self) -> bool` | 是否空图层 |
@@ -101,6 +101,7 @@ v0.1 以 GeoJSON `FeatureCollection` 为原生载体；后续迁移 GeoArrow `Re
 | `to_fgb_bytes` | `fn to_fgb_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>` | 关联函数：集合 → FlatGeobuf 字节串（列 schema 自动推断：String→String、整数→Long、浮点→Double、Bool→Bool，混合类型列退化为 String；单一几何类型按声明写出，混合几何按 Unknown 异构声明；Hilbert 空间索引，CRS 声明 EPSG:4326） |
 | `to_geoparquet_bytes` | `fn to_geoparquet_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>` | 关联函数：集合 → GeoParquet 字节串（几何列 `geometry` 按 GeoParquet 1.x 规范 WKB 编码，geo 元数据/geometry_types/bbox 由 geoparquet crate 生成；属性列 schema 推断规则同 `to_fgb_bytes`） |
 | `to_dxf_string` | `fn to_dxf_string(collection: &geojson::FeatureCollection) -> Result<String>` | 关联函数：集合 → DXF 字符串（R2000；Point/MultiPoint→POINT，LineString/MultiLineString→开放 LWPOLYLINE，Polygon/MultiPolygon→闭合 LWPOLYLINE 仅外环、洞舍弃；统一图层 "0"；properties/XDATA 写出 📋；z 丢弃） |
+| `to_kml_string` | `fn to_kml_string(collection: &geojson::FeatureCollection) -> Result<String>` | 关联函数：集合 → KML 字符串（KML 2.2；每要素一个 Placemark，全六类型、Multi*→MultiGeometry，Polygon 含洞保留为内环；`name`/`description` 写为同名字段，其余属性入 ExtendedData/SimpleData；z 丢弃；KMZ 📋） |
 
 **查询表达式**：`"field op value"`，`op ∈ == != > >= < <=`。
 右值解析顺序：数值 → 布尔 → 字符串（可带单/双引号）。
