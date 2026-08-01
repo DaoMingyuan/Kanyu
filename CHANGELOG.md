@@ -6,6 +6,26 @@
 
 ### 新增
 
+- **kanyu-core**：DWG 原生读取进内核（新模块 `dwg`，acadrust 0.4 +
+  自持补丁层，spike 定稿路线）——
+  - **AC15 定位 workaround**：acadrust 0.4.1 的 objects 定位在
+    "AuxHeader 位于 Handles 之后"的合法 R2000 布局下为负导致静默空文档
+    （spike：143/143 AC1015 真实样本全中）；本层按 ODA 约定以
+    `[Classes_end, Handles_start)` 推断 objects 段，直接驱动 acadrust
+    底层 pub API（handle_reader/object_reader/DwgDocumentBuilder），
+    AC15 系（R13/R14/R2000）直接走本层，其他版本走原生
+    `DwgReader::read`（空文档回退）；
+  - **编码层**：`decode_dwg_string` 修复两种乱码形态——GBK 字节
+    Latin-1 展开（按 codepage 转码，GBK 兜底）与 MIF `\U+XXXX` 未解码；
+  - 实体映射（z 丢弃）：POINT/LINE/LWPOLYLINE/POLYLINE（2D/3D，闭合→
+    Polygon）/CIRCLE（64 段面）/ARC（64 段线，弧度）；ELLIPSE/SPLINE 与
+    INSERT/HATCH/MTEXT/TEXT/DIMENSION 系跳过+按类型计数（标注层 📋）；
+    要素带解码后 `layer` 属性；退化几何（dxf 同口径）单独计数；
+  - `DwgStats`（version/skipped_by_type/degenerate）写入
+    `foreign_members["kanyu:dwg"]`（与 buffer skipped 上报同模式）。
+  format.rs dwg 条目 driver libredwg-wasm→acadrust（read 保持 Full、
+  note 写明实体级 Partial 语义）。fixture 为用户自有
+  `atlas__A001__1.dwg`（231KB，R2000 真实图纸，仅测试用途）。
 - **kanyu-core / CLI / MCP**：KMZ 支持（kml 的 zip 容器，zip crate
   default-features=false + deflate 纯 Rust 后端）——`.kmz` 内存解包
   （doc.kml 优先、否则首个 .kml 条目，多 KML 条目取首个注释即契约），

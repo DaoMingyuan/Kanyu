@@ -150,7 +150,7 @@ fn export_to_unsupported_driver_fails_with_structured_message() {
     assert!(!out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        stderr.contains("libredwg"),
+        stderr.contains("acadrust"),
         "stderr 应指出驱动状态: {stderr}"
     );
 }

@@ -17,6 +17,7 @@
 8. [error —— 错误处理约定](#8-error--错误处理约定)
 9. [kanyu-render —— 离屏地图渲染](#9-kanyu-render--离屏地图渲染)
 10. [kanyu-gene —— WASM 基因系统宿主](#10-kanyu-gene--wasm-基因系统宿主)
+11. [dwg —— DWG 原生读取](#11-dwg--dwg-原生读取acadrust-自持补丁层)
 
 ## 1. crate 总览
 
@@ -426,3 +427,41 @@ trait，`wasm32-unknown-unknown` 编译后用 `wasm-tools component new` 组件�
 **MCP 接线（已落地）**：`kanyu_system_hotload`（热加载校验注册）、
 `kanyu_gene_run`（沙箱执行，可 `task: true` 异步）、`kanyu_gene_list`
 （注册表快照）——字段与输出见 [MCP.md](MCP.md#35-kanyu_system_hotload)。
+
+## 11. dwg —— DWG 原生读取（acadrust + 自持补丁层）
+
+DWG（AutoCAD 二进制格式）读取，acadrust 0.4（纯 Rust、MPL-2.0）+ 两层
+自持补丁（spike 定稿路线，证据见 [MASTERPLAN.md](MASTERPLAN.md) §6.4
+Phase 5 spike 结论）：
+
+1. **AC15 定位 workaround**：acadrust 0.4.1 的 objects 定位推断
+   `handles_seeker - aux_header_end` 在"AuxHeader 位于 Handles 之后"的
+   合法 R2000 布局下为负，静默空文档。本模块按 ODA 约定以
+   `[Classes_end, Handles_start)` 推断 objects 段，直接驱动 acadrust
+   底层 pub API（`handle_reader::read_handles` /
+   `object_reader::DwgObjectReader` / `DwgDocumentBuilder`）。
+   AC15 系（R13/R14/R2000，AC1012/1014/1015）直接走本层；其他版本走
+   原生 `DwgReader::read`，空文档回退。
+2. **编码层**：`decode_dwg_string` 修复两种乱码形态——GBK 字节
+   Latin-1 展开（codepage 转码，CJK 页优先 + GBK 兜底）与 MIF
+   `\U+XXXX` 转义未解码。
+
+### `dwg_to_collection` / `DwgStats`
+
+| 项 | 签名 | 说明 |
+|---|---|---|
+| `dwg_to_collection` | `fn dwg_to_collection(path: &str) -> Result<(geojson::FeatureCollection, DwgStats)>` | DWG → FeatureCollection + 统计。实体映射（z 丢弃）：POINT→Point、LINE→LineString、LWPOLYLINE/POLYLINE（2D/3D 取 xy，闭合→Polygon 单环）、CIRCLE→Polygon(64 段)、ARC→LineString(64 段，弧度)；ELLIPSE/SPLINE 与 INSERT/HATCH/MTEXT/TEXT/DIMENSION 系跳过+按类型计数；要素带解码后 `layer` 属性；退化几何（<2 开放/<3 闭合/半径≤0）单独计数（dxf 同口径） |
+| `DwgStats` | `{ version: String, skipped_by_type: BTreeMap<String, usize>, degenerate: usize }` | 读取统计，写入 `foreign_members["kanyu:dwg"]`（与 buffer 的 `skipped` 上报同模式） |
+
+### `decode_dwg_string`
+
+`fn decode_dwg_string(raw: &str, codepage: u16) -> String`：
+
+1. 全 ASCII → 仅 MIF 解码；
+2. 含高位字节 → 逐 char 取低 8 位还原字节序列，按 codepage 转码
+   （936 GBK / 950 BIG5 / 932 Shift-JIS / 949 EUC-KR，其余 GBK 兜底——
+   启发式面向中文图纸，真 Latin-1 文本在非 CJK 页可能误判，rustdoc 即契约）；
+3. 统一 MIF `\U+XXXX` → Unicode 字符。
+
+`Layer::load("x.dwg")` 经 `"dwg"` arm 薄调用本模块（
+`crate::dwg::dwg_to_collection(path)?.0`）。

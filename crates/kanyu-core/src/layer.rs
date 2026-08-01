@@ -71,6 +71,7 @@ impl Layer {
             "fgb" => fgb_to_collection(path)?,
             "geoparquet" => parquet_to_collection(path)?,
             "dxf" => dxf_to_collection(path)?,
+            "dwg" => crate::dwg::dwg_to_collection(path)?.0,
             "kml" => kml_to_collection(path)?,
             other => {
                 return Err(KanyuError::UnsupportedOperation {

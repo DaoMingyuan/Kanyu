@@ -149,12 +149,15 @@ $ echo $?
 
 ```bash
 $ ./target/debug/kanyu.exe data export examples/buildings.geojson -f dwg --out out.dwg
-Error: 格式 'dwg' 的原生导出尚未启用（driver: libredwg-wasm）。
+Error: 格式 'dwg' 的原生导出尚未启用（driver: acadrust）。
 桥接/插件驱动将在对应阶段就绪后开放，见 docs/MASTERPLAN.md 第五部分。
 ```
 
 矩阵不允许时更早被拦截：`kanyu data export ... -f wfs ...` →
 `Error: format 'wfs' does not support operation 'write'`。
+
+> 注：DWG **读取**已原生支持（acadrust + 补丁层，六类几何；
+> `data info/load/query` 可直接作用于 .dwg 文件）。
 
 ### 3.5 `kanyu data reproject <file> --from <crs> --to <crs>` ✅
 

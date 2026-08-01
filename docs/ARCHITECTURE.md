@@ -103,7 +103,7 @@
 | `layout` | 布局保留（打印布局 → Paper Space 等） |
 
 支持级别为三态枚举 `Support`：`Full` / `Partial` / `None`（`usable()` = 非 None）。
-每条记录还带 `driver`（`native` / `gdal-bridge` / `libredwg-wasm` 等）与 `note` 备注。
+每条记录还带 `driver`（`native` / `gdal-bridge` / `acadrust` / `libredwg-wasm` 等）与 `note` 备注。
 v0.1 内置 17 种格式，与总规附录 A.1 一一对应（有单元测试保证不漏）。
 
 **能力矩阵如何驱动决策**：CLI 与 MCP 不写任何格式特判，一律走注册表：
@@ -116,8 +116,8 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
   │    └─ write 为 None      → KanyuError::UnsupportedOperation
   │         （例：-f wfs 在此被拒绝，WFS 只读）
   ├─ require 通过（dwg.write = Partial，可用）
-  └─ driver = "libredwg-wasm" 非原生且未启用
-       → 结构化错误："格式 'dwg' 的原生导出尚未启用（driver: libredwg-wasm）。
+  └─ driver = "acadrust" 导出侧未启用
+       → 结构化错误："格式 'dwg' 的原生导出尚未启用（driver: acadrust）。
           桥接/插件驱动将在对应阶段就绪后开放"
 ```
 
@@ -170,12 +170,12 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
 | UI 壳层 | Qt6 Widgets（C++20） | **egui / slint / Tauri**（Rust 方向） | 摆脱 C++ 工具链与许可证顾虑；与 wgpu 生态直接互通 |
 | 空间计算 | GEOS（FFI） | **geo crate**（布尔/DE-9IM/buffer 内置）+ rstar 索引 + proj4rs 投影；GEOS 降为可选插件 | geo 为纯 Rust 且功能已覆盖核心谓词，避免 libgeos 链接 |
 | 内存模型 | GeoArrow | 维持 **GeoArrow**（arrow 58 + geoarrow-schema 0.8，WKB 几何列 + 类型化属性列）✅ 已落地 | 见 §3；geoarrow-array 原生几何列待后续迭代 |
-| DWG | LibreDWG 直链 + ODA 转换 | **LibreDWG 编译为 WASM，wasmtime 沙箱只读运行**；写仅 ≤r2004 可靠，现代 DWG 写出以 DXF 导出替代；ODA SDK 为商业可选插件 | LibreDWG 为 GPLv3+ 且 2026 年披露多个 CVE，沙箱隔离崩溃与许可证风险；DXF 0.6（IxMilia）为原生读写 |
+| DWG | LibreDWG 直链 + ODA 转换 | **acadrust 0.4 原生读取（纯 Rust、MPL-2.0）+ 自持补丁层**（AC15 locator workaround + GBK/MIF 编码层；六类几何，INSERT/HATCH/MTEXT 📋）；LibreDWG-wasm 降为备选；写仅 ≤r2004 可靠，现代 DWG 写出以 DXF 导出替代 | 裁决 #18 + 2026-08-03 spike（143 个真实 R2000 样本）：acadrust 0.4.1 开箱 0%（AC15 定位缺陷）但底层管线健康，修定位+编码后 52 万实体 100% 可读；纯 Rust 内存安全，GPL/CVE 沙箱理由消失；DXF 0.6（IxMilia）原生读写 |
 | MCP | 手写 MCP Server | **官方 rmcp 3.x SDK** | 协议升级（tasks、streamable HTTP）由上游跟进；注意 MCP 工具名只允许 `[a-zA-Z0-9_-]`，总规的 `kanyu.data.load` 落地为 `kanyu_data_load` |
 | 插件 | WASM（wasmtime） | 维持 **wasmtime + WIT 组件模型** | 沙箱安全、热重载、多语言基因 |
 
 > 注：格式注册表中 DWG 一行的能力矩阵已按实现路线诚实标注（read: Full、
-> write: Partial、driver: `libredwg-wasm`）；总规附录 A 描述的是目标能力，
+> write: Partial、driver: `acadrust`）；总规附录 A 描述的是目标能力，
 > 两者差异以注册表（代码）为准。
 
 ## 8. 性能目标

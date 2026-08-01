@@ -61,6 +61,10 @@ kml = { version = "0.14", default-features = false }
 zip = { version = "8", default-features = false, features = ["deflate"] }
 calamine = "0.36"
 geo = "0.33"
+# DWG 读取（acadrust 底层 API + 自持 AC15 定位补丁层，见 core::dwg）。
+acadrust = "0.4"
+# DWG 中文字段 GBK 转码（纯 Rust）。
+encoding_rs = "0.8"
 # 与 geojson 0.24 / geo 0.33 内部依赖同 0.7 系统一（geojson 的 geo 互转以其类型为准）。
 geo-types = "0.7"
 # crs-definitions 特性携带纯 Rust EPSG 数据库（Proj::from_epsg_code 可用）。

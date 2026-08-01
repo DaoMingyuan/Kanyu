@@ -15,6 +15,7 @@
 pub mod agents;
 pub mod analysis;
 pub mod crs;
+pub mod dwg;
 pub mod error;
 pub mod format;
 pub mod introspect;

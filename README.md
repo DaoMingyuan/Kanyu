@@ -129,14 +129,14 @@ kanyu mcp serve --transport http --port 3000
 
 | 阶段 | 目标 | 状态 |
 |------|------|------|
-| Phase 1 地基 | 纯 Rust 内核：GeoArrow 内存模型、FGB/GeoParquet/Shapefile/DXF 原生 I/O | 🚧 进行中 |
+| Phase 1 地基 | 纯 Rust 内核：GeoArrow 内存模型、FGB/GeoParquet/Shapefile/DXF/DWG(读) 原生 I/O | 🚧 进行中 |
 | Phase 2 视界 | wgpu GPU 渲染管线，GeoArrow→SSBO 直通，MLT 瓦片 | 📋 规划 |
 | Phase 3 手 | DCEL 增量拓扑编辑，Undo/Redo，属性表 | 📋 规划 |
 | Phase 4 脑 | LLM 融合、MCP tasks 长任务、代码生成→WASM 沙箱流水线 | 📋 规划 |
 | Phase 5 魂 | A/B 测试框架、基因市场、知识库 RAG、自我迭代闭环 | 📋 规划 |
 
 完整计划与技术选型裁决（为什么用 wgpu 而不是 bgfx、为什么 GDAL 降为插件、
-DWG 为什么走 WASM 沙箱）见 [docs/MASTERPLAN.md](docs/MASTERPLAN.md)。
+DWG 为什么走 acadrust + 补丁层）见 [docs/MASTERPLAN.md](docs/MASTERPLAN.md)。
 
 ## 贡献
 

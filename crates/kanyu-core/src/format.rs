@@ -137,8 +137,8 @@ impl FormatRegistry {
                 edit: Partial,
                 symbol: Full,
                 layout: Partial,
-                driver: "libredwg-wasm",
-                note: "LibreDWG 编译为 WASM 沙箱只读（GPL 与 CVE 隔离，见总规 §6.1）；写仅 ≤r2004 可靠，现代版本以 DXF 导出替代；ODA SDK 为商业可选插件",
+                driver: "acadrust",
+                note: "acadrust + 自持补丁层（AC15 locator workaround + GBK/MIF 编码层）；六类几何读取（文件级打开 100%、实体级 INSERT/HATCH/MTEXT 跳过+计数 📋）；R2018+ 待样本复测",
             },
             FormatCapabilities {
                 id: "dxf",
