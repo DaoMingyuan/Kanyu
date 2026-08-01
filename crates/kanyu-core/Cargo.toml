@@ -29,6 +29,10 @@ parquet.workspace = true
 dxf.workspace = true
 kml.workspace = true
 zip.workspace = true
+calamine.workspace = true
 geo.workspace = true
 geo-types.workspace = true
 proj4rs.workspace = true
+
+[dev-dependencies]
+rust_xlsxwriter = "0.97"

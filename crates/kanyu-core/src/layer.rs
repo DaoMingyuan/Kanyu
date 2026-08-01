@@ -56,19 +56,16 @@ impl Layer {
             }
             "csv" => {
                 if path.to_ascii_lowercase().ends_with(".xlsx") {
-                    return Err(KanyuError::UnsupportedOperation {
-                        format: "xlsx".to_string(),
-                        operation: "native-load（xlsx 二进制解析待 calamine 集成，请先转 CSV）"
-                            .to_string(),
-                    });
-                }
-                let delimiter = if path.to_ascii_lowercase().ends_with(".tsv") {
-                    b'\t'
+                    xlsx_to_collection(path)?
                 } else {
-                    b','
-                };
-                let text = std::fs::read_to_string(path)?;
-                csv_to_collection(&text, delimiter)?
+                    let delimiter = if path.to_ascii_lowercase().ends_with(".tsv") {
+                        b'\t'
+                    } else {
+                        b','
+                    };
+                    let text = std::fs::read_to_string(path)?;
+                    csv_to_collection(&text, delimiter)?
+                }
             }
             "shp" => shp_to_collection(path)?,
             "fgb" => fgb_to_collection(path)?,
@@ -236,49 +233,73 @@ impl Layer {
     }
 }
 
-/// CSV/TSV → FeatureCollection：自动识别坐标列（lon/lat/x/y/经度/纬度），
-/// 其余列作为属性；数值型单元格自动转为 JSON 数值。
-fn csv_to_collection(text: &str, delimiter: u8) -> Result<geojson::FeatureCollection> {
-    let mut rdr = csv::ReaderBuilder::new()
-        .delimiter(delimiter)
-        .trim(csv::Trim::All)
-        .from_reader(text.as_bytes());
-    let headers = rdr
-        .headers()
-        .map_err(|e| KanyuError::Other(format!("csv 表头解析失败: {e}")))?
-        .clone();
-    let (x_idx, y_idx) = detect_coord_columns(&headers).ok_or_else(|| {
+/// 单元格值（CSV 与 xlsx 共用的中间表示）：原生类型优先，文本兜底。
+enum CellValue {
+    /// 原生数值（xlsx Int/Float）。
+    Number(f64),
+    /// 原生布尔（xlsx Bool）。
+    Bool(bool),
+    /// 文本（CSV 全部单元格；xlsx String/DateTime 等）。
+    Text(String),
+}
+
+impl CellValue {
+    /// 数值化规则（与 CSV 一致）：原生数值直取，文本尝试 parse f64，退化字符串。
+    fn to_json(&self) -> serde_json::Value {
+        match self {
+            Self::Number(n) => serde_json::Value::from(*n),
+            Self::Bool(b) => serde_json::Value::Bool(*b),
+            Self::Text(raw) => raw
+                .parse::<f64>()
+                .map(serde_json::Value::from)
+                .unwrap_or_else(|_| serde_json::Value::String(raw.clone())),
+        }
+    }
+
+    /// 坐标值：原生数值直取，文本尝试 parse。
+    fn as_f64(&self) -> Option<f64> {
+        match self {
+            Self::Number(n) => Some(*n),
+            Self::Bool(_) => None,
+            Self::Text(raw) => raw.parse().ok(),
+        }
+    }
+}
+
+/// 行记录 → FeatureCollection（CSV 与 xlsx 共用）：自动识别坐标列
+///（lon/lat/x/y/经度/纬度），其余列作为属性（数值化规则见 CellValue::to_json）。
+/// `rows` 的 usize 为数据行号（错误消息用；CSV 传 row_no+2）。
+fn rows_to_collection(
+    format: &str,
+    headers: &[String],
+    rows: impl Iterator<Item = (usize, Vec<CellValue>)>,
+) -> Result<geojson::FeatureCollection> {
+    let headers_record = csv::StringRecord::from(headers);
+    let (x_idx, y_idx) = detect_coord_columns(&headers_record).ok_or_else(|| {
         KanyuError::Other(format!(
-            "CSV 缺少可识别的坐标列（支持 lon/lat、longitude/latitude、x/y、经度/纬度）；实际表头: {}",
-            headers.iter().collect::<Vec<_>>().join(", ")
+            "{format} 缺少可识别的坐标列（支持 lon/lat、longitude/latitude、x/y、经度/纬度）；实际表头: {}",
+            headers.join(", ")
         ))
     })?;
 
     let mut features = Vec::new();
-    for (row_no, record) in rdr.records().enumerate() {
-        let record = record
-            .map_err(|e| KanyuError::Other(format!("csv 第 {} 行解析失败: {e}", row_no + 2)))?;
+    for (row_no, record) in rows {
         let x: f64 = record
             .get(x_idx)
-            .and_then(|v| v.parse().ok())
-            .ok_or_else(|| KanyuError::Other(format!("csv 第 {} 行 X 坐标不是数值", row_no + 2)))?;
+            .and_then(CellValue::as_f64)
+            .ok_or_else(|| KanyuError::Other(format!("{format} 第 {row_no} 行 X 坐标不是数值")))?;
         let y: f64 = record
             .get(y_idx)
-            .and_then(|v| v.parse().ok())
-            .ok_or_else(|| KanyuError::Other(format!("csv 第 {} 行 Y 坐标不是数值", row_no + 2)))?;
+            .and_then(CellValue::as_f64)
+            .ok_or_else(|| KanyuError::Other(format!("{format} 第 {row_no} 行 Y 坐标不是数值")))?;
 
         let mut properties = serde_json::Map::new();
         for (i, header) in headers.iter().enumerate() {
             if i == x_idx || i == y_idx {
                 continue;
             }
-            if let Some(raw) = record.get(i) {
-                // 数值优先，退化为字符串。
-                let value = raw
-                    .parse::<f64>()
-                    .map(serde_json::Value::from)
-                    .unwrap_or_else(|_| serde_json::Value::String(raw.to_string()));
-                properties.insert(header.to_string(), value);
+            if let Some(cell) = record.get(i) {
+                properties.insert(header.to_string(), cell.to_json());
             }
         }
 
@@ -296,6 +317,79 @@ fn csv_to_collection(text: &str, delimiter: u8) -> Result<geojson::FeatureCollec
         features,
         foreign_members: None,
     })
+}
+
+/// CSV/TSV → FeatureCollection（薄壳：解析文本后委托 rows_to_collection）。
+fn csv_to_collection(text: &str, delimiter: u8) -> Result<geojson::FeatureCollection> {
+    let mut rdr = csv::ReaderBuilder::new()
+        .delimiter(delimiter)
+        .trim(csv::Trim::All)
+        .from_reader(text.as_bytes());
+    let headers: Vec<String> = rdr
+        .headers()
+        .map_err(|e| KanyuError::Other(format!("csv 表头解析失败: {e}")))?
+        .iter()
+        .map(|h| h.to_string())
+        .collect();
+    let rows = rdr.records().enumerate().map(|(row_no, record)| {
+        let record = record
+            .map_err(|e| KanyuError::Other(format!("csv 第 {} 行解析失败: {e}", row_no + 2)))?;
+        Ok((
+            row_no + 2,
+            record
+                .iter()
+                .map(|s| CellValue::Text(s.to_string()))
+                .collect(),
+        ))
+    });
+    rows_to_collection(
+        "csv",
+        &headers,
+        rows.collect::<Result<Vec<_>>>()?.into_iter(),
+    )
+}
+
+/// xlsx → FeatureCollection：首个 worksheet，表头行 + 数据行
+///（calamine 原生类型：Int/Float→Number、Bool→Bool、String/DateTime→文本后
+/// 按 CSV 同款规则数值化）；空表/无坐标列中文错误。范围：只读（写出 📋）。
+fn xlsx_to_collection(path: &str) -> Result<geojson::FeatureCollection> {
+    use calamine::Reader;
+    let mut workbook: calamine::Xlsx<_> = calamine::open_workbook(path).map_err(|e| {
+        KanyuError::Other(format!(
+            "xlsx 读取失败（{path}）：{e}；文件可能损坏或不是有效的 Excel"
+        ))
+    })?;
+    let range = workbook
+        .worksheet_range_at(0)
+        .ok_or_else(|| KanyuError::Other(format!("xlsx 为空工作簿（{path}）")))?
+        .map_err(|e| KanyuError::Other(format!("xlsx 首个 worksheet 读取失败（{path}）：{e}")))?;
+
+    let mut rows = range.rows();
+    let headers: Vec<String> = rows
+        .next()
+        .ok_or_else(|| KanyuError::Other(format!("xlsx 为空表（{path}）")))?
+        .iter()
+        .map(|c| match c {
+            calamine::Data::String(s) => s.trim().to_string(),
+            other => other.to_string().trim().to_string(),
+        })
+        .collect();
+    let data_rows = rows.enumerate().map(|(row_no, row)| {
+        (
+            row_no + 2,
+            row.iter()
+                .map(|c| match c {
+                    calamine::Data::Int(i) => CellValue::Number(*i as f64),
+                    calamine::Data::Float(f) => CellValue::Number(*f),
+                    calamine::Data::Bool(b) => CellValue::Bool(*b),
+                    calamine::Data::String(s) => CellValue::Text(s.trim().to_string()),
+                    calamine::Data::Empty => CellValue::Text(String::new()),
+                    other => CellValue::Text(other.to_string().trim().to_string()),
+                })
+                .collect::<Vec<_>>(),
+        )
+    });
+    rows_to_collection("xlsx", &headers, data_rows)
 }
 
 /// Shapefile → FeatureCollection：几何按类型映射（Point/MultiPoint/Polyline/
@@ -2129,6 +2223,82 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("no_coords.csv");
         std::fs::write(&path, "a,b\n1,2\n").unwrap();
+        let err = Layer::load("bad", path.to_str().unwrap())
+            .err()
+            .expect("缺少坐标列应报错");
+        assert!(
+            err.to_string().contains("坐标列"),
+            "错误应指出坐标列问题: {err}"
+        );
+    }
+
+    /// rust_xlsxwriter 生成 xlsx fixture（可复现；calamine 无写出侧）。
+    fn write_xlsx_fixture(path: &std::path::Path) {
+        let mut workbook = rust_xlsxwriter::Workbook::new();
+        let sheet = workbook.add_worksheet();
+        for (col, name) in ["name", "lon", "lat", "height", "active"]
+            .iter()
+            .enumerate()
+        {
+            sheet.write_string(0, col as u16, *name).unwrap();
+        }
+        let rows: [(f64, f64, f64, &str, bool); 3] = [
+            (116.39, 39.90, 80.0, "甲", true),
+            (116.40, 39.91, 30.0, "乙", false),
+            (116.41, 39.92, 55.5, "丙", true),
+        ];
+        for (r, (lon, lat, height, name, active)) in rows.iter().enumerate() {
+            let r = (r + 1) as u32;
+            sheet.write_string(r, 0, *name).unwrap();
+            sheet.write_number(r, 1, *lon).unwrap();
+            sheet.write_number(r, 2, *lat).unwrap();
+            sheet.write_number(r, 3, *height).unwrap();
+            sheet.write_boolean(r, 4, *active).unwrap();
+        }
+        workbook.save(path).unwrap();
+    }
+
+    #[test]
+    fn xlsx_load_detects_coords_and_types() {
+        let dir = std::env::temp_dir().join("kanyu_core_xlsx_ok");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("pts.xlsx");
+        write_xlsx_fixture(&path);
+
+        let layer = Layer::load("pts", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 3);
+        let s = layer.summary();
+        // format 归属 csv 家族（csv/xlsx/tsv 同一条目）。
+        assert_eq!(s.format, "csv");
+        assert_eq!(s.geometry_types, vec!["Point"]);
+        assert_eq!(s.fields, vec!["active", "height", "name"]);
+        // 原生数值类型化：height 可数值比较查询。
+        assert_eq!(layer.query("height > 50").unwrap().features.len(), 2);
+        // 原生布尔类型化。
+        let a = find_by_name(&layer, "甲");
+        assert_eq!(
+            a.properties.as_ref().unwrap()["active"],
+            serde_json::Value::Bool(true)
+        );
+        assert_eq!(
+            a.properties.as_ref().unwrap()["height"].as_f64(),
+            Some(80.0)
+        );
+    }
+
+    #[test]
+    fn xlsx_without_coord_columns_gives_clear_error() {
+        let dir = std::env::temp_dir().join("kanyu_core_xlsx_bad");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("no_coords.xlsx");
+        let mut workbook = rust_xlsxwriter::Workbook::new();
+        let sheet = workbook.add_worksheet();
+        sheet.write_string(0, 0, "a").unwrap();
+        sheet.write_string(0, 1, "b").unwrap();
+        sheet.write_number(1, 0, 1.0).unwrap();
+        sheet.write_number(1, 1, 2.0).unwrap();
+        workbook.save(&path).unwrap();
+
         let err = Layer::load("bad", path.to_str().unwrap())
             .err()
             .expect("缺少坐标列应报错");

@@ -97,7 +97,7 @@ Int64/Float64/Boolean/Utf8，arrow 58 / geoarrow-schema 0.8）。各格式解析
 
 | 方法 | 签名 | 说明 |
 |---|---|---|
-| `load` | `fn load(id: impl Into<String>, path: &str) -> Result<Self>` | 加载图层。格式自动探测；v0.1 原生支持 geojson、csv/tsv（坐标列自动识别 lon/lat/x/y/经度/纬度；xlsx 暂返回 `UnsupportedOperation`）、shp（读取：Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化）、fgb（读写）、geoparquet（读写，WKB 几何编码）、dxf（读写：POINT/LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC，图层→layer 属性）与 kml（读写；KMZ 返回待集成错误），桥接驱动格式返回 `UnsupportedOperation`；无法探测返回 `UnknownFormat` |
+| `load` | `fn load(id: impl Into<String>, path: &str) -> Result<Self>` | 加载图层。格式自动探测；v0.1 原生支持 geojson、csv/tsv/xlsx（坐标列自动识别 lon/lat/x/y/经度/纬度；xlsx 经 calamine 读首个 worksheet，原生类型化，写出 📋）、shp（读取：Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化）、fgb（读写）、geoparquet（读写，WKB 几何编码）、dxf（读写：POINT/LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC，图层→layer 属性）与 kml/kmz（读写；KMZ 为 zip 容器变体），桥接驱动格式返回 `UnsupportedOperation`；无法探测返回 `UnknownFormat` |
 | `id` | `fn id(&self) -> &str` | 图层标识 |
 | `len` | `fn len(&self) -> usize` | 要素数量（batch 行数） |
 | `is_empty` | `fn is_empty(&self) -> bool` | 是否空图层 |

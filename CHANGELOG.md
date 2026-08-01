@@ -13,6 +13,12 @@
   （doc.kml 单条目 deflate）。CLI/MCP export `-f kmz` 分流
   （kmz 为 kml 容器变体非独立格式条目，按 format 值区分 kml/kmz）。
   format.rs kml 条目 note：KMZ 📋→✅。
+- **kanyu-core**：xlsx 读取（calamine 0.36，纯 Rust）——首个 worksheet
+  表头行 + 数据行；行记录→Feature 逻辑泛化为 `rows_to_collection`
+  （CellValue 中间表示：原生 Number/Bool 保真，文本按 CSV 同款规则数值化），
+  CSV 与 xlsx 两路共用零复制；空表/空工作簿/无坐标列中文错误。
+  范围：只读（写出 📋）；format.rs csv 条目 note 更新。
+  测试 fixture 由 rust_xlsxwriter（dev-dependency）可复现生成。
 
 ## [0.12.0] - 2026-08-03
 

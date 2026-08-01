@@ -246,7 +246,7 @@ impl FormatRegistry {
                 symbol: None,
                 layout: None,
                 driver: "native",
-                note: "自动坐标列识别 (lon/lat/x/y)",
+                note: "自动坐标列识别 (lon/lat/x/y/经度/纬度)；xlsx 经 calamine 只读（写出 📋）",
             },
             FormatCapabilities {
                 id: "pdf",
