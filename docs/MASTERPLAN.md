@@ -1092,7 +1092,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] 投影变换 reproject + 测地线度量 measure（proj4rs + geo geodesic，2026-08-02）。
 - [x] sjoin 空间连接 + zonal_stats 分区统计（2026-08-02）。
 - [x] MCP streamable HTTP 传输（远程 AI 代理接入，2026-08-02）。
-- [ ] MCP tasks 长任务。
+- [x] MCP tasks 长任务（SEP-2663 协议级任务：白名单分析工具 `"task": true` 异步化，rmcp TaskManager；2026-08-02）。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）
 

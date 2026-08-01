@@ -384,7 +384,9 @@ kanyu-mcp streamable HTTP 监听 http://127.0.0.1:3000/mcp （⚠️ 无鉴权/T
 ```
 
 ⚠️ HTTP 模式无鉴权/TLS（📋）；暴露到局域网/公网前必须自行加反向代理与鉴权。
-MCP tasks（SEP-1686 长任务）📋。
+长任务（SEP-2663 协议级 tasks ✅）：白名单分析工具的 `tools/call` arguments
+带 `"task": true` 异步执行，`tasks/get|cancel|update` 驱动生命周期
+（语义见 [MCP.md](MCP.md#21-长任务sep-2663-)）。
 
 ## 8. 计划中的命令（📋）
 

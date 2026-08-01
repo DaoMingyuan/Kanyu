@@ -1,22 +1,39 @@
 //! MCP Server：工具路由与 stdio 服务。
 
-use kanyu_core::{agents, introspect, FormatRegistry, Layer};
+use kanyu_core::{agents, introspect, FormatRegistry, KanyuError, Layer};
 use rmcp::{
     handler::server::{tool::ToolRouter, wrapper::Parameters},
     model::*,
+    service::{MaybeSendFuture, RequestContext},
     transport::stdio,
-    ErrorData as McpError, Json, ServerHandler, ServiceExt,
+    ErrorData as McpError, Json, RoleServer, ServerHandler, ServiceExt,
 };
 use rmcp::{tool, tool_handler, tool_router};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-/// 堪舆 MCP Server。无状态工具集：每次调用直接驱动内核。
+/// 可任务化的分析工具白名单（SEP-2663 试点：`tools/call` 的 arguments 带
+/// `"task": true` 时异步执行；其余工具忽略该键走同步路由）。
+const TASK_ELIGIBLE: [&str; 5] = [
+    "kanyu_analysis_buffer",
+    "kanyu_analysis_overlay",
+    "kanyu_analysis_sjoin",
+    "kanyu_analysis_zonal_stats",
+    "kanyu_analysis_topology",
+];
+
+/// 任务结果保留时长（10 分钟；TaskManager 惰性 TTL 清扫，重启即丢——
+/// 内存态注册表，见 docs/MCP.md §2）。
+const TASK_TTL_MS: u64 = 600_000;
+
+/// 堪舆 MCP Server。工具调用无状态（每次调用重新加载执行）；
+/// 另持有 SEP-2663 任务管理器（内存态，Clone 共享）支撑长任务。
 #[derive(Clone)]
 pub struct KanyuServer {
     /// rmcp 工具路由表（由 #[tool_router] 宏生成并填充）。
-    #[allow(dead_code)] // 经宏生成的 dispatch 代码间接持有，静态分析不可见。
     tool_router: ToolRouter<Self>,
+    /// SEP-2663 任务管理器：spawn/TTL/协作取消（rmcp 3.1 内置）。
+    task_manager: rmcp::task_manager::TaskManager,
 }
 
 /// `kanyu_data_load` 输入。
@@ -151,6 +168,7 @@ impl KanyuServer {
     pub fn new() -> Self {
         Self {
             tool_router: Self::tool_router(),
+            task_manager: rmcp::task_manager::TaskManager::new(),
         }
     }
 
@@ -238,24 +256,7 @@ impl KanyuServer {
         &self,
         Parameters(req): Parameters<AnalysisBufferReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
-        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
-        let result = kanyu_core::analysis::buffer(
-            &layer.collection(),
-            req.distance,
-            req.segments.unwrap_or(8),
-        )
-        .map_err(to_mcp)?;
-        let skipped = result
-            .foreign_members
-            .as_ref()
-            .and_then(|m| m.get("skipped"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::from(0));
-        Ok(Json(serde_json::json!({
-            "feature_count": result.features.len(),
-            "skipped": skipped,
-            "collection": result,
-        })))
+        analysis_buffer_sync(req).map(Json).map_err(to_mcp)
     }
 
     /// 叠加分析。
@@ -267,16 +268,7 @@ impl KanyuServer {
         &self,
         Parameters(req): Parameters<AnalysisOverlayReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
-        let target = Layer::load(stem_of(&req.target), &req.target).map_err(to_mcp)?;
-        let overlay_layer = Layer::load(stem_of(&req.overlay), &req.overlay).map_err(to_mcp)?;
-        let op: kanyu_core::analysis::OverlayOp = req.operation.parse().map_err(to_mcp)?;
-        let result =
-            kanyu_core::analysis::overlay(&target.collection(), &overlay_layer.collection(), op)
-                .map_err(to_mcp)?;
-        Ok(Json(serde_json::json!({
-            "feature_count": result.features.len(),
-            "collection": result,
-        })))
+        analysis_overlay_sync(req).map(Json).map_err(to_mcp)
     }
 
     /// 拓扑检查。
@@ -288,16 +280,7 @@ impl KanyuServer {
         &self,
         Parameters(req): Parameters<AnalysisTopologyReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
-        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
-        let rules: Vec<kanyu_core::analysis::TopologyRule> = req
-            .rules
-            .iter()
-            .map(|s| s.parse())
-            .collect::<std::result::Result<_, _>>()
-            .map_err(to_mcp)?;
-        let report =
-            kanyu_core::analysis::topology_check(&layer.collection(), &rules).map_err(to_mcp)?;
-        Ok(Json(serde_json::to_value(report).map_err(to_mcp)?))
+        analysis_topology_sync(req).map(Json).map_err(to_mcp)
     }
 
     /// 投影变换。
@@ -351,17 +334,7 @@ impl KanyuServer {
         &self,
         Parameters(req): Parameters<AnalysisSjoinReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
-        let target = Layer::load(stem_of(&req.target), &req.target).map_err(to_mcp)?;
-        let join = Layer::load(stem_of(&req.join), &req.join).map_err(to_mcp)?;
-        let predicate: kanyu_core::analysis::SpatialPredicate =
-            req.predicate.parse().map_err(to_mcp)?;
-        let result =
-            kanyu_core::analysis::sjoin(&target.collection(), &join.collection(), predicate)
-                .map_err(to_mcp)?;
-        Ok(Json(serde_json::json!({
-            "feature_count": result.features.len(),
-            "collection": result,
-        })))
+        analysis_sjoin_sync(req).map(Json).map_err(to_mcp)
     }
 
     /// 分区统计。
@@ -373,32 +346,7 @@ impl KanyuServer {
         &self,
         Parameters(req): Parameters<AnalysisZonalStatsReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
-        let zones = Layer::load(stem_of(&req.zones), &req.zones).map_err(to_mcp)?;
-        let values = Layer::load(stem_of(&req.values), &req.values).map_err(to_mcp)?;
-        let stats: Vec<kanyu_core::analysis::ZonalStat> = req
-            .stats
-            .iter()
-            .map(|s| s.parse())
-            .collect::<std::result::Result<_, _>>()
-            .map_err(to_mcp)?;
-        let result = kanyu_core::analysis::zonal_stats(
-            &zones.collection(),
-            &values.collection(),
-            &req.field,
-            &stats,
-        )
-        .map_err(to_mcp)?;
-        let unzoned = result
-            .foreign_members
-            .as_ref()
-            .and_then(|m| m.get("unzoned_count"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::from(0));
-        Ok(Json(serde_json::json!({
-            "feature_count": result.features.len(),
-            "unzoned_count": unzoned,
-            "collection": result,
-        })))
+        analysis_zonal_stats_sync(req).map(Json).map_err(to_mcp)
     }
 
     /// 系统自省：架构、模块、格式矩阵、工具清单。
@@ -463,12 +411,90 @@ impl KanyuServer {
 
 #[tool_handler]
 impl ServerHandler for KanyuServer {
+    /// tools/call 分发：白名单分析工具（[`TASK_ELIGIBLE`]）的 arguments 带
+    /// `"task": true` 时按 SEP-2663 任务化执行（rmcp TaskManager spawn，
+    /// 客户端须已声明 tasks 扩展能力，否则路由层拒绝 CreateTaskResult）；
+    /// 其余走同步工具路由。
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let wants_task = request
+            .arguments
+            .as_ref()
+            .and_then(|a| a.get("task"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if wants_task {
+            let name = request.name.to_string();
+            if !TASK_ELIGIBLE.contains(&name.as_str()) {
+                return Err(McpError::invalid_params(
+                    format!(
+                        "工具 '{name}' 不支持任务化执行（task:true 仅支持 {}）",
+                        TASK_ELIGIBLE.join("/")
+                    ),
+                    None,
+                ));
+            }
+            let mut args = request.arguments.clone().unwrap_or_default();
+            args.remove("task");
+            let task = spawn_analysis_task(&self.task_manager, name, args);
+            return Ok(CallToolResponse::Task(CreateTaskResult::new(task)));
+        }
+
+        // 同步路径（与 #[tool_router] 生成分发一致）。
+        let tcc = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(tcc).await
+    }
+
+    /// SEP-2663 `tasks/get`：委托 TaskManager（含 TTL 惰性清扫）。
+    fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<GetTaskResult, McpError>> + MaybeSendFuture + '_
+    {
+        let _ = context;
+        let result = self.task_manager.get_task(&request.task_id);
+        async move { result.map(GetTaskResult::new) }
+    }
+
+    /// SEP-2663 `tasks/update`：委托 TaskManager（本批任务无输入请求，仅透传）。
+    fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<(), McpError>> + MaybeSendFuture + '_ {
+        let _ = context;
+        let result = self
+            .task_manager
+            .update_task(&request.task_id, request.input_responses);
+        async move { result }
+    }
+
+    /// SEP-2663 `tasks/cancel`：委托 TaskManager（协作取消）。
+    fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<(), McpError>> + MaybeSendFuture + '_ {
+        let _ = context;
+        let result = self.task_manager.cancel_task(&request.task_id);
+        async move { result }
+    }
+
     fn get_info(&self) -> ServerInfo {
-        let mut info = ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
-            .with_instructions(
-                "堪舆 (Kanyu) GIS 内核：data/agents/analysis/render/system 五组工具。\
+        let mut info = ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_tasks()
+                .build(),
+        )
+        .with_instructions(
+            "堪舆 (Kanyu) GIS 内核：data/agents/analysis/render/system 五组工具 + SEP-2663 长任务。\
                  所有结果为结构化 JSON 并携带 CRS/单位元数据；不提供任意代码执行。",
-            );
+        );
         info.server_info.name = "kanyu-mcp".to_string();
         info.server_info.version = env!("CARGO_PKG_VERSION").to_string();
         info
@@ -539,6 +565,147 @@ fn to_mcp(e: impl std::fmt::Display) -> McpError {
     McpError::internal_error(e.to_string(), None)
 }
 
+// ===== 分析工具同步实现（MCP 工具薄壳与 SEP-2663 任务化路径共享） =====
+
+fn analysis_buffer_sync(req: AnalysisBufferReq) -> kanyu_core::Result<serde_json::Value> {
+    let layer = Layer::load(stem_of(&req.path), &req.path)?;
+    let result =
+        kanyu_core::analysis::buffer(&layer.collection(), req.distance, req.segments.unwrap_or(8))?;
+    let skipped = result
+        .foreign_members
+        .as_ref()
+        .and_then(|m| m.get("skipped"))
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::from(0));
+    Ok(serde_json::json!({
+        "feature_count": result.features.len(),
+        "skipped": skipped,
+        "collection": result,
+    }))
+}
+
+fn analysis_overlay_sync(req: AnalysisOverlayReq) -> kanyu_core::Result<serde_json::Value> {
+    let target = Layer::load(stem_of(&req.target), &req.target)?;
+    let overlay_layer = Layer::load(stem_of(&req.overlay), &req.overlay)?;
+    let op: kanyu_core::analysis::OverlayOp = req.operation.parse()?;
+    let result =
+        kanyu_core::analysis::overlay(&target.collection(), &overlay_layer.collection(), op)?;
+    Ok(serde_json::json!({
+        "feature_count": result.features.len(),
+        "collection": result,
+    }))
+}
+
+fn analysis_sjoin_sync(req: AnalysisSjoinReq) -> kanyu_core::Result<serde_json::Value> {
+    let target = Layer::load(stem_of(&req.target), &req.target)?;
+    let join = Layer::load(stem_of(&req.join), &req.join)?;
+    let predicate: kanyu_core::analysis::SpatialPredicate = req.predicate.parse()?;
+    let result = kanyu_core::analysis::sjoin(&target.collection(), &join.collection(), predicate)?;
+    Ok(serde_json::json!({
+        "feature_count": result.features.len(),
+        "collection": result,
+    }))
+}
+
+fn analysis_zonal_stats_sync(req: AnalysisZonalStatsReq) -> kanyu_core::Result<serde_json::Value> {
+    let zones = Layer::load(stem_of(&req.zones), &req.zones)?;
+    let values = Layer::load(stem_of(&req.values), &req.values)?;
+    let stats: Vec<kanyu_core::analysis::ZonalStat> = req
+        .stats
+        .iter()
+        .map(|s| s.parse())
+        .collect::<std::result::Result<_, _>>()?;
+    let result = kanyu_core::analysis::zonal_stats(
+        &zones.collection(),
+        &values.collection(),
+        &req.field,
+        &stats,
+    )?;
+    let unzoned = result
+        .foreign_members
+        .as_ref()
+        .and_then(|m| m.get("unzoned_count"))
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::from(0));
+    Ok(serde_json::json!({
+        "feature_count": result.features.len(),
+        "unzoned_count": unzoned,
+        "collection": result,
+    }))
+}
+
+fn analysis_topology_sync(req: AnalysisTopologyReq) -> kanyu_core::Result<serde_json::Value> {
+    let layer = Layer::load(stem_of(&req.path), &req.path)?;
+    let rules: Vec<kanyu_core::analysis::TopologyRule> = req
+        .rules
+        .iter()
+        .map(|s| s.parse())
+        .collect::<std::result::Result<_, _>>()?;
+    let report = kanyu_core::analysis::topology_check(&layer.collection(), &rules)?;
+    serde_json::to_value(report).map_err(|e| KanyuError::Other(format!("报告序列化失败: {e}")))
+}
+
+/// 任务化路径的同步分发（与同名 MCP 工具共享 sync 实现）。
+fn call_analysis_sync(
+    name: &str,
+    args: serde_json::Map<String, serde_json::Value>,
+) -> kanyu_core::Result<serde_json::Value> {
+    let v = serde_json::Value::Object(args);
+    match name {
+        "kanyu_analysis_buffer" => analysis_buffer_sync(from_args(v)?),
+        "kanyu_analysis_overlay" => analysis_overlay_sync(from_args(v)?),
+        "kanyu_analysis_sjoin" => analysis_sjoin_sync(from_args(v)?),
+        "kanyu_analysis_zonal_stats" => analysis_zonal_stats_sync(from_args(v)?),
+        "kanyu_analysis_topology" => analysis_topology_sync(from_args(v)?),
+        other => Err(KanyuError::Other(format!(
+            "工具 '{other}' 不支持任务化执行"
+        ))),
+    }
+}
+
+fn from_args<T: serde::de::DeserializeOwned>(v: serde_json::Value) -> kanyu_core::Result<T> {
+    serde_json::from_value(v).map_err(|e| KanyuError::Other(format!("参数解析失败: {e}")))
+}
+
+/// spawn 一个分析任务（call_tool 任务化路径与测试共享）：
+/// 内核调用是阻塞 CPU 工作，进 blocking 线程池，不占用
+/// current_thread runtime（stdio）的调度线程。
+fn spawn_analysis_task(
+    manager: &rmcp::task_manager::TaskManager,
+    name: String,
+    args: serde_json::Map<String, serde_json::Value>,
+) -> Task {
+    use rmcp::task_manager::{TaskExit, TaskOptions};
+    manager.spawn(
+        TaskOptions::new().with_ttl_ms(Some(TASK_TTL_MS)),
+        move |_ctx| {
+            Box::pin(async move {
+                match tokio::task::spawn_blocking(move || call_analysis_sync(&name, args)).await {
+                    Ok(Ok(value)) => Ok(call_tool_result_from_json(value)),
+                    Ok(Err(e)) => Err(TaskExit::Error(McpError::internal_error(
+                        e.to_string(),
+                        None,
+                    ))),
+                    Err(join_err) => Err(TaskExit::Error(McpError::internal_error(
+                        format!("任务执行线程失败: {join_err}"),
+                        None,
+                    ))),
+                }
+            })
+        },
+    )
+}
+
+/// 任务结果包装：structuredContent + content[0].text 双通道（与同步路径
+/// 经 `Json<T>` 包装的形状一致）。
+fn call_tool_result_from_json(value: serde_json::Value) -> CallToolResult {
+    let mut result = CallToolResult::success(vec![ContentBlock::text(value.to_string())]);
+    if value.is_object() {
+        result.structured_content = Some(value);
+    }
+    result
+}
+
 /// 取文件名主干作为默认图层名。
 fn stem_of(path: &str) -> String {
     std::path::Path::new(path)
@@ -546,4 +713,114 @@ fn stem_of(path: &str) -> String {
         .and_then(|s| s.to_str())
         .unwrap_or("layer")
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 写出 zonal 测试数据（1 区 2 点），返回 (zones, values) 路径。
+    fn write_zonal_fixtures(dir: &std::path::Path) -> (String, String) {
+        std::fs::create_dir_all(dir).unwrap();
+        let zones = dir.join("zones.geojson");
+        std::fs::write(
+            &zones,
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                    [[0,0],[0,4],[4,4],[4,0],[0,0]]]},"properties":{"name":"z1"}}
+            ]}"#,
+        )
+        .unwrap();
+        let values = dir.join("values.geojson");
+        std::fs::write(
+            &values,
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[1,1]},
+                 "properties":{"height":10}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[2,2]},
+                 "properties":{"height":30}}
+            ]}"#,
+        )
+        .unwrap();
+        (
+            zones.to_str().unwrap().to_string(),
+            values.to_str().unwrap().to_string(),
+        )
+    }
+
+    #[test]
+    fn call_analysis_sync_matches_sync_tool_result() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_task_sync");
+        let (zones, values) = write_zonal_fixtures(&dir);
+        let args = serde_json::json!({
+            "zones": zones,
+            "values": values,
+            "field": "height",
+            "stats": ["count", "mean"],
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        let out = call_analysis_sync("kanyu_analysis_zonal_stats", args).unwrap();
+        assert_eq!(out["feature_count"], 1);
+        assert_eq!(out["unzoned_count"], 0);
+        assert_eq!(
+            out["collection"]["features"][0]["properties"]["height_count"],
+            serde_json::Value::from(2)
+        );
+        assert_eq!(
+            out["collection"]["features"][0]["properties"]["height_mean"],
+            serde_json::Value::from(20.0)
+        );
+    }
+
+    #[test]
+    fn call_analysis_sync_rejects_non_eligible_tool() {
+        let err = call_analysis_sync("kanyu_data_load", serde_json::Map::new()).unwrap_err();
+        assert!(err.to_string().contains("不支持任务化执行"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn spawned_task_completes_with_sync_result() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_task_spawn");
+        let (zones, values) = write_zonal_fixtures(&dir);
+        let manager = rmcp::task_manager::TaskManager::new();
+        let args = serde_json::json!({
+            "zones": zones,
+            "values": values,
+            "field": "height",
+            "stats": ["count"],
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        let task = spawn_analysis_task(&manager, "kanyu_analysis_zonal_stats".into(), args);
+        assert_eq!(task.ttl_ms, Some(TASK_TTL_MS));
+
+        // 轮询到终态（小数据集应秒完成）。
+        let mut detailed = None;
+        for _ in 0..200 {
+            let d = manager.get_task(&task.task_id).unwrap();
+            if d.task.status.is_terminal() {
+                detailed = Some(d);
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        let detailed = detailed.expect("任务应在 2s 内到达终态");
+        assert_eq!(detailed.task.status, rmcp::model::TaskStatus::Completed);
+        let json = serde_json::to_value(&detailed).unwrap();
+        assert_eq!(
+            json["result"]["structuredContent"]["feature_count"],
+            serde_json::Value::from(1)
+        );
+        assert_eq!(
+            json["result"]["structuredContent"]["collection"]["features"][0]["properties"]
+                ["height_count"],
+            serde_json::Value::from(2)
+        );
+
+        // 未知 task_id：错误。
+        assert!(manager.get_task("no-such-task").is_err());
+    }
 }

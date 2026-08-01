@@ -11,12 +11,13 @@
 
 1. [快速开始](#1-快速开始)
 2. [协议细节](#2-协议细节)
-3. [工具参考（6 个，✅）](#3-工具参考6-个-)
-4. [命名规范](#4-命名规范)
-5. [设计原则](#5-设计原则)
-6. [错误处理](#6-错误处理)
-7. [规划中的能力](#7-规划中的能力)
-8. [与现有 GIS MCP 项目的差异](#8-与现有-gis-mcp-项目的差异)
+3. [长任务（SEP-2663）](#21-长任务sep-2663-)
+4. [工具参考（6 个，✅）](#3-工具参考6-个-)
+5. [命名规范](#4-命名规范)
+6. [设计原则](#5-设计原则)
+7. [错误处理](#6-错误处理)
+8. [规划中的能力](#7-规划中的能力)
+9. [与现有 GIS MCP 项目的差异](#8-与现有-gis-mcp-项目的差异)
 
 ## 1. 快速开始
 
@@ -62,7 +63,7 @@ Windows 下 `kanyu` 不在 PATH 时用绝对路径（如 `target/release/kanyu.e
 | 传输 | stdio（JSON-RPC 2.0，每行一条消息）；streamable HTTP（`http://127.0.0.1:<port>/mcp`，POST=JSON-RPC、GET=SSE 流、DELETE=会话终止；`Mcp-Session-Id` 头管理会话，内存会话存储） |
 | 协议版本 | `2025-06-18`（initialize 握手协商） |
 | SDK | rmcp 3.x（`ServerInfo.name` 为 `"kanyu-mcp"`，version 随内核版本） |
-| Server capabilities | 仅 `tools`（resources/prompts 📋；tasks 长任务 📋） |
+| Server capabilities | `tools` + `extensions["io.modelcontextprotocol/tasks"]`（SEP-2663 长任务 ✅；resources/prompts 📋） |
 | Server instructions | "堪舆 (Kanyu) GIS 内核：data/agents/analysis/render/system 五组工具。所有结果为结构化 JSON 并携带 CRS/单位元数据；不提供任意代码执行。" |
 
 streamable HTTP 实测（`kanyu mcp serve --transport http --port 39178`）：
@@ -111,6 +112,42 @@ JSON 字符串副本，兼容旧客户端：
 ```
 
 所有工具**无状态**：每次调用重新加载文件、执行、返回。读操作天然幂等。
+
+## 2.1 长任务（SEP-2663，✅）
+
+耗时分析工具支持协议级异步执行（`io.modelcontextprotocol/tasks`，
+即原 SEP-1686 的现行编号；rmcp 3.1 服务端内置 TaskManager）。
+
+**客户端前提**：initialize 的 `capabilities` 声明扩展
+`"extensions": {"io.modelcontextprotocol/tasks": {}}`
+（服务端未检测到该声明时拒绝返回任务句柄）。
+
+**任务化触发**：白名单分析工具（`kanyu_analysis_buffer` / `overlay` /
+`sjoin` / `zonal_stats` / `topology`）的 `tools/call` arguments 增加
+`"task": true`（非白名单工具带此键返回中文错误；其余工具忽略该键走同步路由）。
+
+**生命周期**（协议方法，非工具）：
+
+```jsonc
+// → tools/call（带 "task": true）
+// ← 立即返回任务句柄（resultType "task"）
+{"jsonrpc":"2.0","id":2,"result":{
+  "resultType":"task","taskId":"<uuid>","status":"working",
+  "ttlMs":600000,"pollIntervalMs":1000}}
+// → tasks/get（按 pollIntervalMs 轮询）
+{"jsonrpc":"2.0","id":3,"method":"tasks/get","params":{"taskId":"<uuid>"}}
+// ← 进行中：{"status":"working"}；完成：
+{"jsonrpc":"2.0","id":3,"result":{
+  "resultType":"complete","taskId":"<uuid>","status":"completed",
+  "result":{"structuredContent":{"feature_count":1,"collection":{…}},…}}}
+// tasks/cancel：协作取消（运行中的操作自行决定终态，可能仍 completed）
+```
+
+**结果形状**：`tasks/get` 完成时的 `result` 即该工具同步调用的完整
+`CallToolResult`（structuredContent + content 双通道，与 §2 一致）。
+**保留与持久性**：任务结果为内存态，TTL 10 分钟（惰性 TTL 清扫），
+重启即丢；任务执行在 blocking 线程池（不阻塞 stdio 调度线程）。
+未知 `taskId` 返回结构化错误。
 
 ## 3. 工具参考（6 个，✅）
 
@@ -389,7 +426,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | analysis 工具组扩展 | 📋 | MCP tasks 长任务；buffer/overlay/topology（§3.7–3.9）、reproject/measure（§3.10–3.11）与 sjoin/zonal_stats（§3.12–3.13）已 ✅ |
 | render 工具组 | 📋 | `kanyu_render_symbolize` / `camera`（随 kanyu-render/wgpu 落地） |
 | system 工具组扩展 | 📋 | `kanyu_system_generate` / `hotload`（代码生成→WASM 沙箱流水线，须人类审核） |
-| MCP tasks | 📋 | SEP-1686 长任务：大文件导入、批量导出等异步化，进度可查询 |
+| MCP tasks | ✅ | SEP-2663（`io.modelcontextprotocol/tasks`，原 SEP-1686 现行编号）协议级长任务，见 §2.1 |
 | resources | 📋 | `layer://<id>`、`crs://EPSG/4326` 等资源只读暴露 |
 | prompts | 📋 | 常用工作流提示模板（制图/分析/导出） |
 | SSE / streamable HTTP | ✅ | `kanyu mcp serve --transport http`（§1/§2；官方 streamable HTTP 已取代旧 SSE）；tasks 长任务 📋 |
@@ -404,4 +441,4 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | 元数据 | 坐标系/单位靠 prompt 约定 | 同左 | **CRS/单位随结果返回**，AGENTS.md 项目级强制 |
 | 能力协商 | 无 | 无 | **格式能力矩阵**驱动，失败返回结构化错误 |
 | 运行时 | Python + GIL + QGIS 依赖 | Python + GIL | 单二进制 stdio，亚秒启动 |
-| 长任务 | 无 | 无 | MCP tasks（SEP-1686）📋 |
+| 长任务 | 无 | 无 | MCP tasks（SEP-2663）✅ 协议级 |

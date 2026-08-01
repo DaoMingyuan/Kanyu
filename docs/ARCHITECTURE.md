@@ -152,6 +152,7 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
 |---|---|---|
 | 无 `execute_code` | ✅ | 只暴露声明式工具；ServerInfo instructions 明确声明"不提供任意代码执行"。与 qgis_mcp 系 Python 薄壳的本质区别（对比见 [MCP.md](MCP.md#与现有-gis-mcp-项目的差异)） |
 | 确定性输出 | ✅ | 工具返回结构化 JSON（`structuredContent`），携带 CRS/单位/要素数元数据，可审计、可回放 |
+| 长任务隔离 | ✅ | SEP-2663 任务执行在 blocking 线程池（不阻塞调度线程）；任务注册表为内存态（rmcp TaskManager，TTL 10 分钟惰性清扫，**重启即丢**）；无任务落盘，无持久化副作用 |
 | 内核零 C 依赖 | ✅ | 默认构建不链接任何 C/C++ 库，消除整条 FFI 攻击面 |
 | WASM 沙箱 | 📋 | 插件（"基因"）在 wasmtime + WIT 组件模型沙箱中运行，无宿主任意权限 |
 | LibreDWG 隔离 | 📋 | LibreDWG（GPLv3+，2026 年披露多个 CVE）编译为 WASM，在 wasmtime 沙箱中**只读**运行，崩溃/越界不殃及内核 |

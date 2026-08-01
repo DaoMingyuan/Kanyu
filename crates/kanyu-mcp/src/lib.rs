@@ -10,6 +10,9 @@
 //! - **工具命名**：MCP 规范限制工具名为 `[a-zA-Z0-9_-]`，
 //!   故总规中的 `kanyu.data.load` 落地为 `kanyu_data_load`。
 //! - **结构化输出**：所有工具返回携带 CRS / 单位 / 要素数等元数据的 JSON。
+//! - **长任务**：SEP-2663（`io.modelcontextprotocol/tasks`）协议级任务——
+//!   白名单分析工具带 `"task": true` 异步执行（rmcp TaskManager，内存态，
+//!   结果保留 10 分钟，重启即丢）；工具调用本身无状态。
 
 mod server;
 

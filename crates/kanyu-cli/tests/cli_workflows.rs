@@ -391,3 +391,113 @@ fn mcp_serve_http_accepts_initialize_over_tcp() {
         "响应应含 serverInfo/kanyu-mcp：\n{response}"
     );
 }
+
+#[test]
+fn mcp_stdio_task_lifecycle_end_to_end() {
+    use std::io::{BufRead, BufReader, Write};
+
+    let dir = std::env::temp_dir().join("kanyu_itest_task");
+    std::fs::create_dir_all(&dir).unwrap();
+    let zones = dir.join("zones.geojson");
+    std::fs::write(
+        &zones,
+        r#"{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                [[0,0],[0,4],[4,4],[4,0],[0,0]]]},"properties":{"name":"z1"}}
+        ]}"#,
+    )
+    .unwrap();
+    let values = dir.join("values.geojson");
+    std::fs::write(
+        &values,
+        r#"{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[1,1]},
+             "properties":{"height":10}},
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[2,2]},
+             "properties":{"height":30}}
+        ]}"#,
+    )
+    .unwrap();
+
+    let mut child = kanyu()
+        .args(["mcp", "serve"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let mut reader = BufReader::new(child.stdout.take().unwrap());
+
+    fn rpc(stdin: &mut impl Write, reader: &mut impl BufRead, line: &str) -> serde_json::Value {
+        writeln!(stdin, "{line}").unwrap();
+        stdin.flush().unwrap();
+        let mut buf = String::new();
+        reader.read_line(&mut buf).unwrap();
+        serde_json::from_str(&buf).unwrap_or_else(|e| panic!("响应非 JSON 行: {e}: {buf}"))
+    }
+
+    // initialize（声明 tasks 扩展能力）。
+    let init = rpc(
+        &mut stdin,
+        &mut reader,
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"extensions":{"io.modelcontextprotocol/tasks":{}}},"clientInfo":{"name":"itest","version":"0"}}}"#,
+    );
+    assert_eq!(init["result"]["serverInfo"]["name"], "kanyu-mcp");
+    // 服务端声明 tasks 扩展。
+    assert!(
+        init["result"]["capabilities"]["extensions"]["io.modelcontextprotocol/tasks"].is_object(),
+        "服务端应声明 tasks 扩展: {init}"
+    );
+    stdin
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n")
+        .unwrap();
+    stdin.flush().unwrap();
+
+    // tools/call 带 task:true → resultType:"task" + taskId。
+    let call = rpc(
+        &mut stdin,
+        &mut reader,
+        &format!(
+            r#"{{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{{"name":"kanyu_analysis_zonal_stats","arguments":{{"zones":"{}","values":"{}","field":"height","stats":["count","mean"],"task":true}}}}}}"#,
+            zones.to_str().unwrap().replace('\\', "\\\\"),
+            values.to_str().unwrap().replace('\\', "\\\\")
+        ),
+    );
+    assert_eq!(
+        call["result"]["resultType"], "task",
+        "应返回任务句柄: {call}"
+    );
+    let task_id = call["result"]["taskId"].as_str().unwrap().to_string();
+
+    // tasks/get 轮询到 completed，结果与同步调用一致。
+    let mut done = None;
+    for _ in 0..50 {
+        let got = rpc(
+            &mut stdin,
+            &mut reader,
+            &format!(
+                r#"{{"jsonrpc":"2.0","id":3,"method":"tasks/get","params":{{"taskId":"{task_id}"}}}}"#
+            ),
+        );
+        if got["result"]["status"] == "completed" {
+            done = Some(got);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+
+    let done = done.expect("任务应在 5s 内完成");
+    assert_eq!(
+        done["result"]["result"]["structuredContent"]["collection"]["features"][0]["properties"]
+            ["height_count"],
+        2
+    );
+    assert_eq!(
+        done["result"]["result"]["structuredContent"]["collection"]["features"][0]["properties"]
+            ["height_mean"],
+        20.0
+    );
+}

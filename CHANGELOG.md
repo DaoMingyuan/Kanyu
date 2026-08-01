@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-mcp**：长任务能力（总规"MCP tasks 为一等特性"承诺落地）——
+  调研确认 rmcp 3.1 服务端已完整实现 **SEP-2663**
+  （`io.modelcontextprotocol/tasks`，即原 SEP-1686 的现行编号），
+  走**协议级路线**：`ServerCapabilities` 声明 tasks 扩展；白名单分析工具
+  （buffer/overlay/sjoin/zonal_stats/topology）的 `tools/call` arguments 带
+  `"task": true` 时任务化执行（rmcp TaskManager spawn，阻塞内核调用进
+  blocking 线程池），立即返回 `resultType:"task"` 任务句柄；客户端经协议方法
+  `tasks/get`（轮询）/ `tasks/cancel`（协作取消）/ `tasks/update` 驱动
+  生命周期。任务结果保留 10 分钟（TaskManager TTL 惰性清扫，内存态、
+  重启即丢）。5 个分析工具的内核调用提取为同步函数供同步/任务两路径共享；
+  stdio 与 HTTP 两传输同权。未知 taskId / 非白名单工具返回结构化/中文错误。
+
 ## [0.7.0] - 2026-08-02
 
 **远程 AI 代理接入：MCP streamable HTTP 传输。**
