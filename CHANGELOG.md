@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-02
+
+**Phase 1 里程碑：主流矢量文件格式免 GDAL 读写全部达成。**
+
 ### 新增
 
 - **kanyu-core / CLI / MCP**：KML 原生读写（kml crate，免 GDAL）——
@@ -80,5 +84,6 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.2.0
 [0.1.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.1.0
