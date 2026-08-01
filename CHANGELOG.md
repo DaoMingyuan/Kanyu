@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-02
+
+**分析内核落地：总规 §4.2.2 的 MCP 分析工具组兑现（裁决 #16 调序前置）。**
+
 ### 新增
 
 - **kanyu-core / CLI / MCP**：空间分析工具组（geo crate，总规 §4.2.2 落地，
@@ -127,7 +131,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.4.0
 [0.3.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.3.0
 [0.2.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.2.0
 [0.1.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.1.0
