@@ -1,0 +1,27 @@
+# cargo-deny 配置：许可证与漏洞审计基线。
+# 见 https://embarkstudios.github.io/cargo-deny/
+
+[licenses]
+# 与 Rust 地理生态兼容的许可证白名单。
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+    "CC0-1.0",
+    "0BSD",
+]
+
+[advisories]
+# 拒绝引入带已知漏洞的依赖版本。
+yanked = "deny"
+
+[bans]
+# 同一依赖的多个大版本给出警告（内核要求版本收敛）。
+multiple-versions = "warn"

@@ -1,0 +1,27 @@
+//! # kanyu-core —— 堪舆内核
+//!
+//! 堪舆 (Kanyu) 的数据心脏。本 crate 提供：
+//!
+//! - [`format`]：统一格式注册表与能力矩阵（读/写/编辑/符号/布局）。
+//! - [`layer`]：图层内存模型，GeoJSON 等格式的加载与属性查询。
+//! - [`agents`]：`AGENTS.md` 项目语义文件解析，AI 理解项目的"罗盘"。
+//! - [`introspect`]：系统自省，输出架构、能力与格式矩阵（供 AI 读取自身）。
+//!
+//! 设计原则：**纯 Rust 内核，零 C 依赖**。GDAL / LibreDWG 等 C/C++ 桥接
+//! 以可选 feature 形式存在，不进入默认构建，保证任何平台 `cargo build` 即可用。
+
+pub mod agents;
+pub mod error;
+pub mod format;
+pub mod introspect;
+pub mod layer;
+
+pub use error::{KanyuError, Result};
+pub use format::{FormatCapabilities, FormatRegistry};
+pub use layer::{Layer, LayerSummary};
+
+/// 内核版本号（与 workspace 版本一致）。
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// 内核代号：堪舆灵 (Kanyu Spirit)。
+pub const CODENAME: &str = "kanyu-spirit";

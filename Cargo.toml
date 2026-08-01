@@ -1,0 +1,39 @@
+# 堪舆 (Kanyu) —— AI 原生地理空间操作系统
+# Workspace 根清单：所有 crate 共享依赖在此统一锁定版本，避免冗余。
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/kanyu-core",
+    "crates/kanyu-cli",
+    "crates/kanyu-mcp",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+authors = ["DaoMingyuan <345558033@qq.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/DaoMingyuan/Kanyu"
+homepage = "https://github.com/DaoMingyuan/Kanyu"
+description = "Kanyu (堪舆): an AI-native geospatial operating system — GeoArrow memory model, MCP neural interface, self-evolving WASM genes."
+keywords = ["gis", "geospatial", "geoarrow", "mcp", "ai"]
+categories = ["science::geo", "visualization", "parser-implementations"]
+
+# 共享依赖：版本只在根清单声明一次，子 crate 用 `workspace = true` 引用。
+[workspace.dependencies]
+kanyu-core = { path = "crates/kanyu-core", version = "0.1.0" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+clap = { version = "4", features = ["derive", "cargo"] }
+geojson = "0.24"
+schemars = "0.8"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

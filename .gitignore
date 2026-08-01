@@ -1,0 +1,19 @@
+# Rust 构建产物
+/target/
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 本地实验与输出（不进入版本库）
+/output/
+/tmp/
+*.prof

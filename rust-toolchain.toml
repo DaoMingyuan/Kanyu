@@ -1,0 +1,4 @@
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
+# MSRV（最低支持版本）为 1.88（rmcp 3.x 要求），由 CI 矩阵显式验证。

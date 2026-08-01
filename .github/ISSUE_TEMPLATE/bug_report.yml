@@ -1,0 +1,39 @@
+name: Bug 报告
+description: 报告堪舆的缺陷或异常行为
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: 感谢报告问题！请尽量提供可复现的最小案例。
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: kanyu --version 的输出
+      placeholder: "kanyu 0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: 组件
+      options:
+        - kanyu-core（内核/格式/查询）
+        - kanyu-cli（命令行）
+        - kanyu-mcp（MCP 接口）
+        - docs（文档）
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      description: 命令、输入数据（可附最小 GeoJSON）、期望 vs 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志/错误输出
+      render: shell

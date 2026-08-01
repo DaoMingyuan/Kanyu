@@ -1,0 +1,30 @@
+name: 功能建议
+description: 提议新能力或改进（请先对齐 docs/MASTERPLAN.md 的阶段规划）
+title: "[Feat]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决什么问题？
+      description: 描述使用场景与痛点，而非直接给方案
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提议方案
+      description: 你期望的行为/接口；如涉及 MCP 工具，请给出工具名与输入输出草案
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: 对应总规阶段
+      options:
+        - Phase 1 地基（内核与数据）
+        - Phase 2 视界（GPU 渲染）
+        - Phase 3 手（矢量编辑）
+        - Phase 4 脑（AI 融合）
+        - Phase 5 魂（自迭代）
+        - 不属于现有阶段（需在 Issue 中讨论）
