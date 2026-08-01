@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-02
+
+**远程 AI 代理接入：MCP streamable HTTP 传输。**
+
 ### 新增
 
 - **kanyu-mcp / CLI**：MCP streamable HTTP 传输（裁决 #11：官方 streamable
@@ -185,7 +189,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.7.0
 [0.6.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.6.0
 [0.5.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.5.0
 [0.4.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.4.0
