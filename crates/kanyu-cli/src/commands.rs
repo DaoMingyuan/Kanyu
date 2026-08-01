@@ -102,6 +102,12 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                     std::fs::write(out, bytes).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (kmz)", layer.len());
                 }
+                "shp" => {
+                    // shp 为三件套：out 去扩展名作 base。
+                    let base = strip_shp_extension(out);
+                    Layer::write_shp(&layer.collection(), base)?;
+                    eprintln!("已导出 {} 个要素 → {base}.shp/.shx/.dbf (shp)", layer.len());
+                }
                 "kml" => {
                     let text = Layer::to_kml_string(&layer.collection())?;
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
@@ -128,6 +134,15 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// shp 为三件套：路径去 `.shp` 扩展名（大小写不敏感）作为 base。
+fn strip_shp_extension(out: &str) -> &str {
+    if out.len() > 4 && out[out.len() - 4..].eq_ignore_ascii_case(".shp") {
+        &out[..out.len() - 4]
+    } else {
+        out
+    }
 }
 
 /// `kanyu analysis ...`

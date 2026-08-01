@@ -203,7 +203,7 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
 
 ### 3.3 `kanyu_data_export`
 
-> 将数据文件导出为目标格式（当前原生支持 geojson/csv/fgb/geoparquet/dxf/kml/kmz；其余格式受格式能力矩阵与驱动状态约束）。
+> 将数据文件导出为目标格式（当前原生支持 geojson/csv/shp/fgb/geoparquet/dxf/kml/kmz；其余格式受格式能力矩阵与驱动状态约束）。
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|

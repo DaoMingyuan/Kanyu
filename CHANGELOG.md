@@ -19,6 +19,15 @@
   CSV 与 xlsx 两路共用零复制；空表/空工作簿/无坐标列中文错误。
   范围：只读（写出 📋）；format.rs csv 条目 note 更新。
   测试 fixture 由 rust_xlsxwriter（dev-dependency）可复现生成。
+- **kanyu-core / CLI / MCP**：Shapefile 写出（关闭 write: Partial 能力缺口，
+  format.rs write: Partial→Full）——`Layer::write_shp(collection, base)`
+  写 base.shp/.shx/.dbf 三件套；单一几何类型校验（GeometryCollection
+  展平参与判定；混合几何中文错误提示先 data query 拆分，注释即契约）；
+  Point/MultiPoint/LineString/MultiLineString（→Polyline）/Polygon/
+  MultiPolygon（外环+洞，`with_rings` 自动闭合整向）；属性 dbase 字段名
+  10 字节截断（按字符边界不断 UTF-8，冲突加 `_N` 序号）、
+  String→Character(254 截断)、整数→Numeric(18,0)、浮点→Numeric(18,6)、
+  Bool→Logical，空值跳过；导出侧 out 去扩展名作 base。
 
 ## [0.12.0] - 2026-08-03
 

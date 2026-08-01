@@ -112,6 +112,7 @@ Int64/Float64/Boolean/Utf8，arrow 58 / geoarrow-schema 0.8）。各格式解析
 | `to_dxf_string` | `fn to_dxf_string(collection: &geojson::FeatureCollection) -> Result<String>` | 关联函数：集合 → DXF 字符串（R2000；Point/MultiPoint→POINT，LineString/MultiLineString→开放 LWPOLYLINE，Polygon/MultiPolygon→闭合 LWPOLYLINE 仅外环、洞舍弃；统一图层 "0"；properties/XDATA 写出 📋；z 丢弃） |
 | `to_kml_string` | `fn to_kml_string(collection: &geojson::FeatureCollection) -> Result<String>` | 关联函数：集合 → KML 字符串（KML 2.2；每要素一个 Placemark，全六类型、Multi*→MultiGeometry，Polygon 含洞保留为内环；`name`/`description` 写为同名字段，其余属性入 ExtendedData/SimpleData；z 丢弃） |
 | `to_kmz_bytes` | `fn to_kmz_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>` | 关联函数：集合 → KMZ 字节串（zip 容器 deflate 压缩，doc.kml 单条目，内容同 `to_kml_string`） |
+| `write_shp` | `fn write_shp(collection: &geojson::FeatureCollection, base: &str) -> Result<()>` | 关联函数：集合 → Shapefile 三件套（base.shp/.shx/.dbf，base 为去扩展名路径）。单一几何类型校验（GeometryCollection 展平；混合报中文错误提示先 `data query` 拆分）；Polygon/MultiPolygon 外环+洞（自动整向）；dbase 字段名 10 字节截断（字符边界，冲突加 `_N` 序号）、String→Character(254 截断)、整数→Numeric(18,0)、浮点→Numeric(18,6)、Bool→Logical，空值跳过 |
 
 **查询表达式**：`"field op value"`，`op ∈ == != > >= < <=`。
 右值解析顺序：数值 → 布尔 → 字符串（可带单/双引号）。

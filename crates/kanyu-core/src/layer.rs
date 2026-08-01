@@ -231,6 +231,17 @@ impl Layer {
     pub fn to_kmz_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
         collection_to_kmz(collection)
     }
+
+    /// 写出 Shapefile 三件套（base.shp/.shx/.dbf，base 为去扩展名路径）。
+    /// shapefile 单文件仅支持单一几何类型（含 GeometryCollection 展平后）：
+    /// Point→Point、MultiPoint→Multipoint、LineString/MultiLineString→Polyline、
+    /// Polygon/MultiPolygon→Polygon（外环+洞，环方向由 crate 自动整向）；
+    /// 混合几何集合报中文错误（提示先 data query 拆分）。无几何要素跳过。
+    /// 属性：dbase 字段名 10 字节截断（冲突加序号）、String→Character(254 截断)、
+    /// 整数→Numeric(18,0)、浮点→Numeric(18,6)、Bool→Logical；空值跳过。
+    pub fn write_shp(collection: &geojson::FeatureCollection, base: &str) -> Result<()> {
+        collection_to_shp(collection, base)
+    }
 }
 
 /// 单元格值（CSV 与 xlsx 共用的中间表示）：原生类型优先，文本兜底。
@@ -1931,6 +1942,220 @@ fn collection_to_kmz(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>
     Ok(cursor.into_inner())
 }
 
+/// FeatureCollection → Shapefile 三件套（base.shp/.shx/.dbf）。
+/// 几何与属性语义见 [`Layer::write_shp`] 文档。
+fn collection_to_shp(collection: &geojson::FeatureCollection, base: &str) -> Result<()> {
+    use shapefile::dbase::TableWriterBuilder;
+
+    // 1. 展平几何（GeometryCollection 递归拆为部件）并校验单一几何类型。
+    //    展平部件共享原要素属性（feature_idx 溯源）；无几何要素跳过。
+    let mut flat: Vec<(usize, &geojson::Value)> = Vec::new();
+    for (idx, feature) in collection.features.iter().enumerate() {
+        let Some(geom) = &feature.geometry else {
+            continue;
+        };
+        shp_flatten_geom(&geom.value, idx, &mut flat);
+    }
+    let Some((_, first_geom)) = flat.first() else {
+        return Err(KanyuError::Other(
+            "shp 写出失败：集合中没有可写出的几何要素".to_string(),
+        ));
+    };
+    let kind = first_geom.type_name();
+    if let Some((_, other)) = flat.iter().find(|(_, v)| v.type_name() != kind) {
+        return Err(KanyuError::Other(format!(
+            "shp 写出失败：shapefile 单文件仅支持单一几何类型，集合同时含 {kind} 与 {}；请先用 data query 拆分为同类型集合再导出",
+            other.type_name()
+        )));
+    }
+
+    // 2. 属性 schema（复用推断）与 dbase 字段名映射（10 字节截断 + 冲突序号）。
+    let prop_schema = infer_property_schema(collection);
+    let name_map = dbase_field_names(prop_schema.iter().map(|(n, _)| n.as_str()));
+
+    // 3. dbase 表结构。
+    let mut table = TableWriterBuilder::new();
+    for (name, kind) in &prop_schema {
+        let dbase_name = &name_map[name];
+        table = match kind {
+            ColKind::Int => table.add_numeric_field(dbase_name.as_str().try_into().unwrap(), 18, 0),
+            ColKind::Double => {
+                table.add_numeric_field(dbase_name.as_str().try_into().unwrap(), 18, 6)
+            }
+            ColKind::Bool => table.add_logical_field(dbase_name.as_str().try_into().unwrap()),
+            ColKind::Str => table.add_character_field(dbase_name.as_str().try_into().unwrap(), 254),
+        };
+    }
+
+    let shp_path = format!("{base}.shp");
+    let mut writer = shapefile::Writer::from_path(&shp_path, table)
+        .map_err(|e| KanyuError::Other(format!("shp 写出失败（{shp_path}）：{e}")))?;
+
+    // 4. 逐展平要素写 shape + record（部件共享原要素属性）。
+    for (fidx, value) in &flat {
+        let record = shp_dbase_record(&collection.features[*fidx], &prop_schema, &name_map);
+        let result = match value {
+            geojson::Value::Point(p) => {
+                writer.write_shape_and_record(&shapefile::Point::new(p[0], p[1]), &record)
+            }
+            geojson::Value::MultiPoint(pts) => {
+                let points: Vec<shapefile::Point> = pts
+                    .iter()
+                    .map(|p| shapefile::Point::new(p[0], p[1]))
+                    .collect();
+                writer.write_shape_and_record(&shapefile::Multipoint::new(points), &record)
+            }
+            geojson::Value::LineString(_) | geojson::Value::MultiLineString(_) => {
+                let parts = shp_polyline_parts(value);
+                writer.write_shape_and_record(&shapefile::Polyline::with_parts(parts), &record)
+            }
+            geojson::Value::Polygon(rings) => {
+                let polygon =
+                    shapefile::Polygon::with_rings(shp_polygon_rings(std::slice::from_ref(rings)));
+                writer.write_shape_and_record(&polygon, &record)
+            }
+            geojson::Value::MultiPolygon(polys) => {
+                let polygon = shapefile::Polygon::with_rings(shp_polygon_rings(polys.as_slice()));
+                writer.write_shape_and_record(&polygon, &record)
+            }
+            other => {
+                return Err(KanyuError::Other(format!(
+                    "shp 写出失败：暂不支持的几何类型 {}",
+                    other.type_name()
+                )))
+            }
+        };
+        result
+            .map_err(|e| KanyuError::Other(format!("shp 第 {} 个要素写出失败: {e}", fidx + 1)))?;
+    }
+    Ok(())
+}
+
+/// GeometryCollection 递归展平为部件（带原要素序号溯源）。
+fn shp_flatten_geom<'a>(
+    value: &'a geojson::Value,
+    idx: usize,
+    out: &mut Vec<(usize, &'a geojson::Value)>,
+) {
+    match value {
+        geojson::Value::GeometryCollection(geoms) => {
+            for g in geoms {
+                shp_flatten_geom(&g.value, idx, out);
+            }
+        }
+        other => out.push((idx, other)),
+    }
+}
+
+/// dbase 字段名映射：10 字节预算内截断（按字符边界，不断 UTF-8），
+/// 冲突时加 `_N` 序号（序号同样计入预算）。
+fn dbase_field_names<'a>(
+    names: impl Iterator<Item = &'a str>,
+) -> std::collections::HashMap<String, String> {
+    const BUDGET: usize = 10; // dbase 字段名上限（字节； crate 硬顶为 11 字节含 NUL）
+    let truncate = |name: &str, budget: usize| -> String {
+        let mut out = String::new();
+        for ch in name.chars() {
+            if out.len() + ch.len_utf8() > budget {
+                break;
+            }
+            out.push(ch);
+        }
+        out
+    };
+    let mut map = std::collections::HashMap::new();
+    let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for name in names {
+        let mut candidate = truncate(name, BUDGET);
+        let mut seq = 1;
+        while used.contains(&candidate) {
+            let suffix = format!("_{seq}");
+            candidate = format!("{}{}", truncate(name, BUDGET - suffix.len()), suffix);
+            seq += 1;
+        }
+        used.insert(candidate.clone());
+        map.insert(name.to_string(), candidate);
+    }
+    map
+}
+
+/// 要素属性 → dbase Record（空值跳过；类型按声明列强转，退化列转字符串）。
+fn shp_dbase_record(
+    feature: &geojson::Feature,
+    prop_schema: &[(String, ColKind)],
+    name_map: &std::collections::HashMap<String, String>,
+) -> shapefile::dbase::Record {
+    use shapefile::dbase::{FieldValue, Record};
+    let mut rec = Record::default();
+    for (name, kind) in prop_schema {
+        let Some(value) = json_prop(feature, name) else {
+            continue;
+        };
+        let dbase_name = &name_map[name];
+        match kind {
+            ColKind::Int => {
+                rec.insert(
+                    dbase_name.clone(),
+                    FieldValue::Numeric(value.as_i64().map(|i| i as f64)),
+                );
+            }
+            ColKind::Double => {
+                rec.insert(dbase_name.clone(), FieldValue::Numeric(value.as_f64()));
+            }
+            ColKind::Bool => {
+                rec.insert(dbase_name.clone(), FieldValue::Logical(value.as_bool()));
+            }
+            ColKind::Str => {
+                let text = match value {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                // dbase Character 上限 254（按字符边界截断）。
+                let text: String = text.chars().take(254).collect();
+                rec.insert(dbase_name.clone(), FieldValue::Character(Some(text)));
+            }
+        }
+    }
+    rec
+}
+
+/// LineString/MultiLineString → Polyline parts。
+fn shp_polyline_parts(value: &geojson::Value) -> Vec<Vec<shapefile::Point>> {
+    let to_part = |line: &[Vec<f64>]| -> Vec<shapefile::Point> {
+        line.iter()
+            .map(|p| shapefile::Point::new(p[0], p[1]))
+            .collect()
+    };
+    match value {
+        geojson::Value::LineString(line) => vec![to_part(line)],
+        geojson::Value::MultiLineString(lines) => lines.iter().map(|l| to_part(l)).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Polygon/MultiPolygon → shapefile 环序列（外环 Outer、内环 Inner；
+/// `with_rings` 自动闭合与整向，无需手写绕向）。
+fn shp_polygon_rings(
+    polys: &[Vec<Vec<Vec<f64>>>],
+) -> Vec<shapefile::PolygonRing<shapefile::Point>> {
+    let to_points = |ring: &[Vec<f64>]| -> Vec<shapefile::Point> {
+        ring.iter()
+            .map(|p| shapefile::Point::new(p[0], p[1]))
+            .collect()
+    };
+    let mut rings = Vec::new();
+    for poly in polys {
+        for (i, ring) in poly.iter().enumerate() {
+            if i == 0 {
+                rings.push(shapefile::PolygonRing::Outer(to_points(ring)));
+            } else {
+                rings.push(shapefile::PolygonRing::Inner(to_points(ring)));
+            }
+        }
+    }
+    rings
+}
+
 /// Feature → Placemark：`name`/`description` 写为同名字段，其余属性写入
 /// ExtendedData/SimpleData（值转字符串）；无几何返回 None。
 fn kml_feature_to_placemark(feature: &geojson::Feature) -> Option<kml::types::Placemark<f64>> {
@@ -2432,6 +2657,12 @@ mod tests {
         );
     }
 
+    /// geojson 文本 → FeatureCollection（测试数据构造辅助）。
+    fn collection_from_str(text: &str) -> geojson::FeatureCollection {
+        let gj: geojson::GeoJson = text.parse().unwrap();
+        geojson::FeatureCollection::try_from(gj).unwrap()
+    }
+
     /// 混合几何测试集合：Point/LineString/Polygon 各一，
     /// 属性覆盖 string（name）/number（height，整浮混合）/bool（active）。
     fn fgb_test_collection() -> geojson::FeatureCollection {
@@ -2714,6 +2945,102 @@ mod tests {
             err.to_string().contains("kml"),
             "错误应指出 kml 读取问题: {err}"
         );
+    }
+
+    #[test]
+    fn shp_write_roundtrips_geometry_and_typed_fields() {
+        // 单一类型集合（Point + 类型化属性）写出→读回 roundtrip。
+        let collection = collection_from_str(
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[116.39,39.90]},
+                 "properties":{"name":"甲","height":80,"active":true}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[116.40,39.91]},
+                 "properties":{"name":"乙","height":55.5,"active":false}}
+            ]}"#,
+        );
+        let dir = std::env::temp_dir().join("kanyu_core_shp_write");
+        std::fs::create_dir_all(&dir).unwrap();
+        let base = dir.join("out");
+        Layer::write_shp(&collection, base.to_str().unwrap()).unwrap();
+        let shp_path = dir.join("out.shp");
+        assert!(shp_path.exists(), ".shp 应生成");
+        assert!(dir.join("out.shx").exists(), ".shx 应生成");
+        assert!(dir.join("out.dbf").exists(), ".dbf 应生成");
+
+        let layer = Layer::load("out", shp_path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 2);
+        assert_eq!(layer.summary().geometry_types, vec!["Point"]);
+        // 类型化读回：height 整浮混合→Double，可数值查询；active→Bool。
+        assert_eq!(layer.query("height > 50").unwrap().features.len(), 2);
+        let a = find_by_name(&layer, "甲");
+        let props = a.properties.as_ref().unwrap();
+        assert_eq!(props["height"].as_f64(), Some(80.0));
+        assert_eq!(props["active"], serde_json::Value::Bool(true));
+        // 几何坐标保真。
+        let geojson::Value::Point(p) = &a.geometry.as_ref().unwrap().value else {
+            panic!("应为 Point");
+        };
+        assert!((p[0] - 116.39).abs() < 1e-9 && (p[1] - 39.90).abs() < 1e-9);
+    }
+
+    #[test]
+    fn shp_write_truncates_long_field_names() {
+        let collection = collection_from_str(
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[0,0]},
+                 "properties":{"a_very_long_field_name":1,"a_very_long_field_name2":2}}
+            ]}"#,
+        );
+        let dir = std::env::temp_dir().join("kanyu_core_shp_truncate");
+        std::fs::create_dir_all(&dir).unwrap();
+        let base = dir.join("trunc");
+        Layer::write_shp(&collection, base.to_str().unwrap()).unwrap();
+        let layer = Layer::load("trunc", dir.join("trunc.shp").to_str().unwrap()).unwrap();
+        let fields = &layer.summary().fields;
+        // dbase 字段名 ≤10 字节；两个相似长名截断后加序号去重。
+        assert!(
+            fields.iter().all(|f| f.len() <= 10),
+            "字段名应 ≤10 字节: {fields:?}"
+        );
+        assert_eq!(fields.len(), 2, "两个字段都保留（去重加序号）: {fields:?}");
+    }
+
+    #[test]
+    fn shp_write_rejects_mixed_geometry_with_chinese_error() {
+        // fgb_test_collection 为 Point/LineString/Polygon 混合——shp 单类型限制。
+        let dir = std::env::temp_dir().join("kanyu_core_shp_mixed");
+        std::fs::create_dir_all(&dir).unwrap();
+        let base = dir.join("mixed");
+        let err = Layer::write_shp(&fgb_test_collection(), base.to_str().unwrap())
+            .expect_err("混合几何应报错");
+        assert!(
+            err.to_string().contains("单一几何类型") && err.to_string().contains("data query"),
+            "错误应说明单类型限制并提示拆分: {err}"
+        );
+    }
+
+    #[test]
+    fn shp_write_polygon_preserves_holes() {
+        let collection = collection_from_str(
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                    [[0,0],[0,10],[10,10],[10,0],[0,0]],
+                    [[2,2],[2,4],[4,4],[4,2],[2,2]]
+                ]},"properties":{"name":"带洞"}}
+            ]}"#,
+        );
+        let dir = std::env::temp_dir().join("kanyu_core_shp_hole_write");
+        std::fs::create_dir_all(&dir).unwrap();
+        let base = dir.join("hole");
+        Layer::write_shp(&collection, base.to_str().unwrap()).unwrap();
+        let layer = Layer::load("hole", dir.join("hole.shp").to_str().unwrap()).unwrap();
+        let collection = layer.collection();
+        let geojson::Value::Polygon(rings) =
+            &collection.features[0].geometry.as_ref().unwrap().value
+        else {
+            panic!("应为 Polygon 几何");
+        };
+        assert_eq!(rings.len(), 2, "洞应保留（外环+内环）");
     }
 
     #[test]

@@ -263,7 +263,7 @@ impl KanyuServer {
     /// 将数据导出为目标格式。
     #[tool(
         name = "kanyu_data_export",
-        description = "将数据文件导出为目标格式（当前原生支持 geojson/csv/fgb/geoparquet/dxf/kml/kmz；其余格式受格式能力矩阵与驱动状态约束）"
+        description = "将数据文件导出为目标格式（当前原生支持 geojson/csv/shp/fgb/geoparquet/dxf/kml/kmz；其余格式受格式能力矩阵与驱动状态约束）"
     )]
     async fn data_export(
         &self,
@@ -289,6 +289,20 @@ impl KanyuServer {
                 .into_bytes(),
             "kml" if req.format == "kmz" => {
                 Layer::to_kmz_bytes(&layer.collection()).map_err(to_mcp)?
+            }
+            "shp" => {
+                // shp 为三件套（base.shp/.shx/.dbf）：不能走字节流写文件，直接落盘。
+                let base = req
+                    .out
+                    .strip_suffix(".shp")
+                    .or_else(|| req.out.strip_suffix(".SHP"))
+                    .unwrap_or(&req.out);
+                Layer::write_shp(&layer.collection(), base).map_err(to_mcp)?;
+                return Ok(Json(serde_json::json!({
+                    "exported": layer.len(),
+                    "format": "shp",
+                    "out": format!("{base}.shp/.shx/.dbf"),
+                })));
             }
             "kml" => Layer::to_kml_string(&layer.collection())
                 .map_err(to_mcp)?
