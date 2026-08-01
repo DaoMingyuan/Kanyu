@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-03
+
+**DWG 原生读取：acadrust + 自持补丁层（143 真实样本 / 52 万实体验证）。**
+
 ### 新增
 
 - **kanyu-core**：DWG 原生读取进内核（新模块 `dwg`，acadrust 0.4 +
@@ -335,7 +339,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.13.0
 [0.12.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.12.0
 [0.11.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.11.0
 [0.10.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.10.0
