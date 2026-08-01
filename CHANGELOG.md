@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-core**：`Layer::batch()` 零拷贝访问底层 GeoArrow RecordBatch
+  （WKB 几何列 `geometry` 携带 geoarrow.wkb 扩展元数据 + 类型化属性列
+  Int64/Float64/Boolean/Utf8，arrow 58 / geoarrow-schema 0.8）。
+- **kanyu-core**：`summary()`/`query()` 改为直接在 RecordBatch 列上求值
+  （几何类型读 WKB 头部类型码；谓词逐行求值后经 arrow take 取子集），
+  谓词语义与 GeoJSON 载体时代逐比特一致。
+
+### 变更（Breaking）
+
+- **kanyu-core**：`Layer` 内部载体从 `geojson::FeatureCollection` 迁移为
+  GeoArrow `RecordBatch`（总规"以 GeoArrow 为血液"落地）。格式解析器在边界
+  统一 `collection_to_batch` 入列，导出时 `batch_to_collection` 转回——
+  全部格式 I/O 代码零改动，对外行为不变（36 项既有测试全绿）。
+  **Breaking**：`Layer::collection()` 签名由
+  `fn collection(&self) -> &geojson::FeatureCollection`（只读借用）改为
+  `fn collection(&self) -> geojson::FeatureCollection`（按需转换的拥有值）；
+  调用方传引用处需加 `&`（CLI/MCP 已适配）。
+
 ## [0.2.0] - 2026-08-02
 
 **Phase 1 里程碑：主流矢量文件格式免 GDAL 读写全部达成。**

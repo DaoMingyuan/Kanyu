@@ -82,8 +82,10 @@ assert!(matches!(err, KanyuError::UnsupportedOperation { .. }));
 
 ## 3. layer —— 图层内存模型
 
-v0.1 以 GeoJSON `FeatureCollection` 为原生载体；后续迁移 GeoArrow `RecordBatch`
-时本模块 API 不变（迁移设计见 [ARCHITECTURE.md](ARCHITECTURE.md#3-数据流)）。
+以 GeoArrow `RecordBatch` 为原生载体（WKB 几何列 `geometry` + 类型化属性列
+Int64/Float64/Boolean/Utf8，arrow 58 / geoarrow-schema 0.8）。各格式解析器在边界
+统一转为 FeatureCollection 后一次性入列，导出时按需转回（数据流见
+[ARCHITECTURE.md](ARCHITECTURE.md#3-数据流)）。
 
 ### `Layer`
 
@@ -91,11 +93,12 @@ v0.1 以 GeoJSON `FeatureCollection` 为原生载体；后续迁移 GeoArrow `Re
 |---|---|---|
 | `load` | `fn load(id: impl Into<String>, path: &str) -> Result<Self>` | 加载图层。格式自动探测；v0.1 原生支持 geojson、csv/tsv（坐标列自动识别 lon/lat/x/y/经度/纬度；xlsx 暂返回 `UnsupportedOperation`）、shp（读取：Point/MultiPoint/Polyline/Polygon 含洞，dbase 属性类型化）、fgb（读写）、geoparquet（读写，WKB 几何编码）、dxf（读写：POINT/LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC，图层→layer 属性）与 kml（读写；KMZ 返回待集成错误），桥接驱动格式返回 `UnsupportedOperation`；无法探测返回 `UnknownFormat` |
 | `id` | `fn id(&self) -> &str` | 图层标识 |
-| `len` | `fn len(&self) -> usize` | 要素数量 |
+| `len` | `fn len(&self) -> usize` | 要素数量（batch 行数） |
 | `is_empty` | `fn is_empty(&self) -> bool` | 是否空图层 |
-| `summary` | `fn summary(&self) -> LayerSummary` | 概要信息 |
-| `collection` | `fn collection(&self) -> &geojson::FeatureCollection` | 底层要素集合（只读） |
-| `query` | `fn query(&self, expression: &str) -> Result<geojson::FeatureCollection>` | 属性查询，语法见下 |
+| `summary` | `fn summary(&self) -> LayerSummary` | 概要信息（直接在 batch 上统计：几何类型读 WKB 头部类型码，字段取属性列名） |
+| `batch` | `fn batch(&self) -> &arrow_array::RecordBatch` | 零拷贝访问底层 GeoArrow RecordBatch（WKB 几何列 + 类型化属性列） |
+| `collection` | `fn collection(&self) -> geojson::FeatureCollection` | 要素集合（按需从 batch 转换的**拥有值**；⚠️ 签名自 v0.1 早期变更：原为 `&FeatureCollection` 只读借用） |
+| `query` | `fn query(&self, expression: &str) -> Result<geojson::FeatureCollection>` | 属性查询，语法见下（直接在 batch 列上求值，命中行经 arrow take 取子集；谓词语义不变） |
 | `to_geojson_string` | `fn to_geojson_string(collection: &geojson::FeatureCollection) -> String` | 关联函数：集合 → GeoJSON 字符串 |
 | `to_csv_string` | `fn to_csv_string(collection: &geojson::FeatureCollection) -> Result<String>` | 关联函数：集合 → CSV 字符串（`x,y` 坐标列仅 Point 取值，后接属性字段并集） |
 | `to_fgb_bytes` | `fn to_fgb_bytes(collection: &geojson::FeatureCollection) -> Result<Vec<u8>>` | 关联函数：集合 → FlatGeobuf 字节串（列 schema 自动推断：String→String、整数→Long、浮点→Double、Bool→Bool，混合类型列退化为 String；单一几何类型按声明写出，混合几何按 Unknown 异构声明；Hilbert 空间索引，CRS 声明 EPSG:4326） |

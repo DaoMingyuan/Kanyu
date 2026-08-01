@@ -125,16 +125,16 @@ impl KanyuServer {
         let caps = registry.require(&req.format, "write").map_err(to_mcp)?;
         let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
         let bytes: Vec<u8> = match caps.id {
-            "geojson" => Layer::to_geojson_string(layer.collection()).into_bytes(),
-            "csv" => Layer::to_csv_string(layer.collection())
+            "geojson" => Layer::to_geojson_string(&layer.collection()).into_bytes(),
+            "csv" => Layer::to_csv_string(&layer.collection())
                 .map_err(to_mcp)?
                 .into_bytes(),
-            "fgb" => Layer::to_fgb_bytes(layer.collection()).map_err(to_mcp)?,
-            "geoparquet" => Layer::to_geoparquet_bytes(layer.collection()).map_err(to_mcp)?,
-            "dxf" => Layer::to_dxf_string(layer.collection())
+            "fgb" => Layer::to_fgb_bytes(&layer.collection()).map_err(to_mcp)?,
+            "geoparquet" => Layer::to_geoparquet_bytes(&layer.collection()).map_err(to_mcp)?,
+            "dxf" => Layer::to_dxf_string(&layer.collection())
                 .map_err(to_mcp)?
                 .into_bytes(),
-            "kml" => Layer::to_kml_string(layer.collection())
+            "kml" => Layer::to_kml_string(&layer.collection())
                 .map_err(to_mcp)?
                 .into_bytes(),
             _ => {

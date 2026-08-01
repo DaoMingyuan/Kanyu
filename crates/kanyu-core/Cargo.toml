@@ -24,6 +24,7 @@ geoparquet.workspace = true
 geoarrow-schema.workspace = true
 arrow-array.workspace = true
 arrow-schema.workspace = true
+arrow-select.workspace = true
 parquet.workspace = true
 dxf.workspace = true
 kml.workspace = true

@@ -1074,7 +1074,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] AGENTS.md 解析器/校验器/模板生成器。
 - [x] GeoJSON 原生加载与属性谓词查询。
 - [x] MCP Server（rmcp，stdio）+ 6 个确定性工具 + 系统自省。
-- [ ] GeoArrow RecordBatch 内存模型替换 GeoJSON 载体（Layer API 不变）。
+- [x] GeoArrow RecordBatch 内存模型替换 GeoJSON 载体（2026-08-02 完成：WKB 几何列 + 类型化属性列；Layer API 仅 collection() 改为返回拥有值，新增 batch() 零拷贝访问）。
 - [x] FlatGeobuf 原生读写（内部首选交换格式，列 schema 自动推断）。
 - [x] GeoParquet 原生读写（云原生列式，WKB 几何编码 + geo 元数据）。
 - [x] DXF 原生读写（CAD 互操作：POINT/LINE/LWPOLYLINE/CIRCLE/ARC 映射，图层→layer 属性）。

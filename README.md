@@ -25,7 +25,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 | AI 接入 | 外挂插件 | WKT 字符串进出 | **一等公民 MCP，结构化 JSON + CRS/单位元数据** |
 | 执行模型 | — | `execute_code` 任意代码执行（安全隐患） | **声明式工具，沙箱化，可审计** |
 | 项目语义 | 无 | 无 | **AGENTS.md 地理 profile（图层/CRS/业务规则）** |
-| 内存模型 | 逐要素 | 逐要素 | **GeoArrow 列式零拷贝（规划中）** |
+| 内存模型 | 逐要素 | 逐要素 | **GeoArrow 列式零拷贝 ✅（v0.1 已落地）** |
 | 自我迭代 | 无 | 无 | **观察→诊断→编码→验证→部署→回溯闭环** |
 
 ## 特性（v0.1.0）

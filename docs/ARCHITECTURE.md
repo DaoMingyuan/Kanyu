@@ -79,15 +79,16 @@
 
 | 阶段 | v0.1（✅ 现状） | v0.2（📋 目标） |
 |---|---|---|
-| 内存模型 | GeoJSON `FeatureCollection` | GeoArrow `RecordBatch`（geoarrow-array 0.8 系），列式零拷贝 |
-| 原生解析 | geojson | flatgeobuf 6.x、geoparquet 0.6、shapefile 0.9、geojson、kml 0.14、dxf 0.6（IxMilia） |
+| 内存模型 | GeoArrow `RecordBatch`（WKB 几何列 + 类型化属性列，arrow 58 / geoarrow-schema 0.8）✅ | geoarrow-array 原生几何列（去 WKB 编解码），列式零拷贝 |
+| 原生解析 | geojson | flatgeobuf 6.x、geoparquet 0.8、shapefile 0.9、geojson、kml 0.14、dxf 0.6（IxMilia） |
 | 统一 I/O 抽象 | 逐格式 match | 候选 geozero 0.15 |
 | 桥接格式 | 返回结构化错误 | GDAL/LibreDWG 以可选插件/WASM 沙箱接入 |
 
-`Layer` 的公共 API（`load/summary/query/collection`）面向该演进设计：
-调用方只面对图层语义，不感知底层存储从 GeoJSON 切换到 RecordBatch
-（见 crates/kanyu-core/src/layer.rs 模块文档）。迁移到 GeoArrow 后，
-渲染器可直接映射 SSBO，分析引擎可走 Arrow 向量化，符合 [MASTERPLAN.md](MASTERPLAN.md) §3.1。
+`Layer` 的公共 API（`load/summary/query/collection/batch`）面向该演进设计：
+各格式解析器在边界统一转为 FeatureCollection 后一次性入列（`collection_to_batch`），
+导出时按需转回（`batch_to_collection`），格式代码零感知；`batch()` 提供零拷贝访问。
+后续迁移 geoarrow-array 原生几何列后，渲染器可直接映射 SSBO，分析引擎可走 Arrow
+向量化，符合 [MASTERPLAN.md](MASTERPLAN.md) §3.1。
 
 ## 4. 格式注册表设计
 
@@ -166,7 +167,7 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
 | 渲染引擎 | bgfx + vg-renderer | **wgpu** | 纯 Rust、WebGPU 标准、跨 Vulkan/Metal/D3D12/Web，与内核同语言零 FFI |
 | UI 壳层 | Qt6 Widgets（C++20） | **egui / slint / Tauri**（Rust 方向） | 摆脱 C++ 工具链与许可证顾虑；与 wgpu 生态直接互通 |
 | 空间计算 | GEOS（FFI） | **geo crate**（布尔/DE-9IM/buffer 内置）+ rstar 索引 + proj4rs 投影；GEOS 降为可选插件 | geo 为纯 Rust 且功能已覆盖核心谓词，避免 libgeos 链接 |
-| 内存模型 | GeoArrow | 维持 **GeoArrow**（geoarrow-array 0.8 系）；v0.1 暂以 GeoJSON 为载体 | Layer API 已为迁移设计，见 §3 |
+| 内存模型 | GeoArrow | 维持 **GeoArrow**（arrow 58 + geoarrow-schema 0.8，WKB 几何列 + 类型化属性列）✅ 已落地 | 见 §3；geoarrow-array 原生几何列待后续迭代 |
 | DWG | LibreDWG 直链 + ODA 转换 | **LibreDWG 编译为 WASM，wasmtime 沙箱只读运行**；写仅 ≤r2004 可靠，现代 DWG 写出以 DXF 导出替代；ODA SDK 为商业可选插件 | LibreDWG 为 GPLv3+ 且 2026 年披露多个 CVE，沙箱隔离崩溃与许可证风险；DXF 0.6（IxMilia）为原生读写 |
 | MCP | 手写 MCP Server | **官方 rmcp 3.x SDK** | 协议升级（tasks、streamable HTTP）由上游跟进；注意 MCP 工具名只允许 `[a-zA-Z0-9_-]`，总规的 `kanyu.data.load` 落地为 `kanyu_data_load` |
 | 插件 | WASM（wasmtime） | 维持 **wasmtime + WIT 组件模型** | 沙箱安全、热重载、多语言基因 |

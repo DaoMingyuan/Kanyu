@@ -66,32 +66,32 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
             let layer = Layer::load(stem_of(file), file)?;
             match caps.id {
                 "geojson" => {
-                    let text = Layer::to_geojson_string(layer.collection());
+                    let text = Layer::to_geojson_string(&layer.collection());
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (geojson)", layer.len());
                 }
                 "csv" => {
-                    let text = Layer::to_csv_string(layer.collection())?;
+                    let text = Layer::to_csv_string(&layer.collection())?;
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (csv)", layer.len());
                 }
                 "fgb" => {
-                    let bytes = Layer::to_fgb_bytes(layer.collection())?;
+                    let bytes = Layer::to_fgb_bytes(&layer.collection())?;
                     std::fs::write(out, bytes).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (fgb)", layer.len());
                 }
                 "geoparquet" => {
-                    let bytes = Layer::to_geoparquet_bytes(layer.collection())?;
+                    let bytes = Layer::to_geoparquet_bytes(&layer.collection())?;
                     std::fs::write(out, bytes).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (geoparquet)", layer.len());
                 }
                 "dxf" => {
-                    let text = Layer::to_dxf_string(layer.collection())?;
+                    let text = Layer::to_dxf_string(&layer.collection())?;
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (dxf)", layer.len());
                 }
                 "kml" => {
-                    let text = Layer::to_kml_string(layer.collection())?;
+                    let text = Layer::to_kml_string(&layer.collection())?;
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (kml)", layer.len());
                 }

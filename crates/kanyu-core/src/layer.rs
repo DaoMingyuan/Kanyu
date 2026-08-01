@@ -1,13 +1,17 @@
 //! 图层内存模型。
 //!
-//! v0.1 以 GeoJSON FeatureCollection 为原生载体；后续版本将迁移到
-//! GeoArrow RecordBatch 零拷贝模型（见 docs/MASTERPLAN.md 第三部分），
-//! 本模块的 `Layer` API 面向该演进设计，调用方无需感知底层存储切换。
+//! 以 GeoArrow RecordBatch 为原生载体（WKB 几何列 + 类型化属性列；
+//! 见 docs/MASTERPLAN.md 第三部分）。各格式解析器在边界统一转为
+//! FeatureCollection 后一次性入列，导出时按需转回——格式代码零感知。
 
+use arrow_array::RecordBatch;
 use serde::Serialize;
 
 use crate::error::{KanyuError, Result};
 use crate::format::FormatRegistry;
+
+/// 几何列名（GeoParquet 惯例；Field 携带 geoarrow.wkb 扩展元数据）。
+const GEOMETRY_COL: &str = "geometry";
 
 /// 图层概要信息（供 CLI / MCP 工具返回）。
 #[derive(Debug, Clone, Serialize)]
@@ -24,11 +28,11 @@ pub struct LayerSummary {
     pub fields: Vec<String>,
 }
 
-/// 一个已加载的矢量图层。
+/// 一个已加载的矢量图层（GeoArrow RecordBatch 列式载体）。
 pub struct Layer {
     id: String,
     format: String,
-    collection: geojson::FeatureCollection,
+    batch: RecordBatch,
 }
 
 impl Layer {
@@ -78,10 +82,11 @@ impl Layer {
                 })
             }
         };
+        let batch = collection_to_batch(&collection)?;
         Ok(Self {
             id,
             format: caps.id.to_string(),
-            collection,
+            batch,
         })
     }
 
@@ -92,34 +97,39 @@ impl Layer {
 
     /// 要素数量。
     pub fn len(&self) -> usize {
-        self.collection.features.len()
+        self.batch.num_rows()
     }
 
     /// 是否为空图层。
     pub fn is_empty(&self) -> bool {
-        self.collection.features.is_empty()
+        self.batch.num_rows() == 0
     }
 
-    /// 概要信息。
+    /// 概要信息（直接在 batch 上统计：几何类型读 WKB 头部，
+    /// 字段取属性列名，无需物化 GeoJSON）。
     pub fn summary(&self) -> LayerSummary {
-        let mut geometry_types: Vec<String> = self
-            .collection
-            .features
-            .iter()
-            .filter_map(|f| f.geometry.as_ref().map(|g| g.value.type_name().to_string()))
-            .collect();
+        let schema = self.batch.schema();
+        let mut geometry_types: Vec<String> = match schema.index_of(GEOMETRY_COL) {
+            Ok(idx) => {
+                let arr = self.batch.column(idx);
+                (0..self.batch.num_rows())
+                    .filter(|row| !arr.is_null(*row))
+                    .filter_map(|row| wkb_type_name(parquet_binary_value(arr, row).ok()?))
+                    .map(str::to_string)
+                    .collect()
+            }
+            Err(_) => Vec::new(),
+        };
         geometry_types.sort();
         geometry_types.dedup();
 
-        let mut fields: Vec<String> = self
-            .collection
-            .features
+        let mut fields: Vec<String> = schema
+            .fields()
             .iter()
-            .filter_map(|f| f.properties.as_ref())
-            .flat_map(|p| p.keys().cloned())
+            .map(|f| f.name().clone())
+            .filter(|n| n != GEOMETRY_COL)
             .collect();
         fields.sort();
-        fields.dedup();
 
         LayerSummary {
             id: self.id.clone(),
@@ -130,29 +140,54 @@ impl Layer {
         }
     }
 
-    /// 访问底层要素集合（只读）。
-    pub fn collection(&self) -> &geojson::FeatureCollection {
-        &self.collection
+    /// 访问要素集合（按需从 RecordBatch 转换的**拥有值**；
+    /// 零拷贝访问请用 [`Layer::batch`]）。
+    pub fn collection(&self) -> geojson::FeatureCollection {
+        batch_to_collection(&self.batch).expect("内核构造的 batch 必然可逆转换")
+    }
+
+    /// 零拷贝访问底层 GeoArrow RecordBatch（WKB 几何列 + 类型化属性列）。
+    pub fn batch(&self) -> &RecordBatch {
+        &self.batch
     }
 
     /// 属性查询：支持简单比较表达式 `"field op value"`，
     /// op ∈ `==` `!=` `>` `>=` `<` `<=`。数值字段按数值比较，其余按字符串。
+    /// 直接在 batch 列上求值（谓词语义与 GeoJSON 载体时代逐比特一致；
+    /// 列不存在或单元格为空的行不匹配），命中行经 arrow take 取子集。
     ///
     /// 例：`"height > 50"`、`"usage == residential"`。
     pub fn query(&self, expression: &str) -> Result<geojson::FeatureCollection> {
         let predicate = Predicate::parse(expression)?;
-        let features = self
-            .collection
-            .features
+        let indices: Vec<u64> = match self.batch.schema().index_of(&predicate.field) {
+            Ok(col_idx) => {
+                let arr = self.batch.column(col_idx);
+                let mut matched = Vec::new();
+                for row in 0..self.batch.num_rows() {
+                    if arr.is_null(row) {
+                        continue;
+                    }
+                    if let Some(actual) = arrow_value_to_json(arr, row, &predicate.field)? {
+                        if predicate.matches_value(&actual) {
+                            matched.push(row as u64);
+                        }
+                    }
+                }
+                matched
+            }
+            Err(_) => Vec::new(),
+        };
+        let take_idx = arrow_array::UInt64Array::from(indices);
+        let columns = self
+            .batch
+            .columns()
             .iter()
-            .filter(|f| predicate.matches(f))
-            .cloned()
-            .collect();
-        Ok(geojson::FeatureCollection {
-            bbox: None,
-            features,
-            foreign_members: None,
-        })
+            .map(|c| arrow_select::take::take(c, &take_idx, None))
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| KanyuError::Other(format!("查询结果子集构造失败: {e}")))?;
+        let sub = RecordBatch::try_new(self.batch.schema(), columns)
+            .map_err(|e| KanyuError::Other(format!("查询结果子集构造失败: {e}")))?;
+        batch_to_collection(&sub)
     }
 
     /// 导出为 GeoJSON 字符串。
@@ -1064,7 +1099,7 @@ fn arrow_value_to_json(
     }
     let unsupported = || {
         KanyuError::Other(format!(
-            "geoparquet 暂不支持读取列 '{name}' 的类型 {}",
+            "暂不支持读取列 '{name}' 的类型 {}",
             array.data_type()
         ))
     };
@@ -1103,17 +1138,13 @@ fn json_prop<'a>(feature: &'a geojson::Feature, name: &str) -> Option<&'a serde_
         .filter(|v| !v.is_null())
 }
 
-/// FeatureCollection → GeoParquet 字节串：属性列 schema 推断（同 FGB），
-/// 几何列 `geometry` 为 WKB Binary + geoarrow 扩展元数据；geo 元数据、
-/// geometry_types 与 bbox 由 geoparquet crate 编码器生成。
-fn collection_to_geoparquet(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
-    use arrow_array::{
-        ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray,
-    };
+/// FeatureCollection → GeoArrow RecordBatch：属性列 schema 推断
+/// （Int64/Float64/Boolean/Utf8），几何列 `geometry` 为 WKB BinaryArray +
+/// geoarrow.wkb 扩展元数据。所有格式加载后的统一入列入口。
+fn collection_to_batch(collection: &geojson::FeatureCollection) -> Result<RecordBatch> {
+    use arrow_array::{ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray};
     use arrow_schema::{Field, Schema};
     use geoarrow_schema::{GeoArrowType, Metadata as GeoMetadata, WkbType};
-    use geoparquet::writer::{GeoParquetRecordBatchEncoder, GeoParquetWriterOptionsBuilder};
-    use parquet::arrow::ArrowWriter;
     use std::sync::Arc;
 
     let prop_schema = infer_property_schema(collection);
@@ -1122,7 +1153,7 @@ fn collection_to_geoparquet(collection: &geojson::FeatureCollection) -> Result<V
         .map(|(name, kind)| Field::new(name, kind.arrow_data_type(), true))
         .collect();
     let geom_type = GeoArrowType::Wkb(WkbType::new(Arc::new(GeoMetadata::default())));
-    fields.push(geom_type.to_field("geometry", true));
+    fields.push(geom_type.to_field(GEOMETRY_COL, true));
     let schema = Arc::new(Schema::new(fields));
 
     let mut columns: Vec<ArrayRef> = Vec::new();
@@ -1179,9 +1210,84 @@ fn collection_to_geoparquet(collection: &geojson::FeatureCollection) -> Result<V
         wkb_owned.iter().map(|o| o.as_deref()).collect::<Vec<_>>(),
     )));
 
-    let batch = RecordBatch::try_new(schema.clone(), columns)
-        .map_err(|e| KanyuError::Other(format!("geoparquet 批次构造失败: {e}")))?;
+    RecordBatch::try_new(schema, columns)
+        .map_err(|e| KanyuError::Other(format!("batch 构造失败: {e}")))
+}
 
+/// GeoArrow RecordBatch → FeatureCollection：几何列按列名 + Binary 类型识别
+/// （不依赖扩展元数据），属性列按 Arrow 类型原生映射 JSON 类型。
+fn batch_to_collection(batch: &RecordBatch) -> Result<geojson::FeatureCollection> {
+    let schema = batch.schema();
+    let geom_idx = schema
+        .index_of(GEOMETRY_COL)
+        .map_err(|_| KanyuError::Other(format!("batch 缺少几何列 '{GEOMETRY_COL}'")))?;
+    let geom_arr = batch.column(geom_idx);
+    let mut features = Vec::with_capacity(batch.num_rows());
+    for row in 0..batch.num_rows() {
+        let geometry = if geom_arr.is_null(row) {
+            None
+        } else {
+            Some(geojson::Geometry::new(wkb_decode_geom(
+                parquet_binary_value(geom_arr, row)?,
+            )?))
+        };
+        let mut properties = serde_json::Map::new();
+        for (idx, field) in schema.fields().iter().enumerate() {
+            if idx == geom_idx {
+                continue;
+            }
+            if let Some(v) = arrow_value_to_json(batch.column(idx), row, field.name())? {
+                properties.insert(field.name().clone(), v);
+            }
+        }
+        features.push(geojson::Feature {
+            bbox: None,
+            geometry,
+            id: None,
+            properties: Some(properties),
+            foreign_members: None,
+        });
+    }
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
+
+/// WKB 头部的几何类型名（只读类型码，不解析坐标）。
+fn wkb_type_name(bytes: &[u8]) -> Option<&'static str> {
+    let le = match bytes.first()? {
+        0 => false,
+        1 => true,
+        _ => return None,
+    };
+    let b: [u8; 4] = bytes.get(1..5)?.try_into().ok()?;
+    let code = if le {
+        u32::from_le_bytes(b)
+    } else {
+        u32::from_be_bytes(b)
+    };
+    Some(match code {
+        1 => "Point",
+        2 => "LineString",
+        3 => "Polygon",
+        4 => "MultiPoint",
+        5 => "MultiLineString",
+        6 => "MultiPolygon",
+        7 => "GeometryCollection",
+        _ => return None,
+    })
+}
+
+/// FeatureCollection → GeoParquet 字节串：复用统一入列的 RecordBatch，
+/// geo 元数据、geometry_types 与 bbox 由 geoparquet crate 编码器生成。
+fn collection_to_geoparquet(collection: &geojson::FeatureCollection) -> Result<Vec<u8>> {
+    use geoparquet::writer::{GeoParquetRecordBatchEncoder, GeoParquetWriterOptionsBuilder};
+    use parquet::arrow::ArrowWriter;
+
+    let batch = collection_to_batch(collection)?;
+    let schema = batch.schema();
     let options = GeoParquetWriterOptionsBuilder::default().build();
     let mut encoder = GeoParquetRecordBatchEncoder::try_new(&schema, &options)
         .map_err(|e| KanyuError::Other(format!("geoparquet 编码器构造失败: {e}")))?;
@@ -1830,10 +1936,10 @@ impl Predicate {
         Err(KanyuError::InvalidQuery(expression.to_string()))
     }
 
-    fn matches(&self, feature: &geojson::Feature) -> bool {
-        let Some(actual) = feature.properties.as_ref().and_then(|p| p.get(&self.field)) else {
-            return false;
-        };
+    /// 对单个属性 JSON 值求值（行缺失/空值由调用方短路）。
+    /// 语义与 GeoJSON 载体时代逐比特一致：双数值按 f64 数值比较，
+    /// 其余按 to_string 字典序（Eq/Ne 用 JSON 值相等）。
+    fn matches_value(&self, actual: &serde_json::Value) -> bool {
         match (actual, &self.value) {
             (serde_json::Value::Number(a), serde_json::Value::Number(b)) => {
                 let (a, b) = (
@@ -1886,7 +1992,7 @@ mod tests {
         Layer {
             id: "buildings".into(),
             format: "geojson".into(),
-            collection,
+            batch: collection_to_batch(&collection).unwrap(),
         }
     }
 
@@ -2036,7 +2142,8 @@ mod tests {
         // dbase Numeric → JSON 数值，可参与数值比较查询。
         assert_eq!(layer.query("height > 50").unwrap().features.len(), 1);
         // dbase Character → JSON 字符串。
-        let props = layer.collection().features[0].properties.as_ref().unwrap();
+        let collection = layer.collection();
+        let props = collection.features[0].properties.as_ref().unwrap();
         assert_eq!(props["name"].as_str().unwrap().trim_end(), "甲");
     }
 
@@ -2047,11 +2154,9 @@ mod tests {
         let layer = Layer::load("zones", poly_path.to_str().unwrap()).unwrap();
         assert_eq!(layer.len(), 1);
         assert_eq!(layer.summary().geometry_types, vec!["Polygon"]);
-        let geojson::Value::Polygon(rings) = &layer.collection().features[0]
-            .geometry
-            .as_ref()
-            .unwrap()
-            .value
+        let collection = layer.collection();
+        let geojson::Value::Polygon(rings) =
+            &collection.features[0].geometry.as_ref().unwrap().value
         else {
             panic!("应为 Polygon 几何");
         };
@@ -2242,11 +2347,9 @@ mod tests {
 
         let layer = Layer::load("circle", path.to_str().unwrap()).unwrap();
         assert_eq!(layer.len(), 1);
-        let geojson::Value::Polygon(rings) = &layer.collection().features[0]
-            .geometry
-            .as_ref()
-            .unwrap()
-            .value
+        let collection = layer.collection();
+        let geojson::Value::Polygon(rings) =
+            &collection.features[0].geometry.as_ref().unwrap().value
         else {
             panic!("CIRCLE 应近似为 Polygon");
         };
@@ -2334,18 +2437,16 @@ mod tests {
 
         let layer = Layer::load("hole", path.to_str().unwrap()).unwrap();
         assert_eq!(layer.len(), 1);
-        let geojson::Value::Polygon(rings) = &layer.collection().features[0]
-            .geometry
-            .as_ref()
-            .unwrap()
-            .value
+        let collection = layer.collection();
+        let geojson::Value::Polygon(rings) =
+            &collection.features[0].geometry.as_ref().unwrap().value
         else {
             panic!("应为 Polygon 几何");
         };
         // 外环 + 1 个内环（洞）：interiors 非空。
         assert_eq!(rings.len(), 2);
         assert_eq!(
-            layer.collection().features[0].properties.as_ref().unwrap()["name"],
+            collection.features[0].properties.as_ref().unwrap()["name"],
             serde_json::Value::String("带洞地块".to_string())
         );
     }
@@ -2378,5 +2479,106 @@ mod tests {
             err.to_string().contains("KMZ"),
             "错误应指出 KMZ 待集成: {err}"
         );
+    }
+
+    /// 迁移专项测试集合：属性覆盖 Int64（grade）/Float64（height，全非整数）/
+    /// Utf8（name、usage）/Boolean（active），几何 Point/LineString/Polygon。
+    fn batch_test_collection() -> geojson::FeatureCollection {
+        let gj: geojson::GeoJson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[116.39,39.90]},
+                 "properties":{"name":"甲","height":80.5,"grade":2,"usage":"office","active":true}},
+                {"type":"Feature","geometry":{"type":"LineString","coordinates":[[0,0],[1,1]]},
+                 "properties":{"name":"乙","height":30.5,"grade":1,"usage":"residential","active":false}},
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[0,4],[4,4],[4,0],[0,0]]]},
+                 "properties":{"name":"丙","height":55.5,"grade":2,"usage":"office","active":true}}
+            ]
+        }"#
+        .parse()
+        .unwrap();
+        geojson::FeatureCollection::try_from(gj).unwrap()
+    }
+
+    fn batch_test_layer() -> Layer {
+        Layer {
+            id: "batch_test".into(),
+            format: "geojson".into(),
+            batch: collection_to_batch(&batch_test_collection()).unwrap(),
+        }
+    }
+
+    #[test]
+    fn batch_schema_carries_geoarrow_metadata() {
+        let schema = batch_test_layer().batch().schema();
+        let geom = schema.field_with_name(GEOMETRY_COL).unwrap();
+        assert_eq!(geom.data_type(), &arrow_schema::DataType::Binary);
+        // geoarrow.wkb 扩展元数据（真 GeoArrow，非裸 Binary 列）。
+        assert_eq!(
+            geom.metadata().get("ARROW:extension:name"),
+            Some(&"geoarrow.wkb".to_string())
+        );
+        let ty = |name: &str| schema.field_with_name(name).unwrap().data_type().clone();
+        assert_eq!(ty("grade"), arrow_schema::DataType::Int64);
+        assert_eq!(ty("height"), arrow_schema::DataType::Float64);
+        assert_eq!(ty("name"), arrow_schema::DataType::Utf8);
+        assert_eq!(ty("active"), arrow_schema::DataType::Boolean);
+    }
+
+    #[test]
+    fn batch_roundtrip_is_lossless() {
+        let original = batch_test_collection();
+        let roundtripped = batch_to_collection(&collection_to_batch(&original).unwrap()).unwrap();
+        // 属性无一整数（height 全带小数），Double/Bool/Utf8 表示稳定，
+        // 几何坐标 f64 位级精确——全集合可字面比较。
+        assert_eq!(original, roundtripped);
+    }
+
+    #[test]
+    fn query_semantics_hold_per_column_type() {
+        let layer = batch_test_layer();
+        // Int64 列数值比较。
+        assert_eq!(layer.query("grade >= 2").unwrap().features.len(), 2);
+        // Float64 列数值比较。
+        assert_eq!(layer.query("height > 50").unwrap().features.len(), 2);
+        // Utf8 列字符串相等。
+        assert_eq!(layer.query("usage == office").unwrap().features.len(), 2);
+        // Boolean 列。
+        assert_eq!(layer.query("active == true").unwrap().features.len(), 2);
+        // 不存在的列：全部不匹配（与原语义一致）。
+        assert_eq!(layer.query("nonexist == 1").unwrap().features.len(), 0);
+    }
+
+    #[test]
+    fn batch_and_collection_views_agree() {
+        let layer = batch_test_layer();
+        let collection = layer.collection();
+        let batch = layer.batch();
+        assert_eq!(batch.num_rows(), collection.features.len());
+        // 同一行的列值与 feature 属性一致（以 height 为例）。
+        let height_idx = batch.schema().index_of("height").unwrap();
+        let heights = batch
+            .column(height_idx)
+            .as_any()
+            .downcast_ref::<arrow_array::Float64Array>()
+            .unwrap();
+        for (row, feature) in collection.features.iter().enumerate() {
+            let expected = feature
+                .properties
+                .as_ref()
+                .and_then(|p| p.get("height"))
+                .and_then(|v| v.as_f64());
+            assert_eq!(Some(heights.value(row)), expected);
+        }
+        // batch 属性列集合 == summary().fields。
+        let mut cols: Vec<String> = batch
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| f.name().clone())
+            .filter(|n| n != GEOMETRY_COL)
+            .collect();
+        cols.sort();
+        assert_eq!(cols, layer.summary().fields);
     }
 }
