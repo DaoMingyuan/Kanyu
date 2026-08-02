@@ -131,13 +131,16 @@ pub struct KanyuApp {
     mouse_data: Option<(f64, f64)>,
     show_layers_panel: bool,
     show_console: bool,
+    /// 左侧停靠区当前页签（目录 | 图层）。
+    left_tab: panels::LeftTab,
+    /// 目录面板（Catalog 文件浏览）。
+    catalog: crate::catalog::CatalogPanel,
     /// 底部停靠区当前页签（终端 | AI 对话）。
     dock_tab: panels::DockTab,
     /// AI 对话面板。
     ai_chat: crate::ai::AiChatPanel,
     /// 地图色彩模式（默认固定晨山）。
     map_theme_mode: MapThemeMode,
-    show_props_panel: bool,
     /// 终端切主题后置位，下一帧开头统一 apply_theme。
     theme_dirty: bool,
     /// 「缩放到指定图层」的一次性适配范围（覆盖 data_extent，消费后清除）。
@@ -183,10 +186,11 @@ impl KanyuApp {
             mouse_data: None,
             show_layers_panel: true,
             show_console: true,
+            left_tab: panels::LeftTab::Catalog,
+            catalog: crate::catalog::CatalogPanel::default(),
             dock_tab: panels::DockTab::Console,
             ai_chat: crate::ai::AiChatPanel::default(),
             map_theme_mode: MapThemeMode::FixedLight,
-            show_props_panel: true,
             pending_window_shot: None,
             screenshot,
             theme_dirty: false,
@@ -761,7 +765,6 @@ impl KanyuApp {
             }
             RibbonAction::ToggleLayersPanel => self.show_layers_panel = !self.show_layers_panel,
             RibbonAction::ToggleConsole => self.show_console = !self.show_console,
-            RibbonAction::TogglePropsPanel => self.show_props_panel = !self.show_props_panel,
             RibbonAction::CycleMapTheme => {
                 self.map_theme_mode = self.map_theme_mode.next();
                 self.console
@@ -930,9 +933,6 @@ impl KanyuApp {
                     entry.expanded = !entry.expanded;
                 }
             }
-            PanelAction::OpenGeneRun => {
-                self.dialogs.gene_run = Some(crate::dialogs::GeneRunState::default())
-            }
         }
     }
 
@@ -1055,21 +1055,21 @@ impl eframe::App for KanyuApp {
             self.ai_chat = ai_chat;
         }
 
-        // Contents 图层面板（左）。
+        // 左侧停靠区（目录 | 图层 双页签）。
         if self.show_layers_panel {
+            let mut left_tab = self.left_tab;
+            let mut catalog = std::mem::take(&mut self.catalog);
             let views = self.layer_views();
-            for action in panels::contents_panel(ui, &views) {
-                self.dispatch_panel_action(action);
+            let (catalog_actions, layer_actions) =
+                panels::left_dock(ui, &mut left_tab, &mut catalog, &views);
+            self.left_tab = left_tab;
+            self.catalog = catalog;
+            for action in catalog_actions {
+                match action {
+                    crate::catalog::CatalogAction::LoadFile(path) => self.open_file(&path),
+                }
             }
-        }
-
-        // 属性/基因面板（右）。
-        if self.show_props_panel {
-            let views = self.layer_views();
-            let selected = self.selected.and_then(|i| views.get(i));
-            let genes = self.gene_metas.clone();
-            let actions = panels::props_panel(ui, selected, &genes);
-            for action in actions {
+            for action in layer_actions {
                 self.dispatch_panel_action(action);
             }
         }

@@ -18,6 +18,7 @@
 mod ai;
 mod app;
 mod canvas;
+mod catalog;
 mod console;
 mod dialogs;
 mod panels;

@@ -4,11 +4,8 @@
 use eframe::egui;
 
 use crate::console::ConsolePanel;
-use crate::ui_kit::containers::BadgeLevel;
 use crate::ui_kit::icons::{self, Icon};
-use crate::ui_kit::{
-    badge, button, hint_caption, section_header, tab_strip, text, tree_row, ButtonVariant,
-};
+use crate::ui_kit::{hint_caption, tab_strip, text, tree_row};
 
 /// 面板动作（app 分派）。
 #[derive(Debug, Clone)]
@@ -23,8 +20,6 @@ pub enum PanelAction {
     SelectLayer(usize),
     /// 展开/折叠图层子节点。
     ToggleExpand(usize),
-    /// 打开运行基因对话框。
-    OpenGeneRun,
 }
 
 /// 图层条目视图数据（app 提供，面板不触碰 Layer 本体）。
@@ -71,47 +66,7 @@ fn geom_color(types: &[String]) -> egui::Color32 {
     }
 }
 
-// ===== 左侧 Contents：ArcGIS Pro 骨架目录 =====
-
-/// Contents 骨架目录面板（弃卡片式：根节点 → 图层节点（展开箭头+几何色块+
-/// 名+行尾操作）→ 几何/字段/格式子节点）。
-pub fn contents_panel(ui: &mut egui::Ui, layers: &[LayerView]) -> Vec<PanelAction> {
-    let mut actions = Vec::new();
-    egui::Panel::left("contents_panel")
-        .default_size(280.0)
-        .size_range(200.0..=480.0)
-        .show(ui, |ui| {
-            ui.add_space(6.0);
-            // 面板标题行（ArcGIS Pro 窗格标题样式）。
-            ui.horizontal(|ui| {
-                icons::icon_ui(ui, Icon::Layers, 15.0, crate::ui_kit::icons_color(ui));
-                ui.label(text::body_lg("目录").strong());
-            });
-            ui.separator();
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                // 项目根节点（骨架顶层）。
-                let (_root, _t) = tree_row(
-                    ui,
-                    0,
-                    Some(Icon::Layers),
-                    &format!("图层（{}）", layers.len()),
-                    None,
-                    |_ui| {},
-                );
-                if layers.is_empty() {
-                    ui.add_space(4.0);
-                    hint_caption(
-                        ui,
-                        "尚未加载图层：拖入数据文件，或经「主页 → 打开数据…」加载",
-                    );
-                }
-                for (i, lv) in layers.iter().enumerate() {
-                    layer_node(ui, i, lv, &mut actions);
-                }
-            });
-        });
-    actions
-}
+// ===== 图层节点（骨架目录树的图层行与子节点）=====
 
 /// 单个图层节点（含可折叠子节点）。
 fn layer_node(ui: &mut egui::Ui, index: usize, lv: &LayerView, actions: &mut Vec<PanelAction>) {
@@ -219,75 +174,77 @@ fn icon_btn(ui: &mut egui::Ui, icon: Icon, tip: &str) -> egui::Response {
     resp.on_hover_text(tip)
 }
 
-// ===== 右侧属性/基因面板 =====
+// ===== 左侧停靠区：目录 | 图层 双页签 =====
 
-/// 右侧属性/基因面板。
-pub fn props_panel(
+/// 左侧停靠区页签。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum LeftTab {
+    /// 目录（Catalog 文件浏览）。
+    Catalog = 0,
+    /// 图层（Contents 骨架目录）。
+    Layers = 1,
+}
+
+/// 左侧停靠区：页签条 + 内容区（目录与图层各自保活）。
+/// 返回（目录动作，图层面板动作）。
+pub fn left_dock(
     ui: &mut egui::Ui,
-    selected: Option<&LayerView>,
-    genes: &[GeneView],
-) -> Vec<PanelAction> {
-    let mut actions = Vec::new();
-    egui::Panel::right("props_panel")
-        .default_size(260.0)
-        .size_range(200.0..=420.0)
+    active: &mut LeftTab,
+    catalog: &mut crate::catalog::CatalogPanel,
+    layers: &[LayerView],
+) -> (Vec<crate::catalog::CatalogAction>, Vec<PanelAction>) {
+    let mut catalog_actions = Vec::new();
+    let mut layer_actions = Vec::new();
+    egui::Panel::left("left_dock")
+        .default_size(280.0)
+        .size_range(200.0..=480.0)
         .show(ui, |ui| {
             ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                icons::icon_ui(ui, Icon::Info, 15.0, crate::ui_kit::icons_color(ui));
-                ui.label(text::body_lg("属性").strong());
-            });
+            let mut idx = *active as usize;
+            tab_strip(ui, &["目录", "图层"], &mut idx);
+            *active = if idx == 0 {
+                LeftTab::Catalog
+            } else {
+                LeftTab::Layers
+            };
             ui.separator();
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                match selected {
-                    Some(lv) => {
-                        ui.label(text::body_lg(&lv.file_name).strong());
-                        ui.add_space(4.0);
-                        badge(ui, &lv.format, BadgeLevel::Stable);
-                        ui.label(text::caption(format!("{} 要素", lv.feature_count)));
-                        ui.add_space(4.0);
-                        section_header(ui, "几何类型");
-                        for g in &lv.geometry_types {
-                            ui.label(text::data(format!("  {g}")));
-                        }
-                        ui.add_space(4.0);
-                        section_header(ui, "字段清单");
-                        for f in &lv.fields {
-                            ui.label(text::data(format!("  {f}")));
-                        }
-                    }
-                    None => {
-                        hint_caption(ui, "未选中图层（点击目录中的图层名查看）");
-                    }
+            match active {
+                LeftTab::Catalog => {
+                    catalog_actions = catalog.ui(ui);
                 }
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    icons::icon_ui(ui, Icon::Gene, 15.0, crate::ui_kit::icons_color(ui));
-                    ui.label(text::body_lg(format!("基因（{}）", genes.len())).strong());
-                });
-                ui.separator();
-                if genes.is_empty() {
-                    hint_caption(ui, "未加载基因：「基因 → 热加载…」选择 .wasm 文件");
+                LeftTab::Layers => {
+                    layer_actions = layers_tree(ui, layers);
                 }
-                for g in genes {
-                    ui.horizontal(|ui| {
-                        icons::icon_ui(ui, Icon::Gene, 14.0, ui.visuals().text_color());
-                        ui.label(text::body(&g.id).strong());
-                        badge(ui, &g.version, BadgeLevel::Incubating);
-                    });
-                    ui.label(
-                        text::caption(format!("能力: {}", g.capabilities.join(", ")))
-                            .color(ui.visuals().weak_text_color()),
-                    );
-                    ui.add_space(4.0);
-                }
-                if !genes.is_empty()
-                    && button(ui, "运行基因…", ButtonVariant::Secondary, true).clicked()
-                {
-                    actions.push(PanelAction::OpenGeneRun);
-                }
-            });
+            }
         });
+    (catalog_actions, layer_actions)
+}
+
+/// Contents 骨架目录（弃卡片式：根节点 → 图层节点（展开箭头+几何色块+
+/// 名+行尾操作）→ 几何/字段/格式子节点）。
+pub fn layers_tree(ui: &mut egui::Ui, layers: &[LayerView]) -> Vec<PanelAction> {
+    let mut actions = Vec::new();
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        // 项目根节点（骨架顶层）。
+        let (_root, _t) = tree_row(
+            ui,
+            0,
+            Some(Icon::Layers),
+            &format!("图层（{}）", layers.len()),
+            None,
+            |_ui| {},
+        );
+        if layers.is_empty() {
+            ui.add_space(4.0);
+            hint_caption(
+                ui,
+                "尚未加载图层：从「目录」双击数据文件，或「主页 → 打开数据…」",
+            );
+        }
+        for (i, lv) in layers.iter().enumerate() {
+            layer_node(ui, i, lv, &mut actions);
+        }
+    });
     actions
 }
 
