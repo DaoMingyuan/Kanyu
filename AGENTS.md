@@ -50,9 +50,11 @@ cargo fmt --all
 7. **联动协议**：开工先在 [AI_SYNC.md](AI_SYNC.md) 会签簿登记，收工回记并同步状态快照；
    自我迭代只发生在 GitHub 协作层（提交/PR + CI + 审核），运行时绝不自改内核（§1.3）。
 8. **UI 组件铁律**（kanyu-shell）：新界面元素**先查 `crates/kanyu-shell/src/ui_kit/`**
-   已有组件再调用；确无组件时按 `ui_kit/mod.rs` 的分类标准（tokens/controls/containers）
+   已有组件再调用；确无组件时按 `ui_kit/mod.rs` 的分类标准（tokens/controls/containers/icons）
    新建可复用组件入 kit，禁止业务代码一次性手搓样式（色值/字号/间距只许出自
-   `theme::palette` 与 `ui_kit::tokens`）。
+   `theme::palette` 与 `ui_kit::tokens`）。UI 改动须对照 `ui_kit/mod.rs`
+   「设计审查规范」清单（design-review 技能沉淀：层级/间距/文本/色彩/交互/
+   三分离/AI slop 黑名单）。
 
 ## AI 工作流
 
