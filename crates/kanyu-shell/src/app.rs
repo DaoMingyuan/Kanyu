@@ -1,22 +1,34 @@
-//! 应用主体：TitleBar / 图层面板 / MapCanvas / StatusBar / 双主题 / 截图验证。
+//! 应用主体：Ribbon 功能区 + Contents/属性面板 + 独立终端 + MapCanvas +
+//! 双主题 + 截图验证。全部界面由 [`crate::ui_kit`] 组件与各面板模块组合。
 //!
-//! 渲染链路：可见图层合并（缓存）→ `kanyu_render::render_png`（显式视口）→
-//! tiny-skia 解码 → `egui::ColorImage` → TextureHandle。视图数学（缩放锚点 /
-//! 平移 / 坐标逆变换）全部走 [`crate::view`] 纯函数，保证画布像素与数据坐标
-//! 的线性映射不变式（见 view.rs 模块注释）。
-//!
-//! 注：eframe/egui 0.35 将 SidePanel/TopBottomPanel 统一为 [`egui::Panel`]，
-//! 且 `App::update(ctx)` 改为 `App::ui(ui)`——面板在根 ui 内依次占位。
+//! 布局（ArcGIS Pro 式）：
+//! ┌──────────────────────────────┐
+//! │ Ribbon（页签 + 命令组，86px） │
+//! ├─────────┬────────────┬───────┤
+//! │ Contents│  MapCanvas │ 属性  │
+//! │ 图层树  │            │ /基因 │
+//! ├─────────┴────────────┴───────┤
+//! │ 独立终端（可折叠，180px）      │
+//! ├──────────────────────────────┤
+//! │ StatusBar（28px）            │
+//! └──────────────────────────────┘
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
 use eframe::egui;
-use egui::{Color32, CornerRadius, Pos2, Rect, Stroke, Vec2};
 use geojson::FeatureCollection;
-use kanyu_core::{Layer, LayerSummary};
-use kanyu_render::{collection_extent, render_png, RenderOptions, Theme};
+use kanyu_core::{analysis, crs, Layer, LayerSummary};
+use kanyu_gene::{Gene, GeneHost};
+use kanyu_render::{collection_extent, render_png, render_svg, RenderOptions, StyleRule, Theme};
 
+use crate::canvas::{CanvasInput, MapCanvas};
+use crate::console::{ConsoleHost, ConsolePanel, HELP_TEXT};
+use crate::dialogs::{DialogResult, Dialogs};
+use crate::panels::{self, GeneView, LayerView, PanelAction};
+use crate::ribbon::{Ribbon, RibbonAction};
+use crate::ui_kit::sizes;
 use crate::view::{self, BBox};
 use crate::ShellArgs;
 
@@ -44,30 +56,45 @@ struct ScreenshotState {
 /// 堪舆桌面壳层应用。
 pub struct KanyuApp {
     layers: Vec<LayerEntry>,
+    /// 属性面板选中的图层索引。
+    selected: Option<usize>,
     theme: Theme,
+    ribbon: Ribbon,
+    console: ConsolePanel,
+    dialogs: Dialogs,
+    canvas: MapCanvas,
+    /// 基因宿主与注册表。
+    gene_host: GeneHost,
+    genes: HashMap<String, Gene>,
+    gene_metas: Vec<GeneView>,
     /// 当前视口（数据坐标 bbox；与画布同比例，view.rs 不变式）。
     view_bbox: Option<BBox>,
-    /// 加载后待首帧等比嵌入画布。
     needs_fit: bool,
-    /// 可见图层合并缓存（仅在加载/可见性变化时重建，平移缩放不重建）。
+    /// 可见图层合并缓存（仅在加载/可见性/增删时重建，平移缩放不重建）。
     merged: FeatureCollection,
-    /// merged 对应的可见图层数据范围。
     data_extent: Option<BBox>,
-    texture: Option<egui::TextureHandle>,
-    /// 纹理对应的物理像素尺寸（用于高分屏重渲判定）。
-    tex_px: [u32; 2],
-    render_dirty: bool,
+    /// 地图导出设置（渲染设置对话框采集）。
+    map_export_size: (u32, u32),
+    map_export_style: Option<StyleRule>,
     error_msg: Option<String>,
     status: String,
     mouse_data: Option<(f64, f64)>,
     show_layers_panel: bool,
+    show_console: bool,
+    show_props_panel: bool,
+    /// 终端切主题后置位，下一帧开头统一 apply_theme。
+    theme_dirty: bool,
+    /// 「缩放到指定图层」的一次性适配范围（覆盖 data_extent，消费后清除）。
+    fit_extent: Option<BBox>,
+    /// 窗口截图（非退出）待保存路径。
+    pending_window_shot: Option<String>,
     screenshot: Option<ScreenshotState>,
 }
 
 impl KanyuApp {
     pub fn new(cc: &eframe::CreationContext<'_>, args: ShellArgs) -> Self {
-        load_cjk_font(&cc.egui_ctx);
-        apply_theme(&cc.egui_ctx, args.theme);
+        crate::theme::load_cjk_font(&cc.egui_ctx);
+        crate::theme::apply_theme(&cc.egui_ctx, args.theme);
         let screenshot = args.screenshot.map(|out_path| ScreenshotState {
             out_path,
             start: Instant::now(),
@@ -76,7 +103,15 @@ impl KanyuApp {
         });
         let mut app = Self {
             layers: Vec::new(),
+            selected: None,
             theme: args.theme,
+            ribbon: Ribbon::default(),
+            console: ConsolePanel::default(),
+            dialogs: Dialogs::default(),
+            canvas: MapCanvas::default(),
+            gene_host: GeneHost::new().expect("wasmtime 引擎初始化失败（极少见）"),
+            genes: HashMap::new(),
+            gene_metas: Vec::new(),
             view_bbox: None,
             needs_fit: false,
             merged: FeatureCollection {
@@ -85,19 +120,39 @@ impl KanyuApp {
                 foreign_members: None,
             },
             data_extent: None,
-            texture: None,
-            tex_px: [0, 0],
-            render_dirty: true,
+            map_export_size: (1200, 800),
+            map_export_style: None,
             error_msg: None,
             status: "就绪".to_string(),
             mouse_data: None,
             show_layers_panel: true,
+            show_console: true,
+            show_props_panel: true,
+            pending_window_shot: None,
             screenshot,
+            theme_dirty: false,
+            fit_extent: None,
         };
         if let Some(path) = &args.load {
             app.open_file(Path::new(path));
         }
         app
+    }
+
+    // ===== 图层与数据现场 =====
+
+    /// 生成不重复图层 id。
+    fn unique_id(&self, base: &str) -> String {
+        if !self.layers.iter().any(|e| e.layer.id() == base) {
+            return base.to_string();
+        }
+        for n in 2.. {
+            let candidate = format!("{base}_{n}");
+            if !self.layers.iter().any(|e| e.layer.id() == candidate) {
+                return candidate;
+            }
+        }
+        unreachable!()
     }
 
     /// 加载数据文件为一个图层；失败置中文错误模态框。
@@ -111,30 +166,58 @@ impl KanyuApp {
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_else(|| id.clone());
         let path_str = path.to_string_lossy();
-        match Layer::load(id, &path_str) {
+        match Layer::load(self.unique_id(&id), &path_str) {
             Ok(layer) => {
                 let summary = layer.summary();
-                self.status = format!(
+                let msg = format!(
                     "已加载 {file_name}（{} 要素，{}）",
                     summary.feature_count, summary.format
                 );
+                self.status = msg.clone();
+                self.console.info(msg);
                 self.layers.push(LayerEntry {
                     layer,
                     summary,
                     visible: true,
                     file_name,
                 });
+                self.selected = Some(self.layers.len() - 1);
                 self.rebuild_merged();
                 self.needs_fit = true;
             }
             Err(e) => {
-                self.error_msg = Some(format!("无法打开 {file_name}\n\n{e}"));
+                let msg = format!("无法打开 {file_name}: {e}");
+                self.console.push(crate::console::LineKind::Err, &msg);
+                self.error_msg = Some(msg);
             }
         }
     }
 
-    /// 重建可见图层合并缓存与数据范围（加载/可见性切换时调用）。
-    /// 数据范围为各可见图层 bbox 的并集（view::union）。
+    /// 从内核结果集合登记新图层（分析/查询/基因产出）。
+    fn add_result_layer(
+        &mut self,
+        base_id: &str,
+        collection: FeatureCollection,
+        verb: &str,
+    ) -> String {
+        let id = self.unique_id(base_id);
+        let n = collection.features.len();
+        let layer = Layer::from_collection(id.clone(), collection);
+        let summary = layer.summary();
+        self.layers.push(LayerEntry {
+            layer,
+            summary,
+            visible: true,
+            file_name: id.clone(),
+        });
+        self.selected = Some(self.layers.len() - 1);
+        self.rebuild_merged();
+        let msg = format!("{verb} → 新图层 {id}（{n} 要素）");
+        self.status = msg.clone();
+        msg
+    }
+
+    /// 重建可见图层合并缓存与数据范围。
     fn rebuild_merged(&mut self) {
         let mut features = Vec::new();
         let mut extents = Vec::new();
@@ -153,10 +236,9 @@ impl KanyuApp {
             foreign_members: None,
         };
         self.data_extent = view::union(extents);
-        self.render_dirty = true;
+        self.canvas.dirty = true;
     }
 
-    /// 可见要素总数（状态栏）。
     fn visible_feature_count(&self) -> usize {
         self.layers
             .iter()
@@ -165,291 +247,514 @@ impl KanyuApp {
             .sum()
     }
 
-    /// 当前文件名（TitleBar 中部）：最近加载的文件。
-    fn current_file_name(&self) -> Option<&str> {
-        self.layers.last().map(|e| e.file_name.as_str())
+    fn layer_ids(&self) -> Vec<String> {
+        self.layers
+            .iter()
+            .map(|e| e.layer.id().to_string())
+            .collect()
     }
 
-    /// 切换主题：egui Visuals 与渲染主题联动。
+    fn layer_views(&self) -> Vec<LayerView> {
+        self.layers
+            .iter()
+            .map(|e| LayerView {
+                file_name: e.file_name.clone(),
+                format: e.summary.format.clone(),
+                feature_count: e.summary.feature_count,
+                geometry_types: e.summary.geometry_types.clone(),
+                fields: e.summary.fields.clone(),
+                visible: e.visible,
+            })
+            .collect()
+    }
+
+    fn find_layer(&self, id: &str) -> Result<usize, String> {
+        self.layers
+            .iter()
+            .position(|e| e.layer.id() == id)
+            .ok_or_else(|| format!("图层不存在: {id}（layers 命令查看清单）"))
+    }
+
     fn toggle_theme(&mut self, ctx: &egui::Context) {
         self.theme = match self.theme {
             Theme::Light => Theme::Dark,
             Theme::Dark => Theme::Light,
         };
-        apply_theme(ctx, self.theme);
-        self.render_dirty = true;
+        crate::theme::apply_theme(ctx, self.theme);
+        self.canvas.dirty = true;
     }
 
-    // ===== 各区域绘制 =====
+    // ===== 内核操作（对话框/终端共用） =====
 
-    fn title_bar(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("title_bar")
-            .exact_size(40.0)
-            .show(ui, |ui| {
-                ui.horizontal_centered(|ui| {
-                    ui.add_space(12.0);
-                    ui.label(egui::RichText::new("◇ 堪舆").strong().size(17.0));
-                    ui.add_space(8.0);
-                    let file = self.current_file_name().unwrap_or("未打开数据");
-                    ui.label(
-                        egui::RichText::new(file)
-                            .size(12.0)
-                            .color(ui.visuals().weak_text_color()),
-                    );
-                    let ctx = ui.ctx().clone();
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(12.0);
-                        let theme_label = match self.theme {
-                            Theme::Light => "切换到夜观星",
-                            Theme::Dark => "切换到晨山",
-                        };
-                        if ui.button(theme_label).clicked() {
-                            self.toggle_theme(&ctx);
-                        }
-                        if ui.button("打开数据…").clicked() {
-                            if let Some(path) = rfd::FileDialog::new()
-                                .add_filter("地理数据", OPEN_EXTENSIONS)
-                                .pick_file()
-                            {
-                                self.open_file(&path);
-                            }
-                        }
-                        let panel_label = if self.show_layers_panel {
-                            "收起图层面板"
-                        } else {
-                            "展开图层面板"
-                        };
-                        if ui.button(panel_label).clicked() {
-                            self.show_layers_panel = !self.show_layers_panel;
-                        }
-                    });
-                });
-            });
+    fn op_query(&mut self, id: &str, expr: &str) -> Result<String, String> {
+        let idx = self.find_layer(id)?;
+        let result = self.layers[idx]
+            .layer
+            .query(expr)
+            .map_err(|e| e.to_string())?;
+        Ok(self.add_result_layer(&format!("q_{id}"), result, &format!("query \"{expr}\"")))
     }
 
-    fn layers_panel(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::left("layers_panel")
-            .default_size(260.0)
-            .size_range(180.0..=480.0)
-            .show(ui, |ui| {
-                ui.add_space(8.0);
-                ui.heading("图层");
-                ui.separator();
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    let mut toggled = false;
-                    for entry in &mut self.layers {
-                        ui.horizontal(|ui| {
-                            if ui.checkbox(&mut entry.visible, "").changed() {
-                                toggled = true;
-                            }
-                            ui.label(egui::RichText::new(&entry.file_name).strong());
-                        });
-                        ui.indent(entry.file_name.clone(), |ui| {
-                            ui.label(format!(
-                                "{} · {} 要素",
-                                entry.summary.format, entry.summary.feature_count
-                            ));
-                            if !entry.summary.geometry_types.is_empty() {
-                                ui.label(format!(
-                                    "几何: {}",
-                                    entry.summary.geometry_types.join(", ")
-                                ));
-                            }
-                            if !entry.summary.fields.is_empty() {
-                                ui.label(format!("字段: {}", entry.summary.fields.join(", ")));
-                            }
-                        });
-                        ui.add_space(6.0);
-                    }
-                    if self.layers.is_empty() {
-                        ui.label("尚未加载图层");
-                    }
-                    if toggled {
-                        self.rebuild_merged();
-                    }
-                });
-            });
+    fn op_buffer(&mut self, id: &str, distance: f64) -> Result<String, String> {
+        let idx = self.find_layer(id)?;
+        let result = analysis::buffer(&self.layers[idx].layer.collection(), distance, 16)
+            .map_err(|e| e.to_string())?;
+        Ok(self.add_result_layer(&format!("buf_{id}"), result, &format!("buffer {distance}")))
     }
 
-    fn status_bar(&self, ui: &mut egui::Ui) {
-        egui::Panel::bottom("status_bar")
-            .exact_size(28.0)
-            .show(ui, |ui| {
-                ui.horizontal_centered(|ui| {
-                    ui.add_space(12.0);
-                    ui.label(egui::RichText::new(&self.status).size(11.5));
-                    ui.separator();
-                    let coord = match self.mouse_data {
-                        Some((x, y)) => format!("{x:.5}°E, {y:.5}°N"),
-                        None => "—".to_string(),
-                    };
-                    ui.label(
-                        egui::RichText::new(format!("坐标: {coord}"))
-                            .size(11.5)
-                            .family(egui::FontFamily::Monospace),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(12.0);
-                        ui.label(
-                            egui::RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
-                                .size(11.5),
-                        );
-                        ui.separator();
-                        ui.label(
-                            egui::RichText::new(format!("要素: {}", self.visible_feature_count()))
-                                .size(11.5),
-                        );
-                    });
-                });
-            });
+    fn op_overlay(&mut self, target: &str, overlay: &str, op: &str) -> Result<String, String> {
+        let ti = self.find_layer(target)?;
+        let oi = self.find_layer(overlay)?;
+        let op = op
+            .parse::<analysis::OverlayOp>()
+            .map_err(|e| e.to_string())?;
+        let result = analysis::overlay(
+            &self.layers[ti].layer.collection(),
+            &self.layers[oi].layer.collection(),
+            op,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(self.add_result_layer(&format!("ov_{target}"), result, "overlay"))
     }
 
-    /// 中央画布：交互（滚轮缩放 / 左键平移）→ 视图数学 → 视口重渲。
-    /// 根 ui 在面板占位后剩余的区域即画布（不套 CentralPanel，画布自绘背景）。
-    fn map_canvas(&mut self, ui: &mut egui::Ui) {
-        let rect = ui.available_rect_before_wrap();
-        let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
-        let (w, h) = (f64::from(rect.width()), f64::from(rect.height()));
-        if w < 1.0 || h < 1.0 {
-            return;
-        }
-        let ppp = f64::from(ui.ctx().pixels_per_point());
-        let px_w = ((rect.width() as f64 * ppp).round() as u32).clamp(1, 8192);
-        let px_h = ((rect.height() as f64 * ppp).round() as u32).clamp(1, 8192);
+    fn op_sjoin(&mut self, target: &str, join: &str, predicate: &str) -> Result<String, String> {
+        let ti = self.find_layer(target)?;
+        let ji = self.find_layer(join)?;
+        let pred = predicate
+            .parse::<analysis::SpatialPredicate>()
+            .map_err(|e| e.to_string())?;
+        let result = analysis::sjoin(
+            &self.layers[ti].layer.collection(),
+            &self.layers[ji].layer.collection(),
+            pred,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(self.add_result_layer(&format!("sj_{target}"), result, "sjoin"))
+    }
 
-        // 首帧 / 新加载：把数据范围等比嵌入画布。
-        if self.needs_fit {
-            self.view_bbox = self.data_extent.map(|ext| view::fit_view(ext, w, h));
-            self.needs_fit = false;
-            self.render_dirty = true;
-        }
+    fn op_zonal(
+        &mut self,
+        zones: &str,
+        values: &str,
+        field: &str,
+        stats: &str,
+    ) -> Result<String, String> {
+        let zi = self.find_layer(zones)?;
+        let vi = self.find_layer(values)?;
+        let stats: Result<Vec<_>, _> = stats
+            .split(',')
+            .map(|s| s.trim().parse::<analysis::ZonalStat>())
+            .collect();
+        let stats = stats.map_err(|e: kanyu_core::KanyuError| e.to_string())?;
+        let result = analysis::zonal_stats(
+            &self.layers[zi].layer.collection(),
+            &self.layers[vi].layer.collection(),
+            field,
+            &stats,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(self.add_result_layer(&format!("zs_{zones}"), result, "zonal_stats"))
+    }
 
-        if let Some(bbox) = self.view_bbox {
-            // 画布尺寸变化：重扩边维持"视口与画布同比例"不变式。
-            if self.tex_px != [0, 0] {
-                let logical_w = f64::from(self.tex_px[0]) / ppp;
-                let logical_h = f64::from(self.tex_px[1]) / ppp;
-                if (logical_w - w).abs() > 1.0 || (logical_h - h).abs() > 1.0 {
-                    self.view_bbox = Some(view::fit_view(bbox, w, h));
-                    self.render_dirty = true;
-                }
-            }
+    fn op_measure(&self, id: &str, kind: &str) -> Result<String, String> {
+        let idx = self.find_layer(id)?;
+        let kind = kind
+            .parse::<crs::MeasureKind>()
+            .map_err(|e| e.to_string())?;
+        let report =
+            crs::measure(&self.layers[idx].layer.collection(), kind).map_err(|e| e.to_string())?;
+        serde_json::to_string_pretty(&report).map_err(|e| e.to_string())
+    }
 
-            // 滚轮缩放（光标锚点为不动点）。
-            let scroll = ui.ctx().input(|i| i.smooth_scroll_delta.y);
-            if response.hovered() && scroll != 0.0 {
-                if let Some(pos) = response.hover_pos() {
-                    let anchor = view::screen_to_data(
-                        f64::from(pos.x - rect.min.x),
-                        f64::from(pos.y - rect.min.y),
-                        bbox,
-                        w,
-                        h,
-                    );
-                    let factor = (f64::from(scroll) * 0.002).exp();
-                    self.view_bbox = Some(view::zoom_at(bbox, anchor, factor));
-                    self.render_dirty = true;
-                }
-            }
+    fn op_topology(&self, id: &str) -> Result<String, String> {
+        let idx = self.find_layer(id)?;
+        let report = analysis::topology_check(
+            &self.layers[idx].layer.collection(),
+            &[analysis::TopologyRule::NoOverlap],
+        )
+        .map_err(|e| e.to_string())?;
+        serde_json::to_string_pretty(&report).map_err(|e| e.to_string())
+    }
 
-            // 左键拖拽平移（内容跟随鼠标）。
-            if response.dragged_by(egui::PointerButton::Primary) {
-                let d = response.drag_delta();
-                if d != Vec2::ZERO {
-                    self.view_bbox = Some(view::pan(bbox, f64::from(d.x), f64::from(d.y), w, h));
-                    self.render_dirty = true;
-                }
+    fn op_reproject(&mut self, id: &str, from: &str, to: &str) -> Result<String, String> {
+        let idx = self.find_layer(id)?;
+        let result = crs::reproject(&self.layers[idx].layer.collection(), from, to)
+            .map_err(|e| e.to_string())?;
+        Ok(self.add_result_layer(
+            &format!("rp_{id}"),
+            result,
+            &format!("reproject {from}→{to}"),
+        ))
+    }
+
+    fn op_export(&self, id: &str, out: &str, fmt: &str) -> Result<String, String> {
+        let idx = self.find_layer(id)?;
+        let entry = &self.layers[idx];
+        let collection = entry.layer.collection();
+        let registry = kanyu_core::FormatRegistry::builtin();
+        let caps = registry.require(fmt, "write").map_err(|e| e.to_string())?;
+        match caps.id {
+            "geojson" => std::fs::write(out, Layer::to_geojson_string(&collection))
+                .map_err(|e| e.to_string())?,
+            "csv" => std::fs::write(
+                out,
+                Layer::to_csv_string(&collection).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?,
+            "fgb" => std::fs::write(
+                out,
+                Layer::to_fgb_bytes(&collection).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?,
+            "geoparquet" => std::fs::write(
+                out,
+                Layer::to_geoparquet_bytes(&collection).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?,
+            "dxf" => std::fs::write(
+                out,
+                Layer::to_dxf_string(&collection).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?,
+            "kml" => std::fs::write(
+                out,
+                Layer::to_kml_string(&collection).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?,
+            "kmz" => std::fs::write(
+                out,
+                Layer::to_kmz_bytes(&collection).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?,
+            "shp" => Layer::write_shp(&collection, out.trim_end_matches(".shp"))
+                .map_err(|e| e.to_string())?,
+            other => {
+                return Err(format!(
+                    "格式 '{other}' 的导出在壳层未启用（driver: {}）",
+                    caps.driver
+                ))
             }
         }
+        Ok(format!(
+            "已导出 {} 要素 → {out}（{fmt}）",
+            collection.features.len()
+        ))
+    }
 
-        // 鼠标数据坐标（状态栏）。
-        self.mouse_data = match (response.hover_pos(), self.view_bbox) {
-            (Some(pos), Some(bbox)) => Some(view::screen_to_data(
-                f64::from(pos.x - rect.min.x),
-                f64::from(pos.y - rect.min.y),
-                bbox,
-                w,
-                h,
-            )),
-            _ => None,
+    fn op_gene_run(&mut self, gene_id: &str, layer_id: &str) -> Result<String, String> {
+        let idx = self.find_layer(layer_id)?;
+        let gene = self
+            .genes
+            .get(gene_id)
+            .ok_or_else(|| format!("基因未注册: {gene_id}（先「基因 → 热加载…」）"))?;
+        let result = self
+            .gene_host
+            .run(gene, &self.layers[idx].layer.collection())
+            .map_err(|e| e.to_string())?;
+        Ok(self.add_result_layer(&format!("g_{layer_id}"), result, &format!("gene {gene_id}")))
+    }
+
+    /// 地图导出（当前视图 + 渲染设置）。
+    fn op_export_map(&mut self, out: &str) -> Result<String, String> {
+        let (w, h) = self.map_export_size;
+        let opts = RenderOptions {
+            width: w,
+            height: h,
+            padding: 20.0,
+            theme: self.theme,
+            viewport: self.view_bbox,
+            style: self.map_export_style.clone(),
+            ..Default::default()
         };
+        match out.rsplit('.').next() {
+            Some("svg") => {
+                let svg = render_svg(&self.merged, &opts).map_err(|e| e.to_string())?;
+                std::fs::write(out, svg).map_err(|e| e.to_string())?;
+            }
+            Some("png") => {
+                let png = render_png(&self.merged, &opts).map_err(|e| e.to_string())?;
+                std::fs::write(out, png).map_err(|e| e.to_string())?;
+            }
+            _ => return Err(format!("输出路径须以 .png 或 .svg 结尾: {out}")),
+        }
+        Ok(format!("已导出地图 → {out}（{w}×{h}）"))
+    }
 
-        // 状态变化重渲：render_png → tiny-skia 解码 → Texture。
-        // 物理像素渲染（乘 pixels_per_point），高分屏不糊。
-        let size_changed = self.tex_px != [px_w, px_h];
-        if self.render_dirty || (size_changed && self.view_bbox.is_some()) {
-            let opts = RenderOptions {
-                width: px_w,
-                height: px_h,
-                padding: 0.0,
-                theme: self.theme,
-                viewport: self.view_bbox,
-                ..Default::default()
-            };
-            match render_png(&self.merged, &opts)
-                .map_err(|e| e.to_string())
-                .and_then(|png| {
-                    tiny_skia::Pixmap::decode_png(&png).map_err(|e| format!("PNG 解码失败: {e}"))
-                }) {
-                Ok(pixmap) => {
-                    // 渲染内核以不透明画布色铺底，像素全不透明（a=255），
-                    // 预乘与直通 RGBA 等价。
-                    let image = egui::ColorImage::from_rgba_unmultiplied(
-                        [pixmap.width() as usize, pixmap.height() as usize],
-                        pixmap.data(),
-                    );
-                    self.texture = Some(ui.ctx().load_texture(
-                        "map-canvas",
-                        image,
-                        egui::TextureOptions::LINEAR,
-                    ));
-                    self.tex_px = [px_w, px_h];
-                    self.render_dirty = false;
-                }
-                Err(e) => {
-                    self.status = format!("渲染失败: {e}");
-                    self.render_dirty = false;
+    // ===== 动作分派 =====
+
+    fn dispatch(&mut self, action: RibbonAction, ctx: &egui::Context) {
+        match action {
+            RibbonAction::OpenData => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("地理数据", OPEN_EXTENSIONS)
+                    .pick_file()
+                {
+                    self.open_file(&path);
                 }
             }
-        }
-
-        // 绘制：纹理铺满画布；空状态给中文引导。
-        let painter = ui.painter();
-        painter.rect_filled(rect, CornerRadius::ZERO, ui.visuals().extreme_bg_color);
-        if let Some(tex) = &self.texture {
-            painter.image(
-                tex.id(),
-                rect,
-                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                Color32::WHITE,
-            );
-        }
-        if self.layers.is_empty() {
-            painter.text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                "◇ 堪舆\n\n拖入数据文件，或点击右上角「打开数据…」\n支持 shp / geojson / fgb / parquet / dxf / dwg / kml / kmz / csv / tsv / xlsx",
-                egui::FontId::proportional(16.0),
-                ui.visuals().weak_text_color(),
-            );
+            RibbonAction::OpenExample => {
+                self.open_file(Path::new("examples/buildings.geojson"));
+            }
+            RibbonAction::SaveScreenshot => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("PNG 图片", &["png"])
+                    .set_file_name("kanyu.png")
+                    .save_file()
+                {
+                    self.pending_window_shot = Some(path.to_string_lossy().into_owned());
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(
+                        egui::UserData::default(),
+                    ));
+                }
+            }
+            RibbonAction::ToggleTheme => self.toggle_theme(ctx),
+            RibbonAction::LayerInfo => match self.selected {
+                Some(i) => {
+                    let s = &self.layers[i].summary;
+                    self.console.info(format!(
+                        "图层 {}: {} 要素 | 几何 {} | 字段 [{}]",
+                        s.id,
+                        s.feature_count,
+                        s.geometry_types.join(", "),
+                        s.fields.join(", ")
+                    ));
+                }
+                None => self
+                    .console
+                    .push(crate::console::LineKind::Err, "未选中图层"),
+            },
+            RibbonAction::QueryDialog => {
+                self.dialogs.query = Some(crate::dialogs::QueryState::default())
+            }
+            RibbonAction::ExportDialog => {
+                self.dialogs.export = Some(crate::dialogs::ExportState::default())
+            }
+            RibbonAction::ReprojectDialog => {
+                self.dialogs.reproject = Some(crate::dialogs::ReprojectState::default())
+            }
+            RibbonAction::BufferDialog => {
+                self.dialogs.buffer = Some(crate::dialogs::BufferState::default())
+            }
+            RibbonAction::OverlayDialog => {
+                self.dialogs.overlay = Some(crate::dialogs::OverlayState::default())
+            }
+            RibbonAction::Topology => match self.selected {
+                Some(i) => {
+                    let id = self.layers[i].layer.id().to_string();
+                    match self.op_topology(&id) {
+                        Ok(msg) => self.console.info(msg),
+                        Err(e) => self.console.push(crate::console::LineKind::Err, e),
+                    }
+                }
+                None => self
+                    .console
+                    .push(crate::console::LineKind::Err, "未选中图层"),
+            },
+            RibbonAction::SjoinDialog => {
+                self.dialogs.sjoin = Some(crate::dialogs::SjoinState::default())
+            }
+            RibbonAction::ZonalDialog => {
+                self.dialogs.zonal = Some(crate::dialogs::ZonalState::default())
+            }
+            RibbonAction::MeasureDialog => {
+                self.dialogs.measure = Some(crate::dialogs::MeasureState::default())
+            }
+            RibbonAction::RenderSettingsDialog => {
+                self.dialogs.render_settings = Some(crate::dialogs::RenderSettingsState::default())
+            }
+            RibbonAction::ExportMapDialog => {
+                self.dialogs.export_map = Some(crate::dialogs::ExportMapState::default())
+            }
+            RibbonAction::ZoomToFit => self.needs_fit = true,
+            RibbonAction::ResetView => {
+                self.view_bbox = None;
+                self.needs_fit = true;
+                self.canvas.dirty = true;
+            }
+            RibbonAction::ToggleLayersPanel => self.show_layers_panel = !self.show_layers_panel,
+            RibbonAction::ToggleConsole => self.show_console = !self.show_console,
+            RibbonAction::TogglePropsPanel => self.show_props_panel = !self.show_props_panel,
+            RibbonAction::GeneHotload => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("WASM 基因", &["wasm"])
+                    .pick_file()
+                {
+                    match self.gene_host.load(&path.to_string_lossy()) {
+                        Ok(gene) => {
+                            let meta = gene.meta().clone();
+                            let replaced = self.genes.contains_key(&meta.name);
+                            self.console.info(format!(
+                                "基因已注册: {} v{}（能力: {}{}）",
+                                meta.name,
+                                meta.version,
+                                meta.capabilities.join(", "),
+                                if replaced { "，覆盖同名" } else { "" }
+                            ));
+                            self.gene_metas.push(GeneView {
+                                id: meta.name.clone(),
+                                version: meta.version.clone(),
+                                capabilities: meta.capabilities.clone(),
+                            });
+                            self.genes.insert(meta.name.clone(), gene);
+                        }
+                        Err(e) => {
+                            self.console
+                                .push(crate::console::LineKind::Err, format!("基因校验失败: {e}"));
+                        }
+                    }
+                }
+            }
+            RibbonAction::GeneList => {
+                if self.gene_metas.is_empty() {
+                    self.console.info("（无已注册基因）");
+                } else {
+                    for g in &self.gene_metas {
+                        self.console.info(format!(
+                            "{:<24} v{:<8} [{}]",
+                            g.id,
+                            g.version,
+                            g.capabilities.join(", ")
+                        ));
+                    }
+                }
+            }
+            RibbonAction::GeneRunDialog => {
+                self.dialogs.gene_run = Some(crate::dialogs::GeneRunState::default())
+            }
+            RibbonAction::ShowHelp => self.console.info(HELP_TEXT),
+            RibbonAction::About => self.dialogs.about = true,
         }
     }
 
-    /// 打开失败：中文错误模态框。
+    fn dispatch_dialog_result(&mut self, result: DialogResult) {
+        let outcome = match result {
+            DialogResult::Query { layer, expr } => self.op_query(&layer, &expr),
+            DialogResult::Export { layer, out, fmt } => self.op_export(&layer, &out, &fmt),
+            DialogResult::Reproject { layer, from, to } => self.op_reproject(&layer, &from, &to),
+            DialogResult::Buffer { layer, distance } => self.op_buffer(&layer, distance),
+            DialogResult::Overlay {
+                target,
+                overlay,
+                op,
+            } => self.op_overlay(&target, &overlay, &op),
+            DialogResult::Sjoin {
+                target,
+                join,
+                predicate,
+            } => self.op_sjoin(&target, &join, &predicate),
+            DialogResult::Zonal {
+                zones,
+                values,
+                field,
+                stats,
+            } => self.op_zonal(&zones, &values, &field, &stats),
+            DialogResult::Measure { layer, kind } => self.op_measure(&layer, &kind),
+            DialogResult::RenderSettings {
+                width,
+                height,
+                style,
+            } => {
+                self.map_export_size = (width, height);
+                self.map_export_style = if style.trim().is_empty() {
+                    None
+                } else {
+                    match serde_json::from_str::<StyleRule>(&style) {
+                        Ok(s) => Some(s),
+                        Err(e) => {
+                            self.console.push(
+                                crate::console::LineKind::Err,
+                                format!("样式 JSON 解析失败: {e}"),
+                            );
+                            None
+                        }
+                    }
+                };
+                Ok(format!(
+                    "渲染设置已更新（{width}×{height}{}）",
+                    if self.map_export_style.is_some() {
+                        "，含符号化"
+                    } else {
+                        ""
+                    }
+                ))
+            }
+            DialogResult::ExportMap { out } => self.op_export_map(&out),
+            DialogResult::GeneRun { gene_id, layer } => self.op_gene_run(&gene_id, &layer),
+            DialogResult::Invalid { reason } => Err(reason),
+        };
+        match outcome {
+            Ok(msg) => {
+                self.status = msg.clone();
+                self.console.info(msg);
+            }
+            Err(e) => {
+                self.status = format!("失败: {e}");
+                self.console.push(crate::console::LineKind::Err, e);
+            }
+        }
+    }
+
+    fn dispatch_panel_action(&mut self, action: PanelAction) {
+        match action {
+            PanelAction::ZoomToLayer(i) => {
+                if let Some(entry) = self.layers.get(i) {
+                    if let Ok(Some(ext)) = collection_extent(&entry.layer.collection()) {
+                        self.selected = Some(i);
+                        // 下一帧以该图层范围（而非可见并集）做一次性适配。
+                        self.fit_extent = Some(ext);
+                        self.needs_fit = true;
+                    }
+                }
+            }
+            PanelAction::RemoveLayer(i) => {
+                if i < self.layers.len() {
+                    let name = self.layers[i].file_name.clone();
+                    self.layers.remove(i);
+                    if self.selected == Some(i) {
+                        self.selected = None;
+                    } else if let Some(s) = self.selected {
+                        if s > i {
+                            self.selected = Some(s - 1);
+                        }
+                    }
+                    self.console.info(format!("已移除图层 {name}"));
+                    self.rebuild_merged();
+                }
+            }
+            PanelAction::VisibilityChanged(i, _vis) => {
+                if i < self.layers.len() {
+                    self.rebuild_merged();
+                }
+            }
+            PanelAction::SelectLayer(i) => {
+                if i < self.layers.len() {
+                    self.selected = Some(i);
+                }
+            }
+            PanelAction::OpenGeneRun => {
+                self.dialogs.gene_run = Some(crate::dialogs::GeneRunState::default())
+            }
+        }
+    }
+
+    // ===== 帧处理辅助 =====
+
     fn error_modal(&mut self, ctx: &egui::Context) {
         if self.error_msg.is_none() {
             return;
         }
         let mut open = true;
-        egui::Window::new("打开失败")
+        egui::Window::new(crate::ui_kit::text::heading("打开失败"))
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
             .open(&mut open)
             .show(ctx, |ui| {
                 ui.label(self.error_msg.as_deref().unwrap_or_default());
                 ui.add_space(8.0);
-                if ui.button("确 定").clicked() {
+                if crate::ui_kit::button(ui, "确 定", crate::ui_kit::ButtonVariant::Primary, true)
+                    .clicked()
+                {
                     self.error_msg = None;
                 }
             });
@@ -458,7 +763,6 @@ impl KanyuApp {
         }
     }
 
-    /// 拖文件入窗即打开。
     fn handle_dropped_files(&mut self, ctx: &egui::Context) {
         let paths: Vec<std::path::PathBuf> = ctx.input(|i| {
             i.raw
@@ -472,20 +776,16 @@ impl KanyuApp {
         }
     }
 
-    /// 截图验证模式：延时到点后请求窗口截图，收到回图保存 PNG 并关窗。
-    /// 管线为 egui 原生 `ViewportCommand::Screenshot` → `Event::Screenshot`
-    ///（eframe wgpu 集成在渲染后读回交换链），截取真实窗口全部内容。
-    /// 截图模式下每帧 `request_repaint()` 保持帧流（交互模式不调用本函数）。
-    fn handle_screenshot(&mut self, ctx: &egui::Context) {
-        let Some(shot) = &mut self.screenshot else {
-            return;
-        };
-        ctx.request_repaint();
-        if !shot.requested && shot.start.elapsed() >= shot.delay {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
-            shot.requested = true;
+    /// 窗口截图（验证模式退出 / 常规保存不退出共用回图通道）。
+    fn handle_screenshots(&mut self, ctx: &egui::Context) {
+        // 验证模式：保持帧流并按延时触发。
+        if let Some(shot) = &mut self.screenshot {
+            ctx.request_repaint();
+            if !shot.requested && shot.start.elapsed() >= shot.delay {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+                shot.requested = true;
+            }
         }
-
         let mut image = None;
         ctx.input(|i| {
             for ev in &i.events {
@@ -494,18 +794,25 @@ impl KanyuApp {
                 }
             }
         });
-        // 注意：`self.screenshot.take()` 只在收到回图后执行
-        //（放进 if-let 元组会每帧无条件求值，提前吞掉状态）。
         if let Some(img) = image {
-            let shot = self.screenshot.take().unwrap_or_else(|| unreachable!());
-            match save_color_image_png(&img, &shot.out_path) {
-                Ok(()) => {
-                    println!("截图已保存: {}", shot.out_path);
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            // 验证模式优先（保存并关窗）。
+            if let Some(shot) = self.screenshot.take() {
+                match save_color_image_png(&img, &shot.out_path) {
+                    Ok(()) => {
+                        println!("截图已保存: {}", shot.out_path);
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                    Err(e) => {
+                        eprintln!("截图保存失败: {e}");
+                        std::process::exit(1);
+                    }
                 }
-                Err(e) => {
-                    eprintln!("截图保存失败: {e}");
-                    std::process::exit(1);
+            } else if let Some(path) = self.pending_window_shot.take() {
+                match save_color_image_png(&img, &path) {
+                    Ok(()) => self.console.info(format!("窗口截图已保存 → {path}")),
+                    Err(e) => self
+                        .console
+                        .push(crate::console::LineKind::Err, format!("截图保存失败: {e}")),
                 }
             }
         }
@@ -515,15 +822,172 @@ impl KanyuApp {
 impl eframe::App for KanyuApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
-        self.handle_dropped_files(&ctx);
-        self.title_bar(ui);
-        if self.show_layers_panel {
-            self.layers_panel(ui);
+        // 终端发起的主题切换在此统一应用。
+        if self.theme_dirty {
+            crate::theme::apply_theme(&ctx, self.theme);
+            self.theme_dirty = false;
         }
-        self.status_bar(ui);
-        self.map_canvas(ui);
+        self.handle_dropped_files(&ctx);
+
+        // Ribbon 功能区（顶部，86px）。
+        egui::Panel::top("ribbon")
+            .exact_size(sizes::RIBBON)
+            .show(ui, |ui| {
+                if let Some(action) = self.ribbon.ui(ui) {
+                    self.dispatch(action, &ctx);
+                }
+            });
+
+        // StatusBar（最底；先注册的 bottom 面板居最下）。
+        let span = self.view_bbox.map(|b| b[2] - b[0]);
+        let status = self.status.clone();
+        let count = self.visible_feature_count();
+        let mouse = self.mouse_data;
+        panels::status_bar(ui, &status, mouse, count, span);
+
+        // 独立终端（可折叠底部面板）。
+        if self.show_console {
+            egui::Panel::bottom("console")
+                .default_size(sizes::CONSOLE_H)
+                .size_range(120.0..=420.0)
+                .show(ui, |ui| {
+                    crate::ui_kit::card(ui, |ui| {
+                        crate::ui_kit::section_header(ui, "终端");
+                        // console 与宿主同为 self 的字段/本体，借出后回还。
+                        let mut console = std::mem::take(&mut self.console);
+                        console.ui(ui, self);
+                        self.console = console;
+                    });
+                });
+        }
+
+        // Contents 图层面板（左）。
+        if self.show_layers_panel {
+            let views = self.layer_views();
+            for action in panels::contents_panel(ui, &views) {
+                self.dispatch_panel_action(action);
+            }
+        }
+
+        // 属性/基因面板（右）。
+        if self.show_props_panel {
+            let views = self.layer_views();
+            let selected = self.selected.and_then(|i| views.get(i));
+            let genes = self.gene_metas.clone();
+            let actions = panels::props_panel(ui, selected, &genes);
+            for action in actions {
+                self.dispatch_panel_action(action);
+            }
+        }
+
+        // 中央地图画布。
+        let out = self.canvas.ui(
+            ui,
+            CanvasInput {
+                merged: &self.merged,
+                theme: self.theme,
+                view_bbox: self.view_bbox,
+                needs_fit: self.needs_fit,
+                data_extent: self.fit_extent.or(self.data_extent),
+                style: None,
+                empty_hint: "◇ 堪舆\n\n拖入数据文件，或经「主页 → 打开数据…」\n支持 shp / geojson / fgb / parquet / dxf / dwg / kml / kmz / csv / tsv / xlsx",
+            },
+        );
+        self.view_bbox = out.view_bbox;
+        self.mouse_data = out.mouse_data;
+        if out.fit_consumed {
+            self.needs_fit = false;
+            self.fit_extent = None;
+        }
+        if let Some(e) = out.render_error {
+            self.status = e;
+        }
+
+        // 对话框与模态。
+        let layer_ids = self.layer_ids();
+        let gene_ids: Vec<String> = self.gene_metas.iter().map(|g| g.id.clone()).collect();
+        if let Some(result) = self.dialogs.ui(&ctx, &layer_ids, &gene_ids) {
+            self.dispatch_dialog_result(result);
+        }
         self.error_modal(&ctx);
-        self.handle_screenshot(&ctx);
+        self.handle_screenshots(&ctx);
+    }
+}
+
+impl ConsoleHost for KanyuApp {
+    fn host_load(&mut self, path: &str) -> Result<String, String> {
+        self.open_file(Path::new(path));
+        match self.error_msg.take() {
+            Some(e) => {
+                self.error_msg = None;
+                Err(e)
+            }
+            None => Ok(self.status.clone()),
+        }
+    }
+
+    fn host_layers(&self) -> Vec<(String, String, usize)> {
+        self.layers
+            .iter()
+            .map(|e| {
+                (
+                    e.layer.id().to_string(),
+                    e.summary.format.clone(),
+                    e.summary.feature_count,
+                )
+            })
+            .collect()
+    }
+
+    fn host_info(&self, id: &str) -> Result<String, String> {
+        let idx = self.find_layer(id)?;
+        let s = &self.layers[idx].summary;
+        Ok(format!(
+            "图层 {}: {} 要素 | 格式 {} | 几何 {} | 字段 [{}]",
+            s.id,
+            s.feature_count,
+            s.format,
+            s.geometry_types.join(", "),
+            s.fields.join(", ")
+        ))
+    }
+
+    fn host_query(&mut self, id: &str, expr: &str) -> Result<String, String> {
+        self.op_query(id, expr)
+    }
+
+    fn host_buffer(&mut self, id: &str, distance: f64) -> Result<String, String> {
+        self.op_buffer(id, distance)
+    }
+
+    fn host_measure(&self, id: &str, kind: &str) -> Result<String, String> {
+        self.op_measure(id, kind)
+    }
+
+    fn host_topology(&self, id: &str) -> Result<String, String> {
+        self.op_topology(id)
+    }
+
+    fn host_reproject(&mut self, id: &str, from: &str, to: &str) -> Result<String, String> {
+        self.op_reproject(id, from, to)
+    }
+
+    fn host_export(&self, id: &str, out: &str, fmt: &str) -> Result<String, String> {
+        self.op_export(id, out, fmt)
+    }
+
+    fn host_fit(&mut self) {
+        self.needs_fit = true;
+    }
+
+    fn host_toggle_theme(&mut self) {
+        self.theme = match self.theme {
+            Theme::Light => Theme::Dark,
+            Theme::Dark => Theme::Light,
+        };
+        // 终端路径无 ctx：标记待应用，下一帧 ui() 开头统一 apply_theme。
+        self.theme_dirty = true;
+        self.canvas.dirty = true;
     }
 }
 
@@ -546,116 +1010,4 @@ fn save_color_image_png(image: &egui::ColorImage, out_path: &str) -> Result<(), 
         .encode_png()
         .map_err(|e| format!("PNG 编码失败: {e}"))?;
     std::fs::write(out_path, png).map_err(|e| format!("写入 {out_path} 失败: {e}"))
-}
-
-/// egui 默认字体不含 CJK：从系统字体目录注入中文字体作为回退族
-///（Windows 微软雅黑/黑体/宋体、macOS 苹方、Linux Noto Sans CJK）。
-fn load_cjk_font(ctx: &egui::Context) {
-    let candidates: &[&str] = if cfg!(windows) {
-        &[
-            r"C:\Windows\Fonts\msyh.ttc",
-            r"C:\Windows\Fonts\Noto Sans SC (TrueType).otf",
-            r"C:\Windows\Fonts\simhei.ttf",
-            r"C:\Windows\Fonts\simsun.ttc",
-        ]
-    } else if cfg!(target_os = "macos") {
-        &[
-            "/System/Library/Fonts/PingFang.ttc",
-            "/System/Library/Fonts/STHeiti Light.ttc",
-        ]
-    } else {
-        &[
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-        ]
-    };
-    let Some((path, bytes)) = candidates
-        .iter()
-        .find_map(|p| std::fs::read(p).ok().map(|b| (*p, b)))
-    else {
-        eprintln!("警告：未找到系统中文字体，中文可能无法显示");
-        return;
-    };
-    let mut fonts = egui::FontDefinitions::default();
-    fonts
-        .font_data
-        .insert("cjk".to_string(), egui::FontData::from_owned(bytes).into());
-    for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-        fonts
-            .families
-            .entry(family)
-            .or_default()
-            .push("cjk".to_string());
-    }
-    ctx.set_fonts(fonts);
-    eprintln!("已注入中文字体: {path}");
-}
-
-/// 总规 §1.2 色板 → egui Visuals（晨山 / 夜观星）。
-fn apply_theme(ctx: &egui::Context, theme: Theme) {
-    fn rgb(hex: u32) -> Color32 {
-        Color32::from_rgb(
-            ((hex >> 16) & 0xFF) as u8,
-            ((hex >> 8) & 0xFF) as u8,
-            (hex & 0xFF) as u8,
-        )
-    }
-    let mut v = match theme {
-        Theme::Light => egui::Visuals::light(),
-        Theme::Dark => egui::Visuals::dark(),
-    };
-    // (背景主/背景次/背景三/画布/文本主/文本弱/强调/边框/悬停/按下/选中)
-    let (bg1, bg2, bg3, canvas, text, text_weak, accent, border, hover, pressed, selection) =
-        match theme {
-            // 晨山：雾白 / 纯白 / 浅灰；墨黑 / 中灰；远黛青；琥珀选中 20%。
-            Theme::Light => (
-                rgb(0xF7F5F2),
-                rgb(0xFFFFFF),
-                rgb(0xEDEAE6),
-                rgb(0xF0EDE8),
-                rgb(0x1A1A1A),
-                rgb(0x8A8A8A),
-                rgb(0x2D6A5E),
-                rgb(0xE0DDD8),
-                Color32::from_rgba_unmultiplied(0x2D, 0x6A, 0x5E, 20),
-                rgb(0xE8E5E1),
-                Color32::from_rgba_unmultiplied(0xD4, 0xA8, 0x43, 51),
-            ),
-            // 夜观星：墨夜 / 深灰蓝 / 中灰蓝；月白 / 暗灰；青玉；金珀选中 25%。
-            Theme::Dark => (
-                rgb(0x121418),
-                rgb(0x1A1D22),
-                rgb(0x23272E),
-                rgb(0x0D0F12),
-                rgb(0xE8E4DF),
-                rgb(0x6E737A),
-                rgb(0x4DB8A8),
-                rgb(0x2A2F36),
-                Color32::from_rgba_unmultiplied(0x4D, 0xB8, 0xA8, 31),
-                rgb(0x2A2F36),
-                Color32::from_rgba_unmultiplied(0xE9, 0xC4, 0x6A, 64),
-            ),
-        };
-    v.panel_fill = bg1;
-    v.window_fill = bg2;
-    v.faint_bg_color = bg3;
-    v.extreme_bg_color = canvas;
-    v.override_text_color = Some(text);
-    v.weak_text_color = Some(text_weak);
-    v.hyperlink_color = accent;
-    v.selection.bg_fill = selection;
-    v.selection.stroke = Stroke::new(1.0, accent);
-    v.widgets.noninteractive.bg_fill = bg1;
-    v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, text);
-    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, border);
-    v.widgets.inactive.bg_fill = bg3;
-    v.widgets.inactive.fg_stroke = Stroke::new(1.0, text);
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0, border);
-    v.widgets.hovered.bg_fill = hover;
-    v.widgets.hovered.fg_stroke = Stroke::new(1.5, accent);
-    v.widgets.hovered.bg_stroke = Stroke::new(1.0, accent);
-    v.widgets.active.bg_fill = pressed;
-    v.widgets.active.fg_stroke = Stroke::new(1.5, accent);
-    ctx.set_visuals(v);
 }

@@ -18,6 +18,8 @@ publish = false
 [dependencies]
 kanyu-core.workspace = true
 kanyu-render.workspace = true
+kanyu-gene.workspace = true
+serde_json.workspace = true
 eframe = { version = "0.35", default-features = false, features = [
     "accesskit",
     "default_fonts",

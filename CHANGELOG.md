@@ -25,6 +25,23 @@
   （`[minx, miny, maxx, maxy]` 数据坐标；给出时跳过集合 bbox 自动适配，
   交互壳层的缩放/平移即经此每帧传入）；`collection_extent` 公开
   （壳层设定初始视口）；非有限/倒置视口报中文错误。
+- **kanyu-shell v0.2 深度 UI 改建**（借鉴 ArcGIS Pro 分类设计与 bitfun 卡片视觉）：
+  - **`ui_kit` 设计系统**：tokens（间距/圆角/控件高/七级文本）+ controls
+    （KButton 四变体/KIconButton/KTextInput/KCombo/KCheckbox）+ containers
+    （KCard/KSectionHeader/KDialogShell/KBadge）；铁律入 AGENTS.md：先查后用、
+    无则按类新建、样式不出库。
+  - **Ribbon 功能区**（ArcGIS Pro 分类方式）：主页/数据/分析/制图/视图/基因/帮助
+    七页签 + 命令组，全部操作可达。
+  - **独立终端**（ArcGIS Python 窗口理念）：命令直达内核（load/layers/info/
+    query/buffer/measure/topology/reproject/export/fit/theme/clear/help），
+    与界面共享数据现场——终端产出的图层即刻入图层树；历史导航 ↑↓。
+  - **可停靠面板**：Contents 图层树（可见性/缩放/移除/选中联动）、
+    属性/基因右面板、状态栏（坐标/视口宽/要素数/版本）。
+  - **对话框**（地理处理窗格模式）：查询/导出/投影/缓冲/叠加/连接/分区统计/
+    度量/渲染设置/地图导出/运行基因，全部 kit 组件组合。
+  - **基因入壳**：WASM 基因热加载/清单/在图层上运行（kanyu-gene 接入 UI）。
+- **kanyu-core**：`Layer::from_collection`（分析/查询/基因产出登记为内存图层，
+  format 记为 "memory"）。
 
 ## [0.14.0] - 2026-08-03
 

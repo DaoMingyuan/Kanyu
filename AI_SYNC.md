@@ -116,3 +116,12 @@
 - 预计：大（eframe/wgpu 依赖树，release 构建 15-25 分钟）
 
 <!-- 新条目加在这行之上 -->
+### [收工] 2026-08-03 kimi-code(main) — kanyu-shell v0.2 深度 UI 改建落地
+- 提交：见本次 commit；测试：119 全绿 + clippy 零警告；验证：双主题截图人工确认（Ribbon/终端/面板/对话框齐备）
+- 内容：ui_kit 设计系统（tokens/controls/containers + 铁律入 AGENTS.md #8）；七页签 Ribbon；独立终端（内核直驱）；可停靠面板；11 类对话框；基因入壳；Layer::from_collection
+- 偏差：子代理（agent-5）因配额中断，主体由主线程完成；ribbon 组静态布局改 Vec（静态提升受限）；无其他偏差
+- 后续：GUI 安装 + 桌面快捷方式"堪舆"（本次收尾闭环）
+### [开工] 2026-08-03 kimi-code(main) — kanyu-shell v0.2 深度 UI 改建（ArcGIS Pro Ribbon + 独立终端 + bitfun 卡片视觉）
+- 范围：crates/kanyu-shell 全面重构（ribbon/panels/console/dialogs/theme 模块化）、kanyu-gene 接线入 shell、文档与会签簿
+- 依据：用户指令（借鉴 ArcGIS Pro 分类设计 + 独立终端 + bitfun 设计思路）；总规第二部分
+- 预计：大（约 1500+ 行新代码）

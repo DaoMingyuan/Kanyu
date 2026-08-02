@@ -3139,8 +3139,10 @@ dependencies = [
  "eframe",
  "geojson",
  "kanyu-core",
+ "kanyu-gene",
  "kanyu-render",
  "rfd",
+ "serde_json",
  "tiny-skia",
 ]
 

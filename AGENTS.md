@@ -29,6 +29,7 @@ cargo fmt --all
 | `crates/kanyu-render/` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG，晨山/夜观星主题） |
 | `crates/kanyu-gene/` | 基因：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额） |
 | `crates/kanyu-cli/` | `kanyu` 命令行（clap derive） |
+| `crates/kanyu-shell/` | 桌面壳层（egui）：Ribbon/面板/终端/画布；**`src/ui_kit/` = UI 组件规范库** |
 | `crates/kanyu-mcp/` | MCP Server（rmcp 3.x，stdio + streamable HTTP，SEP-2663 长任务） |
 | `crates/kanyu-shell/` | 壳层：egui 桌面 UI（TitleBar/图层面板/MapCanvas/StatusBar/双主题，截图验证模式） |
 | `docs/` | 总规 + 架构/API/SDK/MCP/CLI 文档 |
@@ -48,6 +49,10 @@ cargo fmt --all
 6. 代码注释与文档用中文；标识符用英文；提交信息用 Conventional Commits。
 7. **联动协议**：开工先在 [AI_SYNC.md](AI_SYNC.md) 会签簿登记，收工回记并同步状态快照；
    自我迭代只发生在 GitHub 协作层（提交/PR + CI + 审核），运行时绝不自改内核（§1.3）。
+8. **UI 组件铁律**（kanyu-shell）：新界面元素**先查 `crates/kanyu-shell/src/ui_kit/`**
+   已有组件再调用；确无组件时按 `ui_kit/mod.rs` 的分类标准（tokens/controls/containers）
+   新建可复用组件入 kit，禁止业务代码一次性手搓样式（色值/字号/间距只许出自
+   `theme::palette` 与 `ui_kit::tokens`）。
 
 ## AI 工作流
 

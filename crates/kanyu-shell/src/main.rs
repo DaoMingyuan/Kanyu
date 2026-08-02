@@ -16,6 +16,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod canvas;
+mod console;
+mod dialogs;
+mod panels;
+mod ribbon;
+mod theme;
+mod ui_kit;
 mod view;
 
 use eframe::egui;

@@ -88,6 +88,16 @@ impl Layer {
         })
     }
 
+    /// 从内存中的要素集合直接构造图层（分析/查询/基因产出的登记入口，
+    /// `format` 记为 "memory"）。
+    pub fn from_collection(id: impl Into<String>, collection: geojson::FeatureCollection) -> Self {
+        Self {
+            id: id.into(),
+            format: "memory".to_string(),
+            batch: collection_to_batch(&collection).expect("内核构造的集合必然可入列"),
+        }
+    }
+
     /// 图层标识。
     pub fn id(&self) -> &str {
         &self.id
