@@ -118,6 +118,10 @@
 - 预计：大（eframe/wgpu 依赖树，release 构建 15-25 分钟）
 
 <!-- 新条目加在这行之上 -->
+### [收工] 2026-08-03 kimi-code(main) — 项目级命名修正：基因 → 技能
+- 提交：d88820e；测试：134 全绿 + clippy 零警告；验证：attr_scaler.wasm 按 kanyu:skill/analyzer 新 ABI 重编并通过 wasm-tools 组件化校验
+- 内容：crate/类型/WIT ABI/MCP 工具（kanyu_skill_run/skill_list）/CLI 命令组（kanyu skill）/UI/全文档同步改名；历史记录不改写；AGENTS.md 依赖方向修正（render/skill ← core；cli/mcp/shell ← core+render+skill）
+- 后续：§1.1 kanyu-gene 行应改 kanyu-skill（下轮快照顺手更新）
 ### [收工] 2026-08-03 kimi-code(main) — 桌面端 MSI 安装包与 Release 同步
 - 提交：packaging/wix/kanyu.wxs（安装包即代码）；验证：MSI magic 校验 + msiexec /qn 静默安装全文件就位；Release v0.15.0 已附加 `kanyu-0.15.0-x86_64.msi`（25MB，幂等重传）并更新安装说明；README 快速开始加 MSI 路径
 - 内容：WiX v5（dotnet tool）制作用户级 MSI（免 UAC）：GUI+CLI+MCP+图标/许可，桌面「堪舆」与开始菜单快捷方式；Util 扩展 PATH 环境变量因扩展解析失败降级移除（本机手动安装已配 PATH，不影响交付）
