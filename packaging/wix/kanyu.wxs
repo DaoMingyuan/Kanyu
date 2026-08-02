@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+    
+    >
+
+  <!-- 堪舆 Kanyu 桌面端 MSI 安装包（WiX v5 源文件） -->
+  <Package Name="堪舆 Kanyu"
+           Manufacturer="DaoMingyuan (道明远)"
+           Version="0.15.0"
+           UpgradeCode="{7F3A9C21-4B6E-4D8A-9E51-2C0A1B3D5F47}"
+           Scope="perUser">
+
+    <MajorUpgrade DowngradeErrorMessage="已安装更高版本的堪舆 Kanyu，无需重复安装。" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="Main" Title="堪舆 Kanyu 桌面端" Description="GUI 壳层 + CLI + MCP 神经接口">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="Shortcuts" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <!-- 用户级 Program Files（免 UAC） -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="INSTALLFOLDER" Name="Programs\Kanyu" />
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="KanyuMenuFolder" Name="堪舆 Kanyu" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component>
+        <File Source="stage\kanyu-shell.exe" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Source="stage\kanyu.exe" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Source="stage\logo.ico" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Source="stage\README.md" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Source="stage\LICENSE-MIT" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Source="stage\LICENSE-APACHE" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="Shortcuts">
+      <Component Directory="DesktopFolder">
+        <Shortcut Id="DesktopKanyu"
+                  Name="堪舆"
+                  Target="[INSTALLFOLDER]kanyu-shell.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="kanyu.ico"
+                  Description="堪舆 Kanyu —— AI 原生地理空间操作系统" />
+        <RegistryValue Root="HKCU" Key="Software\Kanyu\Shortcuts" Name="desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Directory="KanyuMenuFolder">
+        <Shortcut Id="MenuKanyu"
+                  Name="堪舆"
+                  Target="[INSTALLFOLDER]kanyu-shell.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="kanyu.ico"
+                  Description="堪舆 Kanyu —— AI 原生地理空间操作系统" />
+        <Shortcut Id="MenuKanyuCli"
+                  Name="堪舆终端"
+                  Target="[INSTALLFOLDER]kanyu.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="kanyu.ico"
+                  IconIndex="0"
+                  Description="堪舆 CLI 与 MCP 神经接口" />
+        <RegistryValue Root="HKCU" Key="Software\Kanyu\Shortcuts" Name="menu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Icon Id="kanyu.ico" SourceFile="stage\logo.ico" />
+  </Fragment>
+</Wix>
