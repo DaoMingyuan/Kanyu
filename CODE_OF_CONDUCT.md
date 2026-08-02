@@ -29,6 +29,6 @@
 ## 执行
 
 如需报告滥用、骚扰或其他不可接受的行为，请联系项目维护者：
-**345558033@qq.com**。所有投诉都将得到及时、公正的审查。
+**daomingyuan@qq.com**。所有投诉都将得到及时、公正的审查。
 
 完整文本见 <https://www.contributor-covenant.org/zh-cn/version/2/1/code_of_conduct/>。
