@@ -1,6 +1,9 @@
 # AGENTS.md —— 堪舆 (Kanyu) 仓库
 
 > 本文件是 AI 代理在本仓库工作的"罗盘"。遵循 [agents.md](https://agents.md) 开放规范。
+>
+> **⚠️ 强制前置**：开始任何工作前，先阅读并遵守根目录 **[AI_SYNC.md](AI_SYNC.md)**
+> （长久性联动机制：开工登记、收工回记、状态快照、自我迭代边界）。
 
 ## 项目元数据
 
@@ -28,6 +31,7 @@ cargo fmt --all
 | `crates/kanyu-cli/` | `kanyu` 命令行（clap derive） |
 | `crates/kanyu-mcp/` | MCP Server（rmcp 3.x，stdio + streamable HTTP，SEP-2663 长任务） |
 | `docs/` | 总规 + 架构/API/SDK/MCP/CLI 文档 |
+| `AI_SYNC.md` | **长久性联动机制**（开工登记/收工回记/状态快照/迭代边界）——先于一切阅读 |
 | `examples/` | 示例数据（GeoJSON） |
 | `tests/` | 跨 crate 集成测试 |
 
@@ -41,6 +45,8 @@ cargo fmt --all
 4. **无 execute_code**：MCP 接口永不暴露任意代码执行工具（安全基线，见 SECURITY.md）。
 5. **无冗余文件**：新文档优先扩展现有文件；不留 `.bak`、临时输出、重复文档。
 6. 代码注释与文档用中文；标识符用英文；提交信息用 Conventional Commits。
+7. **联动协议**：开工先在 [AI_SYNC.md](AI_SYNC.md) 会签簿登记，收工回记并同步状态快照；
+   自我迭代只发生在 GitHub 协作层（提交/PR + CI + 审核），运行时绝不自改内核（§1.3）。
 
 ## AI 工作流
 

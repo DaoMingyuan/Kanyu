@@ -1125,6 +1125,11 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 
 #### Phase 5：魂 —— 自迭代（Months 13–18）
 
+> **迭代边界（2026-08-03 入规，见仓库根 AI_SYNC.md §1.3）**：堪舆灵不在用户运行时
+> 直接修改内核；自我迭代发生在 **GitHub 协作层**——所有变更经提交/PR + CI + 审核
+> 进入仓库，WASM 基因热加载是唯一免审核通道。全体迭代者（人类与 AI）经
+> AI_SYNC.md 会签簿联动。
+
 - [x] wasmtime + WIT 基因宿主（加载/校验/fuel 沙箱执行，2026-08-03）。
 - [x] DWG 原生读取（acadrust，裁决 #18；421 样本 spike → 覆盖率报告 → 进内核）。**Spike 结论（2026-08-03，143 个真实 R2000 样本 / 52 万实体）**：acadrust 0.4.1 开箱 0%（AC15 objects 段定位推断缺陷：AuxHeader 在 Handles 之后时 size 为负）；手工按 ODA 约定以 [Classes_end, Handles_start) 定位后 **143/143 打开、521,750 实体 100% 读出、0 panic、123ms/文件**；可映射六类几何 48.0%，INSERT 22.4%、MTEXT/TEXT 25.9%、HATCH 3.6%；中文双乱码形态（GBK 未按 codepage 转码 + MIF \U+XXXX 未解码）已定位修法。**定稿：acadrust + 自持补丁层（locator workaround ~40 行 + 编码层后处理）进内核，read: Partial（六类几何，INSERT/HATCH/MTEXT 跳过+计数 📋），向上游提 issue/PR。**（2026-08-03 已落地 crates/kanyu-core/src/dwg.rs）
 - [x] DWG 原生读取进内核（acadrust + 自持补丁层：AC15 locator workaround + GBK/MIF 编码层；六类几何 + TEXT/MTEXT 标注要素化 + ELLIPSE 近似；INSERT/HATCH/SPLINE 跳过+计数 📋；R2018+ 待样本复测，2026-08-03）。
