@@ -80,6 +80,10 @@ pub struct RenderOptions {
     pub background: Option<String>,
     /// 属性驱动样式规则（缺省走主题默认样式，行为与旧版一致）。
     pub style: Option<StyleRule>,
+    /// 显式视口 `[minx, miny, maxx, maxy]`（数据坐标）：给出时跳过集合
+    /// bbox 自动适配，直接以该范围等比缩放居中渲染——交互壳层（kanyu-shell）
+    /// 的缩放/平移即通过每帧传入变化后的视口实现。缺省沿用自动适配。
+    pub viewport: Option<[f64; 4]>,
 }
 
 impl Default for RenderOptions {
@@ -91,6 +95,7 @@ impl Default for RenderOptions {
             theme: Theme::Light,
             background: None,
             style: None,
+            viewport: None,
         }
     }
 }
@@ -335,6 +340,40 @@ fn compute_extent(collection: &FeatureCollection) -> Result<Option<Extent>, Rend
     Ok(ext)
 }
 
+/// 集合坐标范围 `[minx, miny, maxx, maxy]`（无几何要素返回 None；
+/// 非有限坐标报错）。交互壳层据此设定初始视口。
+pub fn collection_extent(collection: &FeatureCollection) -> Result<Option<[f64; 4]>, RenderError> {
+    Ok(compute_extent(collection)?.map(|e| [e.minx, e.miny, e.maxx, e.maxy]))
+}
+
+/// 渲染入口统一的范围来源：显式视口优先，缺省扫描集合自适应。
+fn resolve_extent(
+    collection: &FeatureCollection,
+    opts: &RenderOptions,
+) -> Result<Option<Extent>, RenderError> {
+    match opts.viewport {
+        Some([minx, miny, maxx, maxy]) => {
+            if ![minx, miny, maxx, maxy].iter().all(|v| v.is_finite()) {
+                return Err(RenderError::InvalidExtent(
+                    "显式视口含非有限坐标（NaN/Inf）".to_string(),
+                ));
+            }
+            if minx > maxx || miny > maxy {
+                return Err(RenderError::InvalidExtent(format!(
+                    "显式视口最小值大于最大值（[{minx}, {miny}, {maxx}, {maxy}]）"
+                )));
+            }
+            Ok(Some(Extent {
+                minx,
+                miny,
+                maxx,
+                maxy,
+            }))
+        }
+        None => compute_extent(collection),
+    }
+}
+
 /// 递归遍历全部坐标。
 fn visit_value(
     value: &Value,
@@ -491,7 +530,7 @@ pub fn render_svg(
 ) -> Result<String, RenderError> {
     validate_options(opts)?;
     let viewport = Viewport::new(
-        compute_extent(collection)?,
+        resolve_extent(collection, opts)?,
         opts.width,
         opts.height,
         opts.padding,
@@ -643,7 +682,7 @@ pub fn render_png(
 
     validate_options(opts)?;
     let viewport = Viewport::new(
-        compute_extent(collection)?,
+        resolve_extent(collection, opts)?,
         opts.width,
         opts.height,
         opts.padding,
@@ -940,6 +979,47 @@ mod tests {
             "宽扁数据应垂直居中: {:?}",
             viewport
         );
+    }
+
+    #[test]
+    fn collection_extent_returns_bbox_array() {
+        let ext = collection_extent(&mixed_collection()).unwrap().unwrap();
+        assert_eq!(ext, [116.39, 39.90, 116.41, 39.92]);
+        let empty = collection_from_str(r#"{"type":"FeatureCollection","features":[]}"#);
+        assert!(collection_extent(&empty).unwrap().is_none());
+    }
+
+    #[test]
+    fn explicit_viewport_shifts_content_off_canvas() {
+        // 数据在北京，显式视口放在 [0,0]-[1,1]：要素全部落在画布外，
+        // PNG 应只剩背景色（证明视口参数真实生效而非走自动适配）。
+        let opts = RenderOptions {
+            viewport: Some([0.0, 0.0, 1.0, 1.0]),
+            ..Default::default()
+        };
+        let png = render_png(&mixed_collection(), &opts).unwrap();
+        let pixmap = tiny_skia::Pixmap::decode_png(&png).unwrap();
+        assert!(pixmap.pixels().iter().all(|p| {
+            (p.red() as i16 - 0xF0).abs() <= 1
+                && (p.green() as i16 - 0xED).abs() <= 1
+                && (p.blue() as i16 - 0xE8).abs() <= 1
+        }));
+    }
+
+    #[test]
+    fn explicit_viewport_rejects_inverted_or_nan() {
+        let opts = RenderOptions {
+            viewport: Some([2.0, 0.0, 1.0, 1.0]),
+            ..Default::default()
+        };
+        let err = render_svg(&mixed_collection(), &opts).unwrap_err();
+        assert!(err.to_string().contains("最小值大于最大值"), "{err}");
+        let opts = RenderOptions {
+            viewport: Some([0.0, f64::NAN, 1.0, 1.0]),
+            ..Default::default()
+        };
+        let err = render_svg(&mixed_collection(), &opts).unwrap_err();
+        assert!(err.to_string().contains("非有限坐标"), "{err}");
     }
 
     #[test]

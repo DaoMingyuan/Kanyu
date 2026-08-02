@@ -1,0 +1,29 @@
+# kanyu-shell —— 堪舆的桌面壳层（egui 桌面 UI MVP）
+#
+# 依赖方向（AGENTS.md 约定）：shell → core + render；只做"看"
+# （加载/渲染/缩放平移/主题），查询与分析不进 UI。
+
+[package]
+name = "kanyu-shell"
+description = "Kanyu desktop shell — egui UI (TitleBar / layer panel / MapCanvas / StatusBar)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+kanyu-core.workspace = true
+kanyu-render.workspace = true
+eframe = { version = "0.35", default-features = false, features = [
+    "accesskit",
+    "default_fonts",
+    "wgpu",
+] }
+rfd = "0.17"
+geojson.workspace = true
+# 截图落盘与渲染 PNG 解码复用 render 已锁定的 tiny-skia（不引入 image crate）。
+tiny-skia.workspace = true

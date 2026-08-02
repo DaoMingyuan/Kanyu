@@ -39,7 +39,7 @@
 │  ├─ kanyu-render  眼睛（离屏渲染 tiny-skia+SVG） 🚧  │
 │  ├─ kanyu-edit    手（DCEL 拓扑编辑）               📋  │
 │  ├─ kanyu-gene    基因（wasmtime 插件宿主）       🚧  │
-│  └─ kanyu-shell   壳层（桌面 UI）                   📋  │
+│  └─ kanyu-shell   壳层（egui 桌面 UI）            🚧  │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -56,13 +56,14 @@
 | `kanyu-render` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG 光栅化，晨山/夜观星主题，属性驱动符号化 graduated/categorical）；wgpu 实时管线待壳层 | 🚧 incubating | kanyu-core |
 | `kanyu-edit` | 手：DCEL 增量拓扑编辑，Undo/Redo | 📋 planned | kanyu-core |
 | `kanyu-gene` | 基因：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）；MCP 热加载接线 📋 | 🚧 incubating | kanyu-core |
-| `kanyu-shell` | 壳层：桌面 UI（egui/slint 方向） | 📋 planned | kanyu-core |
+| `kanyu-shell` | 壳层：egui 桌面 UI MVP（eframe/wgpu 窗口；TitleBar/图层面板/MapCanvas 视口缩放平移/StatusBar；晨山/夜观星双主题；`--screenshot` 截图验证） | 🚧 incubating | kanyu-core, kanyu-render |
 
 依赖规则（编译期强制，review 时核对）：
 
 - `kanyu-core` **不依赖任何兄弟 crate**，是依赖图的根。所有能力下沉到 core，
   cli/mcp 只是"薄壳"：解析参数 → 调 core → 格式化输出。
-- `kanyu-render`/`kanyu-gene` 只依赖 core；cli/mcp 依赖 core+render+gene。
+- `kanyu-render`/`kanyu-gene` 只依赖 core；cli/mcp 依赖 core+render+gene；
+  shell 依赖 core+render（只做"看"：加载/渲染/缩放平移/主题，查询与分析不进 UI）。
 - 兄弟 crate 之间禁止横向依赖（如 mcp 不得依赖 cli）。
 - 该清单的单一事实来源是 `introspect::modules()`（kanyu-core/src/introspect.rs），
   `kanyu introspect` 与 `kanyu_system_introspect` 工具的输出即由此生成。

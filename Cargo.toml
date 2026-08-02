@@ -9,6 +9,7 @@ members = [
     "crates/kanyu-mcp",
     "crates/kanyu-render",
     "crates/kanyu-gene",
+    "crates/kanyu-shell",
 ]
 
 [workspace.package]

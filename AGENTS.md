@@ -30,6 +30,7 @@ cargo fmt --all
 | `crates/kanyu-gene/` | 基因：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额） |
 | `crates/kanyu-cli/` | `kanyu` 命令行（clap derive） |
 | `crates/kanyu-mcp/` | MCP Server（rmcp 3.x，stdio + streamable HTTP，SEP-2663 长任务） |
+| `crates/kanyu-shell/` | 壳层：egui 桌面 UI（TitleBar/图层面板/MapCanvas/StatusBar/双主题，截图验证模式） |
 | `docs/` | 总规 + 架构/API/SDK/MCP/CLI 文档 |
 | `AI_SYNC.md` | **长久性联动机制**（开工登记/收工回记/状态快照/迭代边界）——先于一切阅读 |
 | `examples/` | 示例数据（GeoJSON） |
@@ -37,7 +38,7 @@ cargo fmt --all
 
 ## 不可逾越的约定
 
-1. **依赖方向**：`kanyu-core` 不依赖兄弟 crate；render/gene 依赖 core；cli/mcp 依赖 core+render+gene。
+1. **依赖方向**：`kanyu-core` 不依赖兄弟 crate；render/gene 依赖 core；cli/mcp 依赖 core+render+gene；shell 依赖 core+render。
 2. **内核零 C 依赖**：GDAL/GEOS/LibreDWG 只能以可选 feature 或 WASM 插件存在；
    默认构建必须在三大桌面平台开箱通过。
 3. **单一事实来源**：模块清单、MCP 工具清单、格式矩阵只写在 `kanyu-core` 代码中

@@ -82,8 +82,8 @@ pub fn modules() -> Vec<ModuleInfo> {
         },
         ModuleInfo {
             name: "kanyu-shell",
-            role: "壳层：桌面 UI（TitleBar/StatusBar/面板系统）",
-            status: "planned",
+            role: "壳层：egui 桌面 UI（TitleBar/图层面板/MapCanvas/StatusBar/双主题）",
+            status: "incubating",
         },
     ]
 }

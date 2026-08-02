@@ -1100,6 +1100,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 
 - [x] 离屏渲染 render_map（tiny-skia PNG + SVG 双通道，晨山/夜观星主题，2026-08-02）。
 - [x] 属性驱动符号化（graduated/categorical 样式规则，并入 render_map style 参数——裁决 #17，2026-08-02）。
+- [x] egui 壳层 MVP（kanyu-shell：eframe/wgpu 原生窗口，TitleBar/图层面板/MapCanvas/StatusBar，晨山/夜观星双主题，视口缩放平移（render 显式视口参数），`--screenshot` 截图验证，2026-08-03）。
 - [ ] wgpu 渲染管线（Vulkan/Metal/DX12/GL 一套代码；交互实时渲染，随 kanyu-shell）。
 - [ ] GeoArrow → SSBO 直通映射；视窗裁剪 + LOD 瓦片。
 - [ ] glyphon SDF 文字；亮/暗主题渲染适配（晨山/夜观星色彩系统）。

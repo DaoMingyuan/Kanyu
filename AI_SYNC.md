@@ -66,13 +66,13 @@
 | kanyu-mcp | ✅ | 17 stable 工具；stdio+streamable HTTP；SEP-2663 长任务 |
 | kanyu-gene | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/gene_run/gene_list） |
 | kanyu-cli | ✅ | 7 命令组，全局 --json；v0.14.0 已发布并安装 |
-| kanyu-shell | 📋→🚧 | egui 桌面 UI（MVP 开发中，见会签簿） |
+| kanyu-shell | 🚧 incubating | egui 桌面 UI MVP ✅（TitleBar/图层面板/MapCanvas/StatusBar/双主题/截图验证），待发布 |
 | 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
 | 上游回馈 | ✅ | acadrust issue #55（AC15 定位缺陷 + 修法 + 证据） |
 
 ### 1.2 待完成事项（优先级序）
 
-1. **桌面 UI**（kanyu-shell MVP → 打包安装，桌面图标"堪舆"）——进行中
+1. **桌面 UI**（kanyu-shell MVP ✅ 2026-08-03 → 打包安装，桌面图标"堪舆"）——打包进行中
 2. **凤鸟图标**：入库 assets/ + 快捷方式/GUI 窗口/GitHub 社会预览（待用户提供图片文件）
 3. **crates.io 发布**：六个名称可注册，待用户 cargo login（发布顺序 core→render→gene→mcp→cli）
 4. **DWG 深化**：INSERT 拆块（22.4% 实体）/ HATCH 边界 / SPLINE 采样 / R2018+ 样本复测
@@ -94,6 +94,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-03 kimi-code(agent-5) — kanyu-shell 桌面 UI MVP 落地
+- 提交：见本次 commit；测试：112 全绿（core 65/render 15/shell-view 8/mcp 6/gene 4/集成 14）；验证：fmt/clippy 零警告 + 晨山/夜观星/空状态三截图目检 + release 冒烟
+- 偏差：eframe/egui 0.35 API 大变（SidePanel 并入 egui::Panel、App::update→App::ui）已适配；修复自身截图状态机 take() 误吞状态 bug（元组无条件求值致帧流断裂）；release 构建 1m42s（远快于预估），kanyu-shell.exe 24.1MB
+- 后续：GUI 打包安装 + 桌面快捷方式「堪舆」（已同步 §1.2 #1）
+
+### [开工] 2026-08-03 kimi-code(agent-5) — kanyu-shell 桌面 UI MVP 续作（agent-3 中途失联接管）
+- 范围：crates/kanyu-shell（main.rs/app.rs 主体）、introspect、文档同步、截图验证、release 构建
+- 依据：总规第二部分 + 裁决 #5（egui 方向）；用户指令（桌面端 UI 打包安装）；承接 agent-3 现场
+  （render viewport 参数、shell Cargo.toml、view.rs 视图数学均已就绪）
+- 预计：中（主体代码 + 验证；eframe/wgpu 依赖树已在 Cargo.lock 解析）
 
 ### [收工] 2026-08-03 kimi-code(main) — 联动机制文件建立
 - 提交：见本次 commit；依据：用户指令（GitHub 长久联动机制 + 迭代边界入规）

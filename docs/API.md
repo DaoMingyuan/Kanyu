@@ -18,6 +18,7 @@
 9. [kanyu-render —— 离屏地图渲染](#9-kanyu-render--离屏地图渲染)
 10. [kanyu-gene —— WASM 基因系统宿主](#10-kanyu-gene--wasm-基因系统宿主)
 11. [dwg —— DWG 原生读取](#11-dwg--dwg-原生读取acadrust-自持补丁层)
+12. [kanyu-shell —— 桌面壳层 UI](#12-kanyu-shell--桌面壳层-ui)
 
 ## 1. crate 总览
 
@@ -336,6 +337,7 @@ PNG 经 tiny-skia 纯 Rust CPU 光栅化。色彩取自
 | `theme` | `Theme` | `Light` | `Light` 晨山 / `Dark` 夜观星（`FromStr`：`light`/`dark`） |
 | `background` | `Option<String>` | `None` | 自定义背景色 `#RRGGBB`（缺省用主题画布色） |
 | `style` | `Option<StyleRule>` | `None` | 属性驱动样式规则（缺省走主题默认样式，行为与旧版一致） |
+| `viewport` | `Option<[f64; 4]>` | `None` | 显式视口 `[minx, miny, maxx, maxy]`（数据坐标；给出时跳过集合 bbox 自动适配直接以该范围等比缩放居中——kanyu-shell 的缩放/平移即每帧传入变化后的视口；非有限或倒置报中文错误） |
 
 ### `StyleRule`
 
@@ -478,3 +480,49 @@ Phase 5 spike 结论）：
 
 `Layer::load("x.dwg")` 经 `"dwg"` arm 薄调用本模块（
 `crate::dwg::dwg_to_collection(path)?.0`）。
+
+## 12. kanyu-shell —— 桌面壳层 UI
+
+二进制 crate（`kanyu-shell`，依赖 kanyu-core + kanyu-render，无库表面；
+不发布 crates.io）。eframe/egui 0.35 + wgpu 原生窗口（1280×800 初始、
+800×500 最小，窗口图标 assets/logo-256.png 编译期嵌入）。只做"看"：
+加载 / 渲染 / 缩放平移 / 主题；查询与分析不进 UI。
+
+布局（总规 §2.1/§2.2）：TitleBar 40px（品牌 + 当前文件名 / 打开数据·
+主题切换·面板折叠）｜ 图层面板 260px（可见性勾选、格式、要素数、几何
+类型、字段清单，可折叠可拖宽 180–480）｜ MapCanvas（`render_png` 显式
+视口 → egui 纹理，状态变化重渲；滚轮光标锚点缩放、左键拖拽平移、拖
+文件入窗打开）｜ StatusBar 28px（鼠标数据坐标、可见要素总数、版本号）。
+晨山/夜观星双主题：§1.2 色板 → `egui::Visuals`，渲染 `Theme` 联动。
+egui 默认字体不含 CJK，启动时按平台注入系统字体回退族
+（Windows msyh→simhei→simsun / macOS PingFang / Linux Noto Sans CJK）。
+
+### 命令行参数（截图验证模式）
+
+```
+kanyu-shell [--load <数据文件>] [--theme light|dark]
+kanyu-shell --screenshot <out.png> [--load <file>] [--theme dark] [--delay <秒>]
+```
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--load <file>` | 无 | 启动即加载（格式自动探测，同 `Layer::load` 支持的 11 种扩展名） |
+| `--theme light\|dark` | `light` | 初始主题（晨山 / 夜观星） |
+| `--screenshot <out.png>` | 无 | 截图验证模式：延时后截取**真实窗口全部内容**（egui `ViewportCommand::Screenshot` → `Event::Screenshot` 原生管线，eframe wgpu 交换链读回）落盘 PNG 并退出；失败以码 1 退出 |
+| `--delay <秒>` | `2.0` | 截图前等待（等窗口与地图纹理就绪） |
+| `--help` / `--version` | — | 用法 / 版本号 |
+
+### 视图数学（`src/view.rs`，纯函数可单测）
+
+核心不变式：`view_bbox` 宽高比恒等于画布像素宽高比（`fit_view` 建立、
+`zoom_at` 等比维持、`pan` 平移不改比例），渲染内核收到同比例视口后
+letterbox 为零，故 `screen_to_data` 是简单线性映射（y 轴翻转）。
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `fit_view` | `fn fit_view(extent: BBox, width_px: f64, height_px: f64) -> BBox` | 数据范围以中心为准等比扩边嵌入画布比例；零跨度给 0.001° 默认视野 |
+| `zoom_at` | `fn zoom_at(bbox: BBox, anchor: (f64, f64), factor: f64) -> BBox` | 以数据锚点（鼠标处）为不动点缩放；结果经 `clamp_span` 约束到 [1e-7, 340°] 跨度 |
+| `pan` | `fn pan(bbox: BBox, dx_px: f64, dy_px: f64, width_px: f64, height_px: f64) -> BBox` | 抓取式平移：内容跟随鼠标，视口反向移动（屏幕 y 向下、数据 y 向上，符号翻转） |
+| `screen_to_data` | `fn screen_to_data(sx: f64, sy: f64, bbox: BBox, width_px: f64, height_px: f64) -> (f64, f64)` | 屏幕坐标（画布左上角原点）→ 数据坐标（状态栏坐标与缩放锚点来源） |
+| `clamp_span` | `fn clamp_span(bbox: BBox) -> BBox` | 视口跨度等比约束（防越过渲染内核零跨度防护与 >350° 拒绝域） |
+| `union` | `fn union(bboxes: impl IntoIterator<Item = BBox>) -> Option<BBox>` | 多图层 bbox 并集（初始视口的数据范围） |

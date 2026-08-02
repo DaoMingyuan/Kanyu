@@ -4,6 +4,28 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **kanyu-shell**（新 crate）：egui 桌面 UI MVP（总规 §2.1 壳-层-格）——
+  eframe/wgpu 原生窗口（标题"堪舆 Kanyu"，1280×800 初始 / 800×500 最小，
+  窗口图标 assets/logo-256.png 编译期嵌入）；TitleBar（40px：品牌+当前
+  文件名 / 打开数据（rfd，11 格式过滤器）/ 主题切换 / 面板折叠）+
+  图层面板（SidePanel 260px：可见性勾选、格式、要素数、几何类型、字段
+  清单）+ MapCanvas（`render_png` 显式视口 → egui 纹理，状态变化重渲；
+  滚轮光标锚点缩放 + 左键拖拽平移，`view.rs` 纯函数视图数学驱动
+  `RenderOptions.viewport`）+ StatusBar（28px：鼠标数据坐标、可见要素
+  总数、版本号）；晨山/夜观星双主题（§1.2 色板 → egui Visuals，渲染
+  主题联动）；拖文件入窗打开；打开失败中文错误模态框；空状态中央引导；
+  系统 CJK 字体运行时注入（egui 默认字体不含中文）。
+  截图验证模式：`kanyu-shell --screenshot <out.png> [--load <file>]
+  [--theme dark] [--delay <秒>]`——egui `ViewportCommand::Screenshot` →
+  `Event::Screenshot` 原生管线截取真实窗口内容（含 TitleBar/面板/画布/
+  状态栏）落盘后退出。
+- **kanyu-render**：`RenderOptions.viewport: Option<[f64; 4]>` 显式视口
+  （`[minx, miny, maxx, maxy]` 数据坐标；给出时跳过集合 bbox 自动适配，
+  交互壳层的缩放/平移即经此每帧传入）；`collection_extent` 公开
+  （壳层设定初始视口）；非有限/倒置视口报中文错误。
+
 ## [0.14.0] - 2026-08-03
 
 **DWG 覆盖率二轮提升：标注要素化 + 椭圆近似（再吃 ~26% 实体）。**

@@ -38,6 +38,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 - **脊髓 CLI**：`kanyu data info/load/query/export`、`kanyu introspect`、`kanyu agents init/validate`、`kanyu mcp serve`，全局 `--json`。
 - **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。
 - **离屏渲染**：`kanyu render map` / MCP `kanyu_render_map`——数据 → PNG（tiny-skia）/ SVG 地图图片，晨山/夜观星双主题，AI 代理可直接"看见"数据。
+- **桌面壳层**：`kanyu-shell`——egui 桌面 UI MVP：图层面板、地图画布（滚轮缩放/拖拽平移）、晨山/夜观星双主题、状态栏数据坐标，`--screenshot` 截图验证模式。
 - **基因热加载**：MCP `kanyu_system_hotload` / `kanyu_gene_run` / `kanyu_gene_list`——WASM 基因（wasmtime 沙箱）远程加载校验与执行，AI 代理可远程扩展内核能力。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 
@@ -49,6 +50,13 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
   <img src="docs/images/render_light.png" width="31%" alt="晨山主题" />
   <img src="docs/images/render_dark.png" width="31%" alt="夜观星主题" />
   <img src="docs/images/render_graduated.png" width="31%" alt="graduated 分级设色" />
+</p>
+
+桌面壳层 `kanyu-shell`（晨山 / 夜观星）：
+
+<p align="center">
+  <img src="docs/images/shell_light.png" width="49%" alt="kanyu-shell 晨山" />
+  <img src="docs/images/shell_dark.png" width="49%" alt="kanyu-shell 夜观星" />
 </p>
 
 ## 快速开始
@@ -110,7 +118,7 @@ kanyu mcp serve --transport http --port 3000
 │  ├─ kanyu-render 眼睛（离屏渲染 tiny-skia+SVG）🚧     │
 │  ├─ kanyu-edit   手（DCEL 拓扑编辑）    [planned]    │
 │  ├─ kanyu-gene   基因（wasmtime 插件宿主）🚧         │
-│  └─ kanyu-shell  壳层（egui 桌面 UI）   [planned]    │
+│  └─ kanyu-shell  壳层（egui 桌面 UI）   [incubating] │
 └─────────────────────────────────────────────────────┘
 ```
 
