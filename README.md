@@ -39,7 +39,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 - **脊髓 CLI**：`kanyu data info/load/query/export`、`kanyu introspect`、`kanyu agents init/validate`、`kanyu mcp serve`，全局 `--json`。
 - **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。
 - **离屏渲染**：`kanyu render map` / MCP `kanyu_render_map`——数据 → PNG（tiny-skia）/ SVG 地图图片，晨山/夜观星双主题，AI 代理可直接"看见"数据。
-- **桌面壳层**：`kanyu-shell`——ArcGIS Pro 式深度 UI：七页签 Ribbon（图标+文字+功能介绍大按钮，总规 §1.4 线性图标）、Contents 骨架目录树、独立终端 + AI 对话双页签（本地规则/OpenAI 兼容双驱动，BitFun 式设置）、地图色彩与界面主题解耦（固定晨山保制图正确）、`.kyu` 工程打开/保存、内置 `ui_kit` 设计系统，晨山/夜观星双主题。
+- **桌面壳层**：`kanyu-shell`——ArcGIS Pro 三段式功能区（QAT 快速访问栏 + 七页签 + 图标大按钮组）、QGIS 式目录浏览器树与图层工具栏、独立终端 + AI 对话双页签（本地规则/OpenAI 兼容双驱动）、Apple HIG 字体间距体系（Segoe UI + 发丝线分隔）、地图色彩与界面主题解耦（固定晨山保制图正确）、`.kyu` 工程打开/保存、内置 `ui_kit` 设计系统，晨山/夜观星双主题。
 - **基因热加载**：MCP `kanyu_system_hotload` / `kanyu_gene_run` / `kanyu_gene_list`——WASM 基因（wasmtime 沙箱）远程加载校验与执行，AI 代理可远程扩展内核能力。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 

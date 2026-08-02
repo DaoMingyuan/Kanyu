@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-03
+
+**桌面壳层落地：ArcGIS Pro 式深度 UI + 堪舆数据库/工程双格式 + AI 对话面板。**
+
 ### 新增
 
 - **kanyu-shell v0.5**（四标准设计深化：Apple HIG + QGIS + ArcGIS Pro + design-review）：
@@ -458,7 +462,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.15.0
 [0.14.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.14.0
 [0.13.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.13.0
 [0.12.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.12.0
