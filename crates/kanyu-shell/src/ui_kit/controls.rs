@@ -205,8 +205,11 @@ fn on_accent(ui: &egui::Ui) -> egui::Color32 {
     }
 }
 
-/// ArcGIS Pro 式功能区大按钮：上图标（20px）下文字（11px），
-/// 悬停显示功能介绍卡（加粗标题 + 说明正文 + 提示脚注）。
+/// ArcGIS Pro 式功能区大按钮：**图标（上，20px）、标题（下，11px）、
+/// 简介（悬停浮现卡）三分离**——简介只经鼠标悬停浮现，不挤占按钮版面。
+///
+/// 版式（数值为规范常量）：宽 68 × 高 56；图标 20px 顶部内边距 7px；
+/// 标题 11px 底部内边距 6px，图标与标题间自然呼吸间隙。
 ///
 /// ```
 /// if ribbon_button(ui, Icon::Buffer, "缓冲区", "按距离生成缓冲区", "结果存为新图层", true).clicked() { /* … */ }
@@ -219,34 +222,42 @@ pub fn ribbon_button(
     desc_body: &str,
     enabled: bool,
 ) -> Response {
+    const W: f32 = 68.0;
+    const H: f32 = 56.0;
+    const ICON: f32 = 20.0;
+    const ICON_TOP: f32 = 7.0;
+    const LABEL_BOTTOM: f32 = 6.0;
+
     let p = palette_of(ui);
     let btn = egui::Button::new("")
         .fill(egui::Color32::TRANSPARENT)
         .stroke(Stroke::NONE)
         .corner_radius(radius::SM)
-        .min_size(Vec2::new(64.0, 52.0));
+        .min_size(Vec2::new(W, H));
     let resp = ui.add_enabled(enabled, btn);
     let rect = resp.rect;
-    // 图标（上部 20px）+ 文字（底部 11px）：ArcGIS Pro 大按钮版式。
-    let icon_size = 20.0;
-    let icon_rect = egui::Rect::from_center_size(
-        egui::pos2(rect.center().x, rect.min.y + 6.0 + icon_size / 2.0),
-        Vec2::splat(icon_size),
-    );
     let color = if enabled { p.text_primary } else { p.text_weak };
+
+    // 图标（上部）。
+    let icon_rect = egui::Rect::from_center_size(
+        egui::pos2(rect.center().x, rect.min.y + ICON_TOP + ICON / 2.0),
+        Vec2::splat(ICON),
+    );
     super::icons::draw(ui.painter(), icon, icon_rect, color);
+    // 标题（底部）。
     ui.painter().text(
-        egui::pos2(rect.center().x, rect.max.y - 5.0),
+        egui::pos2(rect.center().x, rect.max.y - LABEL_BOTTOM),
         egui::Align2::CENTER_BOTTOM,
         label,
         egui::FontId::proportional(11.0),
         color,
     );
-    // 功能介绍卡（egui 原生悬停层，自动定位防遮挡）。
+    // 简介：鼠标悬停浮现卡（egui 原生悬停层，自动定位防遮挡）。
     if enabled {
         resp.clone().on_hover_ui(|ui| {
             ui.set_max_width(240.0);
             ui.label(text::body(desc_title).strong());
+            ui.add_space(2.0);
             ui.label(text::caption(desc_body));
         });
     }

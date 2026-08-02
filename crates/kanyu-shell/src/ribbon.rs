@@ -107,8 +107,6 @@ pub enum RibbonAction {
     ToggleLayersPanel,
     /// 底部停靠区显隐。
     ToggleConsole,
-    /// 属性/基因面板显隐。
-    TogglePropsPanel,
     /// 地图色彩模式循环（固定晨山 → 固定夜观星 → 跟随界面）。
     CycleMapTheme,
     // 基因
@@ -235,9 +233,8 @@ fn groups_of(tab: RibbonTab) -> Vec<Group> {
             Group {
                 name: "面板",
                 buttons: vec![
-                    btn(Icon::PanelLeft, "图层面板", RibbonAction::ToggleLayersPanel, "目录面板显隐", "左侧 Contents 骨架目录"),
+                    btn(Icon::PanelLeft, "图层面板", RibbonAction::ToggleLayersPanel, "左侧停靠区显隐", "目录 / 图层 双页签"),
                     btn(Icon::PanelBottom, "终端面板", RibbonAction::ToggleConsole, "底部停靠区显隐", "终端 / AI 对话 双页签"),
-                    btn(Icon::PanelRight, "属性面板", RibbonAction::TogglePropsPanel, "属性/基因面板显隐", "右侧属性与基因清单"),
                 ],
             },
             Group {
@@ -310,21 +307,28 @@ impl Ribbon {
                 if resp.clicked() {
                     self.active = tab;
                 }
+                ui.add_space(4.0);
             }
         });
+        ui.add_space(2.0);
         ui.separator();
-        // 命令组行：图标大按钮 + 组名（按钮在上、组名在下）。
+        ui.add_space(2.0);
+        // 命令组行：图标大按钮（按钮间距 2px）+ 组分隔（8px + 分隔线 + 8px）+
+        // 组名居中于组下方（10px 弱色）；右端留白 10px（边距即呼吸）。
         ui.horizontal(|ui| {
             ui.add_space(10.0);
             for (gi, group) in groups_of(self.active).iter().enumerate() {
                 if gi > 0 {
-                    ui.add_space(6.0);
+                    ui.add_space(8.0);
                     ui.separator();
-                    ui.add_space(6.0);
+                    ui.add_space(8.0);
                 }
                 ui.vertical(|ui| {
                     ui.horizontal(|ui| {
-                        for b in &group.buttons {
+                        for (bi, b) in group.buttons.iter().enumerate() {
+                            if bi > 0 {
+                                ui.add_space(2.0);
+                            }
                             if ribbon_button(ui, b.icon, b.label, b.desc_title, b.desc_body, true)
                                 .clicked()
                             {
@@ -332,9 +336,11 @@ impl Ribbon {
                             }
                         }
                     });
+                    // 组名：贴组左对齐（不可用居中布局——会横跨整个窗口）。
                     ui.label(text::caption(group.name).color(ui.visuals().weak_text_color()));
                 });
             }
+            ui.add_space(10.0);
         });
         action
     }

@@ -41,8 +41,8 @@ pub mod sizes {
     pub const TITLE_BAR: f32 = 40.0;
     /// 状态栏高。
     pub const STATUS_BAR: f32 = 28.0;
-    /// 功能区（ribbon）总高。
-    pub const RIBBON: f32 = 86.0;
+    /// 功能区（ribbon）总高（页签 24 + 分隔与呼吸 8 + 按钮 56 + 组名 14）。
+    pub const RIBBON: f32 = 102.0;
     /// 标准输入框宽。
     pub const INPUT_W: f32 = 240.0;
     /// 终端面板默认高。
