@@ -302,7 +302,7 @@ fn node_visual(node: &CatalogNode) -> (Icon, egui::Color32) {
         .unwrap_or_default();
     match ext.as_str() {
         "kyu" => (Icon::Info, egui::Color32::from_rgb(0xC7, 0x5B, 0x3A)),
-        "kdb" => (Icon::Gene, egui::Color32::from_rgb(0x2D, 0x6A, 0x5E)),
+        "kdb" => (Icon::Skill, egui::Color32::from_rgb(0x2D, 0x6A, 0x5E)),
         "dwg" | "dxf" => (Icon::Ruler, egui::Color32::from_rgb(0x4A, 0x7C, 0x9B)),
         _ => (Icon::Layers, egui::Color32::from_rgb(0x2D, 0x6A, 0x5E)),
     }

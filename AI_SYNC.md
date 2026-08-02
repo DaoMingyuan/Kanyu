@@ -64,7 +64,7 @@
 | 分析 | ✅ | buffer/overlay/topology/sjoin/zonal_stats/measure + EPSG 全库投影 |
 | kanyu-render | ✅ | 离屏 PNG/SVG；晨山/夜观星；graduated/categorical 符号化 |
 | kanyu-mcp | ✅ | 17 stable 工具；stdio+streamable HTTP；SEP-2663 长任务 |
-| kanyu-gene | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/gene_run/gene_list） |
+| kanyu-skill | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/skill_run/skill_list） |
 | kanyu-cli | ✅ | 7 命令组，全局 --json；v0.14.0 已发布并安装 |
 | kanyu-shell | 🚧 incubating | v0.3：ArcGIS Pro 式 Ribbon 图标大按钮（ui_kit::icons 33 枚线性图标）、Contents 骨架目录树、终端/AI 对话双页签（LocalDriver+OpenAiDriver 双驱动）、地图色彩解耦、ui_kit 设计系统 |
 | 堪舆数据库 .kdb | ✅ | 自研存档（裁决 #19）：Arrow IPC + kanyu.* 元数据，RecordBatch 直通类型保真，全格式转换接入 |
@@ -81,7 +81,7 @@
 5. **Phase 2 视界续**：wgpu 实时渲染管线（GeoArrow→SSBO）、MLT 瓦片、SDF 文字
 6. **Phase 3 手**：DCEL 增量拓扑编辑内核、Undo/Redo
 7. **Phase 4 脑**：LLM 融合（自然语言→工具调用编排）、MCP resources/prompts、GeoAnalystBench 基准
-8. **Phase 5 魂续**：基因市场、A/B 测试框架、知识库 RAG
+8. **Phase 5 魂续**：技能市场、A/B 测试框架、知识库 RAG
 9. **性能基准**：对 QGIS 的 §5.3 指标实测并公开基准报告
 10. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
 
@@ -89,7 +89,7 @@
 
 - **堪舆灵不在用户运行时直接修改内核**。自我迭代发生在 **GitHub 协作层**：
   所有变更经提交/PR 进入仓库，CI（fmt+clippy+test+deny）必须全绿，
-  内核合并须人道明远审核（现阶段）；WASM 基因热加载是唯一免审核通道
+  内核合并须人道明远审核（现阶段）；WASM 技能热加载是唯一免审核通道
   （沙箱隔离，不改内核）。
 - 任何 AI 不得删除/弱化本边界条款；修订只能以新裁决条目追加进总规 §6.1。
 
@@ -147,10 +147,10 @@
 - 后续：§1.2 待办 #1/#2 已闭环
 ### [收工] 2026-08-03 kimi-code(main) — kanyu-shell v0.2 深度 UI 改建落地
 - 提交：见本次 commit；测试：119 全绿 + clippy 零警告；验证：双主题截图人工确认（Ribbon/终端/面板/对话框齐备）
-- 内容：ui_kit 设计系统（tokens/controls/containers + 铁律入 AGENTS.md #8）；七页签 Ribbon；独立终端（内核直驱）；可停靠面板；11 类对话框；基因入壳；Layer::from_collection
+- 内容：ui_kit 设计系统（tokens/controls/containers + 铁律入 AGENTS.md #8）；七页签 Ribbon；独立终端（内核直驱）；可停靠面板；11 类对话框；技能入壳；Layer::from_collection
 - 偏差：子代理（agent-5）因配额中断，主体由主线程完成；ribbon 组静态布局改 Vec（静态提升受限）；无其他偏差
 - 后续：GUI 安装 + 桌面快捷方式"堪舆"（本次收尾闭环）
 ### [开工] 2026-08-03 kimi-code(main) — kanyu-shell v0.2 深度 UI 改建（ArcGIS Pro Ribbon + 独立终端 + bitfun 卡片视觉）
-- 范围：crates/kanyu-shell 全面重构（ribbon/panels/console/dialogs/theme 模块化）、kanyu-gene 接线入 shell、文档与会签簿
+- 范围：crates/kanyu-shell 全面重构（ribbon/panels/console/dialogs/theme 模块化）、kanyu-skill 接线入 shell、文档与会签簿
 - 依据：用户指令（借鉴 ArcGIS Pro 分类设计 + 独立终端 + bitfun 设计思路）；总规第二部分
 - 预计：大（约 1500+ 行新代码）

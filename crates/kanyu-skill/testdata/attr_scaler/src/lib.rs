@@ -1,21 +1,21 @@
-//! 堪舆样板分析基因：把每个要素的 `height` 属性乘以 2。
+//! 堪舆样板分析技能：把每个要素的 `height` 属性乘以 2。
 //!
 //! 构建（生成 ../../attr_scaler.wasm，宿主测试的 fixture）：
 //!   cargo build --target wasm32-unknown-unknown --release \
-//!     --manifest-path crates/kanyu-gene/testdata/attr_scaler/Cargo.toml
+//!     --manifest-path crates/kanyu-skill/testdata/attr_scaler/Cargo.toml
 //!   # wit-bindgen 产出核心模块，需组件化（wasmtime Component 只接受组件）：
 //!   wasm-tools component new \
-//!     crates/kanyu-gene/testdata/attr_scaler/target/wasm32-unknown-unknown/release/attr_scaler.wasm \
-//!     -o crates/kanyu-gene/testdata/attr_scaler.wasm
+//!     crates/kanyu-skill/testdata/attr_scaler/target/wasm32-unknown-unknown/release/attr_scaler.wasm \
+//!     -o crates/kanyu-skill/testdata/attr_scaler.wasm
 
 wit_bindgen::generate!({
-    world: "gene",
+    world: "skill",
     path: "../../wit",
 });
 
 struct AttrScaler;
 
-impl exports::kanyu::gene::analyzer::Guest for AttrScaler {
+impl exports::kanyu::skill::analyzer::Guest for AttrScaler {
     fn meta() -> String {
         r#"{"name":"attr_scaler","version":"0.1.0","capabilities":["analyzer"]}"#.to_string()
     }

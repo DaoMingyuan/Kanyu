@@ -40,7 +40,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 - **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。
 - **离屏渲染**：`kanyu render map` / MCP `kanyu_render_map`——数据 → PNG（tiny-skia）/ SVG 地图图片，晨山/夜观星双主题，AI 代理可直接"看见"数据。
 - **桌面壳层**：`kanyu-shell`——ArcGIS Pro 三段式功能区（QAT 快速访问栏 + 七页签 + 图标大按钮组）、QGIS 式目录浏览器树与图层工具栏、独立终端 + AI 对话双页签（本地规则/OpenAI 兼容双驱动）、Apple HIG 字体间距体系（Segoe UI + 发丝线分隔）、地图色彩与界面主题解耦（固定晨山保制图正确）、`.kyu` 工程打开/保存、内置 `ui_kit` 设计系统，晨山/夜观星双主题。
-- **基因热加载**：MCP `kanyu_system_hotload` / `kanyu_gene_run` / `kanyu_gene_list`——WASM 基因（wasmtime 沙箱）远程加载校验与执行，AI 代理可远程扩展内核能力。
+- **技能热加载**：MCP `kanyu_system_hotload` / `kanyu_skill_run` / `kanyu_skill_list`——WASM 技能（wasmtime 沙箱）远程加载校验与执行，AI 代理可远程扩展内核能力。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 
 ## 渲染效果（自家管线实拍）
@@ -127,7 +127,7 @@ kanyu mcp serve --transport http --port 3000
 │  ├─ kanyu-cli    脊髓（kanyu 命令行）                │
 │  ├─ kanyu-render 眼睛（离屏渲染 tiny-skia+SVG）🚧     │
 │  ├─ kanyu-edit   手（DCEL 拓扑编辑）    [planned]    │
-│  ├─ kanyu-gene   基因（wasmtime 插件宿主）🚧         │
+│  ├─ kanyu-skill   技能（wasmtime 插件宿主）🚧         │
 │  └─ kanyu-shell  壳层（egui 桌面 UI）   [incubating] │
 └─────────────────────────────────────────────────────┘
 ```
@@ -155,7 +155,7 @@ kanyu mcp serve --transport http --port 3000
 | Phase 2 视界 | wgpu GPU 渲染管线，GeoArrow→SSBO 直通，MLT 瓦片 | 📋 规划 |
 | Phase 3 手 | DCEL 增量拓扑编辑，Undo/Redo，属性表 | 📋 规划 |
 | Phase 4 脑 | LLM 融合、MCP tasks 长任务、代码生成→WASM 沙箱流水线 | 📋 规划 |
-| Phase 5 魂 | A/B 测试框架、基因市场、知识库 RAG、自我迭代闭环 | 📋 规划 |
+| Phase 5 魂 | A/B 测试框架、技能市场、知识库 RAG、自我迭代闭环 | 📋 规划 |
 
 完整计划与技术选型裁决（为什么用 wgpu 而不是 bgfx、为什么 GDAL 降为插件、
 DWG 为什么走 acadrust + 补丁层）见 [docs/MASTERPLAN.md](docs/MASTERPLAN.md)。
@@ -172,4 +172,4 @@ DWG 为什么走 acadrust + 补丁层）见 [docs/MASTERPLAN.md](docs/MASTERPLAN
 ---
 
 > *"天行健，君子以自强不息。"*
-> 堪舆以 GeoArrow 为血液，以 GPU 为眼，以 AI 为魂，以 WASM 为基因。
+> 堪舆以 GeoArrow 为血液，以 GPU 为眼，以 AI 为魂，以 WASM 为技能。

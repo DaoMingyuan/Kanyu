@@ -2,7 +2,7 @@
 //! （总规 §1.4 线性图标 + 悬停介绍卡）。页签内命令组细分：组内聚、组间分隔。
 //!
 //! 页签与命令组的划分即总规 §2.2.1 全局菜单的现代化落地：
-//! 主页 / 数据 / 分析 / 制图 / 视图 / 基因 / 帮助。
+//! 主页 / 数据 / 分析 / 制图 / 视图 / 技能 / 帮助。
 
 use eframe::egui;
 use egui::{RichText, Vec2};
@@ -23,8 +23,8 @@ pub enum RibbonTab {
     Cartography,
     /// 视图：相机、面板、地图色彩。
     View,
-    /// 基因：WASM 插件。
-    Gene,
+    /// 技能：WASM 插件。
+    Skill,
     /// 帮助：文档、关于。
     Help,
 }
@@ -37,7 +37,7 @@ impl RibbonTab {
         RibbonTab::Analysis,
         RibbonTab::Cartography,
         RibbonTab::View,
-        RibbonTab::Gene,
+        RibbonTab::Skill,
         RibbonTab::Help,
     ];
 
@@ -49,7 +49,7 @@ impl RibbonTab {
             RibbonTab::Analysis => "分析",
             RibbonTab::Cartography => "制图",
             RibbonTab::View => "视图",
-            RibbonTab::Gene => "基因",
+            RibbonTab::Skill => "技能",
             RibbonTab::Help => "帮助",
         }
     }
@@ -109,13 +109,13 @@ pub enum RibbonAction {
     ToggleConsole,
     /// 地图色彩模式循环（固定晨山 → 固定夜观星 → 跟随界面）。
     CycleMapTheme,
-    // 基因
-    /// 热加载 WASM 基因。
-    GeneHotload,
-    /// 基因清单（输出到终端）。
-    GeneList,
-    /// 运行基因对话框。
-    GeneRunDialog,
+    // 技能
+    /// 热加载 WASM 技能。
+    SkillHotload,
+    /// 技能清单（输出到终端）。
+    SkillList,
+    /// 运行技能对话框。
+    SkillRunDialog,
     // 帮助
     /// 命令速查（输出到终端）。
     ShowHelp,
@@ -244,12 +244,12 @@ fn groups_of(tab: RibbonTab) -> Vec<Group> {
                 ],
             },
         ],
-        RibbonTab::Gene => vec![Group {
-            name: "WASM 基因",
+        RibbonTab::Skill => vec![Group {
+            name: "WASM 技能",
             buttons: vec![
-                btn(Icon::Gene, "热加载…", RibbonAction::GeneHotload, "热加载基因", "加载并校验 .wasm 基因（wasmtime 沙箱 + fuel 配额）"),
-                btn(Icon::List, "基因清单", RibbonAction::GeneList, "基因清单", "已注册基因（输出到终端）"),
-                btn(Icon::Play, "运行基因…", RibbonAction::GeneRunDialog, "运行基因", "在选定图层上执行基因，结果存为新图层"),
+                btn(Icon::Skill, "热加载…", RibbonAction::SkillHotload, "热加载技能", "加载并校验 .wasm 技能（wasmtime 沙箱 + fuel 配额）"),
+                btn(Icon::List, "技能清单", RibbonAction::SkillList, "技能清单", "已注册技能（输出到终端）"),
+                btn(Icon::Play, "运行技能…", RibbonAction::SkillRunDialog, "运行技能", "在选定图层上执行技能，结果存为新图层"),
             ],
         }],
         RibbonTab::Help => vec![Group {
@@ -467,7 +467,7 @@ mod tests {
             RibbonAction::CycleMapTheme,
             RibbonAction::BufferDialog,
             RibbonAction::ExportMapDialog,
-            RibbonAction::GeneHotload,
+            RibbonAction::SkillHotload,
             RibbonAction::About,
         ] {
             assert!(actions.contains(&required), "动作不可达: {required:?}");

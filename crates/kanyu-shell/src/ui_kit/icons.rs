@@ -54,8 +54,8 @@ pub enum Icon {
     PanelBottom,
     /// 右面板。
     PanelRight,
-    /// WASM 基因（六边形）。
-    Gene,
+    /// WASM 技能（六边形）。
+    Skill,
     /// 清单（列表）。
     List,
     /// 运行（三角）。
@@ -341,7 +341,7 @@ pub fn draw(painter: &Painter, icon: Icon, rect: Rect, color: Color32) {
                 }
             }
         }
-        Icon::Gene => {
+        Icon::Skill => {
             // 六边形 + 内核点
             let pts: Vec<Pos2> = (0..6)
                 .map(|i| {
@@ -515,7 +515,7 @@ mod tests {
             Icon::PanelLeft,
             Icon::PanelBottom,
             Icon::PanelRight,
-            Icon::Gene,
+            Icon::Skill,
             Icon::List,
             Icon::Play,
             Icon::Help,

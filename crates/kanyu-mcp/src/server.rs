@@ -14,40 +14,40 @@ use serde::Deserialize;
 
 /// 可任务化的分析工具白名单（SEP-2663 试点：`tools/call` 的 arguments 带
 /// `"task": true` 时异步执行；其余工具忽略该键走同步路由）。
-/// `kanyu_gene_run` 同待遇（基因执行可能耗时）。
+/// `kanyu_skill_run` 同待遇（技能执行可能耗时）。
 const TASK_ELIGIBLE: [&str; 6] = [
     "kanyu_analysis_buffer",
     "kanyu_analysis_overlay",
     "kanyu_analysis_sjoin",
     "kanyu_analysis_zonal_stats",
     "kanyu_analysis_topology",
-    "kanyu_gene_run",
+    "kanyu_skill_run",
 ];
 
 /// 任务结果保留时长（10 分钟；TaskManager 惰性 TTL 清扫，重启即丢——
 /// 内存态注册表，见 docs/MCP.md §2）。
 const TASK_TTL_MS: u64 = 600_000;
 
-/// WASM 基因注册表（内存态，Clone 共享；重启即丢——与任务管理器同生命周期）。
+/// WASM 技能注册表（内存态，Clone 共享；重启即丢——与任务管理器同生命周期）。
 type GeneRegistry = std::sync::Arc<std::sync::Mutex<GeneRegistryState>>;
 
-/// 注册表状态：宿主 + 已注册基因（gene_id = meta.name）。
+/// 注册表状态：宿主 + 已注册技能（skill_id = meta.name）。
 struct GeneRegistryState {
-    host: kanyu_gene::GeneHost,
-    genes: std::collections::HashMap<String, kanyu_gene::Gene>,
+    host: kanyu_skill::SkillHost,
+    skills: std::collections::HashMap<String, kanyu_skill::Skill>,
 }
 
 /// 堪舆 MCP Server。工具调用无状态（每次调用重新加载执行）；
-/// 另持有 SEP-2663 任务管理器与 WASM 基因注册表（均内存态，Clone 共享）。
+/// 另持有 SEP-2663 任务管理器与 WASM 技能注册表（均内存态，Clone 共享）。
 #[derive(Clone)]
 pub struct KanyuServer {
     /// rmcp 工具路由表（由 #[tool_router] 宏生成并填充）。
     tool_router: ToolRouter<Self>,
     /// SEP-2663 任务管理器：spawn/TTL/协作取消（rmcp 3.1 内置）。
     task_manager: rmcp::task_manager::TaskManager,
-    /// WASM 基因注册表：hotload 校验注册 / gene_run 沙箱执行
-    /// （v0.1 基因调用在锁内串行化，注释即契约；按-names 细粒度锁 📋）。
-    genes: GeneRegistry,
+    /// WASM 技能注册表：hotload 校验注册 / skill_run 沙箱执行
+    /// （v0.1 技能调用在锁内串行化，注释即契约；按-names 细粒度锁 📋）。
+    skills: GeneRegistry,
 }
 
 /// `kanyu_data_load` 输入。
@@ -198,15 +198,15 @@ pub struct RenderMapReq {
 /// `kanyu_system_hotload` 输入。
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SystemHotloadReq {
-    /// WASM 基因文件路径（.wasm 组件；加载校验失败绝不注册——hotload 即"验证"职责）。
+    /// WASM 技能文件路径（.wasm 组件；加载校验失败绝不注册——hotload 即"验证"职责）。
     pub wasm_path: String,
 }
 
-/// `kanyu_gene_run` 输入。
+/// `kanyu_skill_run` 输入。
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct GeneRunReq {
-    /// 已注册的基因标识（基因的 meta.name，见 kanyu_system_hotload 返回的 gene_id）。
-    pub gene_id: String,
+pub struct SkillRunReq {
+    /// 已注册的技能标识（技能的 meta.name，见 kanyu_system_hotload 返回的 skill_id）。
+    pub skill_id: String,
     /// 数据文件路径。
     pub path: String,
 }
@@ -218,9 +218,9 @@ impl KanyuServer {
         Self {
             tool_router: Self::tool_router(),
             task_manager: rmcp::task_manager::TaskManager::new(),
-            genes: std::sync::Arc::new(std::sync::Mutex::new(GeneRegistryState {
-                host: kanyu_gene::GeneHost::new().expect("wasmtime 引擎初始化失败"),
-                genes: std::collections::HashMap::new(),
+            skills: std::sync::Arc::new(std::sync::Mutex::new(GeneRegistryState {
+                host: kanyu_skill::SkillHost::new().expect("wasmtime 引擎初始化失败"),
+                skills: std::collections::HashMap::new(),
             })),
         }
     }
@@ -506,61 +506,61 @@ impl KanyuServer {
         ))
     }
 
-    /// 热加载 WASM 基因。
+    /// 热加载 WASM 技能。
     #[tool(
         name = "kanyu_system_hotload",
-        description = "热加载 WASM 基因到内存注册表：编译校验 + 实例化 + 元数据校验（wasmtime 沙箱，无 WASI 导入纯计算 + fuel 配额；校验失败绝不注册），返回 gene_id 与元数据；重名覆盖旧注册"
+        description = "热加载 WASM 技能到内存注册表：编译校验 + 实例化 + 元数据校验（wasmtime 沙箱，无 WASI 导入纯计算 + fuel 配额；校验失败绝不注册），返回 skill_id 与元数据；重名覆盖旧注册"
     )]
     async fn system_hotload(
         &self,
         Parameters(req): Parameters<SystemHotloadReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
-        let mut state = self.genes.lock().map_err(|_| to_mcp("基因注册表锁中毒"))?;
-        let gene = state.host.load(&req.wasm_path).map_err(to_mcp)?;
-        let gene_id = gene.meta().name.clone();
-        let meta = gene.meta().clone();
+        let mut state = self.skills.lock().map_err(|_| to_mcp("技能注册表锁中毒"))?;
+        let skill = state.host.load(&req.wasm_path).map_err(to_mcp)?;
+        let skill_id = skill.meta().name.clone();
+        let meta = skill.meta().clone();
         // 重名覆盖旧注册（调用方经 replaced 感知）。
-        let replaced = state.genes.insert(gene_id.clone(), gene).is_some();
+        let replaced = state.skills.insert(skill_id.clone(), skill).is_some();
         Ok(Json(serde_json::json!({
-            "gene_id": gene_id,
+            "skill_id": skill_id,
             "replaced": replaced,
             "meta": meta,
         })))
     }
 
-    /// 列出已注册基因。
+    /// 列出已注册技能。
     #[tool(
-        name = "kanyu_gene_list",
-        description = "列出内存注册表中的全部 WASM 基因（gene_id/version/capabilities 快照；重启即丢，需重新 hotload）"
+        name = "kanyu_skill_list",
+        description = "列出内存注册表中的全部 WASM 技能（skill_id/version/capabilities 快照；重启即丢，需重新 hotload）"
     )]
-    async fn gene_list(&self) -> Result<Json<serde_json::Value>, McpError> {
-        let state = self.genes.lock().map_err(|_| to_mcp("基因注册表锁中毒"))?;
-        let mut genes: Vec<serde_json::Value> = state
-            .genes
+    async fn skill_list(&self) -> Result<Json<serde_json::Value>, McpError> {
+        let state = self.skills.lock().map_err(|_| to_mcp("技能注册表锁中毒"))?;
+        let mut skills: Vec<serde_json::Value> = state
+            .skills
             .values()
             .map(|g| {
                 serde_json::json!({
-                    "gene_id": g.meta().name,
+                    "skill_id": g.meta().name,
                     "version": g.meta().version,
                     "capabilities": g.meta().capabilities,
                 })
             })
             .collect();
-        genes.sort_by(|a, b| a["gene_id"].to_string().cmp(&b["gene_id"].to_string()));
-        Ok(Json(serde_json::json!({ "genes": genes })))
+        skills.sort_by(|a, b| a["skill_id"].to_string().cmp(&b["skill_id"].to_string()));
+        Ok(Json(serde_json::json!({ "skills": skills })))
     }
 
-    /// 执行已注册基因。
+    /// 执行已注册技能。
     #[tool(
-        name = "kanyu_gene_run",
-        description = "对已注册基因在数据文件上沙箱执行（FeatureCollection 进/出；fuel 配额 10 亿；未知 gene_id 报错提示先 kanyu_system_hotload；arguments 带 task:true 可异步执行），返回 GeoJSON FeatureCollection"
+        name = "kanyu_skill_run",
+        description = "对已注册技能在数据文件上沙箱执行（FeatureCollection 进/出；fuel 配额 10 亿；未知 skill_id 报错提示先 kanyu_system_hotload；arguments 带 task:true 可异步执行），返回 GeoJSON FeatureCollection"
     )]
-    async fn gene_run(
+    async fn skill_run(
         &self,
-        Parameters(req): Parameters<GeneRunReq>,
+        Parameters(req): Parameters<SkillRunReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
-        let mut state = self.genes.lock().map_err(|_| to_mcp("基因注册表锁中毒"))?;
-        gene_run_sync(&mut state, req).map(Json).map_err(to_mcp)
+        let mut state = self.skills.lock().map_err(|_| to_mcp("技能注册表锁中毒"))?;
+        skill_run_sync(&mut state, req).map(Json).map_err(to_mcp)
     }
 
     /// 校验 AGENTS.md 项目语义文件完整性。
@@ -642,9 +642,9 @@ impl ServerHandler for KanyuServer {
             }
             let mut args = request.arguments.clone().unwrap_or_default();
             args.remove("task");
-            let task = if name == "kanyu_gene_run" {
-                // 基因执行需要注册表（call_analysis_sync 为无状态分发，不含此臂）。
-                spawn_gene_run_task(&self.task_manager, self.genes.clone(), args)
+            let task = if name == "kanyu_skill_run" {
+                // 技能执行需要注册表（call_analysis_sync 为无状态分发，不含此臂）。
+                spawn_skill_run_task(&self.task_manager, self.skills.clone(), args)
             } else {
                 spawn_analysis_task(&self.task_manager, name, args)
             };
@@ -853,22 +853,22 @@ fn analysis_topology_sync(req: AnalysisTopologyReq) -> kanyu_core::Result<serde_
     serde_json::to_value(report).map_err(|e| KanyuError::Other(format!("报告序列化失败: {e}")))
 }
 
-/// 基因执行（MCP 薄壳与任务化路径共享；持注册表锁内执行——v0.1 串行化，
-/// 见 KanyuServer.genes 注释）。
-fn gene_run_sync(
+/// 技能执行（MCP 薄壳与任务化路径共享；持注册表锁内执行——v0.1 串行化，
+/// 见 KanyuServer.skills 注释）。
+fn skill_run_sync(
     state: &mut GeneRegistryState,
-    req: GeneRunReq,
+    req: SkillRunReq,
 ) -> kanyu_core::Result<serde_json::Value> {
-    let gene = state.genes.get(&req.gene_id).ok_or_else(|| {
+    let skill = state.skills.get(&req.skill_id).ok_or_else(|| {
         KanyuError::Other(format!(
-            "基因 '{}' 未注册（先用 kanyu_system_hotload 加载，或 kanyu_gene_list 查看已注册基因）",
-            req.gene_id
+            "技能 '{}' 未注册（先用 kanyu_system_hotload 加载，或 kanyu_skill_list 查看已注册技能）",
+            req.skill_id
         ))
     })?;
     let layer = Layer::load(stem_of(&req.path), &req.path)?;
     let result = state
         .host
-        .run(gene, &layer.collection())
+        .run(skill, &layer.collection())
         .map_err(|e| KanyuError::Other(e.to_string()))?;
     Ok(serde_json::json!({
         "feature_count": result.features.len(),
@@ -927,11 +927,11 @@ fn spawn_analysis_task(
     )
 }
 
-/// spawn 一个基因执行任务（call_tool 任务化路径专用；与 spawn_analysis_task
-/// 同构，但经注册表执行——阻塞在持锁的 gene_run_sync 上）。
-fn spawn_gene_run_task(
+/// spawn 一个技能执行任务（call_tool 任务化路径专用；与 spawn_analysis_task
+/// 同构，但经注册表执行——阻塞在持锁的 skill_run_sync 上）。
+fn spawn_skill_run_task(
     manager: &rmcp::task_manager::TaskManager,
-    genes: GeneRegistry,
+    skills: GeneRegistry,
     args: serde_json::Map<String, serde_json::Value>,
 ) -> Task {
     use rmcp::task_manager::{TaskExit, TaskOptions};
@@ -940,11 +940,11 @@ fn spawn_gene_run_task(
         move |_ctx| {
             Box::pin(async move {
                 match tokio::task::spawn_blocking(move || {
-                    let req: GeneRunReq = from_args(serde_json::Value::Object(args))?;
-                    let mut state = genes
+                    let req: SkillRunReq = from_args(serde_json::Value::Object(args))?;
+                    let mut state = skills
                         .lock()
-                        .map_err(|_| KanyuError::Other("基因注册表锁中毒".to_string()))?;
-                    gene_run_sync(&mut state, req)
+                        .map_err(|_| KanyuError::Other("技能注册表锁中毒".to_string()))?;
+                    skill_run_sync(&mut state, req)
                 })
                 .await
                 {
@@ -1050,7 +1050,7 @@ mod tests {
     /// attr_scaler fixture 与 buildings 示例的绝对路径（mcp 测试 cwd = crate 根）。
     const GENE_FIXTURE: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../kanyu-gene/testdata/attr_scaler.wasm"
+        "/../kanyu-skill/testdata/attr_scaler.wasm"
     );
     const BUILDINGS: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -1059,33 +1059,33 @@ mod tests {
 
     fn new_registry() -> GeneRegistry {
         std::sync::Arc::new(std::sync::Mutex::new(GeneRegistryState {
-            host: kanyu_gene::GeneHost::new().unwrap(),
-            genes: std::collections::HashMap::new(),
+            host: kanyu_skill::SkillHost::new().unwrap(),
+            skills: std::collections::HashMap::new(),
         }))
     }
 
     #[test]
-    fn hotload_register_then_gene_run_doubles_height() {
+    fn hotload_register_then_skill_run_doubles_height() {
         let registry = new_registry();
         // hotload：加载校验 + 注册（复刻 system_hotload 工具的注册语义）。
-        let (gene_id, meta) = {
+        let (skill_id, meta) = {
             let mut state = registry.lock().unwrap();
-            let gene = state.host.load(GENE_FIXTURE).unwrap();
-            let gene_id = gene.meta().name.clone();
-            let meta = gene.meta().clone();
-            assert!(state.genes.insert(gene_id.clone(), gene).is_none());
-            (gene_id, meta)
+            let skill = state.host.load(GENE_FIXTURE).unwrap();
+            let skill_id = skill.meta().name.clone();
+            let meta = skill.meta().clone();
+            assert!(state.skills.insert(skill_id.clone(), skill).is_none());
+            (skill_id, meta)
         };
-        assert_eq!(gene_id, "attr_scaler");
+        assert_eq!(skill_id, "attr_scaler");
         assert_eq!(meta.version, "0.1.0");
 
-        // gene_run：buildings.geojson 的 height 精确翻倍。
+        // skill_run：buildings.geojson 的 height 精确翻倍。
         let out = {
             let mut state = registry.lock().unwrap();
-            gene_run_sync(
+            skill_run_sync(
                 &mut state,
-                GeneRunReq {
-                    gene_id: gene_id.clone(),
+                SkillRunReq {
+                    skill_id: skill_id.clone(),
                     path: BUILDINGS.to_string(),
                 },
             )
@@ -1101,20 +1101,20 @@ mod tests {
         assert!(heights.contains(&177.0), "88.5→177.0 应出现: {heights:?}");
         assert!(heights.contains(&66.0), "33→66.0 应出现: {heights:?}");
 
-        // gene_list 快照含注册项（复刻 gene_list 工具的形状）。
+        // skill_list 快照含注册项（复刻 skill_list 工具的形状）。
         let state = registry.lock().unwrap();
-        let genes: Vec<_> = state.genes.values().map(|g| &g.meta().name).collect();
-        assert_eq!(genes, vec![&"attr_scaler".to_string()]);
+        let skills: Vec<_> = state.skills.values().map(|g| &g.meta().name).collect();
+        assert_eq!(skills, vec![&"attr_scaler".to_string()]);
     }
 
     #[test]
-    fn gene_run_unknown_gene_id_gives_chinese_error() {
+    fn skill_run_unknown_skill_id_gives_chinese_error() {
         let registry = new_registry();
         let mut state = registry.lock().unwrap();
-        let err = gene_run_sync(
+        let err = skill_run_sync(
             &mut state,
-            GeneRunReq {
-                gene_id: "no_such_gene".to_string(),
+            SkillRunReq {
+                skill_id: "no_such_gene".to_string(),
                 path: BUILDINGS.to_string(),
             },
         )
@@ -1137,9 +1137,9 @@ mod tests {
             Ok(_) => panic!("垃圾 wasm 应加载失败"),
             Err(e) => e,
         };
-        assert!(err.to_string().contains("基因加载失败"), "{err}");
+        assert!(err.to_string().contains("技能加载失败"), "{err}");
         // 验证职责：加载失败绝不注册（注册表保持空）。
-        assert!(state.genes.is_empty());
+        assert!(state.skills.is_empty());
     }
 
     #[tokio::test]

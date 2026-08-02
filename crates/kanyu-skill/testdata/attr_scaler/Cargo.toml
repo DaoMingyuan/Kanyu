@@ -1,6 +1,6 @@
 [package]
 name = "attr_scaler"
-description = "Kanyu sample analyzer gene (Rust guest): doubles the `height` property of every feature."
+description = "Kanyu sample analyzer skill (Rust guest): doubles the `height` property of every feature."
 version = "0.1.0"
 edition = "2021"
 publish = false

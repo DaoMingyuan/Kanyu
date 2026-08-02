@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **项目级命名修正：基因（gene）→ 技能（skill）**。crate `kanyu-gene` →
+  `kanyu-skill`；类型 `GeneHost/Gene/GeneMeta/GeneError` →
+  `SkillHost/Skill/SkillMeta/SkillError`；WIT ABI `kanyu:gene/analyzer` →
+  `kanyu:skill/analyzer`（样板技能 attr_scaler.wasm 已按新 ABI 重编）；
+  MCP 工具 `kanyu_gene_run/gene_list` → `kanyu_skill_run/skill_list`；
+  CLI 命令组 `kanyu gene` → `kanyu skill`；UI 页签/按钮与全部文档同步。
+  历史版本记录（CHANGELOG/会签簿旧条目）保持原样不改写。
+
 ## [0.15.0] - 2026-08-03
 
 **桌面壳层落地：ArcGIS Pro 式深度 UI + 堪舆数据库/工程双格式 + AI 对话面板。**
@@ -38,7 +48,7 @@
 ### 变更
 
 - **删除右侧属性面板**（v0.3 引入）：后续按新定制要求重建；
-  基因清单输出通道保留在「基因 → 基因清单」（终端）。
+  技能清单输出通道保留在「技能 → 技能清单」（终端）。
 
 ### 既有新增条目
 
@@ -94,17 +104,17 @@
     （KButton 四变体/KIconButton/KTextInput/KCombo/KCheckbox）+ containers
     （KCard/KSectionHeader/KDialogShell/KBadge）；铁律入 AGENTS.md：先查后用、
     无则按类新建、样式不出库。
-  - **Ribbon 功能区**（ArcGIS Pro 分类方式）：主页/数据/分析/制图/视图/基因/帮助
+  - **Ribbon 功能区**（ArcGIS Pro 分类方式）：主页/数据/分析/制图/视图/技能/帮助
     七页签 + 命令组，全部操作可达。
   - **独立终端**（ArcGIS Python 窗口理念）：命令直达内核（load/layers/info/
     query/buffer/measure/topology/reproject/export/fit/theme/clear/help），
     与界面共享数据现场——终端产出的图层即刻入图层树；历史导航 ↑↓。
   - **可停靠面板**：Contents 图层树（可见性/缩放/移除/选中联动）、
-    属性/基因右面板、状态栏（坐标/视口宽/要素数/版本）。
+    属性/技能右面板、状态栏（坐标/视口宽/要素数/版本）。
   - **对话框**（地理处理窗格模式）：查询/导出/投影/缓冲/叠加/连接/分区统计/
-    度量/渲染设置/地图导出/运行基因，全部 kit 组件组合。
-  - **基因入壳**：WASM 基因热加载/清单/在图层上运行（kanyu-gene 接入 UI）。
-- **kanyu-core**：`Layer::from_collection`（分析/查询/基因产出登记为内存图层，
+    度量/渲染设置/地图导出/运行技能，全部 kit 组件组合。
+  - **技能入壳**：WASM 技能热加载/清单/在图层上运行（kanyu-skill 接入 UI）。
+- **kanyu-core**：`Layer::from_collection`（分析/查询/技能产出登记为内存图层，
   format 记为 "memory"）。
 
 ## [0.14.0] - 2026-08-03
@@ -178,46 +188,46 @@
 
 ## [0.12.0] - 2026-08-03
 
-**AI 代理远程热加载基因：kanyu_system_hotload 实质化 + gene_run/gene_list。**
+**AI 代理远程热加载技能：kanyu_system_hotload 实质化 + skill_run/skill_list。**
 
 ### 新增
 
-- **kanyu-mcp**：MCP 基因热加载接线（`kanyu_system_hotload` 从 planned
-  变为真实工具，AI 代理可远程加载并执行 WASM 基因）——
-  KanyuServer 持有基因注册表（内存态 `Arc<Mutex<GeneRegistryState>>`，
+- **kanyu-mcp**：MCP 技能热加载接线（`kanyu_system_hotload` 从 planned
+  变为真实工具，AI 代理可远程加载并执行 WASM 技能）——
+  KanyuServer 持有技能注册表（内存态 `Arc<Mutex<GeneRegistryState>>`，
   Clone 共享，与 TaskManager 同模式；重启即丢）：
   - `kanyu_system_hotload(wasm_path)`：编译校验 + 实例化 + 元数据校验
-    （hotload 即"验证"职责，**校验失败绝不注册**），返回 gene_id/meta，
+    （hotload 即"验证"职责，**校验失败绝不注册**），返回 skill_id/meta，
     重名覆盖并返回 `replaced: true`；
-  - `kanyu_gene_run(gene_id, path)`：已注册基因在数据文件上沙箱执行
-    （FeatureCollection 进/出），未知 gene_id 中文错误提示先 hotload；
+  - `kanyu_skill_run(skill_id, path)`：已注册技能在数据文件上沙箱执行
+    （FeatureCollection 进/出），未知 skill_id 中文错误提示先 hotload；
     加入任务化白名单（`task: true` 可异步执行，与分析工具同待遇）；
-  - `kanyu_gene_list()`：注册表快照（gene_id/version/capabilities）。
+  - `kanyu_skill_list()`：注册表快照（skill_id/version/capabilities）。
   introspect：`kanyu_system_hotload` planned→stable；新增 gene 组
-  （`kanyu_gene_run`/`kanyu_gene_list` stable）。v0.1 基因调用锁内串行化
+  （`kanyu_skill_run`/`kanyu_skill_list` stable）。v0.1 技能调用锁内串行化
   （注释即契约；按名细粒度锁 📋）。
 
 ## [0.11.0] - 2026-08-03
 
-**Phase 5 魂启幕：WASM 基因系统宿主（wasmtime + WIT 组件模型，fuel 沙箱）。**
+**Phase 5 魂启幕：WASM 技能系统宿主（wasmtime + WIT 组件模型，fuel 沙箱）。**
 
 ### 新增
 
-- **kanyu-gene / CLI**：Phase 5「魂」启幕——WASM 基因系统宿主（总规 §4.5
-  "以 WASM 为基因"落地，新 crate `kanyu-gene`）：wasmtime 47 组件模型
-  + WIT 强类型 ABI（`wit/gene.wit`：`meta() -> string`、
+- **kanyu-skill / CLI**：Phase 5「魂」启幕——WASM 技能系统宿主（总规 §4.5
+  "以 WASM 为技能"落地，新 crate `kanyu-skill`）：wasmtime 47 组件模型
+  + WIT 强类型 ABI（`wit/skill.wit`：`meta() -> string`、
   `run(string) -> result<string, string>`，FeatureCollection JSON 进/出）；
   沙箱无 WASI 导入（纯计算）+ fuel 配额（10 亿/次执行，耗尽即 trap；
-  无 IO 挂起故不设墙钟超时，注释即契约）。`GeneHost::load`（编译校验 +
+  无 IO 挂起故不设墙钟超时，注释即契约）。`SkillHost::load`（编译校验 +
   实例化 + meta() 元数据校验）与 `run`（每次执行重置 fuel），
   LoadFailed/MetaInvalid/Trap/Timeout/ResultInvalid 五类中文结构化错误。
-  样板分析基因 `attr_scaler`（真 Rust guest：wit-bindgen 0.60
+  样板分析技能 `attr_scaler`（真 Rust guest：wit-bindgen 0.60
   `generate!`/`export!`，height ×2；wasm32-unknown-unknown 核心模块 +
   `wasm-tools component new` 组件化，fixture 提交于 testdata/）。
   CLI 新命令组 `kanyu gene info/run`。
-  introspect：kanyu-gene 模块 planned→incubating。
+  introspect：kanyu-skill 模块 planned→incubating。
   **MSRV 1.88 → 1.94**（wasmtime 47 要求）。
-  MCP 热加载接线（kanyu_system_hotload 实质化）与 libredwg-wasm 基因 📋。
+  MCP 热加载接线（kanyu_system_hotload 实质化）与 libredwg-wasm 技能 📋。
 
 ## [0.10.0] - 2026-08-02
 

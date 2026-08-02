@@ -1,4 +1,4 @@
-//! 面板系统：左侧 Contents（ArcGIS Pro 骨架目录树）、右侧属性/基因面板、
+//! 面板系统：左侧 Contents（ArcGIS Pro 骨架目录树）、右侧属性/技能面板、
 //! 底部双页签停靠区（终端 | AI 对话）、状态栏。全部 ui_kit 组件组合。
 
 use eframe::egui;
@@ -47,10 +47,10 @@ pub struct LayerView {
     pub selected: bool,
 }
 
-/// 基因条目视图数据。
+/// 技能条目视图数据。
 #[derive(Clone)]
-pub struct GeneView {
-    /// 基因 id。
+pub struct SkillView {
+    /// 技能 id。
     pub id: String,
     /// 版本。
     pub version: String,

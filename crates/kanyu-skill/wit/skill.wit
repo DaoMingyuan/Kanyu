@@ -1,0 +1,17 @@
+// 堪舆技能 ABI（总规 §4.5 落地，v0.1 最小可用子集）。
+// guest（技能）以 export 实现 analyzer；host（kanyu-skill）实例化并调用。
+package kanyu:skill@0.1.0;
+
+/// 分析型技能接口：FeatureCollection 进、FeatureCollection（或中文错误）出。
+interface analyzer {
+    /// 技能元数据（JSON：{"name","version","capabilities":[...]}）。
+    meta: func() -> string;
+
+    /// 执行：输入 FeatureCollection JSON，
+    /// 返回结果 FeatureCollection JSON 或中文错误串。
+    run: func(input: string) -> result<string, string>;
+}
+
+world skill {
+    export analyzer;
+}

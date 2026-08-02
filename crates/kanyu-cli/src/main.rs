@@ -13,7 +13,7 @@ fn main() -> anyhow::Result<()> {
         Command::Data(cmd) => commands::data(cmd, args.json),
         Command::Analysis(cmd) => commands::analysis(cmd, args.json),
         Command::Render(cmd) => commands::render(cmd),
-        Command::Gene(cmd) => commands::gene(cmd, args.json),
+        Command::Skill(cmd) => commands::skill(cmd, args.json),
         Command::Introspect => commands::introspect_cmd(args.json),
         Command::Agents(cmd) => commands::agents_cmd(cmd, args.json),
         Command::Mcp(cmd) => commands::mcp_cmd(cmd),

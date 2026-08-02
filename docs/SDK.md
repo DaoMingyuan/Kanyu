@@ -11,7 +11,7 @@
 2. [作为 MCP 客户端集成](#2-作为-mcp-客户端集成)
 3. [作为 CLI 脚本集成](#3-作为-cli-脚本集成)
 4. [Python SDK（📋 规划中）](#4-python-sdk--规划中)
-5. [WASM 基因 SDK（🚧 v0.1 已落地）](#5-wasm-基因-sdk-v01-已落地最小子集)
+5. [WASM 技能 SDK（🚧 v0.1 已落地）](#5-wasm-技能-sdk-v01-已落地最小子集)
 
 ## 1. 作为 Rust 库集成
 
@@ -185,18 +185,18 @@ $ echo $?
 > （`kanyu.Layer.load(...).query("height > 50")`），错误映射为单一
 > `kanyu.KanyuError` 层次；不引入 GIL 持有的长临界区，重活在 Rust 侧 `py.allow_threads` 中执行。
 
-## 5. WASM 基因 SDK（🚧 v0.1 已落地最小子集）
+## 5. WASM 技能 SDK（🚧 v0.1 已落地最小子集）
 
-堪舆的可扩展功能是 WASM 模块，称为"基因"（[MASTERPLAN.md](MASTERPLAN.md) §4.5），
-在 wasmtime 组件模型沙箱中运行（kanyu-gene crate 宿主，见
-[API.md](API.md#10-kanyu-gene--wasm-基因系统宿主)）。已定稿的 v0.1 ABI
-（[wit/gene.wit](../crates/kanyu-gene/wit/gene.wit)）：
+堪舆的可扩展功能是 WASM 模块，称为"技能"（[MASTERPLAN.md](MASTERPLAN.md) §4.5），
+在 wasmtime 组件模型沙箱中运行（kanyu-skill crate 宿主，见
+[API.md](API.md#10-kanyu-skill--wasm-技能系统宿主)）。已定稿的 v0.1 ABI
+（[wit/skill.wit](../crates/kanyu-skill/wit/skill.wit)）：
 
 ```wit
-package kanyu:gene@0.1.0;
+package kanyu:skill@0.1.0;
 
 interface analyzer {
-    /// 基因元数据（JSON：{"name","version","capabilities":[...]}）。
+    /// 技能元数据（JSON：{"name","version","capabilities":[...]}）。
     meta: func() -> string;
     /// FeatureCollection JSON 进/出（或中文错误串）。
     run: func(input: string) -> result<string, string>;
@@ -207,8 +207,8 @@ world gene {
 }
 ```
 
-**Rust guest 编写**：参照样板基因
-[`crates/kanyu-gene/testdata/attr_scaler/`](../crates/kanyu-gene/testdata/attr_scaler/)
+**Rust guest 编写**：参照样板技能
+[`crates/kanyu-skill/testdata/attr_scaler/`](../crates/kanyu-skill/testdata/attr_scaler/)
 （`wit-bindgen` `generate!`/`export!` 实现 `exports::kanyu::gene::analyzer::Guest`）：
 
 ```bash
@@ -219,4 +219,4 @@ kanyu gene run <gene>.wasm data.geojson
 ```
 
 后续迭代方向：GeoArrow RecordBatch 进出（C Data Interface 零拷贝）、
-`renderer/io/panel/tool` 基因类型、热加载与 A/B 测试生命周期（总规 §4.5.3）。
+`renderer/io/panel/tool` 技能类型、热加载与 A/B 测试生命周期（总规 §4.5.3）。

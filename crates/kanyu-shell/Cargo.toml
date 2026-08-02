@@ -18,7 +18,7 @@ publish = false
 [dependencies]
 kanyu-core.workspace = true
 kanyu-render.workspace = true
-kanyu-gene.workspace = true
+kanyu-skill.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 ureq = { version = "3", default-features = false, features = ["rustls-no-provider"] }

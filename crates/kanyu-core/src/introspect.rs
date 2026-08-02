@@ -76,8 +76,8 @@ pub fn modules() -> Vec<ModuleInfo> {
             status: "planned",
         },
         ModuleInfo {
-            name: "kanyu-gene",
-            role: "基因：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）+ MCP 热加载（hotload/gene_run/gene_list）",
+            name: "kanyu-skill",
+            role: "技能：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）+ MCP 热加载（hotload/skill_run/skill_list）",
             status: "incubating",
         },
         ModuleInfo {
@@ -184,14 +184,14 @@ pub fn tools() -> Vec<ToolInfo> {
             group: "system",
             status: "stable",
         },
-        // 基因工具
+        // 技能工具
         ToolInfo {
-            name: "kanyu_gene_run",
+            name: "kanyu_skill_run",
             group: "gene",
             status: "stable",
         },
         ToolInfo {
-            name: "kanyu_gene_list",
+            name: "kanyu_skill_list",
             group: "gene",
             status: "stable",
         },

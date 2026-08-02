@@ -37,9 +37,9 @@ pub enum Command {
     #[command(subcommand)]
     Render(RenderCommand),
 
-    /// WASM 基因：检视与执行插件（wasmtime 沙箱）。
+    /// WASM 技能：检视与执行插件（wasmtime 沙箱）。
     #[command(subcommand)]
-    Gene(GeneCommand),
+    Skill(SkillCommand),
 
     /// 系统自省 —— AI 读取自身（源码树、能力矩阵、工具清单）。
     Introspect,
@@ -218,17 +218,17 @@ pub enum RenderCommand {
     },
 }
 
-/// `kanyu gene ...`
+/// `kanyu skill ...`
 #[derive(Subcommand, Debug)]
-pub enum GeneCommand {
-    /// 检视 WASM 基因元数据（name/version/capabilities）。
+pub enum SkillCommand {
+    /// 检视 WASM 技能元数据（name/version/capabilities）。
     Info {
-        /// 基因文件路径（.wasm 组件）。
+        /// 技能文件路径（.wasm 组件）。
         plugin: String,
     },
-    /// 在数据上执行分析基因（FeatureCollection 进/出）。
+    /// 在数据上执行分析技能（FeatureCollection 进/出）。
     Run {
-        /// 基因文件路径（.wasm 组件）。
+        /// 技能文件路径（.wasm 组件）。
         plugin: String,
         /// 数据文件路径。
         file: String,

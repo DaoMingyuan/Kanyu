@@ -99,7 +99,7 @@ impl Layer {
         })
     }
 
-    /// 从内存中的要素集合直接构造图层（分析/查询/基因产出的登记入口，
+    /// 从内存中的要素集合直接构造图层（分析/查询/技能产出的登记入口，
     /// `format` 记为 "memory"）。
     pub fn from_collection(id: impl Into<String>, collection: geojson::FeatureCollection) -> Self {
         Self {

@@ -3050,9 +3050,9 @@ dependencies = [
  "clap",
  "geojson",
  "kanyu-core",
- "kanyu-gene",
  "kanyu-mcp",
  "kanyu-render",
+ "kanyu-skill",
  "predicates",
  "serde",
  "serde_json",
@@ -3091,19 +3091,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kanyu-gene"
-version = "0.15.0"
-dependencies = [
- "geojson",
- "kanyu-core",
- "serde",
- "serde_json",
- "thiserror 2.0.19",
- "wasmtime",
- "wat",
-]
-
-[[package]]
 name = "kanyu-mcp"
 version = "0.15.0"
 dependencies = [
@@ -3111,8 +3098,8 @@ dependencies = [
  "hyper",
  "hyper-util",
  "kanyu-core",
- "kanyu-gene",
  "kanyu-render",
+ "kanyu-skill",
  "rmcp",
  "schemars 1.2.2",
  "serde",
@@ -3140,13 +3127,26 @@ dependencies = [
  "eframe",
  "geojson",
  "kanyu-core",
- "kanyu-gene",
  "kanyu-render",
+ "kanyu-skill",
  "rfd",
  "serde",
  "serde_json",
  "tiny-skia",
  "ureq",
+]
+
+[[package]]
+name = "kanyu-skill"
+version = "0.15.0"
+dependencies = [
+ "geojson",
+ "kanyu-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "wasmtime",
+ "wat",
 ]
 
 [[package]]

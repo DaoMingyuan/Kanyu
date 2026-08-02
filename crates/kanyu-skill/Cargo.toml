@@ -1,5 +1,5 @@
 [package]
-name = "kanyu-gene"
+name = "kanyu-skill"
 description = "Kanyu gene system host: wasmtime sandbox + WIT component-model ABI + fuel quota for WASM analyzer genes."
 version.workspace = true
 edition.workspace = true
@@ -12,7 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [lib]
-name = "kanyu_gene"
+name = "kanyu_skill"
 path = "src/lib.rs"
 
 [dependencies]

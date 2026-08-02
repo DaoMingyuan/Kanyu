@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 use kanyu_core::{agents, introspect, FormatRegistry, Layer};
 
 use crate::cli::{
-    AgentsCommand, AnalysisCommand, DataCommand, GeneCommand, McpCommand, RenderCommand, Transport,
+    AgentsCommand, AnalysisCommand, DataCommand, McpCommand, RenderCommand, SkillCommand, Transport,
 };
 
 /// `kanyu data ...`
@@ -355,30 +355,30 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
     Ok(())
 }
 
-/// `kanyu gene ...`
-pub fn gene(cmd: &GeneCommand, json: bool) -> Result<()> {
+/// `kanyu skill ...`
+pub fn skill(cmd: &SkillCommand, json: bool) -> Result<()> {
     match cmd {
-        GeneCommand::Info { plugin } => {
-            let host = kanyu_gene::GeneHost::new()?;
-            let gene = host.load(plugin)?;
-            print_value(gene.meta(), json, |m| {
+        SkillCommand::Info { plugin } => {
+            let host = kanyu_skill::SkillHost::new()?;
+            let skill = host.load(plugin)?;
+            print_value(skill.meta(), json, |m| {
                 format!(
-                    "基因:    {}\n版本:    {}\n能力:    {}",
+                    "技能:    {}\n版本:    {}\n能力:    {}",
                     m.name,
                     m.version,
                     m.capabilities.join(", ")
                 )
             });
         }
-        GeneCommand::Run {
+        SkillCommand::Run {
             plugin,
             file,
             output,
         } => {
-            let host = kanyu_gene::GeneHost::new()?;
-            let gene = host.load(plugin)?;
+            let host = kanyu_skill::SkillHost::new()?;
+            let skill = host.load(plugin)?;
             let layer = Layer::load(stem_of(file), file)?;
-            let result = host.run(&gene, &layer.collection())?;
+            let result = host.run(&skill, &layer.collection())?;
             write_geojson_result(&result, output.as_deref())?;
         }
     }

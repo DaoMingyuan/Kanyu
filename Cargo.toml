@@ -8,7 +8,7 @@ members = [
     "crates/kanyu-cli",
     "crates/kanyu-mcp",
     "crates/kanyu-render",
-    "crates/kanyu-gene",
+    "crates/kanyu-skill",
     "crates/kanyu-shell",
 ]
 
@@ -28,7 +28,7 @@ categories = ["science::geo", "visualization", "parser-implementations"]
 [workspace.dependencies]
 kanyu-core = { path = "crates/kanyu-core", version = "0.15.0" }
 kanyu-render = { path = "crates/kanyu-render", version = "0.15.0" }
-kanyu-gene = { path = "crates/kanyu-gene", version = "0.15.0" }
+kanyu-skill = { path = "crates/kanyu-skill", version = "0.15.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

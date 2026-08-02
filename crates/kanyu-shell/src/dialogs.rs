@@ -32,8 +32,8 @@ pub struct Dialogs {
     pub render_settings: Option<RenderSettingsState>,
     /// 地图导出。
     pub export_map: Option<ExportMapState>,
-    /// 运行基因。
-    pub gene_run: Option<GeneRunState>,
+    /// 运行技能。
+    pub skill_run: Option<SkillRunState>,
     /// 关于堪舆。
     pub about: bool,
 }
@@ -147,11 +147,11 @@ pub struct ExportMapState {
     pub out: String,
 }
 
-/// 运行基因表单。
+/// 运行技能表单。
 #[derive(Default)]
-pub struct GeneRunState {
-    /// 基因 id。
-    pub gene_id: String,
+pub struct SkillRunState {
+    /// 技能 id。
+    pub skill_id: String,
     /// 图层 id。
     pub layer: String,
 }
@@ -204,20 +204,20 @@ pub enum DialogResult {
     },
     /// 地图导出。
     ExportMap { out: String },
-    /// 运行基因。
-    GeneRun { gene_id: String, layer: String },
+    /// 运行技能。
+    SkillRun { skill_id: String, layer: String },
     /// 表单验证失败（红字提示，由 app 反馈到终端）。
     Invalid { reason: String },
 }
 
 impl Dialogs {
-    /// 对话框 UI。`layers` 为可选图层 id 列表，`genes` 为已注册基因 id 列表。
+    /// 对话框 UI。`layers` 为可选图层 id 列表，`skills` 为已注册技能 id 列表。
     /// 返回待执行结果（每帧至多一个）。
     pub fn ui(
         &mut self,
         ctx: &egui::Context,
         layers: &[String],
-        genes: &[String],
+        skills: &[String],
     ) -> Option<DialogResult> {
         let mut result = None;
 
@@ -464,19 +464,19 @@ impl Dialogs {
             }
         }
 
-        if let Some(st) = &mut self.gene_run {
-            match dialog_shell(ctx, "运行基因（结果存为新图层）", |ui| {
-                layer_picker(ui, "基因", &mut st.gene_id, genes, true);
+        if let Some(st) = &mut self.skill_run {
+            match dialog_shell(ctx, "运行技能（结果存为新图层）", |ui| {
+                layer_picker(ui, "技能", &mut st.skill_id, skills, true);
                 layer_picker(ui, "图层", &mut st.layer, layers, true);
             }) {
                 DialogAction::Ok => {
-                    result = Some(DialogResult::GeneRun {
-                        gene_id: st.gene_id.clone(),
+                    result = Some(DialogResult::SkillRun {
+                        skill_id: st.skill_id.clone(),
                         layer: st.layer.clone(),
                     });
-                    self.gene_run = None;
+                    self.skill_run = None;
                 }
-                DialogAction::Cancel => self.gene_run = None,
+                DialogAction::Cancel => self.skill_run = None,
                 DialogAction::None => {}
             }
         }
@@ -496,7 +496,7 @@ impl Dialogs {
                     )));
                     ui.add_space(4.0);
                     ui.label(crate::ui_kit::text::body(
-                        "AI 原生地理空间操作系统：GeoArrow 内核 · MCP 神经接口 · WASM 基因。",
+                        "AI 原生地理空间操作系统：GeoArrow 内核 · MCP 神经接口 · WASM 技能。",
                     ));
                     ui.label(crate::ui_kit::text::body(
                         "以天地为盘，以数据为爻，以 AI 为神。",

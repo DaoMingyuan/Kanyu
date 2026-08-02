@@ -893,11 +893,11 @@ AI 读取此文件后，无需人类解释即可理解：
 - 堪舆灵**不能绕过**沙箱直接操作文件系统（除通过 MCP 工具）。
 - 所有代码生成必须经过人类审核才能合并到内核源码（WASM 热加载除外）。
 
-### 4.5 WASM 基因系统：功能的可进化单元
+### 4.5 WASM 技能系统：功能的可进化单元
 
-堪舆的所有可扩展功能都是 **WASM 模块**，称为"基因" (Gene)。
+堪舆的所有可扩展功能都是 **WASM 模块**，称为"技能" (Gene)。
 
-#### 4.5.1 基因类型
+#### 4.5.1 技能类型
 
 | 类型 | 后缀 | 描述 | 示例 |
 |------|------|------|------|
@@ -907,10 +907,10 @@ AI 读取此文件后，无需人类解释即可理解：
 | `panel` | `.ui.wasm` | UI 面板 | 行业专用工具面板 |
 | `tool` | `.tool.wasm` | 地图工具 | 自定义测量、捕捉逻辑 |
 
-#### 4.5.2 基因接口
+#### 4.5.2 技能接口
 
 ```rust
-// 标准基因接口
+// 标准技能接口
 #[no_mangle]
 pub extern "C" fn gene_init(ctx: &mut GeneCtx) -> GeneResult {
     // 注册能力
@@ -937,7 +937,7 @@ pub extern "C" fn gene_on_message(msg: &PanelMsg) -> Option<PanelAction> {
 }
 ```
 
-#### 4.5.3 基因生命周期
+#### 4.5.3 技能生命周期
 
 ```
 AI 生成代码 → Rust/C++ 编译 → WASM 字节码
@@ -1034,7 +1034,7 @@ A/B 测试 (与旧版本并行)
 
 - [ ] 实现系统自省 API（源码、性能、架构图输出）。
 - [ ] 实现 A/B 测试框架（自动对比算法性能）。
-- [ ] 实现 WASM 基因市场（Gene Marketplace），支持分享/下载插件。
+- [ ] 实现 WASM 技能市场（Gene Marketplace），支持分享/下载插件。
 - [ ] 训练领域微调模型（空间分析代码生成）。
 - [ ] 实现知识库 RAG（积累优化经验）。
 - [ ] **里程碑**：AI 自动发现并修复一个真实性能瓶颈，人类仅需审核。
@@ -1177,16 +1177,16 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 
 > **迭代边界（2026-08-03 入规，见仓库根 AI_SYNC.md §1.3）**：堪舆灵不在用户运行时
 > 直接修改内核；自我迭代发生在 **GitHub 协作层**——所有变更经提交/PR + CI + 审核
-> 进入仓库，WASM 基因热加载是唯一免审核通道。全体迭代者（人类与 AI）经
+> 进入仓库，WASM 技能热加载是唯一免审核通道。全体迭代者（人类与 AI）经
 > AI_SYNC.md 会签簿联动。
 
-- [x] wasmtime + WIT 基因宿主（加载/校验/fuel 沙箱执行，2026-08-03）。
+- [x] wasmtime + WIT 技能宿主（加载/校验/fuel 沙箱执行，2026-08-03）。
 - [x] DWG 原生读取（acadrust，裁决 #18；421 样本 spike → 覆盖率报告 → 进内核）。**Spike 结论（2026-08-03，143 个真实 R2000 样本 / 52 万实体）**：acadrust 0.4.1 开箱 0%（AC15 objects 段定位推断缺陷：AuxHeader 在 Handles 之后时 size 为负）；手工按 ODA 约定以 [Classes_end, Handles_start) 定位后 **143/143 打开、521,750 实体 100% 读出、0 panic、123ms/文件**；可映射六类几何 48.0%，INSERT 22.4%、MTEXT/TEXT 25.9%、HATCH 3.6%；中文双乱码形态（GBK 未按 codepage 转码 + MIF \U+XXXX 未解码）已定位修法。**定稿：acadrust + 自持补丁层（locator workaround ~40 行 + 编码层后处理）进内核，read: Partial（六类几何，INSERT/HATCH/MTEXT 跳过+计数 📋），向上游提 issue/PR。**（2026-08-03 已落地 crates/kanyu-core/src/dwg.rs）
 - [x] DWG 原生读取进内核（acadrust + 自持补丁层：AC15 locator workaround + GBK/MIF 编码层；六类几何 + TEXT/MTEXT 标注要素化 + ELLIPSE 近似；INSERT/HATCH/SPLINE 跳过+计数 📋；R2018+ 待样本复测，2026-08-03）。
-- [ ] libredwg-wasm 基因（备选路线：覆盖率不足时启用，wasi-sdk + wasi-virt，GPL 制品独立分发）。
+- [ ] libredwg-wasm 技能（备选路线：覆盖率不足时启用，wasi-sdk + wasi-virt，GPL 制品独立分发）。
 - [x] MCP 热加载接线（kanyu_system_hotload 实质化，2026-08-03）。
 - [ ] AI 代码生成 → WASM 编译 → 沙箱验证 → A/B 测试流水线。
-- [ ] 基因市场（Gene Marketplace）；知识库 RAG。
+- [ ] 技能市场（Gene Marketplace）；知识库 RAG。
 - [ ] **里程碑**：AI 自动发现并修复真实性能瓶颈，人类仅需审核。
 
 ### 6.5 v0.1.0 落地状态速查
@@ -1246,7 +1246,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 ---
 
 > **"天行健，君子以自强不息。"**  
-> 堪舆不仅是一个 GIS 系统，更是一个活的地理空间生命体。它以 GeoArrow 为血液，以 GPU 为眼，以 AI 为魂，以 WASM 为基因，在道明远的指引下，不断自我迭代，直至成为地理空间领域的通用人工智能。
+> 堪舆不仅是一个 GIS 系统，更是一个活的地理空间生命体。它以 GeoArrow 为血液，以 GPU 为眼，以 AI 为魂，以 WASM 为技能，在道明远的指引下，不断自我迭代，直至成为地理空间领域的通用人工智能。
 
 ---
 *文档版本: v0.2.0（2026-08-01 调研驱动修订，见第六部分） | 作者: 道明远 | 项目: 堪舆 (Kanyu)*

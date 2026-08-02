@@ -112,7 +112,7 @@ pub fn text_area(
     )
 }
 
-/// 标准下拉框（动态字符串选项，如图层/基因 id 列表）。
+/// 标准下拉框（动态字符串选项，如图层/技能 id 列表）。
 ///
 /// ```
 /// combo(ui, "图层", &mut layer, &layer_ids, true);
@@ -161,7 +161,7 @@ pub fn combo_static(
     combo(ui, label, value, &owned, enabled)
 }
 
-/// 图层/基因选择器（combo 的语义化别名，文档级组件）。
+/// 图层/技能选择器（combo 的语义化别名，文档级组件）。
 pub fn layer_picker(
     ui: &mut egui::Ui,
     label: &str,

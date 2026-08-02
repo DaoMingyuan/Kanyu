@@ -642,7 +642,7 @@ fn render_map_with_graduated_style_end_to_end() {
 fn gene_info_and_run_end_to_end() {
     let fixture = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../kanyu-gene/testdata/attr_scaler.wasm"
+        "/../kanyu-skill/testdata/attr_scaler.wasm"
     );
     let dir = std::env::temp_dir().join("kanyu_itest_gene");
     std::fs::create_dir_all(&dir).unwrap();
@@ -650,7 +650,7 @@ fn gene_info_and_run_end_to_end() {
 
     // gene info --json。
     let out = kanyu()
-        .args(["gene", "info", fixture, "--json"])
+        .args(["skill", "info", fixture, "--json"])
         .output()
         .unwrap();
     assert!(
@@ -665,7 +665,7 @@ fn gene_info_and_run_end_to_end() {
 
     // gene run：height 翻倍、要素数不变。
     let out = kanyu()
-        .args(["gene", "run", fixture, sample.to_str().unwrap()])
+        .args(["skill", "run", fixture, sample.to_str().unwrap()])
         .output()
         .unwrap();
     assert!(
@@ -684,9 +684,9 @@ fn gene_info_and_run_end_to_end() {
     let bad_path = dir.join("bad.wasm");
     std::fs::write(&bad_path, b"not wasm").unwrap();
     let bad = kanyu()
-        .args(["gene", "info", bad_path.to_str().unwrap()])
+        .args(["skill", "info", bad_path.to_str().unwrap()])
         .output()
         .unwrap();
     assert!(!bad.status.success());
-    assert!(String::from_utf8_lossy(&bad.stderr).contains("基因加载失败"));
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("技能加载失败"));
 }

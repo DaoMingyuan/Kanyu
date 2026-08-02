@@ -12,7 +12,7 @@
 3. [kanyu data](#3-kanyu-data)
 4. [kanyu analysis](#4-kanyu-analysis)
 5. [kanyu render](#5-kanyu-render)
-6. [kanyu gene](#6-kanyu-gene)
+6. [kanyu gene](#6-kanyu-skill)
 7. [kanyu introspect](#7-kanyu-introspect)
 8. [kanyu agents](#8-kanyu-agents)
 9. [kanyu mcp serve](#9-kanyu-mcp-serve)
@@ -316,34 +316,34 @@ $ ./target/debug/kanyu.exe render map examples/buildings.geojson --out styled.pn
 
 ## 6. kanyu gene ✅
 
-WASM 基因系统宿主（kanyu-gene crate；ABI 与沙箱模型见
-[API.md](API.md#10-kanyu-gene--wasm-基因系统宿主)；MCP 热加载接线 📋）。
+WASM 技能系统宿主（kanyu-skill crate；ABI 与沙箱模型见
+[API.md](API.md#10-kanyu-skill--wasm-技能系统宿主)；MCP 热加载接线 📋）。
 
 ### 6.1 `kanyu gene info <plugin.wasm>` ✅
 
-检视基因元数据（加载校验通过即打印）。
+检视技能元数据（加载校验通过即打印）。
 
 ```bash
-$ ./target/debug/kanyu.exe gene info crates/kanyu-gene/testdata/attr_scaler.wasm
-基因:    attr_scaler
+$ ./target/debug/kanyu.exe gene info crates/kanyu-skill/testdata/attr_scaler.wasm
+技能:    attr_scaler
 版本:    0.1.0
 能力:    analyzer
 ```
 
-`--json` 输出 GeneMeta（`{"name","version","capabilities":[...]}`）。
+`--json` 输出 SkillMeta（`{"name","version","capabilities":[...]}`）。
 
 ### 6.2 `kanyu gene run <plugin.wasm> <file>` ✅
 
-在数据上执行分析基因（FeatureCollection 进/出，fuel 配额 10 亿）。
+在数据上执行分析技能（FeatureCollection 进/出，fuel 配额 10 亿）。
 
 | 参数 | 说明 |
 |---|---|
-| `<plugin>` | 基因文件路径（.wasm 组件） |
+| `<plugin>` | 技能文件路径（.wasm 组件） |
 | `<file>` | 数据文件路径 |
 | `--output <path>` | 结果输出路径（GeoJSON）；缺省打印到 stdout |
 
 ```bash
-$ ./target/debug/kanyu.exe gene run crates/kanyu-gene/testdata/attr_scaler.wasm examples/buildings.geojson
+$ ./target/debug/kanyu.exe gene run crates/kanyu-skill/testdata/attr_scaler.wasm examples/buildings.geojson
 {"type":"FeatureCollection","features":[
   {"type":"Feature","geometry":{"type":"Point","coordinates":[116.3914,39.9072]},
    "properties":{"height":177.0,"name":"示例大厦A","usage":"office"}}, …]}
@@ -366,7 +366,7 @@ $ ./target/debug/kanyu.exe introspect
   kanyu-mcp      [incubating] 神经接口：MCP Server，向 AI 暴露全部内核能力
   kanyu-render   [planned] 眼睛：GPU 渲染管线（wgpu），GeoArrow→SSBO 直通
   kanyu-edit     [planned] 手：DCEL 增量拓扑编辑内核，Undo/Redo
-  kanyu-gene     [planned] 基因：WASM 插件系统（wasmtime 沙箱 + 热加载）
+  kanyu-skill     [planned] 技能：WASM 插件系统（wasmtime 沙箱 + 热加载）
   kanyu-shell    [planned] 壳层：桌面 UI（TitleBar/StatusBar/面板系统）
 
 MCP 工具:
@@ -467,7 +467,7 @@ kanyu-mcp streamable HTTP 监听 http://127.0.0.1:3000/mcp （⚠️ 无鉴权/T
 | 命令 | 状态 | 说明 |
 |---|---|---|
 | `kanyu codegen --prompt ... --target rust` | 📋 | AI 代码生成（Phase 4，须人类审核） |
-| `kanyu plugin build/load <wasm>` | 📋 | WASM 基因构建与热加载（wasmtime 沙箱） |
+| `kanyu plugin build/load <wasm>` | 📋 | WASM 技能构建与热加载（wasmtime 沙箱） |
 | `kanyu benchmark --plugin ... --metric fps` | 📋 | A/B 基准对比 |
 | `kanyu regression test --suite ...` | 📋 | 回归测试套件，性能阈值断言 |
 

@@ -243,42 +243,42 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
 
 ### 3.5 `kanyu_system_hotload`
 
-> 热加载 WASM 基因到内存注册表（wasmtime 沙箱：无 WASI 导入纯计算 + fuel 配额 10 亿；**校验失败绝不注册**——hotload 即"验证"职责）。
+> 热加载 WASM 技能到内存注册表（wasmtime 沙箱：无 WASI 导入纯计算 + fuel 配额 10 亿；**校验失败绝不注册**——hotload 即"验证"职责）。
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `wasm_path` | string | 是 | WASM 基因文件路径（.wasm 组件，接口须为 `kanyu:gene@0.1.0/analyzer`） |
+| `wasm_path` | string | 是 | WASM 技能文件路径（.wasm 组件，接口须为 `kanyu:skill@0.1.0/analyzer`） |
 
 输出（`structuredContent`）：
 
 ```json
-{"gene_id": "attr_scaler", "replaced": false,
+{"skill_id": "attr_scaler", "replaced": false,
  "meta": {"name": "attr_scaler", "version": "0.1.0", "capabilities": ["analyzer"]}}
 ```
 
-`gene_id` 取基因的 `meta.name`；重名覆盖旧注册并返回 `"replaced": true`。
+`skill_id` 取技能的 `meta.name`；重名覆盖旧注册并返回 `"replaced": true`。
 注册表为内存态，**重启即丢**（需重新 hotload）。
 
-### 3.6 `kanyu_gene_run`
+### 3.6 `kanyu_skill_run`
 
-> 对已注册基因在数据文件上沙箱执行（FeatureCollection 进/出；arguments 带 `"task": true` 可异步执行，见 §2.1）。
+> 对已注册技能在数据文件上沙箱执行（FeatureCollection 进/出；arguments 带 `"task": true` 可异步执行，见 §2.1）。
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `gene_id` | string | 是 | 已注册的基因标识（`kanyu_system_hotload` 返回） |
+| `skill_id` | string | 是 | 已注册的技能标识（`kanyu_system_hotload` 返回） |
 | `path` | string | 是 | 数据文件路径 |
 
 输出：`{"feature_count": 4, "collection": {…}}`。
-未知 `gene_id` 返回中文错误（提示先 `kanyu_system_hotload`，或 `kanyu_gene_list` 查看）。
+未知 `skill_id` 返回中文错误（提示先 `kanyu_system_hotload`，或 `kanyu_skill_list` 查看）。
 
-### 3.7 `kanyu_gene_list`
+### 3.7 `kanyu_skill_list`
 
-> 列出内存注册表中的全部 WASM 基因（快照）。
+> 列出内存注册表中的全部 WASM 技能（快照）。
 
 无输入参数。输出：
 
 ```json
-{"genes": [{"gene_id": "attr_scaler", "version": "0.1.0", "capabilities": ["analyzer"]}]}
+{"genes": [{"skill_id": "attr_scaler", "version": "0.1.0", "capabilities": ["analyzer"]}]}
 ```
 
 ### 3.8 `kanyu_agents_validate`
@@ -463,7 +463,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | —（render 组首工具；符号化并入其 style 参数，裁决 #17） | `kanyu_render_map` | ✅ |
 | `kanyu.system.generate` | `kanyu_system_*` | 📋 |
 | `kanyu.system.hotload` | `kanyu_system_hotload` | ✅ |
-| —（gene 组，Phase 5 落地） | `kanyu_gene_run` / `kanyu_gene_list` | ✅ |
+| —（gene 组，Phase 5 落地） | `kanyu_skill_run` / `kanyu_skill_list` | ✅ |
 
 即：点号映射为下划线，分组（data/analysis/render/system/agents）保留。
 

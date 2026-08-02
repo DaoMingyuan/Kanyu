@@ -6,7 +6,7 @@
 //! │ Ribbon（页签 + 命令组，86px） │
 //! ├─────────┬────────────┬───────┤
 //! │ Contents│  MapCanvas │ 属性  │
-//! │ 图层树  │            │ /基因 │
+//! │ 图层树  │            │ /技能 │
 //! ├─────────┴────────────┴───────┤
 //! │ 独立终端（可折叠，180px）      │
 //! ├──────────────────────────────┤
@@ -20,13 +20,13 @@ use std::time::{Duration, Instant};
 use eframe::egui;
 use geojson::FeatureCollection;
 use kanyu_core::{analysis, crs, Layer, LayerSummary};
-use kanyu_gene::{Gene, GeneHost};
 use kanyu_render::{collection_extent, render_png, render_svg, RenderOptions, StyleRule, Theme};
+use kanyu_skill::{Skill, SkillHost};
 
 use crate::canvas::{CanvasInput, MapCanvas};
 use crate::console::{ConsoleHost, ConsolePanel, HELP_TEXT};
 use crate::dialogs::{DialogResult, Dialogs};
-use crate::panels::{self, GeneView, LayerView, PanelAction};
+use crate::panels::{self, LayerView, PanelAction, SkillView};
 use crate::ribbon::{Ribbon, RibbonAction};
 use crate::ui_kit::sizes;
 use crate::view::{self, BBox};
@@ -113,10 +113,10 @@ pub struct KanyuApp {
     console: ConsolePanel,
     dialogs: Dialogs,
     canvas: MapCanvas,
-    /// 基因宿主与注册表。
-    gene_host: GeneHost,
-    genes: HashMap<String, Gene>,
-    gene_metas: Vec<GeneView>,
+    /// 技能宿主与注册表。
+    skill_host: SkillHost,
+    skills: HashMap<String, Skill>,
+    skill_metas: Vec<SkillView>,
     /// 当前视口（数据坐标 bbox；与画布同比例，view.rs 不变式）。
     view_bbox: Option<BBox>,
     needs_fit: bool,
@@ -170,9 +170,9 @@ impl KanyuApp {
             console: ConsolePanel::default(),
             dialogs: Dialogs::default(),
             canvas: MapCanvas::default(),
-            gene_host: GeneHost::new().expect("wasmtime 引擎初始化失败（极少见）"),
-            genes: HashMap::new(),
-            gene_metas: Vec::new(),
+            skill_host: SkillHost::new().expect("wasmtime 引擎初始化失败（极少见）"),
+            skills: HashMap::new(),
+            skill_metas: Vec::new(),
             view_bbox: None,
             needs_fit: false,
             merged: FeatureCollection {
@@ -261,7 +261,7 @@ impl KanyuApp {
         }
     }
 
-    /// 从内核结果集合登记新图层（分析/查询/基因产出）。
+    /// 从内核结果集合登记新图层（分析/查询/技能产出）。
     fn add_result_layer(
         &mut self,
         base_id: &str,
@@ -619,17 +619,21 @@ impl KanyuApp {
         ))
     }
 
-    fn op_gene_run(&mut self, gene_id: &str, layer_id: &str) -> Result<String, String> {
+    fn op_skill_run(&mut self, skill_id: &str, layer_id: &str) -> Result<String, String> {
         let idx = self.find_layer(layer_id)?;
-        let gene = self
-            .genes
-            .get(gene_id)
-            .ok_or_else(|| format!("基因未注册: {gene_id}（先「基因 → 热加载…」）"))?;
+        let skill = self
+            .skills
+            .get(skill_id)
+            .ok_or_else(|| format!("技能未注册: {skill_id}（先「技能 → 热加载…」）"))?;
         let result = self
-            .gene_host
-            .run(gene, &self.layers[idx].layer.collection())
+            .skill_host
+            .run(skill, &self.layers[idx].layer.collection())
             .map_err(|e| e.to_string())?;
-        Ok(self.add_result_layer(&format!("g_{layer_id}"), result, &format!("gene {gene_id}")))
+        Ok(self.add_result_layer(
+            &format!("g_{layer_id}"),
+            result,
+            &format!("skill {skill_id}"),
+        ))
     }
 
     /// 地图导出（当前视图 + 渲染设置）。
@@ -774,41 +778,41 @@ impl KanyuApp {
                     .info(format!("地图色彩模式 → {}", self.map_theme_mode.label()));
                 self.canvas.dirty = true;
             }
-            RibbonAction::GeneHotload => {
+            RibbonAction::SkillHotload => {
                 if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("WASM 基因", &["wasm"])
+                    .add_filter("WASM 技能", &["wasm"])
                     .pick_file()
                 {
-                    match self.gene_host.load(&path.to_string_lossy()) {
-                        Ok(gene) => {
-                            let meta = gene.meta().clone();
-                            let replaced = self.genes.contains_key(&meta.name);
+                    match self.skill_host.load(&path.to_string_lossy()) {
+                        Ok(skill) => {
+                            let meta = skill.meta().clone();
+                            let replaced = self.skills.contains_key(&meta.name);
                             self.console.info(format!(
-                                "基因已注册: {} v{}（能力: {}{}）",
+                                "技能已注册: {} v{}（能力: {}{}）",
                                 meta.name,
                                 meta.version,
                                 meta.capabilities.join(", "),
                                 if replaced { "，覆盖同名" } else { "" }
                             ));
-                            self.gene_metas.push(GeneView {
+                            self.skill_metas.push(SkillView {
                                 id: meta.name.clone(),
                                 version: meta.version.clone(),
                                 capabilities: meta.capabilities.clone(),
                             });
-                            self.genes.insert(meta.name.clone(), gene);
+                            self.skills.insert(meta.name.clone(), skill);
                         }
                         Err(e) => {
                             self.console
-                                .push(crate::console::LineKind::Err, format!("基因校验失败: {e}"));
+                                .push(crate::console::LineKind::Err, format!("技能校验失败: {e}"));
                         }
                     }
                 }
             }
-            RibbonAction::GeneList => {
-                if self.gene_metas.is_empty() {
-                    self.console.info("（无已注册基因）");
+            RibbonAction::SkillList => {
+                if self.skill_metas.is_empty() {
+                    self.console.info("（无已注册技能）");
                 } else {
-                    for g in &self.gene_metas {
+                    for g in &self.skill_metas {
                         self.console.info(format!(
                             "{:<24} v{:<8} [{}]",
                             g.id,
@@ -818,8 +822,8 @@ impl KanyuApp {
                     }
                 }
             }
-            RibbonAction::GeneRunDialog => {
-                self.dialogs.gene_run = Some(crate::dialogs::GeneRunState::default())
+            RibbonAction::SkillRunDialog => {
+                self.dialogs.skill_run = Some(crate::dialogs::SkillRunState::default())
             }
             RibbonAction::ShowHelp => self.console.info(HELP_TEXT),
             RibbonAction::About => self.dialogs.about = true,
@@ -879,7 +883,7 @@ impl KanyuApp {
                 ))
             }
             DialogResult::ExportMap { out } => self.op_export_map(&out),
-            DialogResult::GeneRun { gene_id, layer } => self.op_gene_run(&gene_id, &layer),
+            DialogResult::SkillRun { skill_id, layer } => self.op_skill_run(&skill_id, &layer),
             DialogResult::Invalid { reason } => Err(reason),
         };
         match outcome {
@@ -1115,8 +1119,8 @@ impl eframe::App for KanyuApp {
 
         // 对话框与模态。
         let layer_ids = self.layer_ids();
-        let gene_ids: Vec<String> = self.gene_metas.iter().map(|g| g.id.clone()).collect();
-        if let Some(result) = self.dialogs.ui(&ctx, &layer_ids, &gene_ids) {
+        let skill_ids: Vec<String> = self.skill_metas.iter().map(|g| g.id.clone()).collect();
+        if let Some(result) = self.dialogs.ui(&ctx, &layer_ids, &skill_ids) {
             self.dispatch_dialog_result(result);
         }
         self.error_modal(&ctx);

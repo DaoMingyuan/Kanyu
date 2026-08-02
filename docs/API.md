@@ -16,7 +16,7 @@
 7. [introspect —— 系统自省](#7-introspect--系统自省)
 8. [error —— 错误处理约定](#8-error--错误处理约定)
 9. [kanyu-render —— 离屏地图渲染](#9-kanyu-render--离屏地图渲染)
-10. [kanyu-gene —— WASM 基因系统宿主](#10-kanyu-gene--wasm-基因系统宿主)
+10. [kanyu-skill —— WASM 技能系统宿主](#10-kanyu-skill--wasm-技能系统宿主)
 11. [dwg —— DWG 原生读取](#11-dwg--dwg-原生读取acadrust-自持补丁层)
 12. [kanyu-shell —— 桌面壳层 UI](#12-kanyu-shell--桌面壳层-ui)
 
@@ -383,51 +383,51 @@ GeometryCollection 递归；无几何要素跳过。
 | `InvalidColor(String)` | 主题名/颜色值非法 |
 | `InvalidStyle(String)` | 样式规则非法（空 stops、非升序、坏颜色值；消息指出出错项） |
 
-## 10. kanyu-gene —— WASM 基因系统宿主
+## 10. kanyu-skill —— WASM 技能系统宿主
 
-兄弟 crate（CLI 依赖它执行基因；MCP 热加载接线 📋）。总规 §4.5"以 WASM
-为基因"落地：wasmtime 47 组件模型 + WIT 强类型 ABI + fuel 配额沙箱。
-ABI 定义见 [`crates/kanyu-gene/wit/gene.wit`](../crates/kanyu-gene/wit/gene.wit)：
+兄弟 crate（CLI 依赖它执行技能；MCP 热加载接线 📋）。总规 §4.5"以 WASM
+为技能"落地：wasmtime 47 组件模型 + WIT 强类型 ABI + fuel 配额沙箱。
+ABI 定义见 [`crates/kanyu-skill/wit/skill.wit`](../crates/kanyu-skill/wit/skill.wit)：
 `meta() -> string`（元数据 JSON）与
 `run(input: string) -> result<string, string>`（FeatureCollection JSON 进/出）。
 
-### `GeneHost` / `Gene` / `GeneMeta`
+### `SkillHost` / `Gene` / `SkillMeta`
 
 | 项 | 签名 | 说明 |
 |---|---|---|
-| `GeneHost::new` | `fn new() -> Result<GeneHost, GeneError>` | 构造宿主（`Config::consume_fuel(true)`） |
-| `GeneHost::load` | `fn load(&self, path: &str) -> Result<Gene, GeneError>` | 编译校验 → 实例化 → 调 `meta()` 取元数据并校验（无效 wasm/接口不匹配/元数据非法各报中文错误） |
-| `GeneHost::run` | `fn run(&self, gene: &Gene, input: &geojson::FeatureCollection) -> Result<geojson::FeatureCollection, GeneError>` | 沙箱执行：每次重置 fuel（10 亿），trap/配额/结果非法独立报错 |
-| `Gene::meta` | `fn meta(&self) -> &GeneMeta` | 元数据 |
+| `SkillHost::new` | `fn new() -> Result<SkillHost, SkillError>` | 构造宿主（`Config::consume_fuel(true)`） |
+| `SkillHost::load` | `fn load(&self, path: &str) -> Result<Gene, SkillError>` | 编译校验 → 实例化 → 调 `meta()` 取元数据并校验（无效 wasm/接口不匹配/元数据非法各报中文错误） |
+| `SkillHost::run` | `fn run(&self, gene: &Gene, input: &geojson::FeatureCollection) -> Result<geojson::FeatureCollection, SkillError>` | 沙箱执行：每次重置 fuel（10 亿），trap/配额/结果非法独立报错 |
+| `Gene::meta` | `fn meta(&self) -> &SkillMeta` | 元数据 |
 
-### `GeneMeta`
+### `SkillMeta`
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `name` | `String` | 基因名（非空校验） |
+| `name` | `String` | 技能名（非空校验） |
 | `version` | `String` | 版本号（非空校验） |
 | `capabilities` | `Vec<String>` | 能力清单（如 `["analyzer"]`） |
 
-### `GeneError`
+### `SkillError`
 
 | 变体 | 触发 |
 |---|---|
 | `LoadFailed { path, reason }` | wasm 编译失败 / 实例化失败（WIT 接口不匹配） |
 | `MetaInvalid(String)` | `meta()` 调用失败 / 非合法 JSON / 必填字段缺失 |
-| `Trap(String)` | 执行期 trap（含基因主动返回的业务错误） |
+| `Trap(String)` | 执行期 trap（含技能主动返回的业务错误） |
 | `Timeout(String)` | fuel 耗尽（疑似死循环或过重计算） |
 | `ResultInvalid(String)` | 返回值非合法 FeatureCollection |
 
 **沙箱模型**：组件无 WASI 导入（纯计算，无文件/网络/环境访问）；
 fuel 配额覆盖纯计算死循环；组件无 IO 导入故不设墙钟超时（注释即契约）。
 
-**编写基因**（Rust guest）：参照样板
-[`crates/kanyu-gene/testdata/attr_scaler/`](../crates/kanyu-gene/testdata/attr_scaler/)——
-`wit-bindgen` `generate!`/`export!` 实现 `kanyu:gene/analyzer` 的 `Guest`
+**编写技能**（Rust guest）：参照样板
+[`crates/kanyu-skill/testdata/attr_scaler/`](../crates/kanyu-skill/testdata/attr_scaler/)——
+`wit-bindgen` `generate!`/`export!` 实现 `kanyu:skill/analyzer` 的 `Guest`
 trait，`wasm32-unknown-unknown` 编译后用 `wasm-tools component new` 组件化。
 
 **MCP 接线（已落地）**：`kanyu_system_hotload`（热加载校验注册）、
-`kanyu_gene_run`（沙箱执行，可 `task: true` 异步）、`kanyu_gene_list`
+`kanyu_skill_run`（沙箱执行，可 `task: true` 异步）、`kanyu_skill_list`
 （注册表快照）——字段与输出见 [MCP.md](MCP.md#35-kanyu_system_hotload)。
 
 ## 11. dwg —— DWG 原生读取（acadrust + 自持补丁层）
@@ -483,7 +483,7 @@ Phase 5 spike 结论）：
 
 ## 12. kanyu-shell —— 桌面壳层 UI（v0.3，ArcGIS Pro 式）
 
-二进制 crate（`kanyu-shell`，依赖 kanyu-core + kanyu-render + kanyu-gene，
+二进制 crate（`kanyu-shell`，依赖 kanyu-core + kanyu-render + kanyu-skill，
 无库表面；不发布 crates.io）。eframe/egui 0.35 + wgpu 原生窗口（1280×800
 初始、800×500 最小，窗口图标 assets/logo-256.png 编译期嵌入；release 构建
 为 GUI 子系统，双击不弹控制台）。
@@ -493,7 +493,7 @@ Phase 5 spike 结论）：
 ```
 ┌──────────────────────────────────────────────────┐
 │ Ribbon（102px）：品牌 + 七页签（主页/数据/分析/    │
-│ 制图/视图/基因/帮助）+ 图标大按钮（图标 20px +    │
+│ 制图/视图/技能/帮助）+ 图标大按钮（图标 20px +    │
 │ 标题 11px + 悬停简介浮现卡，三分离）              │
 ├──────────┬────────────────────────────────────────┤
 │ 左侧停靠 │      MapCanvas                          │
