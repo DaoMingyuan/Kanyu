@@ -12,6 +12,9 @@
 //!   （走 egui `ViewportCommand::Screenshot` → `Event::Screenshot` 原生管线，
 //!   截取的是真实窗口内容，含 TitleBar / 面板 / 画布 / 状态栏）。
 
+// release 构建为纯 GUI 子系统（双击不弹控制台黑窗）；debug 保留控制台便于调试。
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod app;
 mod view;
 
