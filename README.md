@@ -1,5 +1,9 @@
 # 堪舆 Kanyu —— AI 原生地理空间操作系统
 
+<p align="center">
+  <img src="assets/logo-512.png" width="180" alt="堪舆凤鸟徽标" />
+</p>
+
 > **以天地为盘，以数据为爻，以 AI 为神，重构地理空间之道。**
 
 [![CI](https://github.com/DaoMingyuan/Kanyu/actions/workflows/ci.yml/badge.svg)](https://github.com/DaoMingyuan/Kanyu/actions/workflows/ci.yml)
