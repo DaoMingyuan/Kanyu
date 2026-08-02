@@ -102,10 +102,11 @@ pub fn apply_theme(ctx: &egui::Context, theme: Theme) {
     v.selection.stroke = Stroke::new(1.0, p.accent);
     v.widgets.noninteractive.bg_fill = p.bg_primary;
     v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, p.text_primary);
-    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, p.border);
+    // Apple 式发丝线分隔：0.5px 低存在边框（分隔让位于内容）。
+    v.widgets.noninteractive.bg_stroke = Stroke::new(0.5, p.border);
     v.widgets.inactive.bg_fill = p.bg_tertiary;
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, p.text_primary);
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0, p.border);
+    v.widgets.inactive.bg_stroke = Stroke::new(0.5, p.border);
     v.widgets.hovered.bg_fill = p.hover;
     v.widgets.hovered.fg_stroke = Stroke::new(1.5, p.accent);
     v.widgets.hovered.bg_stroke = Stroke::new(1.0, p.accent);
@@ -114,46 +115,119 @@ pub fn apply_theme(ctx: &egui::Context, theme: Theme) {
     ctx.set_visuals(v);
 }
 
-/// egui 默认字体不含 CJK：从系统字体目录注入中文字体作为回退族
-///（Windows 微软雅黑/黑体/宋体、macOS 苹方、Linux Noto Sans CJK）。
+/// 字体栈注入（Apple HIG 字体策略的 Windows 适配）：
+/// Proportional 优先 **Segoe UI**（Windows 上最接近 SF 的人文无衬线），
+/// Monospace 优先 **Cascadia Code**（次选 Consolas），
+/// 中文回退 微软雅黑/黑体/宋体（macOS 苹方、Linux Noto Sans CJK）。
+/// egui 默认字体仅作最终兜底。
 pub fn load_cjk_font(ctx: &egui::Context) {
-    let candidates: &[&str] = if cfg!(windows) {
-        &[
+    let mut fonts = egui::FontDefinitions::default();
+    let mut loaded: Vec<String> = Vec::new();
+    let push =
+        |name: &str, path: &str, fonts: &mut egui::FontDefinitions, loaded: &mut Vec<String>| {
+            if let Ok(bytes) = std::fs::read(path) {
+                fonts
+                    .font_data
+                    .insert(name.to_string(), egui::FontData::from_owned(bytes).into());
+                loaded.push(format!("{name}={path}"));
+                true
+            } else {
+                false
+            }
+        };
+
+    if cfg!(windows) {
+        // 正文：Segoe UI（SF 的 Windows 近亲）；中文回退雅黑。
+        push(
+            "segoe",
+            r"C:\Windows\Fonts\segoeui.ttf",
+            &mut fonts,
+            &mut loaded,
+        );
+        let cjk = [
             r"C:\Windows\Fonts\msyh.ttc",
             r"C:\Windows\Fonts\Noto Sans SC (TrueType).otf",
             r"C:\Windows\Fonts\simhei.ttf",
             r"C:\Windows\Fonts\simsun.ttc",
         ]
+        .iter()
+        .any(|p| push("cjk", p, &mut fonts, &mut loaded));
+        if !cjk {
+            eprintln!("警告：未找到系统中文字体，中文可能无法显示");
+        }
+        // 等宽：Cascadia Code → Consolas（命中其一）。
+        let mono_hit = push(
+            "cascadia",
+            r"C:\Windows\Fonts\CascadiaMono.ttf",
+            &mut fonts,
+            &mut loaded,
+        ) || push(
+            "consolas",
+            r"C:\Windows\Fonts\consola.ttf",
+            &mut fonts,
+            &mut loaded,
+        );
+        // 族序：正文 segoe 在前、cjk 回退在后；等宽命中字体在前、cjk 回退在后。
+        let proportional = fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default();
+        if fonts.font_data.contains_key("segoe") {
+            proportional.insert(0, "segoe".to_string());
+        }
+        if fonts.font_data.contains_key("cjk") {
+            proportional.push("cjk".to_string());
+        }
+        let mono = fonts
+            .families
+            .entry(egui::FontFamily::Monospace)
+            .or_default();
+        if mono_hit {
+            let name = if fonts.font_data.contains_key("cascadia") {
+                "cascadia"
+            } else {
+                "consolas"
+            };
+            mono.insert(0, name.to_string());
+        }
+        if fonts.font_data.contains_key("cjk") {
+            mono.push("cjk".to_string());
+        }
     } else if cfg!(target_os = "macos") {
-        &[
+        for p in [
             "/System/Library/Fonts/PingFang.ttc",
             "/System/Library/Fonts/STHeiti Light.ttc",
-        ]
+        ] {
+            if push("cjk", p, &mut fonts, &mut loaded) {
+                break;
+            }
+        }
+        for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+            fonts
+                .families
+                .entry(family)
+                .or_default()
+                .push("cjk".to_string());
+        }
     } else {
-        &[
+        for p in [
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-        ]
-    };
-    let Some((path, bytes)) = candidates
-        .iter()
-        .find_map(|p| std::fs::read(p).ok().map(|b| (*p, b)))
-    else {
-        eprintln!("警告：未找到系统中文字体，中文可能无法显示");
-        return;
-    };
-    let mut fonts = egui::FontDefinitions::default();
-    fonts
-        .font_data
-        .insert("cjk".to_string(), egui::FontData::from_owned(bytes).into());
-    for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-        fonts
-            .families
-            .entry(family)
-            .or_default()
-            .push("cjk".to_string());
+        ] {
+            if push("cjk", p, &mut fonts, &mut loaded) {
+                break;
+            }
+        }
+        for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+            fonts
+                .families
+                .entry(family)
+                .or_default()
+                .push("cjk".to_string());
+        }
     }
+
     ctx.set_fonts(fonts);
-    eprintln!("已注入中文字体: {path}");
+    eprintln!("字体栈: {}", loaded.join(", "));
 }

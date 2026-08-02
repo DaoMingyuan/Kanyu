@@ -135,6 +135,8 @@ pub struct KanyuApp {
     left_tab: panels::LeftTab,
     /// 目录面板（Catalog 文件浏览）。
     catalog: crate::catalog::CatalogPanel,
+    /// 图层筛选框（QGIS 图层面板工具栏）。
+    layer_filter: String,
     /// 底部停靠区当前页签（终端 | AI 对话）。
     dock_tab: panels::DockTab,
     /// AI 对话面板。
@@ -188,6 +190,7 @@ impl KanyuApp {
             show_console: true,
             left_tab: panels::LeftTab::Catalog,
             catalog: crate::catalog::CatalogPanel::default(),
+            layer_filter: String::new(),
             dock_tab: panels::DockTab::Console,
             ai_chat: crate::ai::AiChatPanel::default(),
             map_theme_mode: MapThemeMode::FixedLight,
@@ -933,6 +936,17 @@ impl KanyuApp {
                     entry.expanded = !entry.expanded;
                 }
             }
+            PanelAction::SetAllExpanded(expanded) => {
+                for entry in &mut self.layers {
+                    entry.expanded = expanded;
+                }
+            }
+            PanelAction::ExportLayer(i) => {
+                if i < self.layers.len() {
+                    self.selected = Some(i);
+                    self.dialogs.export = Some(crate::dialogs::ExportState::default());
+                }
+            }
         }
     }
 
@@ -1059,11 +1073,13 @@ impl eframe::App for KanyuApp {
         if self.show_layers_panel {
             let mut left_tab = self.left_tab;
             let mut catalog = std::mem::take(&mut self.catalog);
+            let mut layer_filter = std::mem::take(&mut self.layer_filter);
             let views = self.layer_views();
             let (catalog_actions, layer_actions) =
-                panels::left_dock(ui, &mut left_tab, &mut catalog, &views);
+                panels::left_dock(ui, &mut left_tab, &mut catalog, &views, &mut layer_filter);
             self.left_tab = left_tab;
             self.catalog = catalog;
+            self.layer_filter = layer_filter;
             for action in catalog_actions {
                 match action {
                     crate::catalog::CatalogAction::LoadFile(path) => self.open_file(&path),

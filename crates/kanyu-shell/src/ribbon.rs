@@ -5,7 +5,7 @@
 //! 主页 / 数据 / 分析 / 制图 / 视图 / 基因 / 帮助。
 
 use eframe::egui;
-use egui::RichText;
+use egui::{RichText, Vec2};
 
 use crate::ui_kit::icons::Icon;
 use crate::ui_kit::{ribbon_button, text};
@@ -277,14 +277,57 @@ impl Default for Ribbon {
 }
 
 impl Ribbon {
-    /// 功能区 UI（页签行 + 命令组行）。返回点击产生的动作（每帧至多一个）。
+    /// 功能区 UI（ArcGIS Pro 三段式：QAT 快速访问栏 + 页签行 + 命令组行）。
+    /// 返回点击产生的动作（每帧至多一个）。
     pub fn ui(&mut self, ui: &mut egui::Ui) -> Option<RibbonAction> {
         let mut action = None;
-        // 页签行：品牌标识 + 页签（选中项以强调色下划线标识，ArcGIS Pro 风格）。
+
+        // ── QAT 快速访问工具栏（26px：品牌标 + 高频小按钮 + 当前文件 + 主题）──
         ui.horizontal(|ui| {
             ui.add_space(10.0);
-            ui.label(RichText::new("◇ 堪舆").strong().size(16.0));
-            ui.add_space(14.0);
+            ui.label(
+                RichText::new("◇")
+                    .size(14.0)
+                    .color(crate::theme::palette(theme_of(ui)).accent),
+            );
+            ui.add_space(6.0);
+            // 高频动作（ArcGIS QAT：保存/撤销/重做）。
+            if qat_button(ui, Icon::Export, "保存工程 (.kyu)").clicked() {
+                action = Some(RibbonAction::SaveProject);
+            }
+            ui.add_enabled_ui(false, |ui| {
+                let _ = qat_button(ui, Icon::Reset, "撤销（待编辑内核落地）");
+                let _ = qat_button(ui, Icon::Reset, "重做（待编辑内核落地）");
+            });
+            ui.separator();
+            ui.label(
+                text::caption("堪舆 Kanyu — AI 原生地理空间操作系统")
+                    .color(ui.visuals().weak_text_color()),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(10.0);
+                let theme_icon = if ui.visuals().dark_mode {
+                    Icon::Moon
+                } else {
+                    Icon::Sun
+                };
+                if qat_button(
+                    ui,
+                    theme_icon,
+                    "切换界面主题（晨山/夜观星，不影响地图色彩）",
+                )
+                .clicked()
+                {
+                    action = Some(RibbonAction::ToggleTheme);
+                }
+            });
+        });
+        ui.add_space(2.0);
+        ui.separator();
+
+        // ── 页签行（选中项以强调色下划线标识，ArcGIS Pro 风格）──
+        ui.horizontal(|ui| {
+            ui.add_space(10.0);
             for tab in RibbonTab::ALL {
                 let selected = self.active == tab;
                 let t = if selected {
@@ -313,8 +356,8 @@ impl Ribbon {
         ui.add_space(2.0);
         ui.separator();
         ui.add_space(2.0);
-        // 命令组行：图标大按钮（按钮间距 2px）+ 组分隔（8px + 分隔线 + 8px）+
-        // 组名居中于组下方（10px 弱色）；右端留白 10px（边距即呼吸）。
+
+        // ── 命令组行：图标大按钮 + 组分隔 + 组名（在组宽内居中，ArcGIS 式）──
         ui.horizontal(|ui| {
             ui.add_space(10.0);
             for (gi, group) in groups_of(self.active).iter().enumerate() {
@@ -323,27 +366,66 @@ impl Ribbon {
                     ui.separator();
                     ui.add_space(8.0);
                 }
-                ui.vertical(|ui| {
-                    ui.horizontal(|ui| {
-                        for (bi, b) in group.buttons.iter().enumerate() {
-                            if bi > 0 {
-                                ui.add_space(2.0);
-                            }
-                            if ribbon_button(ui, b.icon, b.label, b.desc_title, b.desc_body, true)
+                // 组宽 = n×68 + (n-1)×2（组名在此宽度内居中）。
+                let n = group.buttons.len() as f32;
+                let group_w = n * 68.0 + (n - 1.0).max(0.0) * 2.0;
+                ui.allocate_ui_with_layout(
+                    Vec2::new(group_w, 70.0),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        ui.horizontal(|ui| {
+                            for (bi, b) in group.buttons.iter().enumerate() {
+                                if bi > 0 {
+                                    ui.add_space(2.0);
+                                }
+                                if ribbon_button(
+                                    ui,
+                                    b.icon,
+                                    b.label,
+                                    b.desc_title,
+                                    b.desc_body,
+                                    true,
+                                )
                                 .clicked()
-                            {
-                                action = Some(b.action);
+                                {
+                                    action = Some(b.action);
+                                }
                             }
-                        }
-                    });
-                    // 组名：贴组左对齐（不可用居中布局——会横跨整个窗口）。
-                    ui.label(text::caption(group.name).color(ui.visuals().weak_text_color()));
-                });
+                        });
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(group_w, 12.0),
+                            egui::Layout::top_down(egui::Align::Center),
+                            |ui| {
+                                ui.label(
+                                    text::caption(group.name).color(ui.visuals().weak_text_color()),
+                                );
+                            },
+                        );
+                    },
+                );
             }
             ui.add_space(10.0);
         });
         action
     }
+}
+
+/// QAT 小图标按钮（20px，悬停提示）。
+fn qat_button(ui: &mut egui::Ui, icon: Icon, tip: &str) -> egui::Response {
+    let resp = ui.add(
+        egui::Button::new("")
+            .fill(egui::Color32::TRANSPARENT)
+            .stroke(egui::Stroke::NONE)
+            .corner_radius(crate::ui_kit::tokens::radius::SM)
+            .min_size(Vec2::new(22.0, 20.0)),
+    );
+    icons_draw(ui, icon, resp.rect.shrink(3.0));
+    resp.on_hover_text(tip)
+}
+
+/// 以文本色绘制图标（QAT 用）。
+fn icons_draw(ui: &egui::Ui, icon: Icon, rect: egui::Rect) {
+    crate::ui_kit::icons::draw(ui.painter(), icon, rect, ui.visuals().text_color());
 }
 
 /// 当前主题（按 visuals 反推）。

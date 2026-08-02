@@ -20,6 +20,10 @@ pub enum PanelAction {
     SelectLayer(usize),
     /// 展开/折叠图层子节点。
     ToggleExpand(usize),
+    /// 全部展开/折叠。
+    SetAllExpanded(bool),
+    /// 导出指定图层（对话框）。
+    ExportLayer(usize),
 }
 
 /// 图层条目视图数据（app 提供，面板不触碰 Layer 本体）。
@@ -126,6 +130,22 @@ fn layer_node(ui: &mut egui::Ui, index: usize, lv: &LayerView, actions: &mut Vec
     if name_resp.clicked() {
         actions.push(PanelAction::SelectLayer(idx));
     }
+    // QGIS 式右键上下文菜单。
+    name_resp.context_menu(|ui| {
+        if ui.button("缩放至图层").clicked() {
+            actions.push(PanelAction::ZoomToLayer(idx));
+            ui.close();
+        }
+        if ui.button("导出图层…").clicked() {
+            actions.push(PanelAction::ExportLayer(idx));
+            ui.close();
+        }
+        ui.separator();
+        if ui.button("移除图层").clicked() {
+            actions.push(PanelAction::RemoveLayer(idx));
+            ui.close();
+        }
+    });
     let _ = name;
 
     // 子节点（展开时）：几何 / 字段 / 格式。
@@ -192,6 +212,7 @@ pub fn left_dock(
     active: &mut LeftTab,
     catalog: &mut crate::catalog::CatalogPanel,
     layers: &[LayerView],
+    layer_filter: &mut String,
 ) -> (Vec<crate::catalog::CatalogAction>, Vec<PanelAction>) {
     let mut catalog_actions = Vec::new();
     let mut layer_actions = Vec::new();
@@ -213,35 +234,70 @@ pub fn left_dock(
                     catalog_actions = catalog.ui(ui);
                 }
                 LeftTab::Layers => {
-                    layer_actions = layers_tree(ui, layers);
+                    layer_actions = layers_tree(ui, layers, layer_filter);
                 }
             }
         });
     (catalog_actions, layer_actions)
 }
 
-/// Contents 骨架目录（弃卡片式：根节点 → 图层节点（展开箭头+几何色块+
-/// 名+行尾操作）→ 几何/字段/格式子节点）。
-pub fn layers_tree(ui: &mut egui::Ui, layers: &[LayerView]) -> Vec<PanelAction> {
+/// Contents 骨架目录（QGIS 图层面板式）：顶部工具栏（缩放/移除/展开/折叠/
+/// 筛选）+ 树行（可见性眼 + 几何图例色块 + 名称 + 右键上下文菜单）。
+pub fn layers_tree(
+    ui: &mut egui::Ui,
+    layers: &[LayerView],
+    filter: &mut String,
+) -> Vec<PanelAction> {
     let mut actions = Vec::new();
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        // 项目根节点（骨架顶层）。
-        let (_root, _t) = tree_row(
-            ui,
-            0,
-            Some(Icon::Layers),
-            &format!("图层（{}）", layers.len()),
-            None,
-            |_ui| {},
+
+    // QGIS 式工具栏：选中图层操作 | 展开/折叠 | 筛选框。
+    ui.horizontal(|ui| {
+        let selected_idx = layers.iter().position(|lv| lv.selected);
+        if icon_btn(ui, Icon::ZoomFit, "缩放至选中图层").clicked() {
+            if let Some(i) = selected_idx {
+                actions.push(PanelAction::ZoomToLayer(i));
+            }
+        }
+        if icon_btn(ui, Icon::Close, "移除选中图层").clicked() {
+            if let Some(i) = selected_idx {
+                actions.push(PanelAction::RemoveLayer(i));
+            }
+        }
+        ui.separator();
+        if icon_btn(ui, Icon::ZoomFit, "展开全部").clicked() {
+            actions.push(PanelAction::SetAllExpanded(true));
+        }
+        if icon_btn(ui, Icon::Reset, "折叠全部").clicked() {
+            actions.push(PanelAction::SetAllExpanded(false));
+        }
+        ui.separator();
+        ui.add(
+            egui::TextEdit::singleline(filter)
+                .desired_width(f32::INFINITY)
+                .hint_text("筛选图层…"),
         );
+    });
+    ui.separator();
+
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        let filter_lc = filter.trim().to_lowercase();
+        let filtered: Vec<(usize, &LayerView)> = layers
+            .iter()
+            .enumerate()
+            .filter(|(_, lv)| {
+                filter_lc.is_empty() || lv.file_name.to_lowercase().contains(&filter_lc)
+            })
+            .collect();
         if layers.is_empty() {
             ui.add_space(4.0);
             hint_caption(
                 ui,
                 "尚未加载图层：从「目录」双击数据文件，或「主页 → 打开数据…」",
             );
+        } else if filtered.is_empty() {
+            hint_caption(ui, &format!("无匹配「{filter}」的图层"));
         }
-        for (i, lv) in layers.iter().enumerate() {
+        for (i, lv) in filtered {
             layer_node(ui, i, lv, &mut actions);
         }
     });

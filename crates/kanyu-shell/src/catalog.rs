@@ -1,6 +1,7 @@
-//! 目录面板（Catalog）：ArcGIS Pro 目录窗格理念——浏览本机文件系统，
-//! 双击打开数据文件为图层。与图层面板（Contents）**职责分离**：
-//! 目录管"找数据"，图层管"已加载的数据现场"。
+//! 目录面板（Catalog）：QGIS 浏览器面板式设计——可展开树：
+//! 快捷根节点（主目录/桌面/文档/下载/项目目录/磁盘）→ 子目录懒加载展开；
+//! 数据文件按类型着色，双击打开为图层。与图层面板职责分离：
+//! 目录管"找数据"，图层管"数据现场"。
 
 use std::path::{Path, PathBuf};
 
@@ -16,56 +17,104 @@ pub enum CatalogAction {
     LoadFile(PathBuf),
 }
 
-/// 目录面板状态。
-pub struct CatalogPanel {
-    /// 当前目录。
-    current_dir: PathBuf,
-    /// 目录条目缓存（进入/上级时重建）。
-    entries: Vec<CatalogEntry>,
-    /// 状态行（读取失败等）。
-    note: Option<String>,
-}
-
-/// 一个目录条目。
-struct CatalogEntry {
-    name: String,
-    path: PathBuf,
-    is_dir: bool,
-    /// 文件大小（目录为 None）。
-    size: Option<u64>,
-}
-
 /// 数据文件扩展名（与壳层打开能力对齐，另加工程/数据库）。
 const DATA_EXTENSIONS: &[&str] = &[
     "shp", "geojson", "json", "fgb", "parquet", "dxf", "dwg", "kml", "kmz", "csv", "tsv", "xlsx",
     "kdb", "kyu",
 ];
 
+/// 目录树节点（目录懒加载：children 为 None 表示未展开读取过）。
+struct CatalogNode {
+    name: String,
+    path: PathBuf,
+    is_dir: bool,
+    expanded: bool,
+    /// 子节点缓存（目录展开时读取一次；None = 未读取）。
+    children: Option<Vec<CatalogNode>>,
+    /// 文件大小（目录为 None）。
+    size: Option<u64>,
+}
+
+impl CatalogNode {
+    fn dir(path: PathBuf, name: String) -> Self {
+        Self {
+            name,
+            path,
+            is_dir: true,
+            expanded: false,
+            children: None,
+            size: None,
+        }
+    }
+    fn file(path: PathBuf, name: String, size: u64) -> Self {
+        Self {
+            name,
+            path,
+            is_dir: false,
+            expanded: false,
+            children: None,
+            size: Some(size),
+        }
+    }
+}
+
+/// 目录面板状态（QGIS 浏览器：根节点集合 + 懒加载树）。
+pub struct CatalogPanel {
+    roots: Vec<CatalogNode>,
+    /// 状态行（读取失败等）。
+    note: Option<String>,
+}
+
 impl Default for CatalogPanel {
     fn default() -> Self {
-        let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let mut panel = Self {
-            current_dir,
-            entries: Vec::new(),
+            roots: Vec::new(),
             note: None,
         };
-        panel.refresh();
+        panel.build_roots();
         panel
     }
 }
 
 impl CatalogPanel {
-    /// 重建当前目录条目（目录优先、名称排序；只列数据文件）。
-    fn refresh(&mut self) {
-        self.entries.clear();
-        self.note = None;
-        let rd = match std::fs::read_dir(&self.current_dir) {
-            Ok(rd) => rd,
-            Err(e) => {
-                self.note = Some(format!("无法读取 {}: {e}", self.current_dir.display()));
-                return;
+    /// 构造根节点（QGIS 浏览器的固定根：主目录/桌面/文档/下载/项目目录/磁盘）。
+    fn build_roots(&mut self) {
+        if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
+            let home = PathBuf::from(home);
+            for (label, sub) in [
+                ("主目录", ""),
+                ("桌面", "Desktop"),
+                ("文档", "Documents"),
+                ("下载", "Downloads"),
+            ] {
+                let p = if sub.is_empty() {
+                    home.clone()
+                } else {
+                    home.join(sub)
+                };
+                if p.is_dir() {
+                    self.roots.push(CatalogNode::dir(p, label.to_string()));
+                }
             }
-        };
+        }
+        if let Ok(cwd) = std::env::current_dir() {
+            self.roots
+                .push(CatalogNode::dir(cwd, "项目目录".to_string()));
+        }
+        if cfg!(windows) {
+            for letter in ['C', 'D', 'E', 'F'] {
+                let p = PathBuf::from(format!("{letter}:\\"));
+                if p.is_dir() {
+                    self.roots
+                        .push(CatalogNode::dir(p.clone(), format!("磁盘 {letter}:\\")));
+                }
+            }
+        }
+    }
+
+    /// 读取目录子节点（目录优先、名称排序；文件仅数据扩展名）。
+    fn read_children(dir: &Path) -> Result<Vec<CatalogNode>, String> {
+        let rd = std::fs::read_dir(dir).map_err(|e| format!("无法读取 {}: {e}", dir.display()))?;
         let mut dirs = Vec::new();
         let mut files = Vec::new();
         for entry in rd.flatten() {
@@ -74,185 +123,179 @@ impl CatalogPanel {
             if name.starts_with('.') {
                 continue;
             }
-            let is_dir = path.is_dir();
-            if !is_dir {
+            if path.is_dir() {
+                dirs.push(CatalogNode::dir(path, name));
+            } else {
                 let ext = path
                     .extension()
                     .map(|e| e.to_string_lossy().to_ascii_lowercase())
                     .unwrap_or_default();
-                if !DATA_EXTENSIONS.contains(&ext.as_str()) {
-                    continue;
+                if DATA_EXTENSIONS.contains(&ext.as_str()) {
+                    let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                    files.push(CatalogNode::file(path, name, size));
                 }
             }
-            let size = if is_dir {
-                None
-            } else {
-                entry.metadata().ok().map(|m| m.len())
-            };
-            let item = CatalogEntry {
-                name,
-                path,
-                is_dir,
-                size,
-            };
-            if is_dir {
-                dirs.push(item);
-            } else {
-                files.push(item);
-            }
         }
-        dirs.sort_by_key(|e| e.name.to_lowercase());
-        files.sort_by_key(|e| e.name.to_lowercase());
-        self.entries = dirs.into_iter().chain(files).collect();
+        dirs.sort_by_key(|n| n.name.to_lowercase());
+        files.sort_by_key(|n| n.name.to_lowercase());
+        Ok(dirs.into_iter().chain(files).collect())
     }
 
-    /// 进入目录（若可读）。
-    fn enter(&mut self, path: PathBuf) {
-        self.current_dir = path;
-        self.refresh();
-    }
-
-    /// 快捷位置（桌面/文档/下载/当前目录/磁盘根）。
-    fn quick_locations() -> Vec<(&'static str, PathBuf)> {
-        let mut locs = Vec::new();
-        if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
-            let home = PathBuf::from(home);
-            for (label, sub) in [
-                ("桌面", "Desktop"),
-                ("文档", "Documents"),
-                ("下载", "Downloads"),
-            ] {
-                let p = home.join(sub);
-                if p.is_dir() {
-                    locs.push((label, p));
-                }
-            }
+    /// 按索引路径取可变节点（索引路径 = 各层 children 下标序列）。
+    fn node_at_mut<'a>(
+        nodes: &'a mut [CatalogNode],
+        idx_path: &[usize],
+    ) -> Option<&'a mut CatalogNode> {
+        let (first, rest) = idx_path.split_first()?;
+        let node = nodes.get_mut(*first)?;
+        if rest.is_empty() {
+            Some(node)
+        } else {
+            Self::node_at_mut(node.children.as_mut()?.as_mut_slice(), rest)
         }
-        if let Ok(cwd) = std::env::current_dir() {
-            locs.push(("项目目录", cwd));
-        }
-        if cfg!(windows) {
-            for letter in ['C', 'D', 'E', 'F'] {
-                let p = PathBuf::from(format!("{letter}:\\"));
-                if p.is_dir() {
-                    locs.push((
-                        Box::leak(format!("{letter}:\\").into_boxed_str()) as &'static str,
-                        p,
-                    ));
-                }
-            }
-        }
-        locs
     }
 
     /// 面板 UI。返回产生的动作。
     pub fn ui(&mut self, ui: &mut egui::Ui) -> Vec<CatalogAction> {
         let mut actions = Vec::new();
-
-        // 快捷位置行（chip 式小按钮，当前位置高亮）。
-        egui::ScrollArea::horizontal().show(ui, |ui| {
-            ui.horizontal(|ui| {
-                for (label, path) in Self::quick_locations() {
-                    let active = path == self.current_dir;
-                    let chip = egui::Button::new(text::caption(label))
-                        .fill(if active {
-                            ui.visuals().faint_bg_color
-                        } else {
-                            egui::Color32::TRANSPARENT
-                        })
-                        .corner_radius(egui::CornerRadius::same(9));
-                    if ui.add(chip).clicked() {
-                        self.enter(path);
-                    }
-                }
-            });
-        });
-        ui.add_space(4.0);
-
-        // 面包屑：上级按钮 + 当前路径。
-        ui.horizontal(|ui| {
-            let (rect, up) = ui.allocate_exact_size(egui::Vec2::splat(20.0), egui::Sense::click());
-            let color = if up.hovered() {
-                crate::ui_kit::icons_color(ui)
-            } else {
-                ui.visuals().weak_text_color()
-            };
-            // 上移箭头（简易：三角朝上）。
-            let c = rect.center();
-            ui.painter().add(egui::Shape::convex_polygon(
-                vec![
-                    egui::pos2(c.x - 5.0, c.y + 3.0),
-                    egui::pos2(c.x + 5.0, c.y + 3.0),
-                    egui::pos2(c.x, c.y - 4.0),
-                ],
-                color,
-                egui::Stroke::NONE,
-            ));
-            if up.clicked() {
-                if let Some(parent) = self.current_dir.parent().map(Path::to_path_buf) {
-                    self.enter(parent);
-                }
-            }
-            up.on_hover_text("上级目录");
-            let path_text = self.current_dir.display().to_string();
-            ui.label(text::caption(path_text).color(ui.visuals().weak_text_color()))
-                .on_hover_text(self.current_dir.display().to_string());
-        });
-        ui.separator();
-
-        // 条目列表（双击进入/打开；目录变更延后到迭代后应用，避免借用冲突）。
+        // 状态行。
         if let Some(note) = &self.note {
             hint_caption(ui, note);
         }
-        if self.entries.is_empty() && self.note.is_none() {
-            hint_caption(ui, "（空目录或无可识别数据文件）");
-        }
-        let mut enter_target: Option<PathBuf> = None;
+        // 展开/加载/打开动作延后收集（避免借用冲突），迭代后统一应用。
+        let mut toggles: Vec<Vec<usize>> = Vec::new();
         egui::ScrollArea::vertical()
-            .id_salt("catalog_scroll")
+            .id_salt("catalog_tree")
             .show(ui, |ui| {
-                for entry in &self.entries {
-                    let (icon, tint) = entry_visual(entry);
-                    let row = ui.horizontal(|ui| {
-                        icons::icon_ui(ui, icon, 15.0, tint);
-                        ui.add_space(2.0);
-                        let label = match entry.size {
-                            Some(size) if !entry.is_dir => {
-                                format!("{}  （{}）", entry.name, human_size(size))
-                            }
-                            _ => entry.name.clone(),
-                        };
-                        let resp =
-                            ui.add(egui::Label::new(text::body(label)).sense(egui::Sense::click()));
-                        if entry.is_dir {
-                            resp.on_hover_text("双击进入目录")
-                        } else {
-                            resp.on_hover_text("双击打开为图层")
-                        }
-                    });
-                    let resp = row.response;
-                    if resp.double_clicked() {
-                        if entry.is_dir {
-                            enter_target = Some(entry.path.clone());
-                        } else {
-                            actions.push(CatalogAction::LoadFile(entry.path.clone()));
-                        }
-                    }
+                let mut path_buf = Vec::new();
+                for (i, _) in self.roots.iter().enumerate() {
+                    path_buf.clear();
+                    path_buf.push(i);
+                    render_node(
+                        ui,
+                        &self.roots[i],
+                        0,
+                        &mut path_buf,
+                        &mut toggles,
+                        &mut actions,
+                    );
                 }
             });
-        if let Some(path) = enter_target {
-            self.enter(path);
+        // 应用展开/折叠（首次展开时懒加载子节点）。
+        for idx_path in toggles {
+            if let Some(node) = Self::node_at_mut(&mut self.roots, &idx_path) {
+                if !node.expanded && node.children.is_none() {
+                    match Self::read_children(&node.path) {
+                        Ok(children) => node.children = Some(children),
+                        Err(e) => self.note = Some(e),
+                    }
+                }
+                node.expanded = !node.expanded;
+            }
         }
         actions
     }
 }
 
-/// 条目图标与着色（目录=文件夹/工程=信息/数据库=六边形/其余按几何意象）。
-fn entry_visual(entry: &CatalogEntry) -> (Icon, egui::Color32) {
-    if entry.is_dir {
+/// 递归渲染节点（QGIS 浏览器树行）。
+fn render_node(
+    ui: &mut egui::Ui,
+    node: &CatalogNode,
+    depth: usize,
+    idx_path: &mut Vec<usize>,
+    toggles: &mut Vec<Vec<usize>>,
+    actions: &mut Vec<CatalogAction>,
+) {
+    let my_path = idx_path.clone();
+    ui.horizontal(|ui| {
+        // 缩进（每级 14px 参考线）。
+        for _ in 0..depth {
+            let (rect, _) =
+                ui.allocate_exact_size(egui::Vec2::new(14.0, 20.0), egui::Sense::hover());
+            ui.painter().line_segment(
+                [
+                    egui::pos2(rect.center().x, rect.min.y),
+                    egui::pos2(rect.center().x, rect.max.y),
+                ],
+                egui::Stroke::new(0.5, ui.visuals().widgets.noninteractive.bg_stroke.color),
+            );
+        }
+        // 展开箭头（仅目录；文件占位）。
+        if node.is_dir {
+            let (rect, resp) =
+                ui.allocate_exact_size(egui::Vec2::new(16.0, 20.0), egui::Sense::click());
+            let c = rect.center();
+            let pts = if node.expanded {
+                vec![
+                    egui::pos2(c.x - 4.0, c.y - 2.0),
+                    egui::pos2(c.x + 4.0, c.y - 2.0),
+                    egui::pos2(c.x, c.y + 4.0),
+                ]
+            } else {
+                vec![
+                    egui::pos2(c.x - 2.0, c.y - 4.0),
+                    egui::pos2(c.x + 4.0, c.y),
+                    egui::pos2(c.x - 2.0, c.y + 4.0),
+                ]
+            };
+            ui.painter().add(egui::Shape::convex_polygon(
+                pts,
+                ui.visuals().weak_text_color(),
+                egui::Stroke::NONE,
+            ));
+            if resp.clicked() {
+                toggles.push(my_path.clone());
+            }
+        } else {
+            ui.allocate_exact_size(egui::Vec2::new(16.0, 20.0), egui::Sense::hover());
+        }
+        // 图标 + 名称。
+        let (icon, tint) = node_visual(node);
+        icons::icon_ui(ui, icon, 14.0, tint);
+        ui.add_space(2.0);
+        let label = match node.size {
+            Some(size) => format!("{}  （{}）", node.name, human_size(size)),
+            None => node.name.clone(),
+        };
+        let resp = ui.add(egui::Label::new(text::body(label)).sense(egui::Sense::click()));
+        if node.is_dir {
+            if resp.double_clicked() {
+                toggles.push(my_path.clone());
+            }
+            resp.on_hover_text(node.path.display().to_string());
+        } else {
+            if resp.double_clicked() {
+                actions.push(CatalogAction::LoadFile(node.path.clone()));
+            }
+            resp.on_hover_text("双击打开为图层");
+        }
+    });
+    // 子节点。
+    if node.is_dir && node.expanded {
+        if let Some(children) = &node.children {
+            if children.is_empty() {
+                ui.horizontal(|ui| {
+                    for _ in 0..=depth {
+                        ui.allocate_exact_size(egui::Vec2::new(14.0, 16.0), egui::Sense::hover());
+                    }
+                    hint_caption(ui, "（空）");
+                });
+            }
+            for (i, child) in children.iter().enumerate() {
+                idx_path.push(i);
+                render_node(ui, child, depth + 1, idx_path, toggles, actions);
+                idx_path.pop();
+            }
+        }
+    }
+}
+
+/// 节点图标与着色。
+fn node_visual(node: &CatalogNode) -> (Icon, egui::Color32) {
+    if node.is_dir {
         return (Icon::Folder, egui::Color32::from_rgb(0xD4, 0xA8, 0x43));
     }
-    let ext = entry
+    let ext = node
         .path
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
@@ -298,24 +341,31 @@ mod tests {
     }
 
     #[test]
-    fn refresh_lists_dirs_and_data_files_only() {
-        let dir = std::env::temp_dir().join("kanyu_catalog_test");
+    fn read_children_filters_and_sorts() {
+        let dir = std::env::temp_dir().join("kanyu_catalog_tree_test");
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         std::fs::write(dir.join("a.geojson"), "{}").unwrap();
         std::fs::write(dir.join("b.txt"), "x").unwrap();
         std::fs::write(dir.join("c.kdb"), b"k").unwrap();
-        let mut panel = CatalogPanel {
-            current_dir: dir.clone(),
-            entries: Vec::new(),
-            note: None,
-        };
-        panel.refresh();
-        let names: Vec<&str> = panel.entries.iter().map(|e| e.name.as_str()).collect();
-        assert!(names.contains(&"sub"), "目录应列出");
+        let children = CatalogPanel::read_children(&dir).unwrap();
+        let names: Vec<&str> = children.iter().map(|n| n.name.as_str()).collect();
+        assert!(names.contains(&"sub"));
         assert!(names.contains(&"a.geojson"));
         assert!(names.contains(&"c.kdb"));
         assert!(!names.contains(&"b.txt"), "非数据文件应过滤");
-        // 目录排前。
-        assert_eq!(panel.entries[0].name, "sub");
+        assert_eq!(children[0].name, "sub", "目录排前");
+    }
+
+    #[test]
+    fn node_at_mut_walks_index_path() {
+        let mut roots = vec![CatalogNode::dir(PathBuf::from("/a"), "a".to_string())];
+        roots[0].children = Some(vec![CatalogNode::dir(
+            PathBuf::from("/a/b"),
+            "b".to_string(),
+        )]);
+        let node = CatalogPanel::node_at_mut(&mut roots, &[0, 0]).unwrap();
+        assert_eq!(node.name, "b");
+        node.expanded = true;
+        assert!(roots[0].children.as_ref().unwrap()[0].expanded);
     }
 }

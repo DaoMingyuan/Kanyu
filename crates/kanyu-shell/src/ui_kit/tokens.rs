@@ -18,15 +18,15 @@ pub mod spacing {
     pub const XXL: f32 = 32.0;
 }
 
-/// 圆角标尺。
+/// 圆角标尺（Apple HIG 连续圆角语义：控件 6 / 卡片 10 / 大浮层 14）。
 pub mod radius {
     use eframe::egui::CornerRadius;
-    /// 4px —— 小控件（按钮、输入框、徽章）。
-    pub const SM: CornerRadius = CornerRadius::same(4);
-    /// 7px —— 卡片、对话框。
-    pub const MD: CornerRadius = CornerRadius::same(7);
-    /// 12px —— 大型浮层。
-    pub const LG: CornerRadius = CornerRadius::same(12);
+    /// 6px —— 控件（按钮、输入框、徽章）。
+    pub const SM: CornerRadius = CornerRadius::same(6);
+    /// 10px —— 卡片、对话框。
+    pub const MD: CornerRadius = CornerRadius::same(10);
+    /// 14px —— 大型浮层。
+    pub const LG: CornerRadius = CornerRadius::same(14);
 }
 
 /// 控件尺寸（高度，px）。
@@ -41,42 +41,44 @@ pub mod sizes {
     pub const TITLE_BAR: f32 = 40.0;
     /// 状态栏高。
     pub const STATUS_BAR: f32 = 28.0;
-    /// 功能区（ribbon）总高（页签 24 + 分隔与呼吸 8 + 按钮 56 + 组名 14）。
-    pub const RIBBON: f32 = 102.0;
+    /// 功能区（ribbon）总高（QAT 26 + 页签 24 + 分隔呼吸 6 + 按钮与组名 70）。
+    pub const RIBBON: f32 = 126.0;
     /// 标准输入框宽。
     pub const INPUT_W: f32 = 240.0;
     /// 终端面板默认高。
     pub const CONSOLE_H: f32 = 180.0;
 }
 
-/// 文本分级（总规 §1.3 字号层级，px）。
+/// 文本分级（Apple HIG 字号层级适配桌面端：Large Title 28 / Title2 22 /
+/// Headline 17sb / Subhead 15 / Footnote 13 / Caption2 11 / 数据等宽 12；
+/// 行内引用 HIG Type Scale，比例关系与 iOS 一致，绝对值按桌面密度下调）。
 pub mod text {
     use eframe::egui::{self, RichText};
 
-    /// display-xl 字号（32px，启动页/品牌大标题）。
-    pub const SIZE_DISPLAY_XL: f32 = 32.0;
-    /// display-lg 字号（24px，面板大标题）。
-    pub const SIZE_DISPLAY_LG: f32 = 24.0;
-    /// heading 字号（18px，区块标题）。
-    pub const SIZE_HEADING: f32 = 18.0;
-    /// body-lg 字号（15px，正文/属性值）。
+    /// display-xl 字号（28px，HIG Large Title 桌面适配：启动页/品牌大标题）。
+    pub const SIZE_DISPLAY_XL: f32 = 28.0;
+    /// display-lg 字号（22px，HIG Title 2 桌面适配：面板大标题）。
+    pub const SIZE_DISPLAY_LG: f32 = 22.0;
+    /// heading 字号（17px 半粗，HIG Headline：区块标题）。
+    pub const SIZE_HEADING: f32 = 17.0;
+    /// body-lg 字号（15px，HIG Subheadline：正文/属性值）。
     pub const SIZE_BODY_LG: f32 = 15.0;
-    /// body 字号（13px，标签/按钮）。
+    /// body 字号（13px，HIG Footnote：标签/按钮）。
     pub const SIZE_BODY: f32 = 13.0;
-    /// caption 字号（11px，注释/状态栏）。
+    /// caption 字号（11px，HIG Caption 2：注释/状态栏）。
     pub const SIZE_CAPTION: f32 = 11.0;
     /// data 字号（12px 等宽，坐标/ID/终端）。
     pub const SIZE_DATA: f32 = 12.0;
 
-    /// display-xl 32px —— 启动页/品牌大标题。
+    /// display-xl 28px —— 启动页/品牌大标题。
     pub fn display_xl(t: impl Into<String>) -> RichText {
         RichText::new(t.into()).size(SIZE_DISPLAY_XL).strong()
     }
-    /// display-lg 24px —— 面板大标题。
+    /// display-lg 22px —— 面板大标题。
     pub fn display_lg(t: impl Into<String>) -> RichText {
         RichText::new(t.into()).size(SIZE_DISPLAY_LG).strong()
     }
-    /// heading 18px —— 区块标题。
+    /// heading 17px 半粗 —— 区块标题。
     pub fn heading(t: impl Into<String>) -> RichText {
         RichText::new(t.into()).size(SIZE_HEADING).strong()
     }
@@ -116,6 +118,17 @@ pub mod text {
             ];
             for w in sizes.windows(2) {
                 assert!(w[0] >= w[1], "字号层级必须单调不增: {sizes:?}");
+            }
+        }
+
+        #[test]
+        fn hig_scale_values() {
+            // HIG 适配值的锚点断言（防手滑改动基准）。
+            assert_eq!(SIZE_HEADING, 17.0);
+            assert_eq!(SIZE_BODY, 13.0);
+            assert_eq!(SIZE_CAPTION, 11.0);
+            const {
+                assert!(SIZE_DISPLAY_XL > SIZE_DISPLAY_LG && SIZE_DISPLAY_LG > SIZE_HEADING);
             }
         }
     }

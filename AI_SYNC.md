@@ -118,6 +118,11 @@
 - 预计：大（eframe/wgpu 依赖树，release 构建 15-25 分钟）
 
 <!-- 新条目加在这行之上 -->
+### [收工] 2026-08-03 kimi-code(main) — shell v0.5：四标准设计深化（HIG/QGIS/ArcGIS/邮箱）
+- 提交：见本次 commit 组；测试：134 全绿 + clippy 零警告；验证：浅色截图人工确认（QAT 三段式、组名组宽内居中、QGIS 浏览器树根节点、Segoe/Cascadia 字体栈生效）
+- 内容：联系邮箱统一 daomingyuan@qq.com；Apple HIG 文本分级（28/22/17sb/15/13/11/12）+ 连续圆角（6/10/14）+ 0.5px 发丝线 + Segoe UI/Cascadia Code 字体栈；目录面板改 QGIS 浏览器树（根节点懒加载）；图层 QGIS 工具栏+右键菜单+筛选；功能区 QAT 三段式
+- 偏差：无（clippy 适配：sort_by_key、const assert、闭包 mut）
+- 后续：§1.2 属性面板重建待用户定制；crates.io 发布仍待 token
 ### [收工] 2026-08-03 kimi-code(main) — shell v0.4：design-review 驱动的设计迭代
 - 提交：3 个原子提交（Ribbon 版式/Catalog 分离/规范入档）；测试：132 全绿 + clippy 零警告；验证：双主题截图人工确认（Ribbon 三分离正确、组名归位、目录浏览器可用、暗色界面+晨山地图）
 - 内容：design-review 技能沉淀入 ui_kit 规范；Catalog 文件浏览器（快捷位置/面包屑/数据文件过滤/双击加载）；左侧双页签（目录|图层）；Ribbon 版式系统修复（含组名横跨窗口定位 bug）；删除右侧属性面板（待用户定制）
