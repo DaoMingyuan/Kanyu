@@ -62,6 +62,15 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 
 ## 快速开始
 
+### 安装（Windows）
+
+- **桌面端 MSI**：从 [Releases](https://github.com/DaoMingyuan/Kanyu/releases) 下载
+  `kanyu-<版本>-x86_64.msi`——用户级安装（免 UAC），含 GUI 壳层 + CLI + MCP，
+  自动创建桌面「堪舆」快捷方式与开始菜单项。
+- 或使用三平台 CLI 压缩包（`kanyu` 命令行，免安装解压即用）。
+
+### 从源码构建
+
 ```bash
 # 构建（需要 Rust 1.94+）
 cargo build --release
