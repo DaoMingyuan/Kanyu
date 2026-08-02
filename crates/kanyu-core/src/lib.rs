@@ -19,7 +19,9 @@ pub mod dwg;
 pub mod error;
 pub mod format;
 pub mod introspect;
+pub mod kdb;
 pub mod layer;
+pub mod project;
 
 pub use error::{KanyuError, Result};
 pub use format::{FormatCapabilities, FormatRegistry};

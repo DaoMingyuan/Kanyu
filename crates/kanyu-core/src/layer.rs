@@ -47,6 +47,17 @@ impl Layer {
             .ok_or_else(|| KanyuError::UnknownFormat(path.to_string()))?;
         registry.require(caps.id, "read")?;
 
+        // 堪舆数据库走 RecordBatch 直通路径（类型保真零转换）。
+        if caps.id == "kdb" {
+            let bytes = std::fs::read(path)?;
+            let batch = crate::kdb::kdb_to_batch(&bytes)?;
+            return Ok(Self {
+                id,
+                format: "kdb".to_string(),
+                batch,
+            });
+        }
+
         let collection = match caps.id {
             "geojson" => {
                 let text = std::fs::read_to_string(path)?;
@@ -96,6 +107,22 @@ impl Layer {
             format: "memory".to_string(),
             batch: collection_to_batch(&collection).expect("内核构造的集合必然可入列"),
         }
+    }
+
+    /// 从 GeoArrow RecordBatch 直接构造图层（堪舆数据库 .kdb 读取路径，
+    /// 类型保真零转换，`format` 记为 "kdb"）。
+    pub fn from_batch(id: impl Into<String>, batch: arrow_array::RecordBatch) -> Self {
+        Self {
+            id: id.into(),
+            format: "kdb".to_string(),
+            batch,
+        }
+    }
+
+    /// 导出为堪舆数据库（KanyuDB .kdb）字节流——直接序列化底层
+    /// RecordBatch（Arrow IPC + kanyu.* 元数据），类型保真不经 GeoJSON 中间层。
+    pub fn to_kdb_bytes(&self) -> Result<Vec<u8>> {
+        crate::kdb::batch_to_kdb(&self.batch)
     }
 
     /// 图层标识。

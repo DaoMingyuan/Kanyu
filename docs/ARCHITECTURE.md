@@ -56,7 +56,7 @@
 | `kanyu-render` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG 光栅化，晨山/夜观星主题，属性驱动符号化 graduated/categorical）；wgpu 实时管线待壳层 | 🚧 incubating | kanyu-core |
 | `kanyu-edit` | 手：DCEL 增量拓扑编辑，Undo/Redo | 📋 planned | kanyu-core |
 | `kanyu-gene` | 基因：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）；MCP 热加载接线 📋 | 🚧 incubating | kanyu-core |
-| `kanyu-shell` | 壳层：egui 桌面 UI MVP（eframe/wgpu 窗口；TitleBar/图层面板/MapCanvas 视口缩放平移/StatusBar；晨山/夜观星双主题；`--screenshot` 截图验证） | 🚧 incubating | kanyu-core, kanyu-render |
+| `kanyu-shell` | 壳层：egui 深度桌面 UI（v0.3）——ArcGIS Pro 式七页签 Ribbon（`ui_kit::icons` 线性图标 + 图标/文字/介绍卡大按钮）、Contents 骨架目录树、底部双页签（终端 \| AI 对话：LocalDriver 离线规则 + OpenAiDriver 兼容端点）、地图色彩与界面主题解耦（`MapThemeMode`，默认固定晨山）、`.kyu` 工程打开/保存、内置 `ui_kit` 设计系统 | 🚧 incubating | kanyu-core, kanyu-render, kanyu-gene |
 
 依赖规则（编译期强制，review 时核对）：
 
@@ -105,7 +105,9 @@
 
 支持级别为三态枚举 `Support`：`Full` / `Partial` / `None`（`usable()` = 非 None）。
 每条记录还带 `driver`（`native` / `gdal-bridge` / `acadrust` / `libredwg-wasm` 等）与 `note` 备注。
-v0.1 内置 17 种格式，与总规附录 A.1 一一对应（有单元测试保证不漏）。
+v0.1 内置 17 种格式；v0.3 起第 18 种为自研 **堪舆数据库 `.kdb`**（KanyuDB，裁决 #19：
+Arrow IPC + `kanyu.*` 元数据，RecordBatch 直通类型保真），与总规附录 A.1 一一对应
+（有单元测试保证不漏）。
 
 **能力矩阵如何驱动决策**：CLI 与 MCP 不写任何格式特判，一律走注册表：
 

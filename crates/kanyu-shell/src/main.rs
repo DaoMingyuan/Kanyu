@@ -15,6 +15,7 @@
 // release 构建为纯 GUI 子系统（双击不弹控制台黑窗）；debug 保留控制台便于调试。
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod ai;
 mod app;
 mod canvas;
 mod console;

@@ -19,7 +19,9 @@ publish = false
 kanyu-core.workspace = true
 kanyu-render.workspace = true
 kanyu-gene.workspace = true
+serde.workspace = true
 serde_json.workspace = true
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider"] }
 eframe = { version = "0.35", default-features = false, features = [
     "accesskit",
     "default_fonts",

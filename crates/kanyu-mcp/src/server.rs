@@ -290,6 +290,7 @@ impl KanyuServer {
             "kml" if req.format == "kmz" => {
                 Layer::to_kmz_bytes(&layer.collection()).map_err(to_mcp)?
             }
+            "kdb" => layer.to_kdb_bytes().map_err(to_mcp)?,
             "shp" => {
                 // shp 为三件套（base.shp/.shx/.dbf）：不能走字节流写文件，直接落盘。
                 let base = req

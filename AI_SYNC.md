@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-03 · v0.14.0 · 101 测试全绿**。
+> 每次收工回记时更新。截至 **2026-08-03 · v0.14.0+ · 130 测试全绿**。
 
 ### 1.1 已完成实现
 
@@ -66,7 +66,9 @@
 | kanyu-mcp | ✅ | 17 stable 工具；stdio+streamable HTTP；SEP-2663 长任务 |
 | kanyu-gene | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/gene_run/gene_list） |
 | kanyu-cli | ✅ | 7 命令组，全局 --json；v0.14.0 已发布并安装 |
-| kanyu-shell | 🚧 incubating | egui 桌面 UI MVP ✅（TitleBar/图层面板/MapCanvas/StatusBar/双主题/截图验证），待发布 |
+| kanyu-shell | 🚧 incubating | v0.3：ArcGIS Pro 式 Ribbon 图标大按钮（ui_kit::icons 33 枚线性图标）、Contents 骨架目录树、终端/AI 对话双页签（LocalDriver+OpenAiDriver 双驱动）、地图色彩解耦、ui_kit 设计系统 |
+| 堪舆数据库 .kdb | ✅ | 自研存档（裁决 #19）：Arrow IPC + kanyu.* 元数据，RecordBatch 直通类型保真，全格式转换接入 |
+| 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
 | 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
 | 上游回馈 | ✅ | acadrust issue #55（AC15 定位缺陷 + 修法 + 证据） |
 
@@ -116,6 +118,15 @@
 - 预计：大（eframe/wgpu 依赖树，release 构建 15-25 分钟）
 
 <!-- 新条目加在这行之上 -->
+### [收工] 2026-08-03 kimi-code(main) — kanyu-shell v0.3 + KDB/KYU 双格式定版
+- 提交：见本次 commit；测试：130 全绿 + clippy 零警告；验证：双主题截图人工确认（图标大按钮版式正确；**界面夜观星 + 地图固定晨山**解耦实证）；KDB 端到端（geojson→kdb→info/query）
+- 内容：ui_kit::icons 33 枚线性图标 + ribbon_button/tab_strip/tree_row/password_input；Contents 骨架目录（弃卡片式）；底部双页签（终端|AI 对话）；ai.rs 双驱动（LocalDriver 意图引擎 + OpenAiDriver/ureq）；MapThemeMode 地图色彩解耦；KDB（Arrow IPC+kanyu.*）与 KYU（JSON 清单）入 core + 注册表第 18 格式 + 全格式转换；文档升级（裁决 #19、§3.5 格式节、ARCHITECTURE/API/README/CHANGELOG/CLI/MCP）
+- 偏差：ribbon 静态组布局改 Vec；painter.arc 不存在改折线近似；ribbon_button 版式一次修正（按钮 min_size 撑满 64×52）；ureq 3 API 适配（header/send/read_to_string）
+- 后续：§1.2 待办 #2 图标已闭环；GUI 安装与快捷方式沿用（本次同步更新 kanyu-shell.exe）
+### [开工] 2026-08-03 kimi-code(main) — kanyu-shell v0.3：ArcGIS Pro 式深度升级
+- 范围：ui_kit（icons/ribbon_button/tab_strip/tree_row/chat_bubble）、panels（骨架目录+双页签）、ribbon（图标按钮+组细分）、ai.rs（驱动+设置）、app（地图色彩解耦）、文档
+- 依据：用户八点指令；总规 §1.4 图标系统/§2.1 UI 架构；计划文件 hawkman-scarlet-witch-miss-martian.md
+- 预计：大（约 2000+ 行变更）
 ### [收工] 2026-08-03 kimi-code(main) — GUI 安装与桌面快捷方式闭环
 - 内容：kanyu-shell.exe（GUI 子系统，PE 验证）安装至 Programs\kanyu；桌面 **堪舆.lnk**（GUI 直启 + 凤鸟图标）与 **堪舆终端.lnk**（wt + kanyu introspect）创建并校验（中文名正确）
 - 偏差：PowerShell 5.1 无 BOM 按 ANSI 读 UTF-8 脚本致首轮快捷方式文件名乱码——清除后以带 BOM 脚本重建（教训入档：PS 脚本一律带 BOM 或全 ASCII）

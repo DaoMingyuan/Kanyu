@@ -108,6 +108,12 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                     Layer::write_shp(&layer.collection(), base)?;
                     eprintln!("已导出 {} 个要素 → {base}.shp/.shx/.dbf (shp)", layer.len());
                 }
+                "kdb" => {
+                    // 堪舆数据库：RecordBatch 直通（类型保真，不经 GeoJSON 中间层）。
+                    std::fs::write(out, layer.to_kdb_bytes()?)
+                        .with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!("已导出 {} 个要素 → {out} (kdb 堪舆数据库)", layer.len());
+                }
                 "kml" => {
                     let text = Layer::to_kml_string(&layer.collection())?;
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;

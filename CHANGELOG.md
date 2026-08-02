@@ -6,6 +6,34 @@
 
 ### 新增
 
+- **堪舆数据库（KanyuDB，`.kdb`）**：自研存档格式（裁决 #19）——Arrow IPC 容器 +
+  `kanyu.*` schema 元数据（format/version/producer），几何列 `geoarrow.wkb` 扩展；
+  与内存 RecordBatch 同构直通，**类型保真**（不经 GeoJSON 中间层），任何 Arrow
+  工具链（pyarrow/DuckDB/Polars）可读。`Layer::to_kdb_bytes` / `Layer::from_batch` /
+  `kdb::batch_to_kdb` / `kdb::kdb_to_batch`；注册表第 18 种格式（read/write/edit/symbol
+  Full）；CLI/MCP `export -f kdb` 与 `load .kdb` 接入全格式转换矩阵。
+- **堪舆工程（`.kyu`）**：JSON 工程清单（裁决 #19）——项目元数据/图层路径引用/
+  可见性/视口/地图色彩模式；版本校验（高版本拒绝并提示升级）；壳层
+  「主页 → 打开工程…/保存工程」落地；无来源内存图层不入工程并明示。
+  `kanyu_core::project::{KanyuProject, ProjectLayer}`。
+- **kanyu-shell v0.3**（ArcGIS Pro 式深度升级）：
+  - **Ribbon 图标大按钮**：总规 §1.4 线性图标系统（`ui_kit::icons`，33 枚
+    stroke 1.5px 几何极简图标，egui painter 直绘）+「图标+文字+功能介绍卡」
+    组合按钮（`ui_kit::ribbon_button`，悬停介绍卡）；命令组再细分。
+  - **Contents 骨架目录**（弃卡片式）：根→图层节点（展开箭头+几何图例色块+
+    行尾可见性/缩放/移除图标按钮+选中联动）→几何/字段/格式子节点（`ui_kit::tree_row`）。
+  - **底部双页签停靠区**：终端 | AI 对话 同级别切换（`ui_kit::tab_strip`）。
+  - **AI 对话面板**（BitFun 式驱动与设置）：`ai.rs`——可插拔 `AiDriver`：
+    LocalDriver（离线规则引擎：自然语言→缓冲/打开/图层/度量/导出/帮助，
+    意图解析纯函数可测）+ OpenAiDriver（OpenAI 兼容端点，ureq/rustls；
+    数据现场系统提示注入）；设置弹窗（驱动/端点/密钥/模型）持久化
+    `%APPDATA%/kanyu/shell_ai.json`。
+  - **地图色彩解耦**：`MapThemeMode`（固定晨山默认/固定夜观星/跟随界面），
+    界面主题切换不再影响地图与制图输出，状态栏显示当前模式，
+    随 .kyu 工程序列化。
+
+### 既有条目（v0.2 周期）
+
 - **kanyu-shell**（新 crate）：egui 桌面 UI MVP（总规 §2.1 壳-层-格）——
   eframe/wgpu 原生窗口（标题"堪舆 Kanyu"，1280×800 初始 / 800×500 最小，
   窗口图标 assets/logo-256.png 编译期嵌入）；TitleBar（40px：品牌+当前

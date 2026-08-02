@@ -116,7 +116,7 @@ $ ./target/debug/kanyu.exe data query examples/buildings.geojson --filter "usage
 
 > 注意：`query` 的 stdout 恒为 GeoJSON 文本（一行），不受 `--json` 影响。
 
-### 3.4 `kanyu data export <file> -f <format> --out <path>` ✅（原生支持 geojson / csv / shp / fgb / geoparquet / dxf / kml / kmz）
+### 3.4 `kanyu data export <file> -f <format> --out <path>` ✅（原生支持 geojson / csv / shp / fgb / geoparquet / dxf / kml / kmz / kdb）
 
 导出为目标格式，受格式能力矩阵约束（决策路径见
 [ARCHITECTURE.md](ARCHITECTURE.md#4-格式注册表设计)）。

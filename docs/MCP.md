@@ -203,12 +203,12 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
 
 ### 3.3 `kanyu_data_export`
 
-> 将数据文件导出为目标格式（当前原生支持 geojson/csv/shp/fgb/geoparquet/dxf/kml/kmz；其余格式受格式能力矩阵与驱动状态约束）。
+> 将数据文件导出为目标格式（当前原生支持 geojson/csv/shp/fgb/geoparquet/dxf/kml/kmz/kdb；其余格式受格式能力矩阵与驱动状态约束）。
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `path` | string | 是 | 数据文件路径 |
-| `format` | string | 是 | 目标格式短名（`geojson`/`csv`/`fgb`/`geoparquet`/`dxf`/`kml`/…，受能力矩阵约束；`fgb`/`geoparquet` 为二进制写出，列 schema 自动推断；`dxf` 暂不写出属性） |
+| `format` | string | 是 | 目标格式短名（`geojson`/`csv`/`fgb`/`geoparquet`/`dxf`/`kml`/`kmz`/`shp`/`kdb`，受能力矩阵约束；`fgb`/`geoparquet`/`kdb` 为二进制写出，`kdb` 经 RecordBatch 直通类型保真；`dxf` 暂不写出属性） |
 | `out` | string | 是 | 输出路径 |
 
 输出（导出成功时）：

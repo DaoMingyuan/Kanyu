@@ -481,21 +481,49 @@ Phase 5 spike 结论）：
 `Layer::load("x.dwg")` 经 `"dwg"` arm 薄调用本模块（
 `crate::dwg::dwg_to_collection(path)?.0`）。
 
-## 12. kanyu-shell —— 桌面壳层 UI
+## 12. kanyu-shell —— 桌面壳层 UI（v0.3，ArcGIS Pro 式）
 
-二进制 crate（`kanyu-shell`，依赖 kanyu-core + kanyu-render，无库表面；
-不发布 crates.io）。eframe/egui 0.35 + wgpu 原生窗口（1280×800 初始、
-800×500 最小，窗口图标 assets/logo-256.png 编译期嵌入）。只做"看"：
-加载 / 渲染 / 缩放平移 / 主题；查询与分析不进 UI。
+二进制 crate（`kanyu-shell`，依赖 kanyu-core + kanyu-render + kanyu-gene，
+无库表面；不发布 crates.io）。eframe/egui 0.35 + wgpu 原生窗口（1280×800
+初始、800×500 最小，窗口图标 assets/logo-256.png 编译期嵌入；release 构建
+为 GUI 子系统，双击不弹控制台）。
 
-布局（总规 §2.1/§2.2）：TitleBar 40px（品牌 + 当前文件名 / 打开数据·
-主题切换·面板折叠）｜ 图层面板 260px（可见性勾选、格式、要素数、几何
-类型、字段清单，可折叠可拖宽 180–480）｜ MapCanvas（`render_png` 显式
-视口 → egui 纹理，状态变化重渲；滚轮光标锚点缩放、左键拖拽平移、拖
-文件入窗打开）｜ StatusBar 28px（鼠标数据坐标、可见要素总数、版本号）。
-晨山/夜观星双主题：§1.2 色板 → `egui::Visuals`，渲染 `Theme` 联动。
-egui 默认字体不含 CJK，启动时按平台注入系统字体回退族
-（Windows msyh→simhei→simsun / macOS PingFang / Linux Noto Sans CJK）。
+### 架构细分（v0.3）
+
+```
+┌──────────────────────────────────────────────────┐
+│ Ribbon（86px）：品牌 + 七页签（主页/数据/分析/     │
+│ 制图/视图/基因/帮助）+ 图标大按钮（图标 20px +    │
+│ 文字 11px + 悬停功能介绍卡）                      │
+├──────────┬───────────────────────────┬───────────┤
+│ Contents │      MapCanvas            │ 属性/基因 │
+│ 骨架目录 │  （地图色彩独立，默认      │  面板     │
+│ （树）   │   固定晨山，不受界面主题影响）│          │
+├──────────┴───────────────────────────┴───────────┤
+│ 底部停靠区（200px）：终端 | AI 对话（双页签）      │
+├──────────────────────────────────────────────────┤
+│ StatusBar（28px）：状态/坐标/视口宽/地图色彩/要素/版本 │
+└──────────────────────────────────────────────────┘
+```
+
+- **ui_kit 设计系统**（`src/ui_kit/`）：tokens（间距/圆角/控件高/七级文本）、
+  controls（KButton 四变体/KIconButton/KTextInput/KCombo/KCheckbox/
+  ribbon_button/tab_strip/tree_row/password_input）、containers（KCard/
+  KSectionHeader/KDialogShell/KBadge）、icons（33 枚线性图标，§1.4 风格，
+  egui painter 直绘）。铁律（AGENTS.md #8）：先查后用、无则按类新建、样式不出库。
+- **Contents 骨架目录**（弃卡片式）：根→图层节点（展开箭头+几何图例色块+
+  行尾可见性/缩放/移除+选中联动）→几何/字段/格式子节点。
+- **独立终端**：命令直达内核（`console.rs`，`ConsoleHost` trait），
+  与界面共享数据现场；↑↓ 历史导航。
+- **AI 对话面板**（`src/ai.rs`，BitFun 式驱动与设置）：`AiDriver` 可插拔——
+  LocalDriver（离线规则引擎：`LocalDriver::parse` 纯函数意图映射：
+  缓冲/打开/图层/度量/导出/帮助）+ OpenAiDriver（OpenAI 兼容端点，
+  ureq/rustls，系统提示注入数据现场）；`AiSettings`（driver/base_url/
+  api_key/model）持久化 `%APPDATA%/kanyu/shell_ai.json`。
+- **地图色彩解耦**：`MapThemeMode { FixedLight（默认）, FixedDark, FollowUi }`，
+  `as_str()/parse()` 随 `.kyu` 序列化；`effective_map_theme()` 统一画布与
+  地图导出取色——界面主题切换永不影响制图输出。
+- **工程格式**：「主页 → 打开工程…/保存工程」驱动 `.kyu`（见 §14）。
 
 ### 命令行参数（截图验证模式）
 
@@ -506,8 +534,8 @@ kanyu-shell --screenshot <out.png> [--load <file>] [--theme dark] [--delay <秒>
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `--load <file>` | 无 | 启动即加载（格式自动探测，同 `Layer::load` 支持的 11 种扩展名） |
-| `--theme light\|dark` | `light` | 初始主题（晨山 / 夜观星） |
+| `--load <file>` | 无 | 启动即加载（格式自动探测，同 `Layer::load` 支持的扩展名） |
+| `--theme light\|dark` | `light` | 初始**界面**主题（不影响地图色彩，见 `MapThemeMode`） |
 | `--screenshot <out.png>` | 无 | 截图验证模式：延时后截取**真实窗口全部内容**（egui `ViewportCommand::Screenshot` → `Event::Screenshot` 原生管线，eframe wgpu 交换链读回）落盘 PNG 并退出；失败以码 1 退出 |
 | `--delay <秒>` | `2.0` | 截图前等待（等窗口与地图纹理就绪） |
 | `--help` / `--version` | — | 用法 / 版本号 |
@@ -526,3 +554,36 @@ letterbox 为零，故 `screen_to_data` 是简单线性映射（y 轴翻转）�
 | `screen_to_data` | `fn screen_to_data(sx: f64, sy: f64, bbox: BBox, width_px: f64, height_px: f64) -> (f64, f64)` | 屏幕坐标（画布左上角原点）→ 数据坐标（状态栏坐标与缩放锚点来源） |
 | `clamp_span` | `fn clamp_span(bbox: BBox) -> BBox` | 视口跨度等比约束（防越过渲染内核零跨度防护与 >350° 拒绝域） |
 | `union` | `fn union(bboxes: impl IntoIterator<Item = BBox>) -> Option<BBox>` | 多图层 bbox 并集（初始视口的数据范围） |
+
+## 13. kdb —— 堪舆数据库（KanyuDB，`.kdb`）
+
+自研存档格式（裁决 #19）：KDB 文件 = Arrow IPC 文件，schema 元数据携带
+`kanyu:format="kdb"` / `kanyu:format_version="1"` / `kanyu:producer`。与内存
+RecordBatch 同构直通（WKB 几何列 + `geoarrow.wkb` 扩展 + 类型化属性列），
+类型保真不经 GeoJSON 中间层；任何 Arrow 工具链（pyarrow/DuckDB/Polars）可读。
+v1 约束：单批次。
+
+| API | 签名 | 说明 |
+|---|---|---|
+| `kdb::batch_to_kdb` | `fn batch_to_kdb(batch: &RecordBatch) -> Result<Vec<u8>>` | RecordBatch → KDB 字节流（注入 kanyu.* 元数据） |
+| `kdb::kdb_to_batch` | `fn kdb_to_batch(bytes: &[u8]) -> Result<RecordBatch>` | KDB 字节流 → RecordBatch（校验 `kanyu:format`；多批次/非 KDB 中文报错） |
+| `Layer::to_kdb_bytes` | `fn to_kdb_bytes(&self) -> Result<Vec<u8>>` | 图层直接导出 KDB（RecordBatch 直通） |
+| `Layer::from_batch` | `fn from_batch(id: impl Into<String>, batch: RecordBatch) -> Layer` | RecordBatch 直构图层（.kdb 读取路径，format 记为 "kdb"） |
+
+转换：`Layer::load("x.kdb")` 与 CLI/MCP `export -f kdb` 接入全格式矩阵
+（任意格式 ↔ kdb ↔ 任意格式）。
+
+## 14. project —— 堪舆工程（`.kyu`）
+
+JSON 工程清单（裁决 #19）：`kanyu_project=1` 格式标识 + 项目元数据 +
+图层路径引用 + 界面状态（视口/地图色彩/可见性）。不内嵌数据；无来源的
+内存图层（分析产出）不入工程。
+
+| API | 签名 | 说明 |
+|---|---|---|
+| `KanyuProject::new` | `fn new(name: impl Into<String>, crs: impl Into<String>) -> Self` | 新建空工程 |
+| `to_json` / `from_json` | `fn to_json(&self) -> Result<String>` / `fn from_json(text: &str) -> Result<Self>` | 序列化/解析（`kanyu_project` 标识与版本校验，高版本拒绝并提示升级堪舆） |
+| `save` / `load` | `fn save(&self, path: &str) -> Result<()>` / `fn load(path: &str) -> Result<Self>` | 文件读写 |
+| 字段 | `name/crs/created/kanyu_version/viewport: Option<[f64;4]>/map_theme: String/layers: Vec<ProjectLayer>` | `map_theme` ∈ `fixed_light`(默认)/`fixed_dark`/`follow_ui` |
+| `ProjectLayer` | `{ id, source, visible, style: Option<serde_json::Value> }` | 图层引用（路径相对工程目录或绝对） |
+

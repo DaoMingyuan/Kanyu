@@ -29,16 +29,17 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 | AI 接入 | 外挂插件 | WKT 字符串进出 | **一等公民 MCP，结构化 JSON + CRS/单位元数据** |
 | 执行模型 | — | `execute_code` 任意代码执行（安全隐患） | **声明式工具，沙箱化，可审计** |
 | 项目语义 | 无 | 无 | **AGENTS.md 地理 profile（图层/CRS/业务规则）** |
-| 内存模型 | 逐要素 | 逐要素 | **GeoArrow 列式零拷贝 ✅（v0.1 已落地）** |
+| 内存模型 | 逐要素 | 逐要素 | **堪舆数据库（GeoArrow 兼容）列式零拷贝 ✅** |
 | 自我迭代 | 无 | 无 | **观察→诊断→编码→验证→部署→回溯闭环** |
 
 ## 特性（v0.1.0）
 
-- **数据心脏**：统一格式注册表（17 种格式的能力矩阵），GeoJSON 原生加载与属性查询。
+- **数据心脏**：统一格式注册表（18 种格式的能力矩阵），GeoJSON 原生加载与属性查询。
+- **堪舆数据库**：自研存档 `.kdb`（Arrow IPC + `kanyu.*` 元数据，与内存模型同构、类型保真、任何 Arrow 工具链可读）与堪舆工程 `.kyu`（JSON 工程清单：图层引用/视口/地图色彩/可见性），全格式互转。
 - **脊髓 CLI**：`kanyu data info/load/query/export`、`kanyu introspect`、`kanyu agents init/validate`、`kanyu mcp serve`，全局 `--json`。
 - **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。
 - **离屏渲染**：`kanyu render map` / MCP `kanyu_render_map`——数据 → PNG（tiny-skia）/ SVG 地图图片，晨山/夜观星双主题，AI 代理可直接"看见"数据。
-- **桌面壳层**：`kanyu-shell`——深度桌面 UI：ArcGIS Pro 式七页签 Ribbon 功能区、独立终端（命令直达内核）、Contents/属性可停靠面板、对话框操作（查询/缓冲/叠加/统计/地图导出/基因运行）、内置 `ui_kit` 设计系统（四变体按钮/七级文本/卡片容器），晨山/夜观星双主题。
+- **桌面壳层**：`kanyu-shell`——ArcGIS Pro 式深度 UI：七页签 Ribbon（图标+文字+功能介绍大按钮，总规 §1.4 线性图标）、Contents 骨架目录树、独立终端 + AI 对话双页签（本地规则/OpenAI 兼容双驱动，BitFun 式设置）、地图色彩与界面主题解耦（固定晨山保制图正确）、`.kyu` 工程打开/保存、内置 `ui_kit` 设计系统，晨山/夜观星双主题。
 - **基因热加载**：MCP `kanyu_system_hotload` / `kanyu_gene_run` / `kanyu_gene_list`——WASM 基因（wasmtime 沙箱）远程加载校验与执行，AI 代理可远程扩展内核能力。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 

@@ -402,9 +402,14 @@ kanyu::register_panel(Box::new(LayerTreePanel::new()));
 
 ## 第三部分：数据与格式架构
 
-### 3.1 统一内存模型：GeoArrow
+### 3.1 统一内存模型：堪舆数据库（KanyuDB，GeoArrow 兼容）
 
-堪舆的所有数据在内存中以 **GeoArrow** 格式存在，实现零拷贝跨模块共享：
+> **命名定版（裁决 #19，2026-08-03）**：堪舆的内存与存档模型统一命名为
+> **堪舆数据库（KanyuDB，简称 KDB）**。内存形态为 GeoArrow RecordBatch
+> 兼容布局（WKB 几何列 + `geoarrow.wkb` 扩展元数据 + 类型化属性列）；
+> 存档形态为 `.kdb` 文件（Arrow IPC + `kanyu.*` 元数据，见 §3.5）。
+
+堪舆的所有数据在内存中以 **堪舆数据库（GeoArrow RecordBatch 兼容）** 格式存在，实现零拷贝跨模块共享：
 
 ```
 磁盘文件 → 解析器 → GeoArrow RecordBatch → 内核内存池
@@ -559,6 +564,47 @@ GeoArrow 数据 → 符号化引擎 → CAD 实体映射 → DWG/DXF 编码器
   }
 }
 ```
+
+### 3.5 堪舆数据库（.kdb）与堪舆工程（.kyu）文件格式
+
+> 2026-08-03 定版（裁决 #19）。堪舆的自研格式双璧：**KDB 存数据，KYU 存工程**。
+
+#### 3.5.1 堪舆数据库（.kdb，KanyuDB v1）
+
+**设计**：KDB 文件 = **Arrow IPC 文件**，schema 元数据携带 `kanyu.*` 键：
+
+| 键 | 值 |
+|----|----|
+| `kanyu:format` | 恒为 `"kdb"`（读取校验） |
+| `kanyu:format_version` | 恒为 `"1"` |
+| `kanyu:producer` | 如 `"kanyu-core 0.14.0"` |
+
+- **类型保真**：直接序列化内存 RecordBatch（WKB 几何列 + `geoarrow.wkb` 扩展 +
+  类型化属性列），读写不经 GeoJSON 中间层，Int64/Float64/Utf8/Boolean 原样往返。
+- **开放互操作**：任何 Arrow 工具链（pyarrow、DuckDB、Polars）可直接读取——自研但不自闭。
+- **转换**：CLI/MCP `export -f kdb` 与 `load .kdb` 已接入全格式转换矩阵
+  （任意格式 ↔ kdb ↔ 任意格式）；v1 单批次。
+
+#### 3.5.2 堪舆工程（.kyu，KanyuProject v1）
+
+**设计**：`.kyu` 为 JSON 工程清单：
+
+```json
+{
+  "kanyu_project": 1,
+  "name": "示例工程", "crs": "EPSG:4326",
+  "viewport": [116.3, 39.8, 116.5, 40.0],
+  "map_theme": "fixed_light",
+  "layers": [
+    {"id": "buildings", "source": "data/buildings.geojson", "visible": true, "style": null}
+  ]
+}
+```
+
+- 图层按**路径引用**外部数据源（不内嵌数据，数据源变动工程即跟随）；
+- 保存界面状态：视口、地图色彩模式、图层可见性；
+- 无来源的内存图层（分析产出）不入工程，保存时明确提示（先导出为数据文件）；
+- 壳层「主页 → 打开工程…/保存工程」落地；版本升级校验（高版本拒绝并提示升级）。
 
 ---
 
@@ -1034,6 +1080,7 @@ A/B 测试 (与旧版本并行)
 | 16 | 阶段顺序：Phase 2 渲染 → Phase 3 编辑 → Phase 4 AI/分析 | **调序** | Phase 1（地基）→ **分析内核**（geo crate：buffer/overlay/topology，CLI/MCP 先行）→ Phase 2 渲染 → Phase 3 编辑 → Phase 4 AI 融合 | CLI/MCP 是已交付的产品面，分析工具组可立即兑现总规 §4.2.2 的 MCP 承诺；UI 壳层（egui/wgpu）体量大、不阻塞内核能力沉淀。内核优先让 AI 代理用户尽早获得完整工作流 |
 | 17 | MCP 工具 kanyu_render_symbolize 独立存在 | **合并** | 符号化并入 kanyu_render_map 的 style 参数（graduated/categorical 规则） | 避免两个工具做同一件事的冗余面；无 style 调用行为不变，向后兼容 |
 | 18 | DWG 读取 = LibreDWG 编译 WASM 沙箱（裁决 #7 路线） | **改道** | **首选 acadrust 0.4（纯 Rust、MPL-2.0、R13–R2018 读写）原生进内核**（driver: acadrust，只读起步）；LibreDWG-wasm 降为备选（覆盖率不足时启用，GPL 制品独立可选分发） | 2026-08-03 调研：① @mlightcad/libredwg-web 为 emscripten 模块，wasmtime 跑不了；② LibreDWG→wasi-sdk 无人做过，autoconf 交叉编译中偏大工作量且 GPL 分发受限；③ acadrust 纯 Rust 内存安全（沙箱隔离的理由从"GPL+CVE"消失）、MPL-2.0 文件级弱 copyleft 与双许可兼容、已有 dwgdxf npm 包的 WASM 实证。风险：0.4.x 年轻、真实图纸覆盖率待实测——以 421 个真实 DWG 样本 spike 验证后再定稿 |
+| 19 | 内存/存档模型沿用 GeoArrow 名称与外部格式 | **升级** | **命名定版为堪舆数据库（KanyuDB，KDB）**：内存形态 GeoArrow 兼容（WKB+`geoarrow.wkb`+类型化列）；新增自研存档格式 **.kdb**（Arrow IPC + `kanyu.*` 元数据，类型保真，任何 Arrow 工具链可读）与工程格式 **.kyu**（JSON 清单：图层引用+视口+地图色彩+可见性） | GeoArrow 是事实标准布局（继续兼容互操作），但产品级需要一个可命名的数据库与工程格式闭环：KDB 与内存模型同构零转换，KYU 让"工作现场"可存档可分享；转换经既有 export 矩阵，无新增依赖面 |
 
 ### 6.2 竞品格局与差异化定位（调研摘要）
 
@@ -1073,11 +1120,13 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 #### Phase 1：地基 —— 内核与数据（Months 1–3）🚧 v0.1.0 已落地首块基石
 
 - [x] Rust workspace 与内核骨架（kanyu-core / kanyu-cli / kanyu-mcp）。
-- [x] 统一格式注册表与能力矩阵（17 种格式，代码即单一事实来源）。
+- [x] 统一格式注册表与能力矩阵（18 种格式，代码即单一事实来源）。
 - [x] AGENTS.md 解析器/校验器/模板生成器。
 - [x] GeoJSON 原生加载与属性谓词查询。
 - [x] MCP Server（rmcp，stdio）+ 6 个确定性工具 + 系统自省。
 - [x] GeoArrow RecordBatch 内存模型替换 GeoJSON 载体（2026-08-02 完成：WKB 几何列 + 类型化属性列；Layer API 仅 collection() 改为返回拥有值，新增 batch() 零拷贝访问）。
+- [x] **堪舆数据库 .kdb**（裁决 #19，2026-08-03：Arrow IPC + `kanyu.*` 元数据，RecordBatch 直通类型保真；读取/导出/全格式转换接入 CLI/MCP）。
+- [x] **堪舆工程 .kyu**（裁决 #19，2026-08-03：JSON 工程清单——图层引用/视口/地图色彩/可见性；壳层打开/保存落地）。
 - [x] FlatGeobuf 原生读写（内部首选交换格式，列 schema 自动推断）。
 - [x] GeoParquet 原生读写（云原生列式，WKB 几何编码 + geo 元数据）。
 - [x] DXF 原生读写（CAD 互操作：POINT/LINE/LWPOLYLINE/CIRCLE/ARC 映射，图层→layer 属性）。
@@ -1144,7 +1193,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 
 | 总规条目 | 状态 | 位置 |
 |---------|------|------|
-| §3.2 格式矩阵 | ✅ 代码化（FormatRegistry，17 格式） | `crates/kanyu-core/src/format.rs` |
+| §3.2 格式矩阵 | ✅ 代码化（FormatRegistry，18 格式） | `crates/kanyu-core/src/format.rs` |
 | §4.2 MCP 工具（数据组） | ✅ 3/4 组首工具落地（命名修正为下划线式） | `crates/kanyu-mcp/src/server.rs` |
 | §4.2.2 分析工具组 | ✅ 3/3 首工具（buffer/overlay/topology，geo crate）+ measure（测地线度量） | `crates/kanyu-core/src/analysis.rs`、`crates/kanyu-core/src/crs.rs` |
 | §4.2.3 渲染工具组 | ✅ 首个工具 render_map（离屏 PNG/SVG，晨山/夜观星主题） | `crates/kanyu-render/src/lib.rs` |

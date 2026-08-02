@@ -117,6 +117,18 @@ impl FormatRegistry {
                 note: "原生读写（flatgeobuf crate）；内部首选交换格式，列 schema 自动推断，混合几何按 Unknown 异构声明",
             },
             FormatCapabilities {
+                id: "kdb",
+                name: "堪舆数据库 (KanyuDB)",
+                extensions: &["kdb"],
+                read: Full,
+                write: Full,
+                edit: Full,
+                symbol: Full,
+                layout: None,
+                driver: "native",
+                note: "自研存档：Arrow IPC + geoarrow.wkb + kanyu.* 元数据；与内存模型同构，类型保真零拷贝，任何 Arrow 工具链可读",
+            },
+            FormatCapabilities {
                 id: "geoparquet",
                 name: "GeoParquet",
                 extensions: &["parquet"],

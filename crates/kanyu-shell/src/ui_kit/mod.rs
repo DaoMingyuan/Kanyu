@@ -33,11 +33,13 @@
 
 pub mod containers;
 pub mod controls;
+pub mod icons;
 pub mod tokens;
 
 pub use containers::{badge, card, dialog_shell, section_header, DialogAction};
 pub use controls::{
     button, checkbox, combo, combo_static, error_caption, hint_caption, icon_button, layer_picker,
-    text_area, text_input, ButtonVariant,
+    password_input, ribbon_button, tab_strip, text_area, text_input, tree_row, ButtonVariant,
 };
+pub use icons::{icon_ui, icons_color, Icon};
 pub use tokens::{sizes, spacing, text};

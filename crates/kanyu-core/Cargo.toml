@@ -17,6 +17,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 geojson.workspace = true
 csv.workspace = true
+arrow-ipc.workspace = true
 shapefile.workspace = true
 flatgeobuf.workspace = true
 geozero.workspace = true

@@ -204,3 +204,183 @@ fn on_accent(ui: &egui::Ui) -> egui::Color32 {
         egui::Color32::from_rgb(0xF7, 0xF5, 0xF2)
     }
 }
+
+/// ArcGIS Pro 式功能区大按钮：上图标（20px）下文字（11px），
+/// 悬停显示功能介绍卡（加粗标题 + 说明正文 + 提示脚注）。
+///
+/// ```
+/// if ribbon_button(ui, Icon::Buffer, "缓冲区", "按距离生成缓冲区", "结果存为新图层", true).clicked() { /* … */ }
+/// ```
+pub fn ribbon_button(
+    ui: &mut egui::Ui,
+    icon: super::icons::Icon,
+    label: &str,
+    desc_title: &str,
+    desc_body: &str,
+    enabled: bool,
+) -> Response {
+    let p = palette_of(ui);
+    let btn = egui::Button::new("")
+        .fill(egui::Color32::TRANSPARENT)
+        .stroke(Stroke::NONE)
+        .corner_radius(radius::SM)
+        .min_size(Vec2::new(64.0, 52.0));
+    let resp = ui.add_enabled(enabled, btn);
+    let rect = resp.rect;
+    // 图标（上部 20px）+ 文字（底部 11px）：ArcGIS Pro 大按钮版式。
+    let icon_size = 20.0;
+    let icon_rect = egui::Rect::from_center_size(
+        egui::pos2(rect.center().x, rect.min.y + 6.0 + icon_size / 2.0),
+        Vec2::splat(icon_size),
+    );
+    let color = if enabled { p.text_primary } else { p.text_weak };
+    super::icons::draw(ui.painter(), icon, icon_rect, color);
+    ui.painter().text(
+        egui::pos2(rect.center().x, rect.max.y - 5.0),
+        egui::Align2::CENTER_BOTTOM,
+        label,
+        egui::FontId::proportional(11.0),
+        color,
+    );
+    // 功能介绍卡（egui 原生悬停层，自动定位防遮挡）。
+    if enabled {
+        resp.clone().on_hover_ui(|ui| {
+            ui.set_max_width(240.0);
+            ui.label(text::body(desc_title).strong());
+            ui.label(text::caption(desc_body));
+        });
+    }
+    resp
+}
+
+/// 页签条（终端 | AI 对话 等同级别切换）：文本页签 + 选中下划线。
+///
+/// ```
+/// let mut active = 0;
+/// tab_strip(ui, &["终端", "AI 对话"], &mut active);
+/// ```
+pub fn tab_strip(ui: &mut egui::Ui, tabs: &[&str], active: &mut usize) {
+    let p = palette_of(ui);
+    ui.horizontal(|ui| {
+        for (i, tab) in tabs.iter().enumerate() {
+            let selected = *active == i;
+            let t = if selected {
+                text::body(*tab).strong()
+            } else {
+                text::body(*tab).color(p.text_weak)
+            };
+            let resp = ui.selectable_label(selected, t);
+            if selected {
+                let rect = resp.rect;
+                let y = rect.max.y + 1.0;
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(rect.min.x + 4.0, y),
+                        egui::pos2(rect.max.x - 4.0, y),
+                    ],
+                    Stroke::new(2.0, p.accent),
+                );
+            }
+            if resp.clicked() {
+                *active = i;
+            }
+            ui.add_space(10.0);
+        }
+    });
+}
+
+/// 目录树行（ArcGIS Pro 骨架目录）：缩进参考线 + 展开箭头（可选）+
+/// 图标（可选）+ 文本 + 行尾操作区。返回 (行响应, 展开箭头是否被点)。
+///
+/// ```
+/// let (row, toggled) = tree_row(ui, 1, Some(Icon::Layers), "buildings.geojson", true, |ui| { /* 行尾按钮 */ });
+/// ```
+pub fn tree_row(
+    ui: &mut egui::Ui,
+    depth: usize,
+    icon: Option<super::icons::Icon>,
+    label: &str,
+    expanded: Option<bool>,
+    trailing: impl FnOnce(&mut egui::Ui),
+) -> (Response, bool) {
+    let p = palette_of(ui);
+    let mut toggled = false;
+    let row = ui.horizontal(|ui| {
+        // 缩进参考线（每级 14px + 竖线）。
+        for _ in 0..depth {
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(14.0, 22.0), egui::Sense::hover());
+            ui.painter().line_segment(
+                [
+                    egui::pos2(rect.center().x, rect.min.y),
+                    egui::pos2(rect.center().x, rect.max.y),
+                ],
+                Stroke::new(1.0, p.border),
+            );
+        }
+        // 展开箭头（expander；无子节点时占位）。
+        match expanded {
+            Some(is_open) => {
+                let (rect, resp) =
+                    ui.allocate_exact_size(Vec2::new(16.0, 22.0), egui::Sense::click());
+                let cy = rect.center().y;
+                let cx = rect.center().x;
+                let pts = if is_open {
+                    vec![
+                        egui::pos2(cx - 4.0, cy - 2.0),
+                        egui::pos2(cx + 4.0, cy - 2.0),
+                        egui::pos2(cx, cy + 4.0),
+                    ]
+                } else {
+                    vec![
+                        egui::pos2(cx - 2.0, cy - 4.0),
+                        egui::pos2(cx + 4.0, cy),
+                        egui::pos2(cx - 2.0, cy + 4.0),
+                    ]
+                };
+                ui.painter()
+                    .add(egui::Shape::convex_polygon(pts, p.text_weak, Stroke::NONE));
+                if resp.clicked() {
+                    toggled = true;
+                }
+            }
+            None => {
+                ui.allocate_exact_size(Vec2::new(16.0, 22.0), egui::Sense::hover());
+            }
+        }
+        // 图标。
+        if let Some(ic) = icon {
+            super::icons::icon_ui(ui, ic, 15.0, p.accent);
+            ui.add_space(2.0);
+        }
+        // 文本。
+        let resp = ui.selectable_label(false, text::body(label));
+        // 行尾操作。
+        trailing(ui);
+        resp
+    });
+    (row.inner, toggled)
+}
+
+/// 密码输入（API Key 掩码）。
+///
+/// ```
+/// password_input(ui, "API Key:", &mut key, true);
+/// ```
+pub fn password_input(
+    ui: &mut egui::Ui,
+    label: &str,
+    value: &mut String,
+    enabled: bool,
+) -> Response {
+    ui.horizontal(|ui| {
+        ui.label(text::body(format!("{label}:")));
+        ui.add_enabled(
+            enabled,
+            egui::TextEdit::singleline(value)
+                .font(egui::FontId::proportional(13.0))
+                .desired_width(super::tokens::sizes::INPUT_W)
+                .password(true),
+        )
+    })
+    .inner
+}

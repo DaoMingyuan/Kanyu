@@ -1,11 +1,13 @@
-//! 面板系统：左侧 Contents（图层树）、右侧属性/基因面板、底部状态栏。
-//! 布局借鉴 ArcGIS Pro 的可停靠面板理念，视觉为 bitfun 卡片（ui_kit）。
+//! 面板系统：左侧 Contents（ArcGIS Pro 骨架目录树）、右侧属性/基因面板、
+//! 底部双页签停靠区（终端 | AI 对话）、状态栏。全部 ui_kit 组件组合。
 
 use eframe::egui;
 
+use crate::console::ConsolePanel;
 use crate::ui_kit::containers::BadgeLevel;
+use crate::ui_kit::icons::{self, Icon};
 use crate::ui_kit::{
-    badge, button, card, checkbox, hint_caption, section_header, text, ButtonVariant,
+    badge, button, hint_caption, section_header, tab_strip, text, tree_row, ButtonVariant,
 };
 
 /// 面板动作（app 分派）。
@@ -19,6 +21,8 @@ pub enum PanelAction {
     VisibilityChanged(usize, bool),
     /// 选中图层（属性面板联动）。
     SelectLayer(usize),
+    /// 展开/折叠图层子节点。
+    ToggleExpand(usize),
     /// 打开运行基因对话框。
     OpenGeneRun,
 }
@@ -38,6 +42,10 @@ pub struct LayerView {
     pub fields: Vec<String>,
     /// 可见性。
     pub visible: bool,
+    /// 展开（骨架目录子节点）。
+    pub expanded: bool,
+    /// 选中（属性面板联动）。
+    pub selected: bool,
 }
 
 /// 基因条目视图数据。
@@ -51,83 +59,167 @@ pub struct GeneView {
     pub capabilities: Vec<String>,
 }
 
-/// 左侧 Contents 面板（ArcGIS Pro 内容窗格：图层树）。
+/// 几何类型 → ArcGIS 式图例色（RGB）。
+fn geom_color(types: &[String]) -> egui::Color32 {
+    let has = |k: &str| types.iter().any(|t| t.contains(k));
+    if has("Polygon") {
+        egui::Color32::from_rgb(0x2D, 0x6A, 0x5E) // 远黛青
+    } else if has("LineString") {
+        egui::Color32::from_rgb(0x4A, 0x7C, 0x9B) // 蓝灰
+    } else {
+        egui::Color32::from_rgb(0xD4, 0xA8, 0x43) // 琥珀
+    }
+}
+
+// ===== 左侧 Contents：ArcGIS Pro 骨架目录 =====
+
+/// Contents 骨架目录面板（弃卡片式：根节点 → 图层节点（展开箭头+几何色块+
+/// 名+行尾操作）→ 几何/字段/格式子节点）。
 pub fn contents_panel(ui: &mut egui::Ui, layers: &[LayerView]) -> Vec<PanelAction> {
     let mut actions = Vec::new();
     egui::Panel::left("contents_panel")
         .default_size(280.0)
         .size_range(200.0..=480.0)
         .show(ui, |ui| {
-            ui.add_space(10.0);
+            ui.add_space(6.0);
+            // 面板标题行（ArcGIS Pro 窗格标题样式）。
+            ui.horizontal(|ui| {
+                icons::icon_ui(ui, Icon::Layers, 15.0, crate::ui_kit::icons_color(ui));
+                ui.label(text::body_lg("目录").strong());
+            });
+            ui.separator();
             egui::ScrollArea::vertical().show(ui, |ui| {
-                card(ui, |ui| {
-                    section_header(ui, &format!("图层（{}）", layers.len()));
-                    if layers.is_empty() {
-                        hint_caption(
-                            ui,
-                            "尚未加载图层：拖入数据文件，或经「主页 → 打开数据…」加载",
-                        );
-                    }
-                    for (i, lv) in layers.iter().enumerate() {
-                        layer_card(ui, i, lv, &mut actions);
-                    }
-                });
+                // 项目根节点（骨架顶层）。
+                let (_root, _t) = tree_row(
+                    ui,
+                    0,
+                    Some(Icon::Layers),
+                    &format!("图层（{}）", layers.len()),
+                    None,
+                    |_ui| {},
+                );
+                if layers.is_empty() {
+                    ui.add_space(4.0);
+                    hint_caption(
+                        ui,
+                        "尚未加载图层：拖入数据文件，或经「主页 → 打开数据…」加载",
+                    );
+                }
+                for (i, lv) in layers.iter().enumerate() {
+                    layer_node(ui, i, lv, &mut actions);
+                }
             });
         });
     actions
 }
 
-/// 单个图层卡片（可见性 + 概要 + 操作）。
-fn layer_card(ui: &mut egui::Ui, index: usize, lv: &LayerView, actions: &mut Vec<PanelAction>) {
-    egui::Frame::new()
-        .fill(ui.visuals().faint_bg_color)
-        .corner_radius(egui::CornerRadius::same(5))
-        .inner_margin(egui::Margin::same(8))
-        .show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| {
-                let mut vis = lv.visible;
-                if checkbox(ui, &mut vis, "").changed() {
-                    actions.push(PanelAction::VisibilityChanged(index, vis));
-                }
-                if ui
-                    .selectable_label(false, text::body_lg(&lv.file_name).strong())
-                    .clicked()
-                {
-                    actions.push(PanelAction::SelectLayer(index));
-                }
-            });
-            ui.horizontal(|ui| {
-                badge(ui, &lv.format, BadgeLevel::Stable);
-                ui.label(text::caption(format!("{} 要素", lv.feature_count)));
-            });
-            if !lv.geometry_types.is_empty() {
-                ui.label(
-                    text::caption(format!("几何: {}", lv.geometry_types.join(", ")))
-                        .color(ui.visuals().weak_text_color()),
-                );
-            }
-            if !lv.fields.is_empty() {
-                let fields = if lv.fields.len() > 6 {
-                    format!("{} …(+{})", lv.fields[..6].join(", "), lv.fields.len() - 6)
-                } else {
-                    lv.fields.join(", ")
-                };
-                ui.label(
-                    text::caption(format!("字段: {fields}")).color(ui.visuals().weak_text_color()),
-                );
-            }
-            ui.horizontal(|ui| {
-                if button(ui, "缩放至图层", ButtonVariant::Subtle, true).clicked() {
-                    actions.push(PanelAction::ZoomToLayer(index));
-                }
-                if button(ui, "移除", ButtonVariant::Danger, true).clicked() {
-                    actions.push(PanelAction::RemoveLayer(index));
-                }
-            });
-        });
-    ui.add_space(6.0);
+/// 单个图层节点（含可折叠子节点）。
+fn layer_node(ui: &mut egui::Ui, index: usize, lv: &LayerView, actions: &mut Vec<PanelAction>) {
+    let idx = index;
+    // 图层行：几何色块 + 名称（选中加粗）+ 行尾[可见性|缩放|移除]。
+    let name = if lv.selected {
+        text::body(&lv.file_name).strong()
+    } else {
+        text::body(&lv.file_name)
+    };
+    let (row, toggled) = tree_row(ui, 1, None, "", Some(lv.expanded), |ui| {
+        // 行尾操作（图标按钮，hover 提示）。
+        let eye = if lv.visible { Icon::Eye } else { Icon::EyeOff };
+        if icon_btn(ui, eye, "可见性").clicked() {
+            actions.push(PanelAction::VisibilityChanged(idx, !lv.visible));
+        }
+        if icon_btn(ui, Icon::ZoomFit, "缩放至图层").clicked() {
+            actions.push(PanelAction::ZoomToLayer(idx));
+        }
+        if icon_btn(ui, Icon::Close, "移除图层").clicked() {
+            actions.push(PanelAction::RemoveLayer(idx));
+        }
+    });
+    if toggled {
+        actions.push(PanelAction::ToggleExpand(idx));
+    }
+    // 色块 + 名称绘制在 tree_row 的图标/文本位（tree_row 文本位传空，此处自绘）。
+    let rect = row.rect;
+    let color = geom_color(&lv.geometry_types);
+    ui.painter().rect_filled(
+        egui::Rect::from_center_size(
+            egui::pos2(rect.min.x + 4.0, rect.center().y),
+            egui::Vec2::splat(10.0),
+        ),
+        2.0,
+        color,
+    );
+    let name_resp = ui.interact(
+        egui::Rect::from_min_size(
+            egui::pos2(rect.min.x + 16.0, rect.min.y),
+            egui::Vec2::new(140.0, rect.height()),
+        ),
+        ui.id().with(("layer_name", idx)),
+        egui::Sense::click(),
+    );
+    ui.painter().text(
+        egui::pos2(rect.min.x + 16.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        &lv.file_name,
+        egui::FontId::proportional(13.0),
+        if lv.visible {
+            ui.visuals().text_color()
+        } else {
+            ui.visuals().weak_text_color()
+        },
+    );
+    if name_resp.clicked() {
+        actions.push(PanelAction::SelectLayer(idx));
+    }
+    let _ = name;
+
+    // 子节点（展开时）：几何 / 字段 / 格式。
+    if lv.expanded {
+        let (_r, _) = tree_row(
+            ui,
+            2,
+            Some(Icon::Info),
+            &format!("几何: {}", lv.geometry_types.join(", ")),
+            None,
+            |_ui| {},
+        );
+        let fields = if lv.fields.len() > 8 {
+            format!("{} …(+{})", lv.fields[..8].join(" · "), lv.fields.len() - 8)
+        } else {
+            lv.fields.join(" · ")
+        };
+        let (_r, _) = tree_row(
+            ui,
+            2,
+            Some(Icon::Field),
+            &format!("字段: {fields}"),
+            None,
+            |_ui| {},
+        );
+        let (_r, _) = tree_row(
+            ui,
+            2,
+            Some(Icon::List),
+            &format!("格式: {} · {} 要素", lv.format, lv.feature_count),
+            None,
+            |_ui| {},
+        );
+    }
 }
+
+/// 行尾小图标按钮（14px，hover 提示）。
+fn icon_btn(ui: &mut egui::Ui, icon: Icon, tip: &str) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(egui::Vec2::splat(18.0), egui::Sense::click());
+    let color = if resp.hovered() {
+        crate::ui_kit::icons_color(ui)
+    } else {
+        ui.visuals().weak_text_color()
+    };
+    icons::draw(ui.painter(), icon, rect.shrink(2.0), color);
+    resp.on_hover_text(tip)
+}
+
+// ===== 右侧属性/基因面板 =====
 
 /// 右侧属性/基因面板。
 pub fn props_panel(
@@ -140,66 +232,118 @@ pub fn props_panel(
         .default_size(260.0)
         .size_range(200.0..=420.0)
         .show(ui, |ui| {
-            ui.add_space(10.0);
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                icons::icon_ui(ui, Icon::Info, 15.0, crate::ui_kit::icons_color(ui));
+                ui.label(text::body_lg("属性").strong());
+            });
+            ui.separator();
             egui::ScrollArea::vertical().show(ui, |ui| {
-                card(ui, |ui| {
-                    section_header(ui, "属性");
-                    match selected {
-                        Some(lv) => {
-                            ui.label(text::body_lg(&lv.file_name).strong());
-                            ui.add_space(4.0);
-                            ui.label(text::caption(format!("格式: {}", lv.format)));
-                            ui.label(text::caption(format!("要素: {}", lv.feature_count)));
-                            ui.label(text::caption(format!(
-                                "几何: {}",
-                                lv.geometry_types.join(", ")
-                            )));
-                            ui.add_space(4.0);
-                            ui.label(text::caption("字段清单:"));
-                            for f in &lv.fields {
-                                ui.label(text::data(format!("  {f}")));
-                            }
-                        }
-                        None => {
-                            hint_caption(ui, "未选中图层（点击图层卡片的图层名查看）");
-                        }
-                    }
-                });
-                ui.add_space(10.0);
-                card(ui, |ui| {
-                    section_header(ui, &format!("基因（{}）", genes.len()));
-                    if genes.is_empty() {
-                        hint_caption(ui, "未加载基因：「基因 → 热加载…」选择 .wasm 文件");
-                    }
-                    for g in genes {
-                        ui.horizontal(|ui| {
-                            ui.label(text::body(&g.id).strong());
-                            badge(ui, &g.version, BadgeLevel::Incubating);
-                        });
-                        ui.label(
-                            text::caption(format!("能力: {}", g.capabilities.join(", ")))
-                                .color(ui.visuals().weak_text_color()),
-                        );
+                match selected {
+                    Some(lv) => {
+                        ui.label(text::body_lg(&lv.file_name).strong());
                         ui.add_space(4.0);
+                        badge(ui, &lv.format, BadgeLevel::Stable);
+                        ui.label(text::caption(format!("{} 要素", lv.feature_count)));
+                        ui.add_space(4.0);
+                        section_header(ui, "几何类型");
+                        for g in &lv.geometry_types {
+                            ui.label(text::data(format!("  {g}")));
+                        }
+                        ui.add_space(4.0);
+                        section_header(ui, "字段清单");
+                        for f in &lv.fields {
+                            ui.label(text::data(format!("  {f}")));
+                        }
                     }
-                    if !genes.is_empty()
-                        && button(ui, "运行基因…", ButtonVariant::Secondary, true).clicked()
-                    {
-                        actions.push(PanelAction::OpenGeneRun);
+                    None => {
+                        hint_caption(ui, "未选中图层（点击目录中的图层名查看）");
                     }
+                }
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    icons::icon_ui(ui, Icon::Gene, 15.0, crate::ui_kit::icons_color(ui));
+                    ui.label(text::body_lg(format!("基因（{}）", genes.len())).strong());
                 });
+                ui.separator();
+                if genes.is_empty() {
+                    hint_caption(ui, "未加载基因：「基因 → 热加载…」选择 .wasm 文件");
+                }
+                for g in genes {
+                    ui.horizontal(|ui| {
+                        icons::icon_ui(ui, Icon::Gene, 14.0, ui.visuals().text_color());
+                        ui.label(text::body(&g.id).strong());
+                        badge(ui, &g.version, BadgeLevel::Incubating);
+                    });
+                    ui.label(
+                        text::caption(format!("能力: {}", g.capabilities.join(", ")))
+                            .color(ui.visuals().weak_text_color()),
+                    );
+                    ui.add_space(4.0);
+                }
+                if !genes.is_empty()
+                    && button(ui, "运行基因…", ButtonVariant::Secondary, true).clicked()
+                {
+                    actions.push(PanelAction::OpenGeneRun);
+                }
             });
         });
     actions
 }
 
-/// 底部状态栏（ArcGIS Pro 状态栏：坐标/比例提示/要素数/版本）。
+// ===== 底部双页签停靠区（终端 | AI 对话）=====
+
+/// 底部停靠区页签。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DockTab {
+    /// 独立终端。
+    Console = 0,
+    /// AI 对话。
+    AiChat = 1,
+}
+
+/// 底部双页签停靠区：页签条 + 内容区（两页签状态各自保活）。
+pub fn bottom_dock(
+    ui: &mut egui::Ui,
+    active: &mut DockTab,
+    console: &mut ConsolePanel,
+    ai: &mut crate::ai::AiChatPanel,
+    host: &mut dyn crate::console::ConsoleHost,
+) {
+    egui::Panel::bottom("bottom_dock")
+        .default_size(200.0)
+        .size_range(120.0..=420.0)
+        .show(ui, |ui| {
+            ui.add_space(4.0);
+            let mut idx = *active as usize;
+            tab_strip(ui, &["终端", "AI 对话"], &mut idx);
+            *active = if idx == 0 {
+                DockTab::Console
+            } else {
+                DockTab::AiChat
+            };
+            ui.separator();
+            match active {
+                DockTab::Console => {
+                    console.ui(ui, host);
+                }
+                DockTab::AiChat => {
+                    ai.ui(ui, host);
+                }
+            }
+        });
+}
+
+// ===== 状态栏 =====
+
+/// 底部状态栏（ArcGIS Pro 状态栏：坐标/视口宽/地图色彩模式/要素数/版本）。
 pub fn status_bar(
     ui: &mut egui::Ui,
     status: &str,
     mouse_data: Option<(f64, f64)>,
     feature_count: usize,
     viewport_span: Option<f64>,
+    map_theme_label: &str,
 ) {
     egui::Panel::bottom("status_bar")
         .exact_size(crate::ui_kit::sizes::STATUS_BAR)
@@ -222,12 +366,14 @@ pub fn status_bar(
                     ui.label(text::caption(format!("v{}", env!("CARGO_PKG_VERSION"))));
                     ui.separator();
                     ui.label(text::caption(format!("要素: {feature_count}")));
+                    ui.separator();
+                    ui.label(text::caption(map_theme_label));
                 });
             });
         });
 }
 
-/// 视口宽度的友好显示（度或投影单位）。
+/// 视口宽度的友好显示（度分秒）。
 fn format_span(span: f64) -> String {
     if span >= 1.0 {
         format!("{span:.3}°")
@@ -247,5 +393,13 @@ mod tests {
         assert_eq!(format_span(2.5), "2.500°");
         assert_eq!(format_span(0.01), "0.60′");
         assert_eq!(format_span(0.0005), "1.8″");
+    }
+
+    #[test]
+    fn geom_color_by_dominant_type() {
+        let poly = geom_color(&["Polygon".to_string()]);
+        assert_eq!(poly, egui::Color32::from_rgb(0x2D, 0x6A, 0x5E));
+        let pt = geom_color(&["Point".to_string()]);
+        assert_eq!(pt, egui::Color32::from_rgb(0xD4, 0xA8, 0x43));
     }
 }

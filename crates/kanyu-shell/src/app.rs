@@ -37,12 +37,62 @@ const OPEN_EXTENSIONS: &[&str] = &[
     "shp", "geojson", "fgb", "parquet", "dxf", "dwg", "kml", "kmz", "csv", "tsv", "xlsx",
 ];
 
-/// 已加载图层（含 UI 态：可见性）。
+/// 已加载图层（含 UI 态：可见性、目录展开、来源路径）。
 struct LayerEntry {
     layer: Layer,
     summary: LayerSummary,
     visible: bool,
     file_name: String,
+    /// 骨架目录子节点展开。
+    expanded: bool,
+    /// 数据源路径（内存图层为 None，不入 .kyu 工程）。
+    source_path: Option<String>,
+}
+
+/// 地图色彩模式（界面主题与地图输出解耦）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MapThemeMode {
+    /// 固定晨山（默认，保证制图输出正确）。
+    FixedLight,
+    /// 固定夜观星。
+    FixedDark,
+    /// 跟随界面主题。
+    FollowUi,
+}
+
+impl MapThemeMode {
+    /// 状态栏标签。
+    pub fn label(self) -> &'static str {
+        match self {
+            MapThemeMode::FixedLight => "地图: 固定晨山",
+            MapThemeMode::FixedDark => "地图: 固定夜观星",
+            MapThemeMode::FollowUi => "地图: 跟随界面",
+        }
+    }
+    /// 循环下一个模式。
+    pub fn next(self) -> Self {
+        match self {
+            MapThemeMode::FixedLight => MapThemeMode::FixedDark,
+            MapThemeMode::FixedDark => MapThemeMode::FollowUi,
+            MapThemeMode::FollowUi => MapThemeMode::FixedLight,
+        }
+    }
+    /// 序列化（.kyu）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MapThemeMode::FixedLight => "fixed_light",
+            MapThemeMode::FixedDark => "fixed_dark",
+            MapThemeMode::FollowUi => "follow_ui",
+        }
+    }
+    /// 反序列化（.kyu；未知值回退默认）。
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "fixed_dark" => MapThemeMode::FixedDark,
+            "follow_ui" => MapThemeMode::FollowUi,
+            _ => MapThemeMode::FixedLight,
+        }
+    }
 }
 
 /// 截图验证模式状态机：等待 → 已请求 → 收到 `Event::Screenshot` 保存退出。
@@ -81,6 +131,12 @@ pub struct KanyuApp {
     mouse_data: Option<(f64, f64)>,
     show_layers_panel: bool,
     show_console: bool,
+    /// 底部停靠区当前页签（终端 | AI 对话）。
+    dock_tab: panels::DockTab,
+    /// AI 对话面板。
+    ai_chat: crate::ai::AiChatPanel,
+    /// 地图色彩模式（默认固定晨山）。
+    map_theme_mode: MapThemeMode,
     show_props_panel: bool,
     /// 终端切主题后置位，下一帧开头统一 apply_theme。
     theme_dirty: bool,
@@ -127,6 +183,9 @@ impl KanyuApp {
             mouse_data: None,
             show_layers_panel: true,
             show_console: true,
+            dock_tab: panels::DockTab::Console,
+            ai_chat: crate::ai::AiChatPanel::default(),
+            map_theme_mode: MapThemeMode::FixedLight,
             show_props_panel: true,
             pending_window_shot: None,
             screenshot,
@@ -180,6 +239,8 @@ impl KanyuApp {
                     summary,
                     visible: true,
                     file_name,
+                    expanded: false,
+                    source_path: Some(path_str.to_string()),
                 });
                 self.selected = Some(self.layers.len() - 1);
                 self.rebuild_merged();
@@ -209,6 +270,8 @@ impl KanyuApp {
             summary,
             visible: true,
             file_name: id.clone(),
+            expanded: false,
+            source_path: None,
         });
         self.selected = Some(self.layers.len() - 1);
         self.rebuild_merged();
@@ -257,15 +320,27 @@ impl KanyuApp {
     fn layer_views(&self) -> Vec<LayerView> {
         self.layers
             .iter()
-            .map(|e| LayerView {
+            .enumerate()
+            .map(|(i, e)| LayerView {
                 file_name: e.file_name.clone(),
                 format: e.summary.format.clone(),
                 feature_count: e.summary.feature_count,
                 geometry_types: e.summary.geometry_types.clone(),
                 fields: e.summary.fields.clone(),
                 visible: e.visible,
+                expanded: e.expanded,
+                selected: self.selected == Some(i),
             })
             .collect()
+    }
+
+    /// 地图输出的有效主题（界面主题与地图色彩解耦，默认固定晨山）。
+    fn effective_map_theme(&self) -> Theme {
+        match self.map_theme_mode {
+            MapThemeMode::FixedLight => Theme::Light,
+            MapThemeMode::FixedDark => Theme::Dark,
+            MapThemeMode::FollowUi => self.theme,
+        }
     }
 
     fn find_layer(&self, id: &str) -> Result<usize, String> {
@@ -282,6 +357,102 @@ impl KanyuApp {
         };
         crate::theme::apply_theme(ctx, self.theme);
         self.canvas.dirty = true;
+    }
+
+    /// 保存堪舆工程（.kyu）：图层引用 + 可见性 + 视口 + 地图色彩。
+    /// 无来源的内存图层（分析产出）不入工程并在终端明示。
+    fn save_project(&mut self, path: &Path) {
+        let mut project = kanyu_core::project::KanyuProject::new(
+            path.file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "untitled".to_string()),
+            "EPSG:4326",
+        );
+        project.viewport = self.view_bbox;
+        project.map_theme = self.map_theme_mode.as_str().to_string();
+        let mut skipped = 0;
+        for entry in &self.layers {
+            match &entry.source_path {
+                Some(src) => project.layers.push(kanyu_core::project::ProjectLayer {
+                    id: entry.layer.id().to_string(),
+                    source: src.clone(),
+                    visible: entry.visible,
+                    style: None,
+                }),
+                None => skipped += 1,
+            }
+        }
+        match project.save(&path.to_string_lossy()) {
+            Ok(()) => {
+                let mut msg = format!(
+                    "工程已保存 → {}（{} 个图层引用）",
+                    path.display(),
+                    project.layers.len()
+                );
+                if skipped > 0 {
+                    msg.push_str(&format!(
+                        "；{skipped} 个内存图层未入工程（可用「导出图层」先存为数据文件）"
+                    ));
+                }
+                self.status = msg.clone();
+                self.console.info(msg);
+            }
+            Err(e) => {
+                self.console
+                    .push(crate::console::LineKind::Err, format!("保存工程失败: {e}"));
+                self.error_msg = Some(format!("保存工程失败: {e}"));
+            }
+        }
+    }
+
+    /// 打开堪舆工程（.kyu）：恢复图层（按引用加载）、可见性、视口、地图色彩。
+    fn open_project(&mut self, path: &Path) {
+        let project = match kanyu_core::project::KanyuProject::load(&path.to_string_lossy()) {
+            Ok(p) => p,
+            Err(e) => {
+                self.console
+                    .push(crate::console::LineKind::Err, format!("打开工程失败: {e}"));
+                self.error_msg = Some(format!("打开工程失败: {e}"));
+                return;
+            }
+        };
+        // 清空当前现场再恢复（与"打开工程"语义一致）。
+        self.layers.clear();
+        self.selected = None;
+        self.console.info(format!(
+            "打开工程 {}（{} 个图层引用）",
+            project.name,
+            project.layers.len()
+        ));
+        let mut failed = 0;
+        for pl in &project.layers {
+            let before = self.layers.len();
+            self.open_file(Path::new(&pl.source));
+            if self.layers.len() > before {
+                self.layers[before].visible = pl.visible;
+            } else {
+                failed += 1;
+                self.error_msg = None; // 单源失败不阻塞整工程
+            }
+        }
+        self.map_theme_mode = MapThemeMode::parse(&project.map_theme);
+        self.view_bbox = project.viewport;
+        if project.viewport.is_some() {
+            self.canvas.dirty = true;
+        } else {
+            self.needs_fit = true;
+        }
+        self.rebuild_merged();
+        let msg = if failed > 0 {
+            format!(
+                "工程 {} 已恢复（{failed} 个数据源加载失败，详见终端）",
+                project.name
+            )
+        } else {
+            format!("工程 {} 已恢复", project.name)
+        };
+        self.status = msg.clone();
+        self.console.info(msg);
     }
 
     // ===== 内核操作（对话框/终端共用） =====
@@ -461,7 +632,7 @@ impl KanyuApp {
             width: w,
             height: h,
             padding: 20.0,
-            theme: self.theme,
+            theme: self.effective_map_theme(),
             viewport: self.view_bbox,
             style: self.map_export_style.clone(),
             ..Default::default()
@@ -494,6 +665,23 @@ impl KanyuApp {
             }
             RibbonAction::OpenExample => {
                 self.open_file(Path::new("examples/buildings.geojson"));
+            }
+            RibbonAction::OpenProject => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("堪舆工程", &["kyu"])
+                    .pick_file()
+                {
+                    self.open_project(&path);
+                }
+            }
+            RibbonAction::SaveProject => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("堪舆工程", &["kyu"])
+                    .set_file_name("untitled.kyu")
+                    .save_file()
+                {
+                    self.save_project(&path);
+                }
             }
             RibbonAction::SaveScreenshot => {
                 if let Some(path) = rfd::FileDialog::new()
@@ -574,6 +762,12 @@ impl KanyuApp {
             RibbonAction::ToggleLayersPanel => self.show_layers_panel = !self.show_layers_panel,
             RibbonAction::ToggleConsole => self.show_console = !self.show_console,
             RibbonAction::TogglePropsPanel => self.show_props_panel = !self.show_props_panel,
+            RibbonAction::CycleMapTheme => {
+                self.map_theme_mode = self.map_theme_mode.next();
+                self.console
+                    .info(format!("地图色彩模式 → {}", self.map_theme_mode.label()));
+                self.canvas.dirty = true;
+            }
             RibbonAction::GeneHotload => {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("WASM 基因", &["wasm"])
@@ -731,6 +925,11 @@ impl KanyuApp {
                     self.selected = Some(i);
                 }
             }
+            PanelAction::ToggleExpand(i) => {
+                if let Some(entry) = self.layers.get_mut(i) {
+                    entry.expanded = !entry.expanded;
+                }
+            }
             PanelAction::OpenGeneRun => {
                 self.dialogs.gene_run = Some(crate::dialogs::GeneRunState::default())
             }
@@ -843,22 +1042,17 @@ impl eframe::App for KanyuApp {
         let status = self.status.clone();
         let count = self.visible_feature_count();
         let mouse = self.mouse_data;
-        panels::status_bar(ui, &status, mouse, count, span);
+        panels::status_bar(ui, &status, mouse, count, span, self.map_theme_mode.label());
 
-        // 独立终端（可折叠底部面板）。
+        // 底部双页签停靠区（终端 | AI 对话）。
         if self.show_console {
-            egui::Panel::bottom("console")
-                .default_size(sizes::CONSOLE_H)
-                .size_range(120.0..=420.0)
-                .show(ui, |ui| {
-                    crate::ui_kit::card(ui, |ui| {
-                        crate::ui_kit::section_header(ui, "终端");
-                        // console 与宿主同为 self 的字段/本体，借出后回还。
-                        let mut console = std::mem::take(&mut self.console);
-                        console.ui(ui, self);
-                        self.console = console;
-                    });
-                });
+            let mut dock_tab = self.dock_tab;
+            let mut console = std::mem::take(&mut self.console);
+            let mut ai_chat = std::mem::take(&mut self.ai_chat);
+            panels::bottom_dock(ui, &mut dock_tab, &mut console, &mut ai_chat, self);
+            self.dock_tab = dock_tab;
+            self.console = console;
+            self.ai_chat = ai_chat;
         }
 
         // Contents 图层面板（左）。
@@ -880,12 +1074,12 @@ impl eframe::App for KanyuApp {
             }
         }
 
-        // 中央地图画布。
+        // 中央地图画布（地图色彩由 map_theme_mode 决定，与界面主题解耦）。
         let out = self.canvas.ui(
             ui,
             CanvasInput {
                 merged: &self.merged,
-                theme: self.theme,
+                theme: self.effective_map_theme(),
                 view_bbox: self.view_bbox,
                 needs_fit: self.needs_fit,
                 data_extent: self.fit_extent.or(self.data_extent),
