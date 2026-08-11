@@ -24,11 +24,13 @@ mod commands;
 mod console;
 mod dialogs;
 mod dock;
+mod edit;
 mod layoutview;
 mod mapview;
 mod panels;
 mod ribbon;
 mod scene3d;
+mod services;
 mod settings;
 mod symbology;
 mod theme;
@@ -73,6 +75,12 @@ pub struct ShellArgs {
     pub expand_layers: bool,
     /// 隐藏验证参数：启动即创建并激活一个布局页签（截图验证）。
     pub layout_demo: bool,
+    /// 隐藏验证参数：开启首图层编辑会话（顶点工具，截图验证句柄）。
+    pub edit_demo: bool,
+    /// 隐藏验证参数：目录「服务链接」预置一条演示连接并展开分类（截图验证）。
+    pub service_demo: bool,
+    /// 隐藏验证参数：同 service_demo，另打开「新建服务链接」对话框（截图验证）。
+    pub service_dlg_demo: bool,
 }
 
 impl Default for ShellArgs {
@@ -93,6 +101,9 @@ impl Default for ShellArgs {
             props_demo: false,
             expand_layers: false,
             layout_demo: false,
+            edit_demo: false,
+            service_demo: false,
+            service_dlg_demo: false,
         }
     }
 }
@@ -153,6 +164,9 @@ fn parse_args() -> ShellArgs {
             "--props-demo" => args.props_demo = true,
             "--expand-layers" => args.expand_layers = true,
             "--layout-demo" => args.layout_demo = true,
+            "--edit-demo" => args.edit_demo = true,
+            "--service-demo" => args.service_demo = true,
+            "--service-dlg-demo" => args.service_dlg_demo = true,
             "--zoom" => {
                 let v = it.next().unwrap_or_else(|| {
                     eprintln!("--zoom 缺少倍率（如 1.25）\n{}", usage());

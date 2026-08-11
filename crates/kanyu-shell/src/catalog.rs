@@ -1,6 +1,6 @@
 //! 目录面板（Catalog）：ArcGIS Pro 工程目录范式——固定五分类根节点：
 //! **地图框**（当前打开的地图视图）/ **布局框**（占位）/ **数据库**（.kdb）/
-//! **服务链接**（占位）/ **本机数据**（QGIS 式文件浏览器子树，懒加载）。
+//! **服务链接**（WFS GetFeature 连接，见 services.rs）/ **本机数据**（QGIS 式文件浏览器子树，懒加载）。
 //! 与图层面板职责分离：目录管"找数据与资源"，图层管"数据现场"。
 
 use std::path::{Path, PathBuf};
@@ -23,6 +23,12 @@ pub enum CatalogAction {
     ActivateLayout(usize),
     /// 新建布局框（打开规格对话框）。
     NewLayout,
+    /// 新建服务链接（打开对话框）。
+    NewService,
+    /// 删除服务链接（services 下标）。
+    DeleteService(usize),
+    /// 连接服务并加载为图层（services 下标）。
+    ConnectService(usize),
 }
 
 /// 地图视图行（app 注入，地图框分类的数据源）。
@@ -52,6 +58,7 @@ pub fn categories(
     view_count: usize,
     layout_count: usize,
     has_default_kdb: bool,
+    service_count: usize,
     root_count: usize,
 ) -> [CategoryMeta; 5] {
     [
@@ -76,8 +83,8 @@ pub fn categories(
         CategoryMeta {
             name: "服务链接",
             icon: Icon::Link,
-            count: 0,
-            placeholder: Some("WFS/WMS 等服务连接待后续接入"),
+            count: service_count,
+            placeholder: Some("暂无服务链接——＋新建 WFS GetFeature 连接"),
         },
         CategoryMeta {
             name: "本机数据",
@@ -206,6 +213,11 @@ impl CatalogPanel {
         }
     }
 
+    /// 演示/验证（截图）：仅展开「服务链接」分类。
+    pub fn demo_expand_services(&mut self) {
+        self.expanded = [false, false, false, true, false];
+    }
+
     /// 读取目录子节点（目录优先、名称排序；文件仅数据扩展名）。
     fn read_children(dir: &Path) -> Result<Vec<CatalogNode>, String> {
         let rd = std::fs::read_dir(dir).map_err(|e| format!("无法读取 {}: {e}", dir.display()))?;
@@ -255,14 +267,15 @@ impl CatalogPanel {
         p.is_file().then_some(p)
     }
 
-    /// 面板 UI。`views` = 地图框分类数据、`layouts` = 布局标题清单（app 注入）。
-    /// 返回产生的动作。
+    /// 面板 UI。`views` = 地图框分类数据、`layouts` = 布局标题清单、
+    /// `services` = 服务链接清单（app 注入）。返回产生的动作。
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
         cache: &mut crate::ui_kit::icons::IconCache,
         views: &[ViewRow],
         layouts: &[String],
+        services: &[crate::services::WfsConnection],
     ) -> Vec<CatalogAction> {
         let mut actions = Vec::new();
         // 状态行。
@@ -274,6 +287,7 @@ impl CatalogPanel {
             views.len(),
             layouts.len(),
             default_kdb.is_some(),
+            services.len(),
             self.roots.len(),
         );
         // 展开/加载/打开动作延后收集（避免借用冲突），迭代后统一应用。
@@ -356,12 +370,52 @@ impl CatalogPanel {
                             }
                         }
                         3 => {
-                            // 服务链接：占位空态。
-                            if let Some(ph) = cat.placeholder {
-                                ui.horizontal(|ui| {
-                                    ui.add_space(16.0);
-                                    hint_caption(ui, ph);
+                            // 服务链接：连接清单（双击连接加载）+ 新建入口。
+                            if services.is_empty() {
+                                if let Some(ph) = cat.placeholder {
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(16.0);
+                                        hint_caption(ui, ph);
+                                    });
+                                }
+                            }
+                            for (i, conn) in services.iter().enumerate() {
+                                let (resp, _) = tree_row(
+                                    ui,
+                                    cache,
+                                    1,
+                                    Some(Icon::Link),
+                                    &conn.name,
+                                    None,
+                                    |_ui| {},
+                                );
+                                if resp.double_clicked() {
+                                    actions.push(CatalogAction::ConnectService(i));
+                                }
+                                let resp = resp
+                                    .on_hover_text(format!("{}\n双击连接并加载为图层", conn.url));
+                                resp.context_menu(|ui| {
+                                    if ui.button("连接").clicked() {
+                                        actions.push(CatalogAction::ConnectService(i));
+                                        ui.close();
+                                    }
+                                    if ui.button("删除").clicked() {
+                                        actions.push(CatalogAction::DeleteService(i));
+                                        ui.close();
+                                    }
                                 });
+                            }
+                            let (resp, _) = tree_row(
+                                ui,
+                                cache,
+                                1,
+                                Some(Icon::Play),
+                                "＋ 新建服务链接",
+                                None,
+                                |_ui| {},
+                            );
+                            if resp.clicked() {
+                                actions.push(CatalogAction::NewService);
                             }
                         }
                         2 => {
@@ -568,7 +622,7 @@ mod tests {
 
     #[test]
     fn categories_fixed_order_and_counts() {
-        let cats = categories(3, 2, true, 6);
+        let cats = categories(3, 2, true, 1, 6);
         let names: Vec<&str> = cats.iter().map(|c| c.name).collect();
         assert_eq!(
             names,
@@ -577,10 +631,12 @@ mod tests {
         assert_eq!(cats[0].count, 3);
         assert_eq!(cats[1].count, 2); // 布局框计数兑现
         assert_eq!(cats[2].count, 1);
+        assert_eq!(cats[3].count, 1); // 服务链接计数兑现
         assert!(cats[3].placeholder.is_some());
         assert_eq!(cats[4].count, 6);
-        let cats2 = categories(1, 0, false, 0);
+        let cats2 = categories(1, 0, false, 0, 0);
         assert_eq!(cats2[2].count, 0);
+        assert_eq!(cats2[3].count, 0);
     }
 
     #[test]

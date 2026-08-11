@@ -50,6 +50,8 @@ pub struct UiState {
     pub project_crs: String,
     pub views: Vec<ViewStateJson>,
     pub active_view: Option<usize>,
+    /// 服务链接清单（WFS GetFeature 连接；v1 起持久化）。
+    pub services: Vec<crate::services::WfsConnection>,
 }
 
 impl Default for UiState {
@@ -65,6 +67,7 @@ impl Default for UiState {
             project_crs: String::new(),
             views: Vec::new(),
             active_view: None,
+            services: Vec::new(),
         }
     }
 }
@@ -168,6 +171,10 @@ mod tests {
             docked: false,
         }];
         s.active_view = Some(0);
+        s.services = vec![crate::services::WfsConnection {
+            name: "示例 WFS".into(),
+            url: "https://example.com/wfs?request=GetFeature".into(),
+        }];
         s
     }
 
@@ -181,6 +188,8 @@ mod tests {
         assert_eq!(back.views[0].dim, "3d");
         assert_eq!(back.views[0].bbox, Some([0.0, 0.0, 1.0, 1.0]));
         assert_eq!(back.active_view, Some(0));
+        assert_eq!(back.services.len(), 1);
+        assert_eq!(back.services[0].name, "示例 WFS");
     }
 
     #[test]
@@ -188,6 +197,7 @@ mod tests {
         // 只有 version 的“老文件”：逐项默认。
         let s = UiState::from_json(r#"{"version":1}"#).unwrap();
         assert!(s.panels.is_empty());
+        assert!(s.services.is_empty()); // 老文件无 services 字段：默认空
         assert_eq!(s.ui_zoom, 1.0); // Default 基线 1.0
         let s2 = UiState::from_json(r#"{"version":1,"ui_zoom":1.5}"#).unwrap();
         assert_eq!(s2.ui_zoom, 1.5);

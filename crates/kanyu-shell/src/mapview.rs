@@ -128,6 +128,7 @@ pub fn content_ui(ui: &mut egui::Ui, view: &mut MapView, input: &ViewInput<'_>, 
                     needs_fit: view.needs_fit,
                     data_extent: input.data_extent,
                     empty_hint: "（无可见图层）",
+                    edit: None, // 编辑会话仅作用主视图
                 },
             );
             view.view_bbox = out.view_bbox;
