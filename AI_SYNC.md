@@ -172,3 +172,14 @@
 - 范围：crates/kanyu-shell 全面重构（ribbon/panels/console/dialogs/theme 模块化）、kanyu-skill 接线入 shell、文档与会签簿
 - 依据：用户指令（借鉴 ArcGIS Pro 分类设计 + 独立终端 + bitfun 设计思路）；总规第二部分
 - 预计：大（约 1500+ 行新代码）
+### [开工] 2026-08-11 kimi-code(main) — ArcGIS Pro 位图图标接入（本机资源双轨制）
+- 范围：kanyu-shell ui_kit/icons.rs（IconCache/draw_or_image/arcgis_resource_name 映射表）、controls.rs、ribbon.rs、app.rs；AGENTS.md 加图标工作流
+- 依据：用户指令（按 Esri DAML-ID 图标下载调用、主题风格优化、供后续扩展）；总规 §1.4 图标系统
+- 许可边界：Esri 位图 PNG 仅存本机 %LOCALAPPDATA%\Programs\kanyu\icons\（light 10916 + dark 10900，提取自用户已授权 ArcGIS Pro 安装），不进仓库再分发；仓库保留手绘回退
+- 预计：中（约 200 行变更）
+### [收工] 2026-08-11 kimi-code(main) — ArcGIS Pro 位图图标接线闭环
+- 提交：0756bc2；测试：149 全绿 + clippy 零警告；验证：晨山/夜观星双主题截图目检（Ribbon 大按钮 ArcGIS 彩色位图清晰、dark 主题取 darkimages 变体）；release exe 47.8MB 已同步安装至 Programs\kanyu
+- 内容：IconCache（本机 icons 目录探测 + 主题纹理缓存，tiny-skia 解码）、draw_or_image() 双轨入口、arcgis_resource_name() 33 枚映射表（扩展登记点）；ribbon_button/qat_button/Ribbon::ui 全链接线；AGENTS.md 加图标工作流与许可边界
+- 本机资源：icons light 10916 + dark 10900 PNG（提取自用户已授权 ArcGIS Pro 安装，未入仓库）
+- 偏差：clippy map_entry 改 entry API；Icon::Gene 改名遗漏修正（Skill）
+- 后续：目录树/图层树行图标仍走手绘 draw（tree_row 未接线，可后续评估）；crates.io 发布仍待 token
