@@ -37,7 +37,7 @@
 │  ├─ kanyu-core    数据心脏（格式矩阵/图层/AGENTS.md） ✅  │
 │  ├─ kanyu-cli     脊髓（kanyu 命令行）              ✅  │
 │  ├─ kanyu-render  眼睛（离屏渲染 tiny-skia+SVG） 🚧  │
-│  ├─ kanyu-edit    手（DCEL 拓扑编辑）               📋  │
+│  ├─ kanyu-edit    手（Undo/Redo + 基础编辑命令）   🚧  │
 │  ├─ kanyu-skill   技能（wasmtime 插件宿主）       🚧  │
 │  ├─ kanyu-py      Python 桥接（PyO3 + 工具箱）    ✅  │
 │  └─ kanyu-shell   壳层（egui 桌面 UI）            🚧  │
@@ -56,7 +56,7 @@
 | `kanyu-cli` | 脊髓：`kanyu` 命令行（clap derive） | ✅ stable | kanyu-core, kanyu-mcp, kanyu-render |
 | `kanyu-mcp` | 神经接口：MCP Server（rmcp，stdio + streamable HTTP，SEP-2663 长任务） | ✅ incubating | kanyu-core, kanyu-render |
 | `kanyu-render` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG 光栅化，晨山/夜观星主题，属性驱动符号化 graduated/categorical）；wgpu 实时管线待壳层 | 🚧 incubating | kanyu-core |
-| `kanyu-edit` | 手：DCEL 增量拓扑编辑，Undo/Redo | 📋 planned | kanyu-core |
+| `kanyu-edit` | 手：Undo/Redo 框架（命令逆操作双栈 + 容量淘汰）+ 基础编辑命令（顶点移动/要素平移/删除/插入/属性更新，GeomPath 三级定位）；DCEL 增量拓扑待后续 | 🚧 incubating | kanyu-core |
 | `kanyu-skill` | 技能：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）；MCP 热加载接线 📋 | 🚧 incubating | kanyu-core |
 | `kanyu-shell` | 壳层：egui 深度桌面 UI（v0.8，ArcGIS Pro SDK 范式）——`commands.rs` 声明式命令注册表（DAML 思路：Ribbon/QAT/右键菜单统一投影，条件置灰）、Contents 图层面板（`toc.rs` 复选框/嵌套分组/符号化分类展开行/属性页四页签）、`dock.rs` 停靠系统（六面板三区拖拽停靠/浮动/关闭，跨区回流自适配+滚动契约）、中央视图停靠区（地图框页签吸附/浮动互转，画布纯白）、`symbology.rs` 符号化（单色/唯一值/分级设色，按层渲染叠图，入 .kyu）、`catalog.rs` 工程目录五分类（地图框/布局框/数据库/服务链接/本机数据）、`toolbox/` 工具箱（参数类型系统对齐 ArcGIS Python 工具箱规范：多值图层/线性单位/坐标系/校验分级/统一骨架/后台线程+进度模态可取消/终端三级日志）、`attrtable.rs` 属性表+字段计算器、`mapview.rs` 多地图视图 + `scene3d.rs` 实验性 3D 棱柱场景、`settings.rs`（坐标系全库搜索/渲染/界面缩放）、palette 语义色全套 + tokens::state 状态色派生 + WCAG 2.2 对比度强制、内置终端 + AI 对话 | 🚧 incubating | kanyu-core, kanyu-render, kanyu-skill |
 
@@ -217,8 +217,9 @@ v0.18.0–v0.19.0 已推进：壳层 ArcGIS Pro SDK 范式重组（命令注册�
 目录五分类、CRS 全库检索与轴序核验、tooldef/toolrun 下沉内核、WCAG 2.2 与状态色体系。
 下一步推荐：
 
-1. **编辑内核（Phase 3 深水区）**：符号化/属性表/字段计算已备，下一缺口是几何编辑
-   与 Undo/Redo——`kanyu-edit`（DCEL）仍是 📋，建议作为下一主线。
+1. **编辑内核（Phase 3 深水区）**：符号化/属性表/字段计算已备——`kanyu-edit` 首个
+   增量（Undo/Redo 框架 + 基础编辑命令）已落地 🚧，建议沿「壳层编辑模式 →
+   Delta 快照 → DCEL 拓扑」路线继续。
 2. **MCP 工具面收敛收尾**：tooldef/toolrun 已下沉 core（壳层与 Python 已共用一处
    声明）；MCP 工具清单（`introspect.rs`）尚为独立声明，建议接入同一注册表。
 3. **§8 性能目标实测**：overlay/sjoin 为 O(n·m) 朴素实现（rustdoc 已注明待 rstar 索引）；

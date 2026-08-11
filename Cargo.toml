@@ -11,6 +11,7 @@ members = [
     "crates/kanyu-skill",
     "crates/kanyu-shell",
     "crates/kanyu-py",
+    "crates/kanyu-edit",
 ]
 
 [workspace.package]
@@ -30,6 +31,7 @@ categories = ["science::geo", "visualization", "parser-implementations"]
 kanyu-core = { path = "crates/kanyu-core", version = "0.19.0" }
 kanyu-render = { path = "crates/kanyu-render", version = "0.19.0" }
 kanyu-skill = { path = "crates/kanyu-skill", version = "0.19.0" }
+kanyu-edit = { path = "crates/kanyu-edit", version = "0.19.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

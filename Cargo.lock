@@ -3092,6 +3092,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kanyu-edit"
+version = "0.19.0"
+dependencies = [
+ "geojson",
+ "kanyu-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "kanyu-mcp"
 version = "0.19.0"
 dependencies = [

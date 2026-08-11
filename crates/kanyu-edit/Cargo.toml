@@ -1,0 +1,22 @@
+[package]
+name = "kanyu-edit"
+description = "Kanyu edit kernel (Phase 3): Undo/Redo framework + basic geometry edit commands over FeatureCollection."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+name = "kanyu_edit"
+path = "src/lib.rs"
+
+[dependencies]
+kanyu-core.workspace = true
+geojson.workspace = true
+serde.workspace = true
+serde_json.workspace = true
