@@ -1,6 +1,6 @@
 //! MCP Server：工具路由与 stdio 服务。
 
-use kanyu_core::{agents, introspect, FormatRegistry, KanyuError, Layer};
+use kanyu_core::{agents, introspect, tooldef, toolrun, FormatRegistry, KanyuError, Layer};
 use rmcp::{
     handler::server::{tool::ToolRouter, wrapper::Parameters},
     model::*,
@@ -14,14 +14,16 @@ use serde::Deserialize;
 
 /// 可任务化的分析工具白名单（SEP-2663 试点：`tools/call` 的 arguments 带
 /// `"task": true` 时异步执行；其余工具忽略该键走同步路由）。
-/// `kanyu_skill_run` 同待遇（技能执行可能耗时）。
-const TASK_ELIGIBLE: [&str; 6] = [
+/// `kanyu_skill_run` 同待遇（技能执行可能耗时）；`kanyu_toolbox_run`
+/// 同待遇（工具箱统一执行入口，大数据量工具可能耗时）。
+const TASK_ELIGIBLE: [&str; 7] = [
     "kanyu_analysis_buffer",
     "kanyu_analysis_overlay",
     "kanyu_analysis_sjoin",
     "kanyu_analysis_zonal_stats",
     "kanyu_analysis_topology",
     "kanyu_skill_run",
+    "kanyu_toolbox_run",
 ];
 
 /// 任务结果保留时长（10 分钟；TaskManager 惰性 TTL 清扫，重启即丢——
@@ -250,6 +252,29 @@ pub struct AnalysisDeleteHolesReq {
 pub struct DataValidateReq {
     /// 数据文件路径（当前支持 .txt 宗地/点表格式）。
     pub path: String,
+}
+
+/// `kanyu_toolbox_run` 的图层注入项（id → 文件路径；Layer 类参数引用 id）。
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct ToolboxLayerRef {
+    /// 图层 id（params 中 Layer 类参数按此 id 引用）。
+    pub id: String,
+    /// 数据文件路径（格式自动探测，与 kanyu_data_load 同一加载器）。
+    pub path: String,
+}
+
+/// `kanyu_toolbox_run` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ToolboxRunReq {
+    /// 工具 id（见 kanyu_toolbox_list 返回的注册表）。
+    pub tool_id: String,
+    /// 参数值（按注册表参数序；空串或缺位 = 取参数默认值；
+    /// 枚举参数取中文标签，如 "相交"）。
+    #[serde(default)]
+    pub params: Vec<String>,
+    /// 图层注入清单（Layer 类参数引用其 id）。
+    #[serde(default)]
+    pub layers: Vec<ToolboxLayerRef>,
 }
 
 #[tool_router]
@@ -793,6 +818,30 @@ impl KanyuServer {
             "issues": issues,
         })))
     }
+
+    /// 工具箱注册表（tooldef 单一事实来源投影）。
+    #[tool(
+        name = "kanyu_toolbox_list",
+        description = "列出内核工具箱注册表（37 个工具：id/中文名/分类/参数表/是否报告类；与壳层工具箱同一 tooldef 注册表，供 AI 代理发现工具面）"
+    )]
+    async fn toolbox_list(&self) -> Result<Json<serde_json::Value>, McpError> {
+        Ok(Json(serde_json::json!({
+            "count": tooldef::TOOLS.len(),
+            "tools": serde_json::to_value(tooldef::TOOLS).map_err(to_mcp)?,
+        })))
+    }
+
+    /// 工具箱统一执行。
+    #[tool(
+        name = "kanyu_toolbox_run",
+        description = "按注册表统一执行工具箱工具：tool_id 见 kanyu_toolbox_list；params 按注册表参数序（空串或缺位取参数默认值，枚举参数取中文标签如 \"相交\"）；layers 为 [{id, path}] 图层注入清单（Layer 类参数引用 id）。产出新图层类工具返回 {\"type\":\"new_layer\"|\"new_layers\",\"verb\",\"layers\":{名称: GeoJSON}}（调用方命名落层），报告类返回 {\"type\":\"report\",\"report\":文本}；arguments 带 task:true 可异步执行"
+    )]
+    async fn toolbox_run(
+        &self,
+        Parameters(req): Parameters<ToolboxRunReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        toolbox_run_sync(req).map(Json).map_err(to_mcp)
+    }
 }
 
 #[tool_handler]
@@ -1036,6 +1085,70 @@ fn analysis_topology_sync(req: AnalysisTopologyReq) -> kanyu_core::Result<serde_
     serde_json::to_value(report).map_err(|e| KanyuError::Other(format!("报告序列化失败: {e}")))
 }
 
+/// 工具箱统一执行（MCP 薄壳与任务化路径共享）：图层注入走文件路径加载
+/// （与 kanyu_data_load 同一加载器），参数按注册表序对齐（空串/缺位取
+/// 默认值），产出 ToolOutcome 结算为结构化 JSON。
+fn toolbox_run_sync(req: ToolboxRunReq) -> kanyu_core::Result<serde_json::Value> {
+    let def = tooldef::find(&req.tool_id)
+        .ok_or_else(|| KanyuError::Other(format!("未知工具: {}", req.tool_id)))?;
+    if req.params.len() > def.params.len() {
+        return Err(KanyuError::Other(format!(
+            "参数个数超出注册表（{} 个值 / {} 个参数）",
+            req.params.len(),
+            def.params.len()
+        )));
+    }
+    // 注册表参数序 → values：空串或缺位取参数默认值。
+    let values: Vec<String> = def
+        .params
+        .iter()
+        .enumerate()
+        .map(|(i, p)| match req.params.get(i) {
+            Some(v) if !v.trim().is_empty() => v.clone(),
+            _ => p.default.to_string(),
+        })
+        .collect();
+    // 图层注入：id → FeatureCollection（文件路径加载，格式自动探测）。
+    let mut collections = std::collections::HashMap::new();
+    for lref in &req.layers {
+        let layer = Layer::load(&lref.id, &lref.path)?;
+        collections.insert(lref.id.clone(), layer.collection());
+    }
+    let outcome = toolrun::run_tool(&req.tool_id, &values, |id| collections.get(id).cloned())
+        .map_err(KanyuError::Other)?;
+    match outcome {
+        toolrun::ToolOutcome::NewLayer {
+            collection,
+            base,
+            verb,
+        } => Ok(serde_json::json!({
+            "type": "new_layer",
+            "verb": verb,
+            "layers": { base: collection },
+        })),
+        toolrun::ToolOutcome::NewLayers { layers, verb } => {
+            let map: serde_json::Map<String, serde_json::Value> = layers
+                .into_iter()
+                .map(|(name, c)| {
+                    (
+                        name,
+                        serde_json::to_value(&c).unwrap_or(serde_json::Value::Null),
+                    )
+                })
+                .collect();
+            Ok(serde_json::json!({
+                "type": "new_layers",
+                "verb": verb,
+                "layers": map,
+            }))
+        }
+        toolrun::ToolOutcome::Report(text) => Ok(serde_json::json!({
+            "type": "report",
+            "report": text,
+        })),
+    }
+}
+
 /// 技能执行（MCP 薄壳与任务化路径共享；持注册表锁内执行——v0.1 串行化，
 /// 见 KanyuServer.skills 注释）。
 fn skill_run_sync(
@@ -1071,6 +1184,7 @@ fn call_analysis_sync(
         "kanyu_analysis_sjoin" => analysis_sjoin_sync(from_args(v)?),
         "kanyu_analysis_zonal_stats" => analysis_zonal_stats_sync(from_args(v)?),
         "kanyu_analysis_topology" => analysis_topology_sync(from_args(v)?),
+        "kanyu_toolbox_run" => toolbox_run_sync(from_args(v)?),
         other => Err(KanyuError::Other(format!(
             "工具 '{other}' 不支持任务化执行"
         ))),
@@ -1367,5 +1481,118 @@ mod tests {
 
         // 未知 task_id：错误。
         assert!(manager.get_task("no-such-task").is_err());
+    }
+
+    #[tokio::test]
+    async fn toolbox_list_returns_full_registry() {
+        let server = KanyuServer::new();
+        let Json(v) = server.toolbox_list().await.unwrap();
+        assert_eq!(v["count"].as_u64().unwrap(), 37, "注册表应为 37 工具");
+        let tools = v["tools"].as_array().unwrap();
+        let ids: Vec<&str> = tools.iter().filter_map(|t| t["id"].as_str()).collect();
+        assert!(ids.contains(&"buffer"), "应含 buffer");
+        assert!(ids.contains(&"split_by_field"), "应含第三批工具");
+        // 参数表投影可见（key/kind/required）。
+        let buf = tools.iter().find(|t| t["id"] == "buffer").unwrap();
+        assert_eq!(buf["params"][0]["key"], "layer");
+        assert_eq!(buf["params"][0]["required"], true);
+    }
+
+    #[test]
+    fn toolbox_run_buffer_produces_named_layer() {
+        // 输入点图层（2 点），距离走 LinearUnit 线格式「数值|单位」。
+        let dir = std::env::temp_dir().join("kanyu_mcp_toolbox_run");
+        std::fs::create_dir_all(&dir).unwrap();
+        let pts = dir.join("pts.geojson");
+        std::fs::write(
+            &pts,
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[0,0]},"properties":{"a":1}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[1,1]},"properties":{"a":2}}
+            ]}"#,
+        )
+        .unwrap();
+        let out = toolbox_run_sync(ToolboxRunReq {
+            tool_id: "buffer".to_string(),
+            params: vec!["pts".to_string(), "0.1|度".to_string()],
+            layers: vec![ToolboxLayerRef {
+                id: "pts".to_string(),
+                path: pts.to_str().unwrap().to_string(),
+            }],
+        })
+        .unwrap();
+        assert_eq!(out["type"], "new_layer");
+        assert_eq!(out["verb"], "缓冲区");
+        let layers = out["layers"].as_object().unwrap();
+        let buf = layers.get("buf_pts").expect("新图层应以 buf_pts 命名");
+        let features = buf["features"].as_array().unwrap();
+        assert_eq!(features.len(), 2, "缓冲结果要素数与输入一致");
+        assert!(
+            matches!(
+                features[0]["geometry"]["type"].as_str(),
+                Some("Polygon") | Some("MultiPolygon")
+            ),
+            "缓冲产出应为面"
+        );
+        // 报告类分支：stats。
+        let rep = toolbox_run_sync(ToolboxRunReq {
+            tool_id: "stats".to_string(),
+            params: vec!["pts".to_string()],
+            layers: vec![ToolboxLayerRef {
+                id: "pts".to_string(),
+                path: pts.to_str().unwrap().to_string(),
+            }],
+        })
+        .unwrap();
+        assert_eq!(rep["type"], "report");
+        assert!(rep["report"].as_str().unwrap().contains("图层统计"));
+        // 中文错误：未知工具 / 图层不存在 / 参数超个数。
+        let err = toolbox_run_sync(ToolboxRunReq {
+            tool_id: "nope".to_string(),
+            params: vec![],
+            layers: vec![],
+        })
+        .unwrap_err();
+        assert!(err.to_string().contains("未知工具"), "{err}");
+        let err = toolbox_run_sync(ToolboxRunReq {
+            tool_id: "buffer".to_string(),
+            params: vec!["ghost".to_string(), "0.1|度".to_string()],
+            layers: vec![],
+        })
+        .unwrap_err();
+        assert!(err.to_string().contains("图层不存在"), "{err}");
+        let err = toolbox_run_sync(ToolboxRunReq {
+            tool_id: "buffer".to_string(),
+            params: vec!["a".to_string(), "0.1|度".to_string(), "extra".to_string()],
+            layers: vec![],
+        })
+        .unwrap_err();
+        assert!(err.to_string().contains("参数个数"), "{err}");
+    }
+
+    #[test]
+    fn toolbox_run_task_path_shares_sync_impl() {
+        // 任务化路径（call_analysis_sync）与同步工具共享 toolbox_run_sync。
+        let dir = std::env::temp_dir().join("kanyu_mcp_toolbox_task");
+        std::fs::create_dir_all(&dir).unwrap();
+        let pts = dir.join("p.geojson");
+        std::fs::write(
+            &pts,
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[0,0]},"properties":{}}
+            ]}"#,
+        )
+        .unwrap();
+        let args = serde_json::json!({
+            "tool_id": "centroid",
+            "params": ["p"],
+            "layers": [{"id": "p", "path": pts.to_str().unwrap()}],
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        let out = call_analysis_sync("kanyu_toolbox_run", args).unwrap();
+        assert_eq!(out["type"], "new_layer");
+        assert!(out["layers"].as_object().unwrap().contains_key("cen_p"));
     }
 }

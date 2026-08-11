@@ -123,7 +123,8 @@ JSON 字符串副本，兼容旧客户端：
 （服务端未检测到该声明时拒绝返回任务句柄）。
 
 **任务化触发**：白名单分析工具（`kanyu_analysis_buffer` / `overlay` /
-`sjoin` / `zonal_stats` / `topology`）的 `tools/call` arguments 增加
+`sjoin` / `zonal_stats` / `topology` / `kanyu_skill_run` /
+`kanyu_toolbox_run`）的 `tools/call` arguments 增加
 `"task": true`（非白名单工具带此键返回中文错误；其余工具忽略该键走同步路由）。
 
 **生命周期**（协议方法，非工具）：
@@ -458,6 +459,35 @@ join 侧属性与 `join_index` 缺省。
 | `kanyu_analysis_stats` | — | 图层统计 JSON（测地线口径；亩/公顷/km²） |
 | `kanyu_data_validate` | — | 宗地 TXT 质检：`{"valid": bool, "issue_count": n, "issues": [...]}`（警告不影响 valid） |
 
+### 3.19 `kanyu_toolbox_list`
+
+> 工具箱注册表发现入口——`kanyu-core::tooldef` 同一注册表的 MCP 投影
+> （壳层工具箱 / kanyu-py SDK / MCP 三面一处声明，消除漂移）。
+
+无输入。返回 `{"count": 37, "tools": [ToolDef, …]}`；每个 ToolDef 含
+`id` / `name`（中文名）/ `category` / `desc` / `params`（`key`/`label`/
+`kind`/`required`/`hint`/`default`/`help`）/ `report`（true=报告类输出终端文本，
+false=产出新图层）。
+
+### 3.20 `kanyu_toolbox_run`
+
+> 按注册表统一执行工具箱工具（toolrun 下沉入口）；arguments 带
+> `"task": true` 可任务化执行（§2.1 白名单成员）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `tool_id` | string | 是 | 工具 id（见 `kanyu_toolbox_list`） |
+| `params` | string[] | 否 | 参数值，按注册表参数序对齐；空串或缺位 = 取参数 `default`；枚举参数取**中文标签**（如 `"相交"`）；`LinearUnit` 参数取 `数值\|单位`（如 `"100\|米"`、`"0.1\|度"`，米/千米换算为米、度直通 CRS 单位） |
+| `layers` | object[] | 否 | 图层注入清单 `[{"id": "pts", "path": "a.geojson"}]`；`Layer` 类参数按 id 引用（文件路径加载，格式自动探测，与 `kanyu_data_load` 同一加载器） |
+
+返回（结构化 JSON）：
+
+- 新图层类：`{"type": "new_layer", "verb": "缓冲区", "layers": {"buf_pts": {…GeoJSON…}}}`
+  （新图层命名为 `前缀_源图层id`，由调用方结算落层；多产出如分割矢量图层为
+  `"type": "new_layers"` 同形多键）；
+- 报告类：`{"type": "report", "report": "…文本…"}`；
+- 错误为中文结构化错误（未知工具 / 图层不存在 / 参数个数与校验失败等）。
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
@@ -480,6 +510,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | `kanyu.system.generate` | `kanyu_system_*` | 📋 |
 | `kanyu.system.hotload` | `kanyu_system_hotload` | ✅ |
 | —（gene 组，Phase 5 落地） | `kanyu_skill_run` / `kanyu_skill_list` | ✅ |
+| —（toolbox 组，tooldef 注册表投影） | `kanyu_toolbox_list` / `kanyu_toolbox_run` | ✅ |
 
 即：点号映射为下划线，分组（data/analysis/render/system/agents）保留。
 

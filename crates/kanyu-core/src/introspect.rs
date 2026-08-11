@@ -24,7 +24,7 @@ pub struct ModuleInfo {
 pub struct ToolInfo {
     /// 工具全名（真实 MCP 表面名），如 `kanyu_data_load`。
     pub name: &'static str,
-    /// 分组：data / agents / analysis / render / system / gene。
+    /// 分组：data / agents / analysis / render / system / gene / toolbox。
     pub group: &'static str,
     /// 状态。
     pub status: &'static str,
@@ -235,6 +235,17 @@ pub fn tools() -> Vec<ToolInfo> {
         ToolInfo {
             name: "kanyu_skill_list",
             group: "gene",
+            status: "stable",
+        },
+        // 工具箱工具（core::tooldef 注册表投影——壳层/MCP 同一事实来源）
+        ToolInfo {
+            name: "kanyu_toolbox_list",
+            group: "toolbox",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_toolbox_run",
+            group: "toolbox",
             status: "stable",
         },
     ]
