@@ -29,6 +29,7 @@ mod panels;
 mod ribbon;
 mod scene3d;
 mod settings;
+mod symbology;
 mod theme;
 mod toc;
 mod toolbox;
@@ -62,6 +63,12 @@ pub struct ShellArgs {
     pub zoom: Option<f32>,
     /// 隐藏验证参数：错位停靠布局（属性表→窄右区、工具箱→宽底区，截图验证回流）。
     pub dock_demo2: bool,
+    /// 隐藏验证参数：目录面板深层展开（截图验证滚动）。
+    pub catalog_demo: bool,
+    /// 隐藏验证参数：打开首图层的属性页（符号化页，截图验证）。
+    pub props_demo: bool,
+    /// 隐藏验证参数：展开全部图层节点（截图验证符号化分类行）。
+    pub expand_layers: bool,
 }
 
 impl Default for ShellArgs {
@@ -78,6 +85,9 @@ impl Default for ShellArgs {
             view_demo: false,
             zoom: None,
             dock_demo2: false,
+            catalog_demo: false,
+            props_demo: false,
+            expand_layers: false,
         }
     }
 }
@@ -134,6 +144,9 @@ fn parse_args() -> ShellArgs {
             "--calc-demo" => args.calc_demo = true,
             "--view-demo" => args.view_demo = true,
             "--dock-demo2" => args.dock_demo2 = true,
+            "--catalog-demo" => args.catalog_demo = true,
+            "--props-demo" => args.props_demo = true,
+            "--expand-layers" => args.expand_layers = true,
             "--zoom" => {
                 let v = it.next().unwrap_or_else(|| {
                     eprintln!("--zoom 缺少倍率（如 1.25）\n{}", usage());

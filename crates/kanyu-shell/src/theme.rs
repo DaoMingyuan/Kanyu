@@ -31,12 +31,25 @@ pub struct Palette {
     pub accent_tertiary: Color32,
     /// 信息色（蓝灰；几何图例中线要素、信息性标记）。
     pub info: Color32,
+    /// 成功（青绿；toast 成功/操作成功文本，文本级对比度受测）。
+    pub success: Color32,
+    /// 警示（深琥珀；校验警告文本，与 accent_tertiary 选中底色分工：
+    /// warning 承载文本/图标，accent_tertiary 承载背景）。
+    pub warning: Color32,
+    /// 链接（蓝灰；hyperlink 与可点文本）。
+    pub link: Color32,
+    /// 强调浅派生（徽标底/浅色块装饰，非文本用途，不测对比度）。
+    pub accent_light: Color32,
+    /// 强调深派生（悬停加深/强调文本，文本级对比度受测）。
+    pub accent_strong: Color32,
+    /// 禁用文本（text_primary 45% 透明度派生）。
+    pub text_disabled: Color32,
+    /// 禁用底（bg_tertiary 60% 透明度派生，非文本用途）。
+    pub bg_disabled: Color32,
     /// 边框。
     pub border: Color32,
     /// 悬停背景（强调 8–12%）。
     pub hover: Color32,
-    /// 按下背景。
-    pub pressed: Color32,
     /// 选中底（20–25% 三强调）。
     pub selection: Color32,
 }
@@ -65,9 +78,15 @@ pub fn palette(theme: Theme) -> Palette {
             accent_secondary: rgb(0xB14E32),
             accent_tertiary: rgb(0xD4A843),
             info: rgb(0x4A7C9B),
+            success: rgb(0x2E7D52),
+            warning: rgb(0xA85508),
+            link: rgb(0x3A6B8C),
+            accent_light: rgb(0x7FBFB2),
+            accent_strong: rgb(0x1F4A41),
+            text_disabled: Color32::from_rgba_unmultiplied(0x1A, 0x1A, 0x1A, 115),
+            bg_disabled: Color32::from_rgba_unmultiplied(0xED, 0xEA, 0xE6, 153),
             border: rgb(0xE0DDD8),
             hover: Color32::from_rgba_unmultiplied(0x2D, 0x6A, 0x5E, 20),
-            pressed: rgb(0xE8E5E1),
             selection: Color32::from_rgba_unmultiplied(0xD4, 0xA8, 0x43, 51),
         },
         // 夜观星：墨夜/深灰蓝/中灰蓝；月白/暗灰；青玉；珊瑚；金珀。
@@ -82,9 +101,15 @@ pub fn palette(theme: Theme) -> Palette {
             accent_secondary: rgb(0xE07A5F),
             accent_tertiary: rgb(0xE9C46A),
             info: rgb(0x7AA7C7),
+            success: rgb(0x5AC08E),
+            warning: rgb(0xE9A13B),
+            link: rgb(0x7AA7C7),
+            accent_light: rgb(0x8FD8CC),
+            accent_strong: rgb(0x6FD0BE),
+            text_disabled: Color32::from_rgba_unmultiplied(0xE8, 0xE4, 0xDF, 115),
+            bg_disabled: Color32::from_rgba_unmultiplied(0x23, 0x27, 0x2E, 153),
             border: rgb(0x2A2F36),
             hover: Color32::from_rgba_unmultiplied(0x4D, 0xB8, 0xA8, 31),
-            pressed: rgb(0x2A2F36),
             selection: Color32::from_rgba_unmultiplied(0xE9, 0xC4, 0x6A, 64),
         },
     }
@@ -103,7 +128,7 @@ pub fn apply_theme(ctx: &egui::Context, theme: Theme) {
     v.extreme_bg_color = p.canvas;
     v.override_text_color = Some(p.text_primary);
     v.weak_text_color = Some(p.text_weak);
-    v.hyperlink_color = p.accent;
+    v.hyperlink_color = p.link;
     v.selection.bg_fill = p.selection;
     v.selection.stroke = Stroke::new(1.0, p.accent);
     v.widgets.noninteractive.bg_fill = p.bg_primary;
@@ -113,10 +138,11 @@ pub fn apply_theme(ctx: &egui::Context, theme: Theme) {
     v.widgets.inactive.bg_fill = p.bg_tertiary;
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, p.text_primary);
     v.widgets.inactive.bg_stroke = Stroke::new(0.5, p.border);
-    v.widgets.hovered.bg_fill = p.hover;
+    // 状态色统一走 tokens::state 派生（单一取值规则）。
+    v.widgets.hovered.bg_fill = crate::ui_kit::tokens::state::hover_bg(&p);
     v.widgets.hovered.fg_stroke = Stroke::new(1.5, p.accent);
     v.widgets.hovered.bg_stroke = Stroke::new(1.0, p.accent);
-    v.widgets.active.bg_fill = p.pressed;
+    v.widgets.active.bg_fill = crate::ui_kit::tokens::state::pressed_bg(&p);
     v.widgets.active.fg_stroke = Stroke::new(1.5, p.accent);
     ctx.set_visuals(v);
 }
@@ -306,6 +332,18 @@ mod tests {
                     sec >= BODY_MIN,
                     "{theme:?} 次强调对比度 {sec:.2} < {BODY_MIN}"
                 );
+                // 新增语义色（文本级，同 §1.4.3 正文档）。
+                for (name, c) in [
+                    ("success", p.success),
+                    ("warning", p.warning),
+                    ("link", p.link),
+                    ("accent_strong", p.accent_strong),
+                ] {
+                    let r = contrast_ratio(c, bg);
+                    assert!(r >= BODY_MIN, "{theme:?} {name} 对比度 {r:.2} < {BODY_MIN}");
+                }
+                // accent_light/accent_tertiary/text_disabled/bg_disabled 为装饰/底色/
+                // 禁用态（非关键文本载体），不测对比度（用途见字段注释）。
             }
         }
     }

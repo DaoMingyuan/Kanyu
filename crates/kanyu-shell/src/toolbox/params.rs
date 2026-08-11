@@ -3,6 +3,7 @@
 //! 供工具参数对话框（dialog.rs）或任何表单组合调用。
 //! 全部经 ui_kit 基础控件组合（label + 控件 + error_caption）。
 
+use eframe::egui;
 use eframe::egui::{Response, Ui};
 
 use super::{ParamKind, ToolDef, ToolParam};
@@ -79,6 +80,86 @@ pub fn choice(ui: &mut Ui, p: &ToolParam, value: &mut String, err: Option<&str>)
     resp
 }
 
+/// 多值图层参数（multiValue；复选列表，内部以换行分隔 id 承载）。
+pub fn multi_layers(
+    ui: &mut Ui,
+    p: &ToolParam,
+    value: &mut String,
+    layers: &[String],
+    err: Option<&str>,
+) -> Response {
+    ui.label(crate::ui_kit::text::body(format!("{}:", p.label)));
+    let resp = ui
+        .vertical(|ui| {
+            let mut selected: Vec<String> = kanyu_core::toolrun::parse_multi_layers(value);
+            for id in layers {
+                let mut on = selected.contains(id);
+                if crate::ui_kit::checkbox(ui, &mut on, id).changed() {
+                    if on {
+                        selected.push(id.clone());
+                    } else {
+                        selected.retain(|s| s != id);
+                    }
+                    *value = selected.join("\n");
+                }
+            }
+            ui.response()
+        })
+        .response;
+    if let Some(e) = err {
+        error_caption(ui, e);
+    }
+    resp
+}
+
+/// 线性单位参数（数值输入 + 单位下拉；承载 "数值|单位"）。
+pub fn linear_unit(ui: &mut Ui, p: &ToolParam, value: &mut String, err: Option<&str>) -> Response {
+    use kanyu_core::toolrun::LinearUnit;
+    // 拆出数值与单位（空值给默认单位 米）。
+    let (mut num, mut unit) = match value.split_once('|') {
+        Some((n, u)) => (n.to_string(), u.to_string()),
+        None => (value.clone(), "米".to_string()),
+    };
+    if unit.is_empty() {
+        unit = "米".to_string();
+    }
+    let resp = ui
+        .horizontal(|ui| {
+            ui.label(crate::ui_kit::text::body(format!("{}:", p.label)));
+            let r = ui.add(
+                egui::TextEdit::singleline(&mut num)
+                    .font(egui::FontId::proportional(13.0))
+                    .desired_width(120.0)
+                    .hint_text(p.hint),
+            );
+            let units: Vec<String> = LinearUnit::ALL
+                .iter()
+                .map(|u| u.label().to_string())
+                .collect();
+            crate::ui_kit::combo(ui, "单位", &mut unit, &units, true);
+            r
+        })
+        .inner;
+    *value = format!("{num}|{unit}");
+    if let Some(e) = err {
+        error_caption(ui, e);
+    }
+    resp
+}
+
+/// 布尔参数（复选框；承载 "true"/"false"）。
+pub fn boolean(ui: &mut Ui, p: &ToolParam, value: &mut String, err: Option<&str>) -> Response {
+    let mut on = value == "true";
+    let resp = crate::ui_kit::checkbox(ui, &mut on, p.label);
+    if resp.changed() {
+        *value = on.to_string();
+    }
+    if let Some(e) = err {
+        error_caption(ui, e);
+    }
+    resp
+}
+
 /// 按参数类型分派渲染（对话框用）。`fields_of` 注入字段清单查询
 /// （Field 参数的锚点图层值在本函数内解析，避免调用方处理借用）。
 pub fn render(
@@ -93,15 +174,20 @@ pub fn render(
     let p = &def.params[index];
     match &p.kind {
         ParamKind::Layer => layer(ui, p, &mut values[index], layers, err),
+        ParamKind::MultiLayers => multi_layers(ui, p, &mut values[index], layers, err),
         ParamKind::Field(anchor) => {
             let layer_id = values.get(*anchor).cloned().unwrap_or_default();
             let fields = fields_of(&layer_id);
             field(ui, p, &mut values[index], &fields, err)
         }
-        ParamKind::Number => number(ui, p, &mut values[index], err),
+        ParamKind::Number | ParamKind::Long => number(ui, p, &mut values[index], err),
         ParamKind::NumberList => number_list(ui, p, &mut values[index], err),
-        ParamKind::Text => text(ui, p, &mut values[index], err),
+        ParamKind::Text | ParamKind::Extent | ParamKind::Crs | ParamKind::OutFile => {
+            text(ui, p, &mut values[index], err)
+        }
         ParamKind::Expression => expression(ui, p, &mut values[index], err),
         ParamKind::Enum(_) => choice(ui, p, &mut values[index], err),
+        ParamKind::LinearUnit => linear_unit(ui, p, &mut values[index], err),
+        ParamKind::Boolean => boolean(ui, p, &mut values[index], err),
     }
 }

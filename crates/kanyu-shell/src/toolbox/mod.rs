@@ -16,7 +16,9 @@ mod dialog;
 mod panel;
 mod params;
 
-pub use dialog::{run_dialog, DialogOutcome, ToolRunState};
+pub use dialog::{
+    completion_action, run_dialog, CompletionAction, DialogOutcome, ToolProgress, ToolRunState,
+};
 pub use kanyu_core::tooldef::{find, ParamKind, ToolCategory, ToolDef, ToolParam, TOOLS};
 pub use kanyu_core::toolrun::{run_tool, ToolOutcome};
 pub use panel::ToolboxPanel;

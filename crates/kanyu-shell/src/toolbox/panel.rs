@@ -105,73 +105,76 @@ impl ToolboxPanel {
         });
         ui.separator();
         let filter = self.filter.trim().to_lowercase();
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            // 「最近使用」区（有记录才显示）。
-            if !self.recent.is_empty() {
-                ui.label(text::caption("最近使用").color(ui.visuals().weak_text_color()));
-                let recent = self.recent.clone();
-                for id in recent {
-                    if let Some(r) = self.tool_row(ui, cache, 0, id) {
-                        run = Some(r);
+        // auto_shrink([false, true])：滚动条出现/消失不引发布局宽度跳动。
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                // 「最近使用」区（有记录才显示）。
+                if !self.recent.is_empty() {
+                    ui.label(text::caption("最近使用").color(ui.visuals().weak_text_color()));
+                    let recent = self.recent.clone();
+                    for id in recent {
+                        if let Some(r) = self.tool_row(ui, cache, 0, id) {
+                            run = Some(r);
+                        }
+                    }
+                    ui.add_space(spacing::SM);
+                }
+                // 「收藏」区（有收藏才显示）。
+                if !self.favorites.is_empty() {
+                    ui.label(text::caption("收藏").color(ui.visuals().weak_text_color()));
+                    let favorites = self.favorites.clone();
+                    for id in favorites {
+                        if let Some(r) = self.tool_row(ui, cache, 0, id) {
+                            run = Some(r);
+                        }
+                    }
+                    ui.add_space(spacing::SM);
+                }
+                // 分类树。
+                for cat in ToolCategory::ALL {
+                    let tools: Vec<&'static str> = TOOLS
+                        .iter()
+                        .filter(|t| t.category == cat)
+                        .filter(|t| {
+                            filter.is_empty()
+                                || t.name.to_lowercase().contains(&filter)
+                                || t.desc.to_lowercase().contains(&filter)
+                        })
+                        .map(|t| t.id)
+                        .collect();
+                    if tools.is_empty() {
+                        continue;
+                    }
+                    // 筛选时强制展开（命中直接可见）。
+                    let expanded = if filter.is_empty() {
+                        !self.collapsed[cat.index()]
+                    } else {
+                        true
+                    };
+                    let label = format!("{} ({} 项)", cat.label(), tools.len());
+                    let (_r, toggled) = tree_row(
+                        ui,
+                        cache,
+                        0,
+                        Some(Icon::Folder),
+                        &label,
+                        Some(expanded),
+                        |_ui| {},
+                    );
+                    if toggled {
+                        self.collapsed[cat.index()] = !self.collapsed[cat.index()];
+                    }
+                    if !expanded {
+                        continue;
+                    }
+                    for id in tools {
+                        if let Some(r) = self.tool_row(ui, cache, 1, id) {
+                            run = Some(r);
+                        }
                     }
                 }
-                ui.add_space(spacing::SM);
-            }
-            // 「收藏」区（有收藏才显示）。
-            if !self.favorites.is_empty() {
-                ui.label(text::caption("收藏").color(ui.visuals().weak_text_color()));
-                let favorites = self.favorites.clone();
-                for id in favorites {
-                    if let Some(r) = self.tool_row(ui, cache, 0, id) {
-                        run = Some(r);
-                    }
-                }
-                ui.add_space(spacing::SM);
-            }
-            // 分类树。
-            for cat in ToolCategory::ALL {
-                let tools: Vec<&'static str> = TOOLS
-                    .iter()
-                    .filter(|t| t.category == cat)
-                    .filter(|t| {
-                        filter.is_empty()
-                            || t.name.to_lowercase().contains(&filter)
-                            || t.desc.to_lowercase().contains(&filter)
-                    })
-                    .map(|t| t.id)
-                    .collect();
-                if tools.is_empty() {
-                    continue;
-                }
-                // 筛选时强制展开（命中直接可见）。
-                let expanded = if filter.is_empty() {
-                    !self.collapsed[cat.index()]
-                } else {
-                    true
-                };
-                let label = format!("{} ({} 项)", cat.label(), tools.len());
-                let (_r, toggled) = tree_row(
-                    ui,
-                    cache,
-                    0,
-                    Some(Icon::Folder),
-                    &label,
-                    Some(expanded),
-                    |_ui| {},
-                );
-                if toggled {
-                    self.collapsed[cat.index()] = !self.collapsed[cat.index()];
-                }
-                if !expanded {
-                    continue;
-                }
-                for id in tools {
-                    if let Some(r) = self.tool_row(ui, cache, 1, id) {
-                        run = Some(r);
-                    }
-                }
-            }
-        });
+            });
         run
     }
 }

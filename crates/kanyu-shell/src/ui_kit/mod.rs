@@ -32,6 +32,9 @@
 //! - **缩放等比例（强制）**：字号/图标/间距一律出自 tokens（点单位），
 //!   界面缩放（`egui zoom_factor` 档位）后所有元素等比缩放；禁止绕过
 //!   tokens 的硬编码像素（自绘元素同）。
+//! - **状态色（强制）**：hover/pressed/selection/focus/disabled 只许出自
+//!   palette 语义位与 `tokens::state` 派生函数（取值规则固化在该模块注释），
+//!   禁止业务代码临时取色。
 //! - **三分离原则**（功能区）：图标归图标（视觉）、标题归标题（按钮内）、
 //!   简介归简介（**悬停浮现**，永不挤占版面）。
 //! - **AI slop 黑名单**（适配桌面端）：图标彩圈装饰、万物居中、统一大圆角、
@@ -67,8 +70,8 @@ pub mod icons;
 pub mod tokens;
 
 pub use containers::{
-    badge, card, dialog_shell, push_toast, section_header, toast_stack, DialogAction, Toast,
-    ToastKind,
+    badge, card, dialog_shell, push_toast, section_header, toast_stack, BadgeLevel, DialogAction,
+    Toast, ToastKind,
 };
 pub use controls::{
     button, checkbox, clamp_step, combo, combo_static, combo_width, error_caption, hint_caption,
@@ -76,4 +79,4 @@ pub use controls::{
     text_area, text_input, toc_row, tree_row, ButtonVariant, MenuButtonResponse, TocRowResponse,
 };
 pub use icons::{icon_ui, icons_color, Icon};
-pub use tokens::{sizes, spacing, text};
+pub use tokens::{sizes, spacing, state, text};

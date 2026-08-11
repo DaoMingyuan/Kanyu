@@ -1,20 +1,86 @@
-//! 目录面板（Catalog）：QGIS 浏览器面板式设计——可展开树：
-//! 快捷根节点（主目录/桌面/文档/下载/项目目录/磁盘）→ 子目录懒加载展开；
-//! 数据文件按类型着色，双击打开为图层。与图层面板职责分离：
-//! 目录管"找数据"，图层管"数据现场"。
+//! 目录面板（Catalog）：ArcGIS Pro 工程目录范式——固定五分类根节点：
+//! **地图框**（当前打开的地图视图）/ **布局框**（占位）/ **数据库**（.kdb）/
+//! **服务链接**（占位）/ **本机数据**（QGIS 式文件浏览器子树，懒加载）。
+//! 与图层面板职责分离：目录管"找数据与资源"，图层管"数据现场"。
 
 use std::path::{Path, PathBuf};
 
 use eframe::egui;
 
 use crate::ui_kit::icons::{self, Icon};
-use crate::ui_kit::{hint_caption, text};
+use crate::ui_kit::{badge, hint_caption, text, tree_row, BadgeLevel};
 
 /// 目录面板动作（app 分派）。
 #[derive(Debug, Clone)]
 pub enum CatalogAction {
-    /// 打开数据文件为图层。
+    /// 打开数据文件为图层（.kyu 由 app 改走工程恢复；.kdb 直接加载）。
     LoadFile(PathBuf),
+    /// 激活地图视图（None = 主视图「地图」）。
+    ActivateView(Option<usize>),
+    /// 新建地图框（同功能区命令）。
+    NewMapView,
+}
+
+/// 地图视图行（app 注入，地图框分类的数据源）。
+pub struct ViewRow {
+    /// map_views 下标（None = 主视图）。
+    pub index: Option<usize>,
+    /// 标题（地图 / 地图 N）。
+    pub title: String,
+    /// 维度角标（二维/三维）。
+    pub dim_label: &'static str,
+}
+
+/// 分类元信息（计数徽标/空态提示）。
+pub struct CategoryMeta {
+    /// 名称。
+    pub name: &'static str,
+    /// 图标。
+    pub icon: Icon,
+    /// 计数徽标。
+    pub count: usize,
+    /// 空态提示（None = 有内容分类）。
+    pub placeholder: Option<&'static str>,
+}
+
+/// 五分类（固定序；纯结构函数，可测）。
+pub fn categories(
+    view_count: usize,
+    has_default_kdb: bool,
+    root_count: usize,
+) -> [CategoryMeta; 5] {
+    [
+        CategoryMeta {
+            name: "地图框",
+            icon: Icon::Image,
+            count: view_count,
+            placeholder: None,
+        },
+        CategoryMeta {
+            name: "布局框",
+            icon: Icon::List,
+            count: 0,
+            placeholder: Some("打印布局待后续阶段（排版输出）"),
+        },
+        CategoryMeta {
+            name: "数据库",
+            icon: Icon::Database,
+            count: usize::from(has_default_kdb),
+            placeholder: None,
+        },
+        CategoryMeta {
+            name: "服务链接",
+            icon: Icon::Link,
+            count: 0,
+            placeholder: Some("WFS/WMS 等服务连接待后续接入"),
+        },
+        CategoryMeta {
+            name: "本机数据",
+            icon: Icon::FolderPlain,
+            count: root_count,
+            placeholder: None,
+        },
+    ]
 }
 
 /// 数据文件扩展名（与壳层打开能力对齐，另加工程/数据库）。
@@ -58,11 +124,13 @@ impl CatalogNode {
     }
 }
 
-/// 目录面板状态（QGIS 浏览器：根节点集合 + 懒加载树）。
+/// 目录面板状态（五分类树 + 本机数据懒加载子树）。
 pub struct CatalogPanel {
     roots: Vec<CatalogNode>,
     /// 状态行（读取失败等）。
     note: Option<String>,
+    /// 分类展开态（默认仅「本机数据」展开）。
+    expanded: [bool; 5],
 }
 
 impl Default for CatalogPanel {
@@ -70,6 +138,7 @@ impl Default for CatalogPanel {
         let mut panel = Self {
             roots: Vec::new(),
             note: None,
+            expanded: [false, false, false, false, true],
         };
         panel.build_roots();
         panel
@@ -107,6 +176,26 @@ impl CatalogPanel {
                 if p.is_dir() {
                     self.roots
                         .push(CatalogNode::dir(p.clone(), format!("磁盘 {letter}:\\")));
+                }
+            }
+        }
+    }
+
+    /// 演示/验证（截图）：展开首个根节点及其首个子目录（深层展开滚动验证）+
+    /// 全部分类展开（分类布局验证）。
+    pub fn demo_expand_first(&mut self) {
+        self.expanded = [true; 5];
+        fn expand(node: &mut CatalogNode) {
+            if node.children.is_none() {
+                node.children = CatalogPanel::read_children(&node.path).ok();
+            }
+            node.expanded = true;
+        }
+        if let Some(root) = self.roots.first_mut() {
+            expand(root);
+            if let Some(children) = &mut root.children {
+                if let Some(child) = children.iter_mut().find(|c| c.is_dir) {
+                    expand(child);
                 }
             }
         }
@@ -155,35 +244,139 @@ impl CatalogPanel {
         }
     }
 
-    /// 面板 UI。返回产生的动作。
+    /// 默认工程数据库路径（项目目录/kanyu.kdb）。
+    fn default_kdb() -> Option<PathBuf> {
+        let p = std::env::current_dir().ok()?.join("kanyu.kdb");
+        p.is_file().then_some(p)
+    }
+
+    /// 面板 UI。`views` = 地图框分类数据（app 注入）。返回产生的动作。
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
         cache: &mut crate::ui_kit::icons::IconCache,
+        views: &[ViewRow],
     ) -> Vec<CatalogAction> {
         let mut actions = Vec::new();
         // 状态行。
         if let Some(note) = &self.note {
             hint_caption(ui, note);
         }
+        let default_kdb = Self::default_kdb();
+        let cats = categories(views.len(), default_kdb.is_some(), self.roots.len());
         // 展开/加载/打开动作延后收集（避免借用冲突），迭代后统一应用。
         let mut toggles: Vec<Vec<usize>> = Vec::new();
+        // auto_shrink([false, true])：滚动条出现/消失不引发布局宽度跳动。
         egui::ScrollArea::vertical()
             .id_salt("catalog_tree")
+            .auto_shrink([false, true])
             .show(ui, |ui| {
-                let mut path_buf = Vec::new();
-                for (i, _) in self.roots.iter().enumerate() {
-                    path_buf.clear();
-                    path_buf.push(i);
-                    render_node(
+                for (ci, cat) in cats.iter().enumerate() {
+                    // 分类行：图标 + 名称 + 计数徽标 + 展开箭头。
+                    let (_r, toggled) = tree_row(
                         ui,
-                        &self.roots[i],
-                        0,
-                        &mut path_buf,
-                        &mut toggles,
-                        &mut actions,
                         cache,
+                        0,
+                        Some(cat.icon),
+                        cat.name,
+                        Some(self.expanded[ci]),
+                        |ui| {
+                            badge(ui, &cat.count.to_string(), BadgeLevel::Stable);
+                        },
                     );
+                    if toggled {
+                        self.expanded[ci] = !self.expanded[ci];
+                    }
+                    if !self.expanded[ci] {
+                        continue;
+                    }
+                    // 分类内容。
+                    match ci {
+                        0 => {
+                            // 地图框：视图行（单击激活）+ 新建入口。
+                            for v in views {
+                                let (resp, _) = tree_row(
+                                    ui,
+                                    cache,
+                                    1,
+                                    Some(Icon::Image),
+                                    &format!("{}（{}）", v.title, v.dim_label),
+                                    None,
+                                    |_ui| {},
+                                );
+                                if resp.clicked() {
+                                    actions.push(CatalogAction::ActivateView(v.index));
+                                }
+                            }
+                            let (resp, _) = tree_row(
+                                ui,
+                                cache,
+                                1,
+                                Some(Icon::Play),
+                                "＋ 新建地图框",
+                                None,
+                                |_ui| {},
+                            );
+                            if resp.clicked() {
+                                actions.push(CatalogAction::NewMapView);
+                            }
+                        }
+                        1 | 3 => {
+                            // 布局框 / 服务链接：占位空态。
+                            if let Some(ph) = cat.placeholder {
+                                ui.horizontal(|ui| {
+                                    ui.add_space(16.0);
+                                    hint_caption(ui, ph);
+                                });
+                            }
+                        }
+                        2 => {
+                            // 数据库：默认工程数据库入口。
+                            match &default_kdb {
+                                Some(p) => {
+                                    let (resp, _) = tree_row(
+                                        ui,
+                                        cache,
+                                        1,
+                                        Some(Icon::Database),
+                                        "默认工程数据库（kanyu.kdb）",
+                                        None,
+                                        |_ui| {},
+                                    );
+                                    if resp.double_clicked() {
+                                        actions.push(CatalogAction::LoadFile(p.clone()));
+                                    }
+                                    resp.on_hover_text("双击打开为图层");
+                                }
+                                None => {
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(16.0);
+                                        hint_caption(
+                                            ui,
+                                            "无默认工程数据库——可经工具箱「导出图层」创建 .kdb",
+                                        );
+                                    });
+                                }
+                            }
+                        }
+                        _ => {
+                            // 本机数据：QGIS 式文件浏览器子树。
+                            let mut path_buf = Vec::new();
+                            for (i, _) in self.roots.iter().enumerate() {
+                                path_buf.clear();
+                                path_buf.push(i);
+                                render_node(
+                                    ui,
+                                    &self.roots[i],
+                                    1,
+                                    &mut path_buf,
+                                    &mut toggles,
+                                    &mut actions,
+                                    cache,
+                                );
+                            }
+                        }
+                    }
                 }
             });
         // 应用展开/折叠（首次展开时懒加载子节点）。
@@ -338,6 +531,24 @@ fn human_size(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn categories_fixed_order_and_counts() {
+        let cats = categories(3, true, 6);
+        let names: Vec<&str> = cats.iter().map(|c| c.name).collect();
+        assert_eq!(
+            names,
+            vec!["地图框", "布局框", "数据库", "服务链接", "本机数据"]
+        );
+        assert_eq!(cats[0].count, 3);
+        assert_eq!(cats[1].count, 0);
+        assert!(cats[1].placeholder.is_some());
+        assert_eq!(cats[2].count, 1);
+        assert!(cats[3].placeholder.is_some());
+        assert_eq!(cats[4].count, 6);
+        let cats2 = categories(1, false, 0);
+        assert_eq!(cats2[2].count, 0);
+    }
 
     #[test]
     fn human_size_scales() {

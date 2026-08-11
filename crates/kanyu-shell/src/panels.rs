@@ -86,6 +86,8 @@ pub struct LayerView {
     pub visible: bool,
     /// 展开（骨架目录子节点）。
     pub expanded: bool,
+    /// 符号化分类行（色块 RGB + 标注；ArcGIS Pro 图例式展开）。
+    pub sym_classes: Vec<([u8; 3], String)>,
 }
 
 /// 技能条目视图数据。
@@ -174,6 +176,10 @@ fn layer_row(
     if r.row.clicked() {
         actions.push(PanelAction::SelectLayer(id.clone()));
     }
+    // 双击 = 打开图层属性（ArcGIS 习惯）。
+    if r.row.double_clicked() {
+        actions.push(PanelAction::LayerProperties(id.clone()));
+    }
     r.row.context_menu(|ui| {
         if ui.button("缩放至图层").clicked() {
             actions.push(PanelAction::ZoomToLayer(id.clone()));
@@ -250,17 +256,12 @@ fn layer_row(
         }
     });
 
-    // 子节点（展开时）：几何 / 字段 / 格式（骨架信息行，无复选框）。
+    // 子节点（展开时）：符号化分类行（ArcGIS Pro 图例式：色块 + 标注）垫底
+    // 保留字段/格式信息行。
     if lv.expanded {
-        let (_r, _) = tree_row(
-            ui,
-            ctx.cache,
-            depth + 1,
-            Some(Icon::Info),
-            &format!("几何: {}", lv.geometry_types.join(", ")),
-            None,
-            |_ui| {},
-        );
+        for (color, label) in &lv.sym_classes {
+            sym_class_row(ui, depth + 1, *color, label, !effective_visible);
+        }
         let fields = if lv.fields.len() > 8 {
             format!("{} …(+{})", lv.fields[..8].join(" · "), lv.fields.len() - 8)
         } else {
@@ -285,6 +286,50 @@ fn layer_row(
             |_ui| {},
         );
     }
+}
+
+/// 符号化分类行（色块 + 标注；色取自符号化实际值）。
+fn sym_class_row(ui: &mut egui::Ui, depth: usize, color: [u8; 3], label: &str, weak: bool) {
+    let p = palette_of(ui);
+    let row_h = crate::ui_kit::sizes::CONTROL_SM;
+    let (rect, _) = ui.allocate_exact_size(
+        egui::Vec2::new(ui.available_width(), row_h),
+        egui::Sense::hover(),
+    );
+    // 缩进参考线（与 toc_row 同标尺）。
+    for d in 0..depth {
+        let x = rect.min.x + crate::ui_kit::spacing::XS + d as f32 * 14.0 + 7.0;
+        ui.painter().line_segment(
+            [egui::pos2(x, rect.min.y), egui::pos2(x, rect.max.y)],
+            egui::Stroke::new(1.0, p.border),
+        );
+    }
+    // 色块（10px 圆角）。
+    let sw = egui::Rect::from_center_size(
+        egui::pos2(
+            rect.min.x + crate::ui_kit::spacing::XS + depth as f32 * 14.0 + 16.0,
+            rect.center().y,
+        ),
+        egui::Vec2::splat(10.0),
+    );
+    ui.painter().rect_filled(
+        sw,
+        2.0,
+        egui::Color32::from_rgb(color[0], color[1], color[2]),
+    );
+    ui.painter().rect_stroke(
+        sw,
+        2.0,
+        egui::Stroke::new(0.5, p.border),
+        egui::StrokeKind::Middle,
+    );
+    ui.painter().text(
+        egui::pos2(sw.max.x + crate::ui_kit::spacing::SM, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        egui::FontId::proportional(crate::ui_kit::text::SIZE_BODY),
+        if weak { p.text_weak } else { p.text_primary },
+    );
 }
 
 /// 组行：复选框（一键全显/全隐）+ 展开箭头 + 组图标 + 「组名 (N 项)」。
@@ -484,84 +529,93 @@ pub fn layers_tree(
     });
     ui.separator();
 
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        let filter_lc = filter.trim().to_lowercase();
-        if layers.is_empty() {
-            ui.add_space(4.0);
-            hint_caption(
-                ui,
-                "尚未加载图层：从「目录」双击数据文件，或「主页 → 打开数据…」",
-            );
-        }
-        let mut ctx = TocCtx {
-            cache,
-            root: toc,
-            by_id: layers.iter().map(|lv| (lv.id.as_str(), lv)).collect(),
-            groups: toc::group_paths(toc),
-            selected_id,
-            selected_group,
-        };
-        if filter_lc.is_empty() {
-            // 树模式：按目录树渲染（组嵌套）。
-            toc_nodes_ui(ui, &mut ctx, toc, "", 0, true, &mut actions);
-        } else {
-            // 筛选模式：平铺匹配图层（ArcGIS 筛选语义），行交互与树模式一致；
-            // 有效可见性仍按目录树计算（祖先组不可见 → 弱色）。
-            let visible_set: std::collections::HashSet<String> =
-                toc::visible_draw_order(toc, own_visible(&ctx))
-                    .into_iter()
-                    .collect();
-            let mut any = false;
-            for lv in layers {
-                if lv.file_name.to_lowercase().contains(&filter_lc) {
-                    any = true;
-                    // 自身可见时，有效不可见 ⇔ 祖先组不可见。
-                    let ancestors_visible = !lv.visible || visible_set.contains(&lv.id);
-                    let in_group = toc::group_path_of(toc, &lv.id)
-                        .map(|p| !p.is_empty())
-                        .unwrap_or(false);
-                    layer_row(
-                        ui,
-                        &mut ctx,
-                        0,
-                        lv,
-                        ancestors_visible,
-                        in_group,
-                        &mut actions,
-                    );
+    // auto_shrink([false, true])：滚动条出现/消失不引发布局宽度跳动。
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            let filter_lc = filter.trim().to_lowercase();
+            if layers.is_empty() {
+                ui.add_space(4.0);
+                hint_caption(
+                    ui,
+                    "尚未加载图层：从「目录」双击数据文件，或「主页 → 打开数据…」",
+                );
+            }
+            let mut ctx = TocCtx {
+                cache,
+                root: toc,
+                by_id: layers.iter().map(|lv| (lv.id.as_str(), lv)).collect(),
+                groups: toc::group_paths(toc),
+                selected_id,
+                selected_group,
+            };
+            if filter_lc.is_empty() {
+                // 树模式：按目录树渲染（组嵌套）。
+                toc_nodes_ui(ui, &mut ctx, toc, "", 0, true, &mut actions);
+            } else {
+                // 筛选模式：平铺匹配图层（ArcGIS 筛选语义），行交互与树模式一致；
+                // 有效可见性仍按目录树计算（祖先组不可见 → 弱色）。
+                let visible_set: std::collections::HashSet<String> =
+                    toc::visible_draw_order(toc, own_visible(&ctx))
+                        .into_iter()
+                        .collect();
+                let mut any = false;
+                for lv in layers {
+                    if lv.file_name.to_lowercase().contains(&filter_lc) {
+                        any = true;
+                        // 自身可见时，有效不可见 ⇔ 祖先组不可见。
+                        let ancestors_visible = !lv.visible || visible_set.contains(&lv.id);
+                        let in_group = toc::group_path_of(toc, &lv.id)
+                            .map(|p| !p.is_empty())
+                            .unwrap_or(false);
+                        layer_row(
+                            ui,
+                            &mut ctx,
+                            0,
+                            lv,
+                            ancestors_visible,
+                            in_group,
+                            &mut actions,
+                        );
+                    }
+                }
+                if !any {
+                    hint_caption(ui, &format!("无匹配「{filter}」的图层"));
                 }
             }
-            if !any {
-                hint_caption(ui, &format!("无匹配「{filter}」的图层"));
-            }
-        }
-        // 空白区：剩余空间一个 Response 承载右键菜单（整树操作）。
-        let (_rect, blank) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click());
-        blank.context_menu(|ui| {
-            if ui.button("新建图层组").clicked() {
-                actions.push(PanelAction::NewGroup(None));
-                ui.close();
-            }
-            ui.separator();
-            if ui.button("全部展开").clicked() {
-                actions.push(PanelAction::SetAllExpanded(true));
-                ui.close();
-            }
-            if ui.button("全部折叠").clicked() {
-                actions.push(PanelAction::SetAllExpanded(false));
-                ui.close();
-            }
-            ui.separator();
-            if ui.button("全部显示").clicked() {
-                actions.push(PanelAction::SetAllVisible(true));
-                ui.close();
-            }
-            if ui.button("全部隐藏").clicked() {
-                actions.push(PanelAction::SetAllVisible(false));
-                ui.close();
-            }
+            // 空白区：剩余空间一个 Response 承载右键菜单（整树操作）。
+            // 注意：滚动区内 available_size 高度为无限——按视口余量计算，
+            // 否则内容高度被撑到无穷、滚动范围失真（长图层列表必现）。
+            let blank_h = (ui.clip_rect().max.y - ui.cursor().min.y).max(24.0);
+            let (_rect, blank) = ui.allocate_exact_size(
+                egui::Vec2::new(ui.available_width(), blank_h),
+                egui::Sense::click(),
+            );
+            blank.context_menu(|ui| {
+                if ui.button("新建图层组").clicked() {
+                    actions.push(PanelAction::NewGroup(None));
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button("全部展开").clicked() {
+                    actions.push(PanelAction::SetAllExpanded(true));
+                    ui.close();
+                }
+                if ui.button("全部折叠").clicked() {
+                    actions.push(PanelAction::SetAllExpanded(false));
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button("全部显示").clicked() {
+                    actions.push(PanelAction::SetAllVisible(true));
+                    ui.close();
+                }
+                if ui.button("全部隐藏").clicked() {
+                    actions.push(PanelAction::SetAllVisible(false));
+                    ui.close();
+                }
+            });
         });
-    });
     actions
 }
 

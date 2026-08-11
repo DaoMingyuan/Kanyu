@@ -129,11 +129,11 @@ struct Prism {
 
 // ===== 场景 UI =====
 
-/// 3D 场景帧（实验性）。返回是否有视口变化（供 app 写回 view_bbox）。
+/// 3D 场景帧（实验性）。逐图层按符号化主色绘制（返回是否有视口变化）。
 pub fn ui(
     ui: &mut egui::Ui,
     scene: &mut Scene3D,
-    collection: &FeatureCollection,
+    layers: &[crate::canvas::LayerSlice<'_>],
     view_bbox: &mut Option<BBox>,
     needs_fit: &mut bool,
     data_extent: Option<BBox>,
@@ -193,55 +193,42 @@ pub fn ui(
     }
     let bbox = view_bbox.expect("早退分支已保证有视口");
 
-    // 高度归一化（首个数值字段；无则常量 10）。
-    let hf = height_field(collection);
+    // 高度归一化（全图层统一：首个数值字段；无则常量 10）。
+    let hf = layers.iter().find_map(|l| height_field(l.collection));
     let height_of = |f: &geojson::Feature| -> f64 {
         hf.as_ref()
             .and_then(|k| f.properties.as_ref()?.get(k)?.as_f64())
             .unwrap_or(10.0)
     };
-    let max_h = collection
-        .features
+    let max_h = layers
         .iter()
+        .flat_map(|l| l.collection.features.iter())
         .map(&height_of)
         .fold(0.0_f64, f64::max);
     let scale = height_scale(max_h, rect.height());
     let (cx, cy) = (rect.center().x, rect.center().y);
 
-    // 背景。
+    // 背景：恒纯白（地图框背景纯白约束，与界面主题解耦）。
     let painter = ui.painter().clone();
-    painter.rect_filled(rect, 0.0, p.canvas);
+    painter.rect_filled(rect, 0.0, Color32::WHITE);
 
     // 收集棱柱（视口裁剪在环级做：全部顶点出界才跳过）。
     let mut prisms: Vec<Prism> = Vec::new();
-    let mut ground_lines: Vec<Vec<Pos2>> = Vec::new();
-    let mut ground_points: Vec<Pos2> = Vec::new();
+    let mut ground_lines: Vec<(Vec<Pos2>, Color32)> = Vec::new();
+    let mut ground_points: Vec<(Pos2, Color32)> = Vec::new();
 
     let ground = |x: f64, y: f64| data_to_canvas(x, y, bbox, w, h);
     let to_screen = |gx: f32, gy: f32| (rect.min.x + gx, rect.min.y + gy);
 
-    for feature in &collection.features {
-        let Some(geom) = &feature.geometry else {
-            continue;
-        };
-        match &geom.value {
-            GeoValue::Polygon(rings) => {
-                collect_polygon(
-                    rings,
-                    &ground,
-                    &to_screen,
-                    scale,
-                    height_of(feature),
-                    scene,
-                    cx,
-                    cy,
-                    p,
-                    &mut prisms,
-                    bbox,
-                );
-            }
-            GeoValue::MultiPolygon(polys) => {
-                for rings in polys {
+    // 逐图层按符号化主色（LayerSlice.color）绘制。
+    for slice in layers {
+        let layer_color = slice.color;
+        for feature in &slice.collection.features {
+            let Some(geom) = &feature.geometry else {
+                continue;
+            };
+            match &geom.value {
+                GeoValue::Polygon(rings) => {
                     collect_polygon(
                         rings,
                         &ground,
@@ -251,33 +238,62 @@ pub fn ui(
                         scene,
                         cx,
                         cy,
-                        p,
+                        layer_color,
                         &mut prisms,
                         bbox,
                     );
                 }
-            }
-            GeoValue::LineString(line) => {
-                ground_lines.push(project_line(line, &ground, &to_screen, scene, cx, cy));
-            }
-            GeoValue::MultiLineString(lines) => {
-                for line in lines {
-                    ground_lines.push(project_line(line, &ground, &to_screen, scene, cx, cy));
+                GeoValue::MultiPolygon(polys) => {
+                    for rings in polys {
+                        collect_polygon(
+                            rings,
+                            &ground,
+                            &to_screen,
+                            scale,
+                            height_of(feature),
+                            scene,
+                            cx,
+                            cy,
+                            layer_color,
+                            &mut prisms,
+                            bbox,
+                        );
+                    }
                 }
-            }
-            GeoValue::Point(pt) => {
-                let (gx, gy) = ground(pt[0], pt[1]);
-                let (sx, sy) = to_screen(gx, gy);
-                ground_points.push(project(sx, sy, 0.0, cx, cy, scene.yaw, scene.pitch));
-            }
-            GeoValue::MultiPoint(pts) => {
-                for pt in pts {
+                GeoValue::LineString(line) => {
+                    ground_lines.push((
+                        project_line(line, &ground, &to_screen, scene, cx, cy),
+                        layer_color,
+                    ));
+                }
+                GeoValue::MultiLineString(lines) => {
+                    for line in lines {
+                        ground_lines.push((
+                            project_line(line, &ground, &to_screen, scene, cx, cy),
+                            layer_color,
+                        ));
+                    }
+                }
+                GeoValue::Point(pt) => {
                     let (gx, gy) = ground(pt[0], pt[1]);
                     let (sx, sy) = to_screen(gx, gy);
-                    ground_points.push(project(sx, sy, 0.0, cx, cy, scene.yaw, scene.pitch));
+                    ground_points.push((
+                        project(sx, sy, 0.0, cx, cy, scene.yaw, scene.pitch),
+                        layer_color,
+                    ));
                 }
+                GeoValue::MultiPoint(pts) => {
+                    for pt in pts {
+                        let (gx, gy) = ground(pt[0], pt[1]);
+                        let (sx, sy) = to_screen(gx, gy);
+                        ground_points.push((
+                            project(sx, sy, 0.0, cx, cy, scene.yaw, scene.pitch),
+                            layer_color,
+                        ));
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
 
@@ -300,14 +316,14 @@ pub fn ui(
             ));
         }
     }
-    // 贴地线/点。
-    for line in &ground_lines {
+    // 贴地线/点（按层色）。
+    for (line, color) in &ground_lines {
         if line.len() >= 2 {
-            painter.add(egui::Shape::line(line.clone(), Stroke::new(1.5, p.info)));
+            painter.add(egui::Shape::line(line.clone(), Stroke::new(1.5, *color)));
         }
     }
-    for pt in &ground_points {
-        painter.circle_filled(*pt, 3.0, p.accent_tertiary);
+    for (pt, color) in &ground_points {
+        painter.circle_filled(*pt, 3.0, *color);
     }
 
     // 状态角标（实验性 + 方位角提示）。
@@ -323,7 +339,7 @@ pub fn ui(
     );
 }
 
-/// 单个面要素 → 棱柱（仅外环；视口外跳过）。
+/// 单个面要素 → 棱柱（仅外环；视口外跳过）。颜色 = 图层符号化主色。
 #[allow(clippy::too_many_arguments)]
 fn collect_polygon(
     rings: &[Vec<Vec<f64>>],
@@ -334,7 +350,7 @@ fn collect_polygon(
     scene: &Scene3D,
     cx: f32,
     cy: f32,
-    p: &Palette,
+    color: Color32,
     prisms: &mut Vec<Prism>,
     bbox: BBox,
 ) {
@@ -385,7 +401,7 @@ fn collect_polygon(
         depth,
         top,
         sides,
-        color: p.accent,
+        color,
     });
 }
 

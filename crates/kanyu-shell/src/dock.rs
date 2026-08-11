@@ -355,8 +355,30 @@ pub fn dock_tab_strip(
             let w = spacing::SM + galley.size().x + spacing::SM + 16.0;
             let (rect, resp) =
                 ui.allocate_exact_size(Vec2::new(w, sizes::CONTROL_SM), Sense::click_and_drag());
-            if is_active || resp.hovered() || dragging == Some(id) {
-                ui.painter().rect_filled(rect, radius::SM, p.hover);
+            // 选中底色 0.12s 淡入（HOVER_SECS 复用）；悬停即 hover 底。
+            let act_t = ui.ctx().animate_bool_with_time(
+                resp.id.with("active"),
+                is_active,
+                crate::ui_kit::tokens::animation::HOVER_SECS,
+            );
+            if act_t > 0.0 {
+                let sel = crate::ui_kit::tokens::state::selection_bg(&p);
+                ui.painter().rect_filled(
+                    rect,
+                    radius::SM,
+                    egui::Color32::from_rgba_unmultiplied(
+                        sel.r(),
+                        sel.g(),
+                        sel.b(),
+                        (f32::from(sel.a()) * act_t) as u8,
+                    ),
+                );
+            } else if resp.hovered() || dragging == Some(id) {
+                ui.painter().rect_filled(
+                    rect,
+                    radius::SM,
+                    crate::ui_kit::tokens::state::hover_bg(&p),
+                );
             }
             let t = if is_active {
                 p.text_primary
@@ -455,7 +477,12 @@ pub fn paint_drop_hints(
         painter.rect_filled(
             rect,
             0.0,
-            p.accent.gamma_multiply(if hot { 0.28 } else { 0.10 }),
+            // 热区用强调浅派生（accent_light）提亮。
+            (if hot { p.accent_light } else { p.accent }).gamma_multiply(if hot {
+                0.35
+            } else {
+                0.10
+            }),
         );
         painter.rect_stroke(
             rect.shrink(1.0),

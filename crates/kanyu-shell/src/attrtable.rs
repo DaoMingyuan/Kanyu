@@ -317,122 +317,127 @@ impl AttrTablePanel {
             IDX_W + fields.len() as f32 * COL_W,
             row_h * (rows.len() as f32 + 1.0), // + 表头
         );
-        egui::ScrollArea::both().show(ui, |ui| {
-            let (content, _) = ui.allocate_exact_size(total, egui::Sense::hover());
-            let clip = ui.clip_rect().intersect(content);
-            let painter = ui.painter().clone();
-            // 表头背景。
-            painter.rect_filled(
-                egui::Rect::from_min_size(content.min, egui::Vec2::new(total.x, row_h)),
-                0.0,
-                p.bg_tertiary,
-            );
-            // 行号列表头。
-            painter.text(
-                egui::pos2(content.min.x + IDX_W / 2.0, content.min.y + row_h / 2.0),
-                egui::Align2::CENTER_CENTER,
-                "#",
-                egui::FontId::proportional(text::SIZE_CAPTION),
-                p.text_weak,
-            );
-            // 列头（点击排序三态；右键菜单 重命名/删除）。
-            for (ci, name) in fields.iter().enumerate() {
-                let rect = egui::Rect::from_min_size(
-                    egui::pos2(content.min.x + IDX_W + ci as f32 * COL_W, content.min.y),
-                    egui::Vec2::new(COL_W, row_h),
+        // 双向滚动 + 不收缩（表格始终填满停靠区，少行时不塌陷）。
+        egui::ScrollArea::both()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let (content, _) = ui.allocate_exact_size(total, egui::Sense::hover());
+                let clip = ui.clip_rect().intersect(content);
+                let painter = ui.painter().clone();
+                // 表头背景。
+                painter.rect_filled(
+                    egui::Rect::from_min_size(content.min, egui::Vec2::new(total.x, row_h)),
+                    0.0,
+                    p.bg_tertiary,
                 );
-                let resp = ui.interact(rect, ui.id().with(("attr_col", ci)), egui::Sense::click());
-                let sorted = matches!(&self.sort, Some((f, _)) if f == name);
-                let arrow = match &self.sort {
-                    Some((f, asc)) if f == name => {
-                        if *asc {
-                            " ▲"
-                        } else {
-                            " ▼"
-                        }
-                    }
-                    _ => "",
-                };
-                let selected = self.sel_col.as_deref() == Some(name.as_str());
-                if selected {
-                    painter.rect_filled(rect, 0.0, p.selection);
-                } else if resp.hovered() {
-                    painter.rect_filled(rect, 0.0, p.hover);
-                }
-                painter.with_clip_rect(rect).text(
-                    egui::pos2(rect.min.x + spacing::XS, rect.center().y),
-                    egui::Align2::LEFT_CENTER,
-                    format!("{name}{arrow}"),
-                    egui::FontId::proportional(text::SIZE_BODY),
-                    if sorted || selected {
-                        p.accent
-                    } else {
-                        p.text_primary
-                    },
-                );
-                if resp.clicked() {
-                    // 三态循环：原序 → 升 → 降 → 原序；同时选中该列。
-                    self.sel_col = Some(name.clone());
-                    self.sort = match &self.sort {
-                        Some((f, true)) if f == name => Some((name.clone(), false)),
-                        Some((f, false)) if f == name => None,
-                        _ => Some((name.clone(), true)),
-                    };
-                }
-                resp.context_menu(|ui| {
-                    if ui.button("重命名字段…").clicked() {
-                        self.rename_dlg = Some((name.clone(), String::new()));
-                        ui.close();
-                    }
-                    if ui.button("删除字段").clicked() {
-                        if let Some(layer) = self.layer.clone() {
-                            actions.push(AttrAction::Apply {
-                                layer,
-                                op: FieldOp::Delete { name: name.clone() },
-                            });
-                        }
-                        ui.close();
-                    }
-                });
-            }
-            // 可视行范围（窗口化）。
-            let first = (((clip.min.y - content.min.y) / row_h).floor().max(0.0) as usize)
-                .saturating_sub(1);
-            let last = (((clip.max.y - content.min.y) / row_h).ceil() as usize + 1).min(rows.len());
-            for (vi, &fi) in rows.iter().enumerate().take(last).skip(first) {
-                let y = content.min.y + row_h * (vi as f32 + 1.0);
-                let row_rect = egui::Rect::from_min_size(
-                    egui::pos2(content.min.x, y),
-                    egui::Vec2::new(total.x, row_h),
-                );
-                if vi % 2 == 1 {
-                    painter.rect_filled(row_rect, 0.0, p.bg_secondary);
-                }
-                // 行号（要素原序号）。
+                // 行号列表头。
                 painter.text(
-                    egui::pos2(row_rect.min.x + IDX_W / 2.0, row_rect.center().y),
+                    egui::pos2(content.min.x + IDX_W / 2.0, content.min.y + row_h / 2.0),
                     egui::Align2::CENTER_CENTER,
-                    fi.to_string(),
+                    "#",
                     egui::FontId::proportional(text::SIZE_CAPTION),
                     p.text_weak,
                 );
-                let props = c.features[fi].properties.as_ref();
+                // 列头（点击排序三态；右键菜单 重命名/删除）。
                 for (ci, name) in fields.iter().enumerate() {
-                    let cell = egui::Rect::from_min_size(
-                        egui::pos2(row_rect.min.x + IDX_W + ci as f32 * COL_W, y),
+                    let rect = egui::Rect::from_min_size(
+                        egui::pos2(content.min.x + IDX_W + ci as f32 * COL_W, content.min.y),
                         egui::Vec2::new(COL_W, row_h),
                     );
-                    let v = props.and_then(|pr| pr.get(name));
-                    painter.with_clip_rect(cell).text(
-                        egui::pos2(cell.min.x + spacing::XS, cell.center().y),
+                    let resp =
+                        ui.interact(rect, ui.id().with(("attr_col", ci)), egui::Sense::click());
+                    let sorted = matches!(&self.sort, Some((f, _)) if f == name);
+                    let arrow = match &self.sort {
+                        Some((f, asc)) if f == name => {
+                            if *asc {
+                                " ▲"
+                            } else {
+                                " ▼"
+                            }
+                        }
+                        _ => "",
+                    };
+                    let selected = self.sel_col.as_deref() == Some(name.as_str());
+                    if selected {
+                        painter.rect_filled(rect, 0.0, p.selection);
+                    } else if resp.hovered() {
+                        painter.rect_filled(rect, 0.0, p.hover);
+                    }
+                    painter.with_clip_rect(rect).text(
+                        egui::pos2(rect.min.x + spacing::XS, rect.center().y),
                         egui::Align2::LEFT_CENTER,
-                        cell_text(v),
+                        format!("{name}{arrow}"),
                         egui::FontId::proportional(text::SIZE_BODY),
-                        p.text_primary,
+                        if sorted || selected {
+                            p.accent
+                        } else {
+                            p.text_primary
+                        },
                     );
+                    if resp.clicked() {
+                        // 三态循环：原序 → 升 → 降 → 原序；同时选中该列。
+                        self.sel_col = Some(name.clone());
+                        self.sort = match &self.sort {
+                            Some((f, true)) if f == name => Some((name.clone(), false)),
+                            Some((f, false)) if f == name => None,
+                            _ => Some((name.clone(), true)),
+                        };
+                    }
+                    resp.context_menu(|ui| {
+                        if ui.button("重命名字段…").clicked() {
+                            self.rename_dlg = Some((name.clone(), String::new()));
+                            ui.close();
+                        }
+                        if ui.button("删除字段").clicked() {
+                            if let Some(layer) = self.layer.clone() {
+                                actions.push(AttrAction::Apply {
+                                    layer,
+                                    op: FieldOp::Delete { name: name.clone() },
+                                });
+                            }
+                            ui.close();
+                        }
+                    });
                 }
-            }
-        });
+                // 可视行范围（窗口化）。
+                let first = (((clip.min.y - content.min.y) / row_h).floor().max(0.0) as usize)
+                    .saturating_sub(1);
+                let last =
+                    (((clip.max.y - content.min.y) / row_h).ceil() as usize + 1).min(rows.len());
+                for (vi, &fi) in rows.iter().enumerate().take(last).skip(first) {
+                    let y = content.min.y + row_h * (vi as f32 + 1.0);
+                    let row_rect = egui::Rect::from_min_size(
+                        egui::pos2(content.min.x, y),
+                        egui::Vec2::new(total.x, row_h),
+                    );
+                    if vi % 2 == 1 {
+                        painter.rect_filled(row_rect, 0.0, p.bg_secondary);
+                    }
+                    // 行号（要素原序号）。
+                    painter.text(
+                        egui::pos2(row_rect.min.x + IDX_W / 2.0, row_rect.center().y),
+                        egui::Align2::CENTER_CENTER,
+                        fi.to_string(),
+                        egui::FontId::proportional(text::SIZE_CAPTION),
+                        p.text_weak,
+                    );
+                    let props = c.features[fi].properties.as_ref();
+                    for (ci, name) in fields.iter().enumerate() {
+                        let cell = egui::Rect::from_min_size(
+                            egui::pos2(row_rect.min.x + IDX_W + ci as f32 * COL_W, y),
+                            egui::Vec2::new(COL_W, row_h),
+                        );
+                        let v = props.and_then(|pr| pr.get(name));
+                        painter.with_clip_rect(cell).text(
+                            egui::pos2(cell.min.x + spacing::XS, cell.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            cell_text(v),
+                            egui::FontId::proportional(text::SIZE_BODY),
+                            p.text_primary,
+                        );
+                    }
+                }
+            });
     }
 
     /// 三个字段对话框（添加/重命名/计算器）。

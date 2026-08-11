@@ -110,6 +110,68 @@ pub mod animation {
     }
 }
 
+/// 状态色派生（WCAG/设计规范固化取值规则；消费方一律用本模块函数，
+/// 禁止业务代码临时取色）。
+pub mod state {
+    use eframe::egui::{Color32, Stroke};
+
+    use crate::theme::Palette;
+
+    /// 悬停底（强调色 8–12% 透明度；palette.hover 同语义，此为规范入口）。
+    pub fn hover_bg(p: &Palette) -> Color32 {
+        p.hover
+    }
+    /// 按下底（强调色 16–20% 透明度派生）。
+    pub fn pressed_bg(p: &Palette) -> Color32 {
+        with_alpha(p.accent, 0.18)
+    }
+    /// 选中底（三强调 20–25% 透明度；palette.selection 同语义）。
+    pub fn selection_bg(p: &Palette) -> Color32 {
+        p.selection
+    }
+    /// 焦点描边（强调色 1.5px）。
+    pub fn focus_stroke(p: &Palette) -> Stroke {
+        Stroke::new(1.5, p.accent)
+    }
+    /// 禁用文本（text_primary 45% 透明度派生）。
+    pub fn disabled_text(p: &Palette) -> Color32 {
+        p.text_disabled
+    }
+    /// 禁用底（bg_tertiary 60% 透明度派生）。
+    pub fn disabled_bg(p: &Palette) -> Color32 {
+        p.bg_disabled
+    }
+
+    /// 透明度换算（0.0–1.0 → 预乘 alpha 通道；派生统一入口）。
+    fn with_alpha(c: Color32, alpha: f32) -> Color32 {
+        Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), (alpha * 255.0) as u8)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::theme::palette;
+
+        #[test]
+        fn state_derivations_match_rules() {
+            for t in [kanyu_render::Theme::Light, kanyu_render::Theme::Dark] {
+                let p = palette(t);
+                // 悬停 = 强调 8–12% alpha。
+                let h = hover_bg(&p);
+                assert!(h.a() > 15 && h.a() < 40, "hover alpha {} 越界", h.a());
+                // 按下 = 强调 16–20% alpha（Color32 内部预乘存储，只验 alpha）。
+                let pr = pressed_bg(&p);
+                assert!((pr.a() as f32 / 255.0 - 0.18).abs() < 0.01);
+                // 选中 = 三强调 20–25% alpha。
+                let s = selection_bg(&p);
+                assert!(s.a() >= 50 && s.a() <= 64, "selection alpha {} 越界", s.a());
+                // 焦点描边 = 强调 1.5px。
+                assert_eq!(focus_stroke(&p).width, 1.5);
+            }
+        }
+    }
+}
+
 /// 文本分级（Apple HIG 字号层级适配桌面端：Large Title 28 / Title2 22 /
 /// Headline 17sb / Subhead 15 / Footnote 13 / Caption2 11 / 数据等宽 12；
 /// 行内引用 HIG Type Scale，比例关系与 iOS 一致，绝对值按桌面密度下调）。

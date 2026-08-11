@@ -393,7 +393,7 @@ fn qat_button(
         crate::ui_kit::tokens::animation::HOVER_SECS,
     );
     if hover_t > 0.0 {
-        let bg = p.hover;
+        let bg = crate::ui_kit::tokens::state::hover_bg(&p);
         let bg = egui::Color32::from_rgba_unmultiplied(
             bg.r(),
             bg.g(),

@@ -258,7 +258,7 @@ pub fn ribbon_button(
         ui.ctx()
             .animate_bool_with_time(resp.id, resp.hovered() && enabled, animation::HOVER_SECS);
     if hover_t > 0.0 {
-        let bg = p.hover;
+        let bg = super::tokens::state::hover_bg(&p);
         let bg = egui::Color32::from_rgba_unmultiplied(
             bg.r(),
             bg.g(),
@@ -454,11 +454,22 @@ pub fn toc_row(
     let width = ui.available_width();
     let (rect, row) = ui.allocate_exact_size(Vec2::new(width, row_h), egui::Sense::click());
 
-    // 行底：选中 > 悬停（先铺底，子控件叠上）。
-    if selected {
-        ui.painter().rect_filled(rect, radius::SM, p.selection);
+    // 行底：选中（0.12s 淡入过渡，tokens::animation::HOVER_SECS）> 悬停。
+    let sel_t =
+        ui.ctx()
+            .animate_bool_with_time(row.id.with("sel"), selected, animation::HOVER_SECS);
+    if sel_t > 0.0 {
+        let sel = super::tokens::state::selection_bg(&p);
+        let bg = egui::Color32::from_rgba_unmultiplied(
+            sel.r(),
+            sel.g(),
+            sel.b(),
+            (f32::from(sel.a()) * sel_t) as u8,
+        );
+        ui.painter().rect_filled(rect, radius::SM, bg);
     } else if row.hovered() {
-        ui.painter().rect_filled(rect, radius::SM, p.hover);
+        ui.painter()
+            .rect_filled(rect, radius::SM, super::tokens::state::hover_bg(&p));
     }
 
     let mut toggled = false;

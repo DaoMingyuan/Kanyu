@@ -82,7 +82,7 @@ pub fn dialog_shell(
 pub fn badge(ui: &mut egui::Ui, label: &str, level: BadgeLevel) -> Response {
     let p = palette_of(ui);
     let (fg, bg) = match level {
-        BadgeLevel::Stable => (on_badge_fg(ui), p.accent),
+        BadgeLevel::Stable => (on_badge_fg(ui), p.accent_strong),
         BadgeLevel::Incubating => (egui::Color32::from_rgb(0x1A, 0x1A, 0x1A), p.accent_tertiary),
         BadgeLevel::Planned => (p.text_weak, p.bg_tertiary),
     };
@@ -201,7 +201,7 @@ pub fn toast_stack(ctx: &egui::Context, toasts: &mut Vec<Toast>, p: &Palette) {
                     ui.ctx()
                         .animate_bool_with_time(egui::Id::new(("toast", t.id)), !fading, 0.15);
                 let accent = match t.kind {
-                    ToastKind::Success => p.accent,
+                    ToastKind::Success => p.success,
                     ToastKind::Error => p.accent_secondary,
                 };
                 let fade = |c: Color32| {
