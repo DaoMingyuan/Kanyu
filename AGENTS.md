@@ -29,7 +29,7 @@ cargo fmt --all
 | `crates/kanyu-render/` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG，晨山/夜观星主题） |
 | `crates/kanyu-skill/` | 技能：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额） |
 | `crates/kanyu-cli/` | `kanyu` 命令行（clap derive） |
-| `crates/kanyu-shell/` | 桌面壳层（egui）v0.7：声明式命令注册表（`commands.rs`，DAML 范式投影）/ Ribbon 功能区（动画）/ `dock.rs` 三区停靠（跨区回流自适配）/ Contents 图层树（`toc.rs`）/ `toolbox/` 工具箱（参数组件独立模块，注册表已下沉 `core::tooldef`）/ `attrtable.rs` 属性表（字段计算器）/ `mapview.rs` 多视图 + `scene3d.rs` 实验 3D / `settings.rs`（坐标系全库搜索/渲染/界面缩放）/ 终端 / AI 对话 / **`src/ui_kit/` = UI 组件规范库**（WCAG 对比度/24px 目标强制，截图验证模式） |
+| `crates/kanyu-shell/` | 桌面壳层（egui）v0.8：声明式命令注册表（`commands.rs`，DAML 范式投影）/ Ribbon 功能区（动画）/ `dock.rs` 三区停靠（跨区回流+滚动契约）/ Contents 图层树（`toc.rs` 复选框+分组+符号化分类展开行）/ 图层属性页 + `symbology.rs` 符号化（单色/唯一值/分级，按层渲染，入 .kyu）/ 中央视图停靠区（`mapview.rs` 页签吸附+纯白画布）+ `scene3d.rs` 实验 3D / `catalog.rs` 工程目录五分类 / `toolbox/`（参数类型对齐 ArcGIS Python 工具箱规范，注册表在 `core::tooldef`）/ `attrtable.rs` 属性表（字段计算器）/ `settings.rs`（坐标系全库/渲染/界面缩放）/ 终端 / AI 对话 / **`src/ui_kit/` = UI 组件规范库**（WCAG 对比度/24px 目标/tokens::state 状态色强制，截图验证模式） |
 | `crates/kanyu-mcp/` | MCP Server（rmcp 3.x，stdio + streamable HTTP，SEP-2663 长任务） |
 | `docs/` | 总规 + 架构/API/SDK/MCP/CLI 文档 |
 | `AI_SYNC.md` | **长久性联动机制**（开工登记/收工回记/状态快照/迭代边界）——先于一切阅读 |

@@ -4,6 +4,37 @@
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-08-11
+
+**面板滚动加固 + 地图框中央吸附（纯白背景）+ 图层符号化系统 + 目录 ArcGIS Pro
+分类 + 工具参数类型规范 + 配色体系丰富化。**
+
+### 新增
+
+- **中央视图停靠区**（ArcGIS Pro 文档页签范式）：地图框以页签吸附中央（＋新建/
+  弹出浮动/×关闭/拖标题条吸附），主视图恒在不可关（启动即有地图框）；
+  **地图框背景纯白**（`RenderOptions.background` 覆盖，与导出主题解耦）。
+- **图层符号化系统**（`shell/symbology.rs`）：单色/唯一值分类/分级设色三方式，
+  三组色带（青玉/琥珀/蓝灰）；画布改**按层渲染叠图**（每层独立样式与纹理）；
+  Contents 图层展开显示符号化分类行（色块+区间/类别标注）；图层属性升级为
+  属性页（常规/源/字段/符号化），双击图层行直达；符号化随 `.kyu` 持久化。
+- **目录面板五分类**（ArcGIS Pro 工程目录范式）：地图框（视图清单/激活/新建）/
+  布局框（占位）/数据库（.kdb 入口）/服务链接（占位）/本机数据（原文件浏览器）。
+- **工具参数类型系统**（对齐 ArcGIS Pro Python 工具箱规范）：ParamKind 扩充
+  多值图层/整数/布尔/坐标系/线性单位/范围/输出文件；参数方向（输入/输出分组）；
+  校验分级（错误阻断/警告放行/信息提示）；工具对话框统一骨架（说明→输入→输出
+  →校验消息→焦点帮助→运行/取消）；运行入后台线程 + 进度模态（可取消，协作式
+  丢弃语义）+ 终端日志三级（信息/警告/错误，ArcGIS AddMessage 族对应）。
+- **配色体系**：palette 新增 success/warning/link/accent_light/accent_strong 与
+  disabled 派生（双主题全套，WCAG 2.2 对比度单测扩展覆盖）；tokens::state 状态色
+  派生函数固化（hover/pressed/selection/focus/disabled 取值规则）；主题切换 0.2s
+  交叉淡化；选中态 0.12s 淡入。
+
+### 修复
+
+- 图层面板滚动区空白右键菜单按无穷高分配导致长列表滚动失真；目录/工具箱/属性表
+  滚动容器 auto_shrink 契约补齐（35 图层与 5000 要素压力场景截图实证）。
+
 ## [0.18.0] - 2026-08-11
 
 **UI 构成 ArcGIS Pro SDK 范式重组（声明式命令注册表 + 组件拆分组合）+ 属性表与字段
@@ -584,7 +615,8 @@ QGIS 式工具箱面板 + geoprocess 第二批算法移植。**
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.19.0
 [0.18.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.18.0
 [0.17.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.17.0
 [0.16.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.16.0

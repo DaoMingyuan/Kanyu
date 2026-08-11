@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-11 · v0.18.0 · 252 测试全绿**。
+> 每次收工回记时更新。截至 **2026-08-11 · v0.19.0 · 265 测试全绿**。
 
 ### 1.1 已完成实现
 
@@ -66,7 +66,7 @@
 | kanyu-mcp | ✅ | 17 stable 工具；stdio+streamable HTTP；SEP-2663 长任务 |
 | kanyu-skill | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/skill_run/skill_list） |
 | kanyu-cli | ✅ | 7 命令组，全局 --json；v0.14.0 已发布并安装 |
-| kanyu-shell | 🚧 incubating | v0.7：声明式命令注册表（commands.rs，DAML 范式投影）、dock.rs 三区停靠（跨区回流自适配）、toolbox/（参数组件独立模块，注册表下沉 core::tooldef）、attrtable.rs 属性表+字段计算器、mapview.rs 多视图+scene3d.rs 实验 3D、settings.rs（CRS 全库搜索/渲染/界面缩放）、WCAG 2.2 对比度/24px 目标强制、内置终端/AI 对话 |
+| kanyu-shell | 🚧 incubating | v0.8：命令注册表（DAML 投影）、dock 三区停靠+滚动契约、中央视图停靠区（地图框页签吸附/纯白画布）、symbology 符号化（单色/唯一值/分级，按层渲染入 .kyu）、catalog 工程目录五分类、toolbox 参数类型对齐 ArcGIS Python 工具箱规范（进度模态可取消/三级日志）、属性表+字段计算器、多视图+实验 3D、WCAG 2.2/状态色体系 |
 | kanyu-py | ✅ | 48 绑定（geoprocess 三批/attrcalc/crs 检索/toolrun）+ Layer 28 链式方法 + toolbox registry |
 | 堪舆数据库 .kdb | ✅ | 自研存档（裁决 #19）：Arrow IPC + kanyu.* 元数据，RecordBatch 直通类型保真，全格式转换接入 |
 | 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
@@ -97,6 +97,18 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-11 kimi-code(main) — v0.19.0：面板滚动加固 + 地图框吸附 + 符号化 + 目录分类 + 参数类型规范 + 配色体系
+- 提交：见本次 commit 组；测试：265 全绿（252→265 六阶段累计）+ clippy 零警告 + fmt 净
+- 验证：截图集目检（35 图层/5000 要素滚动压力、吸附页签+浮动窗同框、纯白画布双主题、符号化展开与属性页、目录五分类、工具对话框警告态、双主题配色）；render 纯白背景单测；MSI 升级安装 + 装机冒烟
+- 内容：① 面板滚动契约审计修复（图层面板空白右键菜单无穷高真实缺陷等 5 处）；② 中央视图停靠区（地图框页签吸附/浮动互转/主视图恒在）+ 画布纯白（RenderOptions.background 覆盖，render 单测四角像素）；③ symbology.rs 符号化（单色/唯一值/分级三方式三色带）+ 按层渲染叠图 + Contents 分类展开行 + 图层属性页（常规/源/字段/符号化），入 .kyu；④ catalog.rs 工程目录五分类（地图框/布局框/数据库/服务链接/本机数据，.kyu 双击修正为打开工程）；⑤ 工具参数类型对齐 ArcGIS Python 工具箱规范（多值图层/整数/布尔/坐标系/线性单位/范围/输出文件；输入/输出分组；校验错误/警告/信息三级；统一对话框骨架；后台线程执行 + 进度模态可取消 + 终端三级日志）；⑥ palette 语义色扩展（success/warning/link/accent_light/accent_strong + disabled 派生，WCAG 测试扩展）+ tokens::state 状态色派生固化 + 主题切换 0.2s 交叉淡化 + 选中 0.12s 淡入；版本 0.18.0→0.19.0；docs 全链
+- 偏差：gallery 控件仍无消费场景未建；进度模态为瞬态以状态机单测+走查覆盖（算法多在帧内完成）
+- 后续：ARCHITECTURE §9.1 五条（编辑内核主线/MCP 收敛/性能实测/UI 状态持久化/布局框与服务链接兑现）；MSI 附 Release 待 gh CLI
+
+### [开工] 2026-08-11 kimi-code(main) — v0.19.0：面板滚动加固 + 地图框中央吸附 + 图层符号化 + 目录分类 + 配色丰富化
+- 范围：kanyu-shell（面板滚动/中央视图页签/canvas 按层渲染/symbology/catalog/theme/ui_kit）、kanyu-render（RenderOptions 背景参数）、docs 全链
+- 依据：用户六点指令（面板滚动布局；地图框吸附+纯白+默认打开；图层属性；图层展开符号化分类；目录五分类；配色丰富化）；计划文件 kamala-khan-us-agent-black-canary.md
+- 预计：大（六阶段）
 
 ### [收工] 2026-08-11 kimi-code(main) — v0.18.0：UI ArcGIS Pro SDK 范式重组 + 属性表 + 多视图 3D + CRS 完善 + SDK 打通
 - 提交：见本次 commit 组；测试：252 全绿（212→252 六阶段累计）+ clippy 零警告 + fmt 净；Python 冒烟 22 断言全过（Python 3.13）

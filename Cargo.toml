@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.18.0"
+version = "0.19.0"
 edition = "2021"
 rust-version = "1.94"
 authors = ["DaoMingyuan <daomingyuan@qq.com>"]
@@ -27,9 +27,9 @@ categories = ["science::geo", "visualization", "parser-implementations"]
 
 # 共享依赖：版本只在根清单声明一次，子 crate 用 `workspace = true` 引用。
 [workspace.dependencies]
-kanyu-core = { path = "crates/kanyu-core", version = "0.18.0" }
-kanyu-render = { path = "crates/kanyu-render", version = "0.18.0" }
-kanyu-skill = { path = "crates/kanyu-skill", version = "0.18.0" }
+kanyu-core = { path = "crates/kanyu-core", version = "0.19.0" }
+kanyu-render = { path = "crates/kanyu-render", version = "0.19.0" }
+kanyu-skill = { path = "crates/kanyu-skill", version = "0.19.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
