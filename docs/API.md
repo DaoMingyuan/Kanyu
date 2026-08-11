@@ -620,6 +620,16 @@ JSON 工程清单（裁决 #19）：`kanyu_project=1` 格式标识 + 项目元�
 | `count_points_in_polygon` | `(polygons, points)` | Count points in polygon（追加 NUMPOINTS 整数；含边界，MultiPoint 按子点计） |
 | `field_stats` | `(collection, field: &str) -> FieldStats` | Basic statistics for fields（count/null_count/min/max/sum/mean/range/总体 stddev） |
 | `mean_coordinates` | `(collection, weight_field: Option<&str>)` | Mean coordinate(s)（质心可加权平均，单点要素含 MEAN_X/MEAN_Y） |
+| `distance_matrix` | `(a, b) -> DistanceMatrix` | Distance matrix（逐对测地线距离，米；点取坐标、非点取质心；行列取要素 id 或序号，含 min/max/mean） |
+| `nearest_neighbor` | `(collection) -> NearestNeighborReport` | Nearest neighbour analysis（观测/期望均值、NNI、min/max；期望=0.5/sqrt(n/A)，A 为外包矩形测地面积；n<2 报错） |
+| `multi_ring_buffer` | `(collection, distances: &[f64])` | Multi-ring buffer（逐档差集环，首档为完整缓冲区；属性 RING/DISTANCE；距离须非空、严格递增非负） |
+| `variable_buffer` | `(collection, field: &str, segments: u32)` | Variable distance buffer（距离取自数值字段；缺失/非数值/负值跳过并计入 skipped） |
+| `split_by_field` | `(collection, field: &str) -> Vec<(String, FeatureCollection)>` | Split vector layer（按字段值分组，值字符串化、缺失归空串组，BTreeMap 字典序） |
+| `add_geometry_attributes` | `(collection)` | Add geometry attributes（面追加 AREA_M2/PERIMETER_M、线追加 LENGTH_M，测地线口径；点不追加） |
+| `create_grid` | `(extent: [f64;4], cell_size: f64)` | Create grid（矩形格网覆盖范围，末行/列裁剪；属性 ROW/COL 0 起） |
+| `points_along_lines` | `(collection, distance: f64)` | Points along geometry（沿线每 distance 米一点，含起点、终点仅整除时含；属性 DISTANCE 里程；非线跳过） |
+| `concave_hull` | `(collection, concavity: f64)` | Concave hull（整层点集凹包单面；geo concaveman，concavity 越小越凹、∞ 等价凸包，平面口径） |
+| `minimum_rotated_rect` | `(collection)` | Oriented minimum bounding box（逐要素最小旋转矩形面，属性随行；退化要素跳过） |
 
 ## 16. parcel —— 宗地 TXT（界址点坐标）
 
