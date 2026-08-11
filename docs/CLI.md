@@ -303,7 +303,23 @@ $ ./target/debug/kanyu.exe analysis stats examples/buildings.geojson
   总面积: 0.00 ㎡（0.0000 公顷 / 0.0000 亩 / 0.000000 km²）
 ```
 
-### 4.8 `kanyu data validate <file>` ✅（宗地 TXT 质检）
+### 4.8 `kanyu analysis bench [--size N]` ✅（性能基准）
+
+对加载解析 / buffer / overlay(union) / sjoin / render_png 五项场景计时
+（每项 3 次取中位数；场景由内核 `bench` 生成器确定性产出（种子 42），
+写出 target/bench/ 大文件不入仓库）。overlay 单侧规模为 √N（O(n·m) 朴素
+实现的平方项控制），sjoin 连接侧固定 16 格网面。`--json` 输出结构化结果
+（要素数/三次耗时/中位毫秒/吞吐要素每秒）。
+
+```bash
+$ ./target/release/kanyu.exe analysis bench --size 10000
+性能基准（规模 10000 要素，overlay 单侧 100 格，每项 3 次取中位数）:
+项目                     要素数          中位耗时          吞吐(要素/秒)
+加载解析                 10000        32.0ms            312071
+...
+```
+
+### 4.9 `kanyu data validate <file>` ✅（宗地 TXT 质检）
 
 表头必备项缺失/空值（错误/警告分级）、中文逗号、空格、闭合环与点数规则
 （移植自堪舆工具箱质检）。警告不阻塞退出码；`--json` 输出问题清单。

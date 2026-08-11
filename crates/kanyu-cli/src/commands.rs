@@ -377,6 +377,145 @@ pub fn analysis(cmd: &AnalysisCommand, json: bool) -> Result<()> {
                 println!("  总周长: {:.1} m", report.total_perimeter_m);
             }
         }
+        AnalysisCommand::Bench { size } => {
+            analysis_bench(*size, std::path::Path::new("target/bench"), json)?;
+        }
+    }
+    Ok(())
+}
+
+/// 单项基准结果。
+#[derive(serde::Serialize)]
+struct BenchRow {
+    /// 基准项目。
+    item: &'static str,
+    /// 输入要素数（overlay 为单侧图层要素数）。
+    features: usize,
+    /// 三次耗时（毫秒）。
+    runs_ms: [f64; 3],
+    /// 中位耗时（毫秒）。
+    median_ms: f64,
+    /// 吞吐（要素/秒，按中位耗时折算）。
+    features_per_sec: f64,
+}
+
+/// 单项执行 3 次取中位数（返回升序耗时，中位 = [1]）；闭包返回产出要素数
+/// （仅防优化吞掉计算）。
+fn bench3(mut f: impl FnMut() -> usize) -> [f64; 3] {
+    let mut runs = [0.0; 3];
+    for run in runs.iter_mut() {
+        let start = std::time::Instant::now();
+        let produced = f();
+        *run = start.elapsed().as_secs_f64() * 1000.0;
+        std::hint::black_box(produced);
+    }
+    runs.sort_by(f64::total_cmp);
+    runs
+}
+
+/// `kanyu analysis bench`：确定性场景 + Instant 计时，每项 3 次取中位数。
+/// dir 为场景文件落盘目录（CLI 传 target/bench；测试传临时目录）。
+fn analysis_bench(size: usize, dir: &std::path::Path, json: bool) -> Result<()> {
+    std::fs::create_dir_all(dir).with_context(|| format!("创建 {} 失败", dir.display()))?;
+
+    // 场景（种子 42 固定；overlay 规模 √size 配比，sjoin 连接侧固定 16 格——
+    // 两者均为 O(n·m) 朴素实现，避免平方项失控）。
+    let mixed = kanyu_core::bench::mixed(size, 42);
+    let ov_n = ((size as f64).sqrt().round() as usize).max(4);
+    let (ov_a, ov_b) = kanyu_core::bench::overlay_pair(ov_n, 42);
+    let (join_grid, _) = kanyu_core::bench::overlay_pair(16, 7);
+
+    // 场景落盘（加载解析项的输入；大文件不入仓库）。
+    let mixed_path = dir.join(format!("mixed_{size}.geojson"));
+    std::fs::write(&mixed_path, Layer::to_geojson_string(&mixed))
+        .with_context(|| format!("写入 {} 失败", mixed_path.display()))?;
+    std::fs::write(
+        dir.join(format!("overlay_a_{ov_n}.geojson")),
+        Layer::to_geojson_string(&ov_a),
+    )?;
+    std::fs::write(
+        dir.join(format!("overlay_b_{ov_n}.geojson")),
+        Layer::to_geojson_string(&ov_b),
+    )?;
+
+    // 单项执行 3 次取中位数。
+    let mut rows: Vec<BenchRow> = Vec::new();
+    let mut push = |item: &'static str, features: usize, runs: [f64; 3]| {
+        let median = runs[1];
+        rows.push(BenchRow {
+            item,
+            features,
+            runs_ms: runs,
+            median_ms: median,
+            features_per_sec: if median > 0.0 {
+                features as f64 / (median / 1000.0)
+            } else {
+                f64::INFINITY
+            },
+        });
+    };
+
+    // 加载解析（GeoJSON 文本 → Layer）。
+    let path_str = mixed_path.to_string_lossy().to_string();
+    let runs = bench3(|| Layer::load("mixed".to_string(), &path_str).unwrap().len());
+    push("加载解析", size, runs);
+    // buffer（CRS 单位 0.01° ≈ 1km，segments=8 与 CLI 默认一致）。
+    let runs = bench3(|| {
+        kanyu_core::analysis::buffer(&mixed, 0.01, 8)
+            .unwrap()
+            .features
+            .len()
+    });
+    push("buffer", size, runs);
+    // overlay union（√size × √size 面格对）。
+    let runs = bench3(|| {
+        kanyu_core::analysis::overlay(&ov_a, &ov_b, kanyu_core::analysis::OverlayOp::Union)
+            .unwrap()
+            .features
+            .len()
+    });
+    push("overlay_union", ov_n, runs);
+    // sjoin（混合图层 × 16 格网面，intersects）。
+    let runs = bench3(|| {
+        kanyu_core::analysis::sjoin(
+            &mixed,
+            &join_grid,
+            kanyu_core::analysis::SpatialPredicate::Intersects,
+        )
+        .unwrap()
+        .features
+        .len()
+    });
+    push("sjoin", size, runs);
+    // render_png（800×600 晨山；CPU 离屏管线）。
+    let opts = kanyu_render::RenderOptions {
+        width: 800,
+        height: 600,
+        ..Default::default()
+    };
+    let runs = bench3(|| kanyu_render::render_png(&mixed, &opts).unwrap().len());
+    push("render_png", size, runs);
+
+    if json {
+        let payload = serde_json::json!({
+            "size": size,
+            "overlay_pairs": ov_n,
+            "sjoin_join_features": 16,
+            "results": rows,
+        });
+        println!("{}", serde_json::to_string_pretty(&payload)?);
+    } else {
+        println!("性能基准（规模 {size} 要素，overlay 单侧 {ov_n} 格，每项 3 次取中位数）:");
+        println!(
+            "{:<14}{:>12}{:>14}{:>18}",
+            "项目", "要素数", "中位耗时", "吞吐(要素/秒)"
+        );
+        for r in &rows {
+            println!(
+                "{:<14}{:>12}{:>12.1}ms{:>18.0}",
+                r.item, r.features, r.median_ms, r.features_per_sec
+            );
+        }
     }
     Ok(())
 }
@@ -731,4 +870,17 @@ fn stem_of(path: &str) -> String {
         .and_then(|s| s.to_str())
         .unwrap_or("layer")
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    /// CLI bench 冒烟（小档，落临时目录）：五项全部执行、场景文件落盘。
+    #[test]
+    fn bench_small_tier_smoke() {
+        let dir = std::env::temp_dir().join("kanyu_cli_bench_smoke");
+        super::analysis_bench(100, &dir, true).unwrap();
+        assert!(dir.join("mixed_100.geojson").exists());
+        assert!(dir.join("overlay_a_10.geojson").exists());
+        assert!(dir.join("overlay_b_10.geojson").exists());
+    }
 }

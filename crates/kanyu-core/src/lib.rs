@@ -15,6 +15,7 @@
 pub mod agents;
 pub mod analysis;
 pub mod attrcalc;
+pub mod bench;
 pub mod crs;
 pub mod dwg;
 pub mod error;

@@ -279,6 +279,14 @@ pub enum AnalysisCommand {
         /// 数据文件路径。
         file: String,
     },
+    /// 性能基准（ARCHITECTURE §8）：对加载解析/buffer/overlay/sjoin/render_png
+    /// 各场景计时（每项 3 次取中位数；场景由内核 bench 生成器确定性产出，
+    /// 大文件落 target/bench/ 不入仓库）。
+    Bench {
+        /// 基准规模（混合数据集要素数，默认 10000）。
+        #[arg(long, default_value_t = 10000)]
+        size: usize,
+    },
 }
 
 /// `kanyu render ...`
