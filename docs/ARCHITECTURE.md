@@ -38,7 +38,8 @@
 │  ├─ kanyu-cli     脊髓（kanyu 命令行）              ✅  │
 │  ├─ kanyu-render  眼睛（离屏渲染 tiny-skia+SVG） 🚧  │
 │  ├─ kanyu-edit    手（DCEL 拓扑编辑）               📋  │
-│  ├─ kanyu-skill    技能（wasmtime 插件宿主）       🚧  │
+│  ├─ kanyu-skill   技能（wasmtime 插件宿主）       🚧  │
+│  ├─ kanyu-py      Python 桥接（PyO3 + 工具箱）    ✅  │
 │  └─ kanyu-shell   壳层（egui 桌面 UI）            🚧  │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -50,7 +51,8 @@
 
 | crate | 角色 | 状态 | 依赖的兄弟 crate |
 |---|---|---|---|
-| `kanyu-core` | 数据心脏：格式注册表、图层模型、空间分析（buffer/overlay/topology）、投影/度量（reproject/measure）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
+| `kanyu-core` | 数据心脏：格式注册表（19 格式含自研 .kdb/.txt）、图层模型、空间分析（buffer/overlay/topology/sjoin/zonal）、QGIS 核心算法（geoprocess：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats）、投影/度量、宗地 TXT（parcel）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
+| `kanyu-py` | Python 桥接：PyO3 扩展模块 `kanyu`（GeoJSON 文本契约全量暴露内核）+ .pyt 式工具箱运行时 | ✅ stable | kanyu-core, kanyu-render |
 | `kanyu-cli` | 脊髓：`kanyu` 命令行（clap derive） | ✅ stable | kanyu-core, kanyu-mcp, kanyu-render |
 | `kanyu-mcp` | 神经接口：MCP Server（rmcp，stdio + streamable HTTP，SEP-2663 长任务） | ✅ incubating | kanyu-core, kanyu-render |
 | `kanyu-render` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG 光栅化，晨山/夜观星主题，属性驱动符号化 graduated/categorical）；wgpu 实时管线待壳层 | 🚧 incubating | kanyu-core |
@@ -62,8 +64,8 @@
 
 - `kanyu-core` **不依赖任何兄弟 crate**，是依赖图的根。所有能力下沉到 core，
   cli/mcp 只是"薄壳"：解析参数 → 调 core → 格式化输出。
-- `kanyu-render`/`kanyu-skill` 只依赖 core；cli/mcp 依赖 core+render+gene；
-  shell 依赖 core+render（只做"看"：加载/渲染/缩放平移/主题，查询与分析不进 UI）。
+- `kanyu-render`/`kanyu-skill`/`kanyu-py` 只依赖 core（kanyu-py 另依赖 render 用于渲染函数）；
+  cli/mcp 依赖 core+render+skill；shell 依赖 core+render+skill。
 - 兄弟 crate 之间禁止横向依赖（如 mcp 不得依赖 cli）。
 - 该清单的单一事实来源是 `introspect::modules()`（kanyu-core/src/introspect.rs），
   `kanyu introspect` 与 `kanyu_system_introspect` 工具的输出即由此生成。

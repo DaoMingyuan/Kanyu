@@ -283,6 +283,44 @@ $ ./target/debug/kanyu.exe analysis zonal zones.geojson pts.geojson --field heig
 已写出 2 个要素 → zoned.geojson        # 该提示在 stderr
 ```
 
+### 4.7 QGIS 核心算法（v0.16 移植，语义对齐 QGIS Processing）✅
+
+| 命令 | 说明 | 关键参数 |
+|---|---|---|
+| `analysis dissolve <file> [--field <f>]` | 融合：按字段分组并集（属性=组字段值+组内首要素） | `--output` |
+| `analysis simplify <file> --tolerance <f64>` | 道格拉斯简化（退化要素剔除） | `--output` |
+| `analysis centroid <file>` | 质心（逐要素 Point，属性随行） | `--output` |
+| `analysis convexhull <file>` | 凸包（逐要素 Polygon） | `--output` |
+| `analysis deleteholes <file> [--min-area <f64>]` | 删洞（无阈值全删；有阈值保留 ≥阈值的洞） | `--output` |
+| `analysis explode <file>` | 多部件炸开（Multi*→单部件，属性复制） | `--output` |
+| `analysis stats <file>` | 图层统计（测地线口径；面积含亩/公顷/km²） | 人读/`--json` |
+
+```bash
+$ ./target/debug/kanyu.exe analysis stats examples/buildings.geojson
+图层统计（buildings）:
+  要素: 4（点 3 / 线 1 / 面 0 / 其他 0）
+  总长度: 2.803 km
+  总面积: 0.00 ㎡（0.0000 公顷 / 0.0000 亩 / 0.000000 km²）
+```
+
+### 4.8 `kanyu data validate <file>` ✅（宗地 TXT 质检）
+
+表头必备项缺失/空值（错误/警告分级）、中文逗号、空格、闭合环与点数规则
+（移植自堪舆工具箱质检）。警告不阻塞退出码；`--json` 输出问题清单。
+
+## 4A. kanyu toolbox ✅（Python 工具箱，ArcGIS .pyt 式样）
+
+```bash
+kanyu toolbox list <file.py>                 # 列出工具（名称/参数/说明）
+kanyu toolbox run <file.py> <tool> [--param k=v]...   # 执行工具
+```
+
+- 工具箱约定：`Toolbox` 子类 + 内嵌 `Tool` 子类（`name/label/params/execute`），
+  见 `python/kanyu/toolbox.py` 与示例 `examples/planning_tools.py`；
+- 工具内 `import kanyu` 直接调用 Rust 内核（Python SDK 见 [SDK.md](SDK.md) §4）；
+- Python 包路径解析：`KANYU_PYTHON` 环境变量 > exe 同级 `python/` > 当前目录 `python/`；
+- `--param k=v` 数值/布尔自动类型化；结果 JSON 打印（`--json` 原样透传）。
+
 ## 5. kanyu render ✅
 
 离屏地图渲染（kanyu-render crate；色彩系统见 [MASTERPLAN.md](MASTERPLAN.md) §1.2）。

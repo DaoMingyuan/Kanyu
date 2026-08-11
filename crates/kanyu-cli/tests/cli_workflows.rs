@@ -690,3 +690,115 @@ fn gene_info_and_run_end_to_end() {
     assert!(!bad.status.success());
     assert!(String::from_utf8_lossy(&bad.stderr).contains("技能加载失败"));
 }
+
+#[test]
+fn parcel_txt_validate_and_roundtrip() {
+    let dir = std::env::temp_dir().join("kanyu_itest_parcel");
+    std::fs::create_dir_all(&dir).unwrap();
+    let sample = "[属性描述]\n格式版本号=1.0\n数据产生单位=测试\n数据产生日期=2026-08-03\n坐标系=CGCS2000\n几度分带=3\n投影类型=高斯克吕格\n计量单位=米\n带号=39\n精度=0.0001\n转换参数=\n[地块坐标]\n5,100.0,ZD001,测试地块,面,H50,住宅,,@\nJ1,1,4100000.0,39580000.0\nJ2,1,4100000.0,39580010.0\nJ3,1,4100010.0,39580010.0\nJ4,1,4100010.0,39580000.0\nJ1,1,4100000.0,39580000.0\n";
+    let path = dir.join("a.txt");
+    std::fs::write(&path, sample).unwrap();
+
+    // 质检通过（含警告不影响退出码）。
+    let v = kanyu()
+        .args(["data", "validate", path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        v.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&v.stderr)
+    );
+
+    // 读取为面图层并导出回 txt（往返后可再解析）。
+    let info = kanyu()
+        .args(["data", "info", path.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&info.stdout).unwrap();
+    assert_eq!(json["feature_count"], 1);
+    assert_eq!(json["format"], "txt");
+    let out = dir.join("out.txt");
+    let e = kanyu()
+        .args([
+            "data",
+            "export",
+            path.to_str().unwrap(),
+            "-f",
+            "txt",
+            "--out",
+            out.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        e.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&e.stderr)
+    );
+    let v2 = kanyu()
+        .args(["data", "validate", out.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        v2.status.success(),
+        "往返后质检应通过: {}",
+        String::from_utf8_lossy(&v2.stderr)
+    );
+}
+
+#[test]
+fn toolbox_list_and_run_via_python() {
+    // Python 不在 PATH 时跳过（CI 无 Python 环境的兜底）。
+    if std::process::Command::new("python")
+        .arg("--version")
+        .output()
+        .is_err()
+    {
+        eprintln!("python 不可用，跳过工具箱集成测试");
+        return;
+    }
+    // 测试 cwd 为 crate 目录：显式指定仓库 python/ 包路径。
+    let python_home = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../python")
+        .canonicalize()
+        .unwrap();
+    let out = kanyu()
+        .args(["toolbox", "list", "examples/planning_tools.py", "--json"])
+        .env("KANYU_PYTHON", &python_home)
+        .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let tools = json["tools"].as_array().unwrap();
+    assert!(tools.iter().any(|t| t["name"] == "buffer500"));
+
+    let run = kanyu()
+        .args([
+            "toolbox",
+            "run",
+            "examples/planning_tools.py",
+            "highrise_report",
+            "--param",
+            "input=examples/buildings.geojson",
+            "--param",
+            "threshold=50",
+        ])
+        .env("KANYU_PYTHON", &python_home)
+        .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .output()
+        .unwrap();
+    assert!(
+        run.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let result: serde_json::Value = serde_json::from_slice(&run.stdout).unwrap();
+    assert_eq!(result["ok"], true);
+    assert_eq!(result["result"]["count"], 2);
+}

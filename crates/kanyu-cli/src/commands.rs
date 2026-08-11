@@ -4,7 +4,8 @@ use anyhow::{bail, Context, Result};
 use kanyu_core::{agents, introspect, FormatRegistry, Layer};
 
 use crate::cli::{
-    AgentsCommand, AnalysisCommand, DataCommand, McpCommand, RenderCommand, SkillCommand, Transport,
+    AgentsCommand, AnalysisCommand, DataCommand, McpCommand, RenderCommand, SkillCommand,
+    ToolboxCommand, Transport,
 };
 
 /// `kanyu data ...`
@@ -22,6 +23,41 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                     s.fields.join(", ")
                 )
             });
+        }
+        DataCommand::Validate { file } => {
+            let registry = FormatRegistry::builtin();
+            let caps = registry
+                .detect(file)
+                .ok_or_else(|| anyhow::anyhow!("无法识别的格式: {file}"))?;
+            if caps.id != "txt" {
+                bail!(
+                    "质检当前仅支持宗地 TXT（.txt）；'{file}' 为 {} 格式",
+                    caps.id
+                );
+            }
+            let text =
+                std::fs::read_to_string(file).with_context(|| format!("读取 {file} 失败"))?;
+            let issues = kanyu_core::parcel::validate_parcel_txt(&text);
+            if json {
+                println!("{}", serde_json::to_string_pretty(&issues)?);
+            } else if issues.is_empty() {
+                println!("质检通过：{file}");
+            } else {
+                let errors = issues.iter().filter(|i| i.level == "错误").count();
+                let warnings = issues.len() - errors;
+                for issue in &issues {
+                    let loc = if issue.line > 0 {
+                        format!("第 {} 行", issue.line)
+                    } else {
+                        "文档级".to_string()
+                    };
+                    eprintln!("[{}] {}: {}", issue.level, loc, issue.message);
+                }
+                if errors > 0 {
+                    bail!("质检未通过：{errors} 错误 / {warnings} 警告");
+                }
+                println!("质检通过（{warnings} 条警告）：{file}");
+            }
         }
         DataCommand::Load { file, alias, crs } => {
             let id = alias.clone().unwrap_or_else(|| stem_of(file));
@@ -113,6 +149,16 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                     std::fs::write(out, layer.to_kdb_bytes()?)
                         .with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (kdb 堪舆数据库)", layer.len());
+                }
+                "txt" => {
+                    // 宗地 TXT：面要素 → 界址点坐标文本（X北Y东测绘惯例）。
+                    let text = kanyu_core::parcel::collection_to_parcel_txt(
+                        &layer.collection(),
+                        4,
+                        "EPSG:4326",
+                    )?;
+                    std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!("已导出 {} 个要素 → {out} (txt 宗地界址点)", layer.len());
                 }
                 "kml" => {
                     let text = Layer::to_kml_string(&layer.collection())?;
@@ -262,6 +308,74 @@ pub fn analysis(cmd: &AnalysisCommand, json: bool) -> Result<()> {
                 &stats,
             )?;
             write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Dissolve {
+            file,
+            field,
+            output,
+        } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let result = kanyu_core::geoprocess::dissolve(&layer.collection(), field.as_deref())?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Simplify {
+            file,
+            tolerance,
+            output,
+        } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let result = kanyu_core::geoprocess::simplify(&layer.collection(), *tolerance)?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Centroid { file, output } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let result = kanyu_core::geoprocess::centroid(&layer.collection())?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Convexhull { file, output } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let result = kanyu_core::geoprocess::convex_hull(&layer.collection())?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Deleteholes {
+            file,
+            min_area,
+            output,
+        } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let result = kanyu_core::geoprocess::delete_holes(&layer.collection(), *min_area)?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Explode { file, output } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let result = kanyu_core::geoprocess::explode(&layer.collection())?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
+        AnalysisCommand::Stats { file } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let report = kanyu_core::geoprocess::stats(&layer.collection())?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                println!("图层统计（{}）:", stem_of(file));
+                println!(
+                    "  要素: {}（点 {} / 线 {} / 面 {} / 其他 {}）",
+                    report.feature_count,
+                    report.points,
+                    report.lines,
+                    report.polygons,
+                    report.other
+                );
+                println!("  总长度: {:.3} km", report.total_length_km);
+                println!(
+                    "  总面积: {:.2} ㎡（{:.4} 公顷 / {:.4} 亩 / {:.6} km²）",
+                    report.total_area_m2,
+                    report.total_area_hectare,
+                    report.total_area_mu,
+                    report.total_area_km2
+                );
+                println!("  总周长: {:.1} m", report.total_perimeter_m);
+            }
         }
     }
     Ok(())
@@ -487,6 +601,127 @@ fn print_value<T: serde::Serialize>(value: &T, json: bool, human: impl FnOnce(&T
     } else {
         println!("{}", human(value));
     }
+}
+
+/// `kanyu toolbox ...`（ArcGIS .pyt 式 Python 工具箱）。
+pub fn toolbox(cmd: &ToolboxCommand, json: bool) -> Result<()> {
+    let python_home = resolve_python_home()?;
+    let (file, argv) = match cmd {
+        ToolboxCommand::List { file } => (file.clone(), vec!["list".to_string(), file.clone()]),
+        ToolboxCommand::Run { file, tool, params } => {
+            // --param k=v → params-json。
+            let mut map = serde_json::Map::new();
+            for kv in params {
+                let Some((k, v)) = kv.split_once('=') else {
+                    bail!("参数须为 k=v 形式: {kv}");
+                };
+                // 数值/布尔自动类型化（与 CSV 口径一致）。
+                let value = v
+                    .parse::<f64>()
+                    .map(serde_json::Value::from)
+                    .or_else(|_| v.parse::<bool>().map(serde_json::Value::from))
+                    .unwrap_or_else(|_| serde_json::Value::String(v.to_string()));
+                map.insert(k.to_string(), value);
+            }
+            let params_json = serde_json::to_string(&serde_json::Value::Object(map))?;
+            (
+                file.clone(),
+                vec![
+                    "run".to_string(),
+                    file.clone(),
+                    tool.clone(),
+                    "--params-json".to_string(),
+                    params_json,
+                ],
+            )
+        }
+    };
+    let mut args = vec!["-m".to_string(), "kanyu.toolbox".to_string()];
+    args.extend(argv);
+    let output = std::process::Command::new("python")
+        .args(&args)
+        .env("PYTHONPATH", &python_home)
+        .output()
+        .with_context(|| "无法启动 python（需要 Python 3.9+ 在 PATH 上）")?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !output.status.success() {
+        // 运行时统一错误出口为 JSON（{"ok":false,"error":...}），原样透出。
+        if !stdout.trim().is_empty() {
+            eprintln!("{stdout}");
+        }
+        if !stderr.trim().is_empty() {
+            eprintln!("{stderr}");
+        }
+        bail!("工具箱执行失败（退出码 {:?}）", output.status.code());
+    }
+    if json {
+        // JSON 原样透传（已是运行时 JSON）。
+        println!("{stdout}");
+    } else {
+        // 人读：list 美化；run 透传。
+        match cmd {
+            ToolboxCommand::List { .. } => {
+                let value: serde_json::Value = serde_json::from_str(stdout.trim())
+                    .with_context(|| format!("工具箱返回非 JSON: {stdout}"))?;
+                let tools = value["tools"].as_array().cloned().unwrap_or_default();
+                if tools.is_empty() {
+                    println!("工具箱无工具（检查 Toolbox/Tool 子类约定，见 docs/SDK.md）");
+                }
+                for t in tools {
+                    println!(
+                        "  {} — {}（{}）",
+                        t["name"].as_str().unwrap_or("?"),
+                        t["label"].as_str().unwrap_or(""),
+                        t["toolbox"].as_str().unwrap_or("")
+                    );
+                    if let Some(params) = t["params"].as_array() {
+                        for p in params {
+                            println!(
+                                "      --param {}=<{}>{}",
+                                p["name"].as_str().unwrap_or("?"),
+                                p["label"].as_str().unwrap_or(""),
+                                if p["optional"].as_bool().unwrap_or(false) {
+                                    "（可选）"
+                                } else {
+                                    ""
+                                }
+                            );
+                        }
+                    }
+                }
+            }
+            ToolboxCommand::Run { .. } => print!("{stdout}"),
+        }
+    }
+    let _ = file;
+    Ok(())
+}
+
+/// 解析 Python 包根目录（含 kanyu 包的目录）：
+/// 环境变量 KANYU_PYTHON > exe 同级 python/ > exe 上级 ../python > 当前目录 python/。
+fn resolve_python_home() -> Result<String> {
+    if let Ok(env_path) = std::env::var("KANYU_PYTHON") {
+        return Ok(env_path);
+    }
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join("python"));
+            if let Some(up) = dir.parent() {
+                candidates.push(up.join("python"));
+            }
+        }
+    }
+    candidates.push(std::path::PathBuf::from("python"));
+    for candidate in &candidates {
+        if candidate.join("kanyu").join("toolbox.py").exists() {
+            return Ok(candidate.to_string_lossy().into_owned());
+        }
+    }
+    bail!(
+        "未找到 kanyu Python 包（kanyu/toolbox.py）。请设置 KANYU_PYTHON 环境变量指向仓库 python/ 目录"
+    )
 }
 
 /// 取文件名主干作为默认图层名。

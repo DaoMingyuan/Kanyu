@@ -18,9 +18,11 @@ pub mod crs;
 pub mod dwg;
 pub mod error;
 pub mod format;
+pub mod geoprocess;
 pub mod introspect;
 pub mod kdb;
 pub mod layer;
+pub mod parcel;
 pub mod project;
 
 pub use error::{KanyuError, Result};

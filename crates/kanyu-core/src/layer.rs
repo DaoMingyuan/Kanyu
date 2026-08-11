@@ -79,6 +79,15 @@ impl Layer {
                 }
             }
             "shp" => shp_to_collection(path)?,
+            "txt" => {
+                let text = std::fs::read_to_string(path)?;
+                if crate::parcel::is_parcel_txt(&text) {
+                    let doc = crate::parcel::parse_parcel_txt(&text)?;
+                    crate::parcel::parcel_doc_to_collection(&doc)
+                } else {
+                    crate::parcel::parse_points_txt(&text)?
+                }
+            }
             "fgb" => fgb_to_collection(path)?,
             "geoparquet" => parquet_to_collection(path)?,
             "dxf" => dxf_to_collection(path)?,

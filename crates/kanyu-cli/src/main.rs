@@ -17,5 +17,6 @@ fn main() -> anyhow::Result<()> {
         Command::Introspect => commands::introspect_cmd(args.json),
         Command::Agents(cmd) => commands::agents_cmd(cmd, args.json),
         Command::Mcp(cmd) => commands::mcp_cmd(cmd),
+        Command::Toolbox(cmd) => commands::toolbox(cmd, args.json),
     }
 }

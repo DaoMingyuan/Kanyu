@@ -157,6 +157,48 @@ pub fn tools() -> Vec<ToolInfo> {
             group: "analysis",
             status: "stable",
         },
+        // QGIS 核心算法移植（geoprocess 模块）
+        ToolInfo {
+            name: "kanyu_analysis_dissolve",
+            group: "analysis",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_analysis_simplify",
+            group: "analysis",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_analysis_centroid",
+            group: "analysis",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_analysis_convex_hull",
+            group: "analysis",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_analysis_delete_holes",
+            group: "analysis",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_analysis_explode",
+            group: "analysis",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_analysis_stats",
+            group: "analysis",
+            status: "stable",
+        },
+        // 数据质检
+        ToolInfo {
+            name: "kanyu_data_validate",
+            group: "data",
+            status: "stable",
+        },
         // 渲染工具
         ToolInfo {
             name: "kanyu_render_map",

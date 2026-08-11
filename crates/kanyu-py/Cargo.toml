@@ -1,0 +1,27 @@
+# kanyu-py —— 堪舆的 Python 桥接（PyO3 扩展模块 `kanyu`）。
+#
+# 定位（总规 §5.1 脚本层 + 裁决 #20）：核心算法全部在 Rust（kanyu-core），
+# Python 经本扩展调用；终端命令与工具箱可用 Python 创建。
+
+[package]
+name = "kanyu-py"
+description = "Kanyu Python bindings (PyO3): the `kanyu` extension module — Rust core, Python driven."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[lib]
+name = "kanyu"
+crate-type = ["cdylib"]
+
+[dependencies]
+kanyu-core.workspace = true
+kanyu-render.workspace = true
+serde_json.workspace = true
+geojson.workspace = true
+pyo3 = { version = "0.29", features = ["extension-module"] }

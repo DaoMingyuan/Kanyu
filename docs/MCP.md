@@ -442,6 +442,22 @@ join 侧属性与 `join_index` 缺省。
 - `structuredContent` 恒为摘要：
   `{"feature_count": 4, "bbox": null, "width": 800, "height": 600, "theme": "light", "format": "png"}`。
 
+### 3.18 QGIS 核心算法工具组（v0.16 移植）
+
+均为"文件进、结果出"形态（`path` 必填），返回
+`{"feature_count": n, "collection": {...}}`（stats/validate 例外）：
+
+| 工具 | 额外输入 | 说明 |
+|---|---|---|
+| `kanyu_analysis_dissolve` | `field`（可空） | 融合：按字段分组并集（keep-first 属性） |
+| `kanyu_analysis_simplify` | `tolerance`（必填） | 道格拉斯简化（退化剔除） |
+| `kanyu_analysis_centroid` | — | 质心（属性随行） |
+| `kanyu_analysis_convex_hull` | — | 凸包 |
+| `kanyu_analysis_delete_holes` | `min_area`（可空） | 删洞（缺省全删） |
+| `kanyu_analysis_explode` | — | 多部件炸开（属性复制） |
+| `kanyu_analysis_stats` | — | 图层统计 JSON（测地线口径；亩/公顷/km²） |
+| `kanyu_data_validate` | — | 宗地 TXT 质检：`{"valid": bool, "issue_count": n, "issues": [...]}`（警告不影响 valid） |
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规

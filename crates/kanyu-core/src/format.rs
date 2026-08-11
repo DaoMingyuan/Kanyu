@@ -261,6 +261,18 @@ impl FormatRegistry {
                 note: "自动坐标列识别 (lon/lat/x/y/经度/纬度)；xlsx 经 calamine 只读（写出 📋）",
             },
             FormatCapabilities {
+                id: "txt",
+                name: "宗地 TXT（界址点坐标）",
+                extensions: &["txt"],
+                read: Full,
+                write: Full,
+                edit: Full,
+                symbol: None,
+                layout: None,
+                driver: "native",
+                note: "移植自堪舆工具箱 txt_feature.py：宗地/点表双格式互认（X北Y东测绘惯例）；质检 kanyu data validate",
+            },
+            FormatCapabilities {
                 id: "pdf",
                 name: "PDF",
                 extensions: &["pdf"],

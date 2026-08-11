@@ -10,7 +10,7 @@
 1. [作为 Rust 库集成](#1-作为-rust-库集成)
 2. [作为 MCP 客户端集成](#2-作为-mcp-客户端集成)
 3. [作为 CLI 脚本集成](#3-作为-cli-脚本集成)
-4. [Python SDK（📋 规划中）](#4-python-sdk--规划中)
+4. [Python SDK](#4-python-sdk-v016-已落地)
 5. [WASM 技能 SDK（🚧 v0.1 已落地）](#5-wasm-技能-sdk-v01-已落地最小子集)
 
 ## 1. 作为 Rust 库集成
@@ -175,15 +175,56 @@ $ echo $?
 1
 ```
 
-## 4. Python SDK（📋 规划中）
+## 4. Python SDK（v0.16 已落地）
 
-计划以 PyO3 绑定暴露 `kanyu-core`，设计原则一段话：
+`kanyu-py`（PyO3 扩展模块）把 Rust 内核全量暴露给 Python——**数据契约为
+GeoJSON 文本**（跨语言最稳、零宿主类型纠缠；Arrow C Data Interface 零拷贝
+路线留作后续优化项，见总规裁决 #20）。
 
-> Python 侧只做**零拷贝视图**，不做数据复制：`Layer` 在 Rust 侧持有 GeoArrow
-> RecordBatch，Python 通过 Arrow C Data Interface / nanoarrow 直接映射同一块内存
-> （呼应总规 §3.1 "Python/Rust 共享同一块物理内存"）。API 与 Rust 侧一一对应
-> （`kanyu.Layer.load(...).query("height > 50")`），错误映射为单一
-> `kanyu.KanyuError` 层次；不引入 GIL 持有的长临界区，重活在 Rust 侧 `py.allow_threads` 中执行。
+### 安装（当前为源码构建）
+
+```bash
+cargo build --release -p kanyu-py
+cp target/release/kanyu.dll python/kanyu/kanyu.pyd   # Windows
+# Linux/macOS 为 libkanyu.so → kanyu.so
+$env:PYTHONPATH = "<repo>/python"                     # 或 pip 安装发布后免设
+```
+
+### 用法
+
+```python
+import kanyu
+
+fc = kanyu.load("buildings.geojson")          # 全格式（shp/fgb/parquet/dxf/dwg/kml/kdb/txt…）
+high = kanyu.query(fc, "height > 50")          # 属性查询
+buf = kanyu.buffer(high, 500.0)                # 缓冲区（CRS 单位；米制先 reproject）
+rp = kanyu.reproject(fc, "EPSG:4326", "EPSG:3857")
+ds = kanyu.dissolve(fc, field="usage")         # QGIS 语义融合
+s = kanyu.stats(fc)                            # 图层统计 JSON（含亩/公顷）
+png = kanyu.render_png(fc, 1200, 800, "light") # PNG 字节
+kanyu.export(buf, "out.kdb", "kdb")            # 导出（含自研 .kdb）
+```
+
+链式封装（`kanyu.Layer`）：
+
+```python
+kanyu.Layer.load("buildings.geojson").query("height > 50").buffer(500).export("out.fgb", "fgb")
+```
+
+### Python 工具箱（ArcGIS Pro .pyt 式样）
+
+工具箱是一个 `.py` 文件（约定见 `python/kanyu/toolbox.py`）：`Toolbox` 子类 +
+内嵌 `Tool` 子类（`name/label/description/params` + `execute(args)`），
+由 CLI 驱动：
+
+```bash
+kanyu toolbox list examples/planning_tools.py
+kanyu toolbox run examples/planning_tools.py buffer500 --param input=a.geojson --param distance=500
+```
+
+工具内直接 `import kanyu` 调用 Rust 内核；`kanyu toolbox` 经 JSON over stdout
+与 Python 通信（参数自动类型化；`KANYU_PYTHON` 环境变量可指定包路径）。
+行业工具（规划统计、属性面积图等）由此用 Python 快速迭代，内核保持稳定。
 
 ## 5. WASM 技能 SDK（🚧 v0.1 已落地最小子集）
 

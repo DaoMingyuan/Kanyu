@@ -51,6 +51,30 @@ pub enum Command {
     /// MCP 神经接口：启动 MCP Server，供 AI 代理接入。
     #[command(subcommand)]
     Mcp(McpCommand),
+
+    /// Python 工具箱（ArcGIS .pyt 式）：列出/执行 Python 编写的工具。
+    #[command(subcommand)]
+    Toolbox(ToolboxCommand),
+}
+
+/// `kanyu toolbox ...`
+#[derive(Subcommand, Debug)]
+pub enum ToolboxCommand {
+    /// 列出工具箱文件中的工具清单。
+    List {
+        /// 工具箱 .py 文件路径。
+        file: String,
+    },
+    /// 执行工具箱中的工具。
+    Run {
+        /// 工具箱 .py 文件路径。
+        file: String,
+        /// 工具名（toolbox list 查看）。
+        tool: String,
+        /// 参数（k=v 形式，可多个）。
+        #[arg(long = "param")]
+        params: Vec<String>,
+    },
 }
 
 /// `kanyu data ...`
@@ -96,6 +120,11 @@ pub enum DataCommand {
         /// 保留符号化映射。
         #[arg(long)]
         symbol_mapping: bool,
+    },
+    /// 数据质检（宗地 TXT：表头必备项/中文逗号/闭合环等规则；--json 输出问题清单）。
+    Validate {
+        /// 数据文件路径（当前支持 .txt 宗地/点表格式）。
+        file: String,
     },
     /// 投影变换（--from/--to 为 EPSG:xxxx 或 proj4 定义串；内置 EPSG 数据库）。
     Reproject {
@@ -187,6 +216,68 @@ pub enum AnalysisCommand {
         /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
         #[arg(long)]
         output: Option<String>,
+    },
+    /// 融合（QGIS Dissolve：按字段分组并集；属性取组字段值+组内首要素）。
+    Dissolve {
+        /// 数据文件路径。
+        file: String,
+        /// 分组字段（缺省全图融合）。
+        #[arg(long)]
+        field: Option<String>,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 道格拉斯简化（tolerance 为 CRS 单位）。
+    Simplify {
+        /// 数据文件路径。
+        file: String,
+        /// 简化容差。
+        #[arg(long)]
+        tolerance: f64,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 质心（逐要素 Point，属性随行）。
+    Centroid {
+        /// 数据文件路径。
+        file: String,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 凸包（逐要素 Polygon）。
+    Convexhull {
+        /// 数据文件路径。
+        file: String,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 删洞（--min-area 保留面积≥阈值的洞，缺省全删）。
+    Deleteholes {
+        /// 数据文件路径。
+        file: String,
+        /// 洞面积阈值（CRS 平面单位）。
+        #[arg(long)]
+        min_area: Option<f64>,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 多部件炸开（QGIS Multipart to singleparts）。
+    Explode {
+        /// 数据文件路径。
+        file: String,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
+    /// 图层统计（测地线口径；面积含亩/公顷/平方千米）。
+    Stats {
+        /// 数据文件路径。
+        file: String,
     },
 }
 

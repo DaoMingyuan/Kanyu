@@ -29,10 +29,10 @@ const TASK_ELIGIBLE: [&str; 6] = [
 const TASK_TTL_MS: u64 = 600_000;
 
 /// WASM 技能注册表（内存态，Clone 共享；重启即丢——与任务管理器同生命周期）。
-type GeneRegistry = std::sync::Arc<std::sync::Mutex<GeneRegistryState>>;
+type GeneRegistry = std::sync::Arc<std::sync::Mutex<SkillRegistryState>>;
 
 /// 注册表状态：宿主 + 已注册技能（skill_id = meta.name）。
-struct GeneRegistryState {
+struct SkillRegistryState {
     host: kanyu_skill::SkillHost,
     skills: std::collections::HashMap<String, kanyu_skill::Skill>,
 }
@@ -211,6 +211,47 @@ pub struct SkillRunReq {
     pub path: String,
 }
 
+/// 单文件分析工具的统一输入（多数算法只需路径）。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisFileReq {
+    /// 数据文件路径。
+    pub path: String,
+}
+
+/// `kanyu_analysis_dissolve` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisDissolveReq {
+    /// 数据文件路径。
+    pub path: String,
+    /// 分组字段（缺省全图融合）。
+    pub field: Option<String>,
+}
+
+/// `kanyu_analysis_simplify` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisSimplifyReq {
+    /// 数据文件路径。
+    pub path: String,
+    /// 简化容差（CRS 单位）。
+    pub tolerance: f64,
+}
+
+/// `kanyu_analysis_delete_holes` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AnalysisDeleteHolesReq {
+    /// 数据文件路径。
+    pub path: String,
+    /// 洞面积阈值（CRS 平面单位；缺省全删）。
+    pub min_area: Option<f64>,
+}
+
+/// `kanyu_data_validate` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DataValidateReq {
+    /// 数据文件路径（当前支持 .txt 宗地/点表格式）。
+    pub path: String,
+}
+
 #[tool_router]
 impl KanyuServer {
     /// 构造 Server 并注册全部工具。
@@ -218,7 +259,7 @@ impl KanyuServer {
         Self {
             tool_router: Self::tool_router(),
             task_manager: rmcp::task_manager::TaskManager::new(),
-            skills: std::sync::Arc::new(std::sync::Mutex::new(GeneRegistryState {
+            skills: std::sync::Arc::new(std::sync::Mutex::new(SkillRegistryState {
                 host: kanyu_skill::SkillHost::new().expect("wasmtime 引擎初始化失败"),
                 skills: std::collections::HashMap::new(),
             })),
@@ -291,6 +332,11 @@ impl KanyuServer {
                 Layer::to_kmz_bytes(&layer.collection()).map_err(to_mcp)?
             }
             "kdb" => layer.to_kdb_bytes().map_err(to_mcp)?,
+            "txt" => {
+                kanyu_core::parcel::collection_to_parcel_txt(&layer.collection(), 4, "EPSG:4326")
+                    .map_err(to_mcp)?
+                    .into_bytes()
+            }
             "shp" => {
                 // shp 为三件套（base.shp/.shx/.dbf）：不能走字节流写文件，直接落盘。
                 let base = req
@@ -610,6 +656,143 @@ impl KanyuServer {
             serde_json::json!({ "created": path.display().to_string() }),
         ))
     }
+
+    /// 融合（QGIS Dissolve 移植）。
+    #[tool(
+        name = "kanyu_analysis_dissolve",
+        description = "融合（QGIS Dissolve）：按字段分组对面要素做布尔并集；属性取组字段值+组内首要素其余属性。返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_dissolve(
+        &self,
+        Parameters(req): Parameters<AnalysisDissolveReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let result = kanyu_core::geoprocess::dissolve(&layer.collection(), req.field.as_deref())
+            .map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "collection": result,
+        })))
+    }
+
+    /// 道格拉斯简化（QGIS Simplify 移植）。
+    #[tool(
+        name = "kanyu_analysis_simplify",
+        description = "道格拉斯-普克简化（QGIS Simplify）：tolerance 为 CRS 单位；简化后退化要素剔除。返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_simplify(
+        &self,
+        Parameters(req): Parameters<AnalysisSimplifyReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let result =
+            kanyu_core::geoprocess::simplify(&layer.collection(), req.tolerance).map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "collection": result,
+        })))
+    }
+
+    /// 质心（QGIS Centroids 移植）。
+    #[tool(
+        name = "kanyu_analysis_centroid",
+        description = "质心提取（QGIS Centroids）：逐要素质心点，属性随行。返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_centroid(
+        &self,
+        Parameters(req): Parameters<AnalysisFileReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let result = kanyu_core::geoprocess::centroid(&layer.collection()).map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "collection": result,
+        })))
+    }
+
+    /// 凸包（QGIS Convex hull 移植）。
+    #[tool(
+        name = "kanyu_analysis_convex_hull",
+        description = "凸包（QGIS Convex hull）：逐要素凸包面。返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_convex_hull(
+        &self,
+        Parameters(req): Parameters<AnalysisFileReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let result = kanyu_core::geoprocess::convex_hull(&layer.collection()).map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "collection": result,
+        })))
+    }
+
+    /// 删洞（QGIS Delete holes 移植）。
+    #[tool(
+        name = "kanyu_analysis_delete_holes",
+        description = "删洞（QGIS Delete holes）：min_area 缺省删全部洞，否则仅删面积 < min_area 的洞（CRS 平面单位）。返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_delete_holes(
+        &self,
+        Parameters(req): Parameters<AnalysisDeleteHolesReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let result = kanyu_core::geoprocess::delete_holes(&layer.collection(), req.min_area)
+            .map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "collection": result,
+        })))
+    }
+
+    /// 多部件炸开（QGIS Multipart to singleparts 移植）。
+    #[tool(
+        name = "kanyu_analysis_explode",
+        description = "多部件炸开（QGIS Multipart to singleparts）：Multi* → 单部件逐要素，属性复制。返回 GeoJSON FeatureCollection"
+    )]
+    async fn analysis_explode(
+        &self,
+        Parameters(req): Parameters<AnalysisFileReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let result = kanyu_core::geoprocess::explode(&layer.collection()).map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "feature_count": result.features.len(),
+            "collection": result,
+        })))
+    }
+
+    /// 图层统计（选择集统计移植）。
+    #[tool(
+        name = "kanyu_analysis_stats",
+        description = "图层统计（测地线口径）：要素计数按几何类型 + 总长度（米/千米）+ 总面积（平方米/公顷/亩/平方千米）+ 总周长"
+    )]
+    async fn analysis_stats(
+        &self,
+        Parameters(req): Parameters<AnalysisFileReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let report = kanyu_core::geoprocess::stats(&layer.collection()).map_err(to_mcp)?;
+        Ok(Json(serde_json::to_value(report).map_err(to_mcp)?))
+    }
+
+    /// 数据质检（宗地 TXT）。
+    #[tool(
+        name = "kanyu_data_validate",
+        description = "数据质检（宗地 TXT：表头必备项缺失/空值、中文逗号、空格、闭合环与点数规则），返回问题清单（空=通过）"
+    )]
+    async fn data_validate(
+        &self,
+        Parameters(req): Parameters<DataValidateReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        let text = std::fs::read_to_string(&req.path).map_err(to_mcp)?;
+        let issues = kanyu_core::parcel::validate_parcel_txt(&text);
+        Ok(Json(serde_json::json!({
+            "valid": issues.iter().all(|i| i.level != "错误"),
+            "issue_count": issues.len(),
+            "issues": issues,
+        })))
+    }
 }
 
 #[tool_handler]
@@ -856,7 +1039,7 @@ fn analysis_topology_sync(req: AnalysisTopologyReq) -> kanyu_core::Result<serde_
 /// 技能执行（MCP 薄壳与任务化路径共享；持注册表锁内执行——v0.1 串行化，
 /// 见 KanyuServer.skills 注释）。
 fn skill_run_sync(
-    state: &mut GeneRegistryState,
+    state: &mut SkillRegistryState,
     req: SkillRunReq,
 ) -> kanyu_core::Result<serde_json::Value> {
     let skill = state.skills.get(&req.skill_id).ok_or_else(|| {
@@ -1058,7 +1241,7 @@ mod tests {
     );
 
     fn new_registry() -> GeneRegistry {
-        std::sync::Arc::new(std::sync::Mutex::new(GeneRegistryState {
+        std::sync::Arc::new(std::sync::Mutex::new(SkillRegistryState {
             host: kanyu_skill::SkillHost::new().unwrap(),
             skills: std::collections::HashMap::new(),
         }))

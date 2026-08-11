@@ -19,6 +19,11 @@
 10. [kanyu-skill —— WASM 技能系统宿主](#10-kanyu-skill--wasm-技能系统宿主)
 11. [dwg —— DWG 原生读取](#11-dwg--dwg-原生读取acadrust-自持补丁层)
 12. [kanyu-shell —— 桌面壳层 UI](#12-kanyu-shell--桌面壳层-ui)
+13. [kdb —— 堪舆数据库](#13-kdb--堪舆数据库kanyudbkdb)
+14. [project —— 堪舆工程](#14-project--堪舆工程kyu)
+15. [geoprocess —— QGIS 核心算法移植](#15-geoprocess--qgis-核心算法移植)
+16. [parcel —— 宗地 TXT](#16-parcel--宗地-txt界址点坐标)
+17. [kanyu-py —— Python 桥接](#17-kanyu-py--python-桥接pyo3)
 
 ## 1. crate 总览
 
@@ -593,3 +598,40 @@ JSON 工程清单（裁决 #19）：`kanyu_project=1` 格式标识 + 项目元�
 | 字段 | `name/crs/created/kanyu_version/viewport: Option<[f64;4]>/map_theme: String/layers: Vec<ProjectLayer>` | `map_theme` ∈ `fixed_light`(默认)/`fixed_dark`/`follow_ui` |
 | `ProjectLayer` | `{ id, source, visible, style: Option<serde_json::Value> }` | 图层引用（路径相对工程目录或绝对） |
 
+
+## 15. geoprocess —— QGIS 核心算法移植
+
+语义对齐 QGIS Processing（rustdoc 即契约）。
+
+| 函数 | 签名要点 | QGIS 对应 |
+|---|---|---|
+| `dissolve` | `(collection, field: Option<&str>) -> Result<FeatureCollection>` | Dissolve（按字段分组并集；keep-first 属性） |
+| `simplify` | `(collection, tolerance: f64)` | Simplify（Douglas-Peucker；退化剔除） |
+| `centroid` | `(collection)` | Centroids（属性随行） |
+| `convex_hull` | `(collection)` | Convex hull |
+| `delete_holes` | `(collection, min_area: Option<f64>)` | Delete holes（None=全删） |
+| `explode` | `(collection)` | Multipart to singleparts |
+| `stats` | `(collection) -> LayerStats` | 选择集统计（测地线口径；亩/公顷/km²） |
+
+## 16. parcel —— 宗地 TXT（界址点坐标）
+
+移植自堪舆工具箱 `txt_feature.py`（行为互认）。格式：双段（[属性描述]
+key=value + [地块坐标] 说明行与点行），X北Y东测绘惯例（GeoJSON 位置=[Y,X]），
+圈号 1=外环/2+=洞。
+
+| API | 说明 |
+|---|---|
+| `parse_parcel_txt(text) -> Result<ParcelDoc>` | 解析+完整校验（首尾闭合/点数一致/面积非零，中文错误带行号） |
+| `parcel_doc_to_collection(&doc) -> FeatureCollection` | 地块 → Polygon（属性 parcel_id/name/use/map_sheet/area） |
+| `collection_to_parcel_txt(&collection, decimals, crs) -> Result<String>` | 面要素 → 宗地 TXT（闭合点复用首点编号） |
+| `validate_parcel_txt(text) -> Vec<QualityIssue>` | 质检（表头必备项/中文逗号/空格/结构；警告不阻塞） |
+| `parse_points_txt(text) -> Result<FeatureCollection>` | 简单点表（name X Y [Z]，# 注释，逗号/空格/Tab）回退解析 |
+| `is_parcel_txt(text) -> bool` | 格式嗅探（全角段标兼容） |
+
+## 17. kanyu-py —— Python 桥接（PyO3）
+
+扩展模块 `kanyu`（crate-type cdylib；构建产物 `kanyu.dll` → `python/kanyu/kanyu.pyd`）。
+函数面（GeoJSON 文本进出）：`load/query/buffer/overlay/topology/sjoin/
+zonal_stats/dissolve/simplify/centroid/convex_hull/delete_holes/explode/
+stats/measure/reproject/render_png/render_svg/export/version`。
+Python 侧 `Layer` 链式封装与工具箱运行时见 [SDK.md](SDK.md) §4。

@@ -74,16 +74,16 @@
 
 ### 1.2 待完成事项（优先级序）
 
-1. **桌面 UI**（kanyu-shell MVP ✅ 2026-08-03 → 打包安装，桌面图标"堪舆"）——打包进行中
-2. **凤鸟图标**：入库 assets/ + 快捷方式/GUI 窗口/GitHub 社会预览（待用户提供图片文件）
-3. **crates.io 发布**：六个名称可注册，待用户 cargo login（发布顺序 core→render→gene→mcp→cli）
-4. **DWG 深化**：INSERT 拆块（22.4% 实体）/ HATCH 边界 / SPLINE 采样 / R2018+ 样本复测
-5. **Phase 2 视界续**：wgpu 实时渲染管线（GeoArrow→SSBO）、MLT 瓦片、SDF 文字
-6. **Phase 3 手**：DCEL 增量拓扑编辑内核、Undo/Redo
-7. **Phase 4 脑**：LLM 融合（自然语言→工具调用编排）、MCP resources/prompts、GeoAnalystBench 基准
-8. **Phase 5 魂续**：技能市场、A/B 测试框架、知识库 RAG
-9. **性能基准**：对 QGIS 的 §5.3 指标实测并公开基准报告
-10. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
+1. **基础 GIS 功能移植**（用户指令，进行中）：宗地 TXT（读/写/质检）+ 图层统计（亩/公顷）——本轮落地；后续批次见 §6.4 移植清单
+2. **crates.io 发布**：六个名称可注册，待用户 cargo login（发布顺序 core→render→skill→mcp→cli）
+3. **DWG 深化**（用户决定后置）：INSERT 拆块 / HATCH 边界 / SPLINE 采样 / R2018+ 复测
+4. **Phase 2 视界续**：wgpu 实时渲染管线（KanyuDB→SSBO）、MLT 瓦片、SDF 文字
+5. **Phase 3 手**：DCEL 增量拓扑编辑内核、Undo/Redo
+6. **Phase 4 脑**：LLM 融合（自然语言→工具调用编排）、MCP resources/prompts、GeoAnalystBench 基准
+7. **Phase 5 魂续**：技能市场、A/B 测试框架、知识库 RAG
+8. **性能基准**：对 QGIS 的 §5.3 指标实测并公开基准报告
+9. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
+10. **属性面板重建**：等待用户定制要求
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -118,6 +118,20 @@
 - 预计：大（eframe/wgpu 依赖树，release 构建 15-25 分钟）
 
 <!-- 新条目加在这行之上 -->
+### [收工] 2026-08-03 kimi-code(main) — QGIS 核心算法移植 + Python 打通 + 宗地 TXT
+- 提交：见本次 commit；测试：149 全绿（含 parcel/toolbox 集成测试）+ clippy 零警告
+- 验证：Python 直调 Rust 内核（load/query/buffer/stats/render_png 实测）；kanyu toolbox list/run 端到端；宗地 TXT 读写质检往返
+- 内容：geoprocess 六算法+stats（QGIS 语义，keep-first/DP/删洞阈值/炸开）；parcel.rs（宗地 TXT 双向+质检，注册表第 19 格式）；kanyu-py（PyO3，21 函数）+ python/kanyu 包（Layer 链式 + toolbox 运行时，修复 -m 双实例发现 bug 为 __module__ 归属判定）；CLI analysis 七命令 + data validate + toolbox list/run；裁决 #20 入规；文档全链（ARCHITECTURE/API/SDK/CLI/MCP/CHANGELOG）
+- 偏差：dissolve 测试期望值修正（4+4-2=6）；写出侧闭合点复用首点编号（格式校验要求）
+- 后续：§1.2 #1 基础 GIS 移植第一批完成；#2 crates.io 待 token
+### [开工] 2026-08-03 kimi-code(main) — QGIS 核心算法移植 + Rust/Python 打通（kanyu-py + 工具箱）
+- 范围：kanyu-core/geoprocess.rs（QGIS 六算法+stats）、crates/kanyu-py（新，PyO3）、python/kanyu/（包+toolbox 约定）、CLI toolbox 命令组、文档（裁决 #20）
+- 依据：用户指令（QGIS 核心算法移植正确转写；Rust 核心 Python 调动；ArcGIS Pro .pyt 工具箱方式）；总规 §5.1 脚本层
+- 预计：大（新 crate + Python 包 + CLI + 文档）
+### [开工] 2026-08-03 kimi-code(main) — DWG INSERT 拆块（块参照展开）
+- 范围：crates/kanyu-core/src/dwg.rs + 测试 + 文档
+- 依据：AI_SYNC §1.2 #4（DWG 深化）；总规 §6.4 Phase 5 遗留；spike 统计 INSERT=22.4%
+- 预计：中（约 200 行 + 测试）
 ### [收工] 2026-08-03 kimi-code(main) — 项目级命名修正：基因 → 技能
 - 提交：d88820e；测试：134 全绿 + clippy 零警告；验证：attr_scaler.wasm 按 kanyu:skill/analyzer 新 ABI 重编并通过 wasm-tools 组件化校验
 - 内容：crate/类型/WIT ABI/MCP 工具（kanyu_skill_run/skill_list）/CLI 命令组（kanyu skill）/UI/全文档同步改名；历史记录不改写；AGENTS.md 依赖方向修正（render/skill ← core；cli/mcp/shell ← core+render+skill）

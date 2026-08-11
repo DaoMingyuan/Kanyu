@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **QGIS 核心算法移植**（新模块 `kanyu-core/src/geoprocess.rs`，语义对齐
+  QGIS Processing）：dissolve（按字段分组并集，keep-first 属性）、simplify
+  （Douglas-Peucker，退化剔除）、centroid、convex_hull、delete_holes
+  （阈值可选）、explode（多部件炸开）、stats（图层统计：测地线口径 +
+  亩/公顷/平方千米）。CLI `kanyu analysis dissolve/simplify/centroid/
+  convexhull/deleteholes/explode/stats` 与 MCP 七个对应工具同步落地。
+- **宗地 TXT 格式**（移植自堪舆工具箱 txt_feature.py，新模块 `parcel.rs`）：
+  [属性描述]+[地块坐标] 双段解析（全角段标兼容）、X北Y东测绘惯例映射、
+  圈号外环/洞、完整校验（首尾闭合/点数一致/面积非零）；简单点表
+  （name X Y [Z]）回退解析；写出（闭合点复用首点编号）；质检
+  `kanyu data validate` / MCP `kanyu_data_validate`（表头必备项、中文逗号、
+  空格、结构规则；警告不阻塞）。注册表第 19 种格式（txt，读写）。
+- **kanyu-py**：PyO3 扩展模块 `kanyu`（Rust 内核 → Python 全量调用：
+  load/query/buffer/overlay/topology/sjoin/zonal_stats/dissolve/simplify/
+  centroid/convex_hull/delete_holes/explode/stats/measure/reproject/
+  render_png/render_svg/export；GeoJSON 文本契约 + Layer 链式封装）。
+- **Python 工具箱**（ArcGIS Pro .pyt 式样，`python/kanyu/toolbox.py`）：
+  Toolbox/Tool/Param 约定；CLI `kanyu toolbox list/run <file.py>` 驱动
+  （JSON over stdout，参数自动类型化）；示例 `examples/planning_tools.py`。
+- **CLI**：`kanyu data validate`（宗地 TXT 质检）。
+
 ### 变更
 
 - **项目级命名修正：基因（gene）→ 技能（skill）**。crate `kanyu-gene` →

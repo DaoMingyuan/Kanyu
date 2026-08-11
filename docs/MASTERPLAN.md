@@ -1081,6 +1081,7 @@ A/B 测试 (与旧版本并行)
 | 17 | MCP 工具 kanyu_render_symbolize 独立存在 | **合并** | 符号化并入 kanyu_render_map 的 style 参数（graduated/categorical 规则） | 避免两个工具做同一件事的冗余面；无 style 调用行为不变，向后兼容 |
 | 18 | DWG 读取 = LibreDWG 编译 WASM 沙箱（裁决 #7 路线） | **改道** | **首选 acadrust 0.4（纯 Rust、MPL-2.0、R13–R2018 读写）原生进内核**（driver: acadrust，只读起步）；LibreDWG-wasm 降为备选（覆盖率不足时启用，GPL 制品独立可选分发） | 2026-08-03 调研：① @mlightcad/libredwg-web 为 emscripten 模块，wasmtime 跑不了；② LibreDWG→wasi-sdk 无人做过，autoconf 交叉编译中偏大工作量且 GPL 分发受限；③ acadrust 纯 Rust 内存安全（沙箱隔离的理由从"GPL+CVE"消失）、MPL-2.0 文件级弱 copyleft 与双许可兼容、已有 dwgdxf npm 包的 WASM 实证。风险：0.4.x 年轻、真实图纸覆盖率待实测——以 421 个真实 DWG 样本 spike 验证后再定稿 |
 | 19 | 内存/存档模型沿用 GeoArrow 名称与外部格式 | **升级** | **命名定版为堪舆数据库（KanyuDB，KDB）**：内存形态 GeoArrow 兼容（WKB+`geoarrow.wkb`+类型化列）；新增自研存档格式 **.kdb**（Arrow IPC + `kanyu.*` 元数据，类型保真，任何 Arrow 工具链可读）与工程格式 **.kyu**（JSON 清单：图层引用+视口+地图色彩+可见性） | GeoArrow 是事实标准布局（继续兼容互操作），但产品级需要一个可命名的数据库与工程格式闭环：KDB 与内存模型同构零转换，KYU 让"工作现场"可存档可分享；转换经既有 export 矩阵，无新增依赖面 |
+| 20 | 脚本层仅 pybind11/PyO3 远期设想 | **定版落地** | **kanyu-py（PyO3 扩展模块）+ ArcGIS .pyt 式 Python 工具箱**：GeoJSON 文本为跨语言契约；`kanyu toolbox list/run` 经 JSON over stdout 驱动用户 .py 工具箱 | 核心算法全部 Rust 实现保性能与正确性；Python 负责编排与行业工具编写（规划/测绘工具箱生态）；"属性面积图"等业务工具由 Python 快速迭代而内核稳定 |
 
 ### 6.2 竞品格局与差异化定位（调研摘要）
 
@@ -1144,6 +1145,9 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] sjoin 空间连接 + zonal_stats 分区统计（2026-08-02）。
 - [x] MCP streamable HTTP 传输（远程 AI 代理接入，2026-08-02）。
 - [x] MCP tasks 长任务（SEP-2663 协议级任务：白名单分析工具 `"task": true` 异步化，rmcp TaskManager；2026-08-02）。
+- [x] **QGIS 核心算法移植**（geoprocess 模块：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats（亩/公顷），语义对齐 QGIS Processing，2026-08-03）。
+- [x] **宗地 TXT 格式**（移植自堪舆工具箱 txt_feature.py：双段解析/校验/写出/质检；简单点表回退；注册表第 19 格式，2026-08-03）。
+- [x] **kanyu-py + Python 工具箱**（裁决 #20：PyO3 扩展模块全量暴露内核；ArcGIS .pyt 式 Toolbox/Tool/Param 约定，`kanyu toolbox list/run` 驱动，2026-08-03）。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）
 
