@@ -31,7 +31,9 @@ pub enum ParamKind {
     Layer,
     /// 数值（f64 文本输入）。
     Number,
-    /// 自由文本（路径、CRS、逗号清单等）。
+    /// 数值列表（逗号分隔，如多环距离）。
+    NumberList,
+    /// 自由文本（路径、CRS、范围四数、逗号清单等）。
     Text,
     /// 字段名：选项取自第 N 个 Layer 参数（params 下标）所选图层的字段。
     Field(usize),
@@ -277,6 +279,62 @@ pub const TOOLS: &[ToolDef] = &[
         ],
         false,
     ),
+    tool(
+        "distance_matrix",
+        "距离矩阵",
+        ToolCategory::Analysis,
+        "两图层代表点逐对测地线距离（米，矩阵输出终端）",
+        &[
+            param("layer", "图层 A", ParamKind::Layer, true, "", ""),
+            param("layer2", "图层 B", ParamKind::Layer, true, "", ""),
+        ],
+        true,
+    ),
+    tool(
+        "nearest_neighbor",
+        "最近邻分析",
+        ToolCategory::Analysis,
+        "点集最近邻指数（<1 聚集 / ≈1 随机 / >1 离散，输出终端）",
+        &[param("layer", "输入图层", ParamKind::Layer, true, "", "")],
+        true,
+    ),
+    tool(
+        "multi_ring_buffer",
+        "多环缓冲区",
+        ToolCategory::Analysis,
+        "按距离列表生成多环缓冲（环带 RING/DISTANCE 属性）",
+        &[
+            param("layer", "输入图层", ParamKind::Layer, true, "", ""),
+            param(
+                "distances",
+                "距离列表",
+                ParamKind::NumberList,
+                true,
+                "逗号分隔，严格递增非负，如 100,200,300",
+                "",
+            ),
+        ],
+        false,
+    ),
+    tool(
+        "variable_buffer",
+        "按字段缓冲区",
+        ToolCategory::Analysis,
+        "缓冲距离取数值字段（逐要素变距）",
+        &[
+            param("layer", "输入图层", ParamKind::Layer, true, "", ""),
+            param("field", "距离字段", ParamKind::Field(0), true, "", ""),
+            param(
+                "segments",
+                "圆弧分段数",
+                ParamKind::Number,
+                true,
+                "≥1",
+                "16",
+            ),
+        ],
+        false,
+    ),
     // —— 矢量几何 ——
     tool(
         "dissolve",
@@ -366,6 +424,43 @@ pub const TOOLS: &[ToolDef] = &[
         false,
     ),
     tool(
+        "points_along_lines",
+        "沿线等距点",
+        ToolCategory::Geometry,
+        "沿折线按测地线间距生成里程点（DISTANCE 属性，米）",
+        &[
+            param("layer", "输入图层", ParamKind::Layer, true, "", ""),
+            param("distance", "间距（米）", ParamKind::Number, true, ">0", ""),
+        ],
+        false,
+    ),
+    tool(
+        "concave_hull",
+        "凹包",
+        ToolCategory::Geometry,
+        "整层要素的凹包（单面）",
+        &[
+            param("layer", "输入图层", ParamKind::Layer, true, "", ""),
+            param(
+                "concavity",
+                "凹度",
+                ParamKind::Number,
+                true,
+                ">0，越大越凹",
+                "2.0",
+            ),
+        ],
+        false,
+    ),
+    tool(
+        "minimum_rotated_rect",
+        "定向最小包络矩形",
+        ToolCategory::Geometry,
+        "逐要素最小旋转外接矩形（面图层）",
+        &[param("layer", "输入图层", ParamKind::Layer, true, "", "")],
+        false,
+    ),
+    tool(
         "topology_check",
         "拓扑检查",
         ToolCategory::Geometry,
@@ -438,6 +533,51 @@ pub const TOOLS: &[ToolDef] = &[
         &[
             param("layer", "图层 A", ParamKind::Layer, true, "", ""),
             param("layer2", "图层 B", ParamKind::Layer, true, "", ""),
+        ],
+        false,
+    ),
+    tool(
+        "split_by_field",
+        "分割矢量图层",
+        ToolCategory::DataManagement,
+        "按字段值拆分为多图层（每组一个，split_源图层_组值）",
+        &[
+            param("layer", "输入图层", ParamKind::Layer, true, "", ""),
+            param("field", "分组字段", ParamKind::Field(0), true, "", ""),
+        ],
+        false,
+    ),
+    tool(
+        "add_geometry_attributes",
+        "添加几何属性",
+        ToolCategory::DataManagement,
+        "追加几何量属性列（AREA_M2/PERIMETER_M/LENGTH_M，测地口径）",
+        &[param("layer", "输入图层", ParamKind::Layer, true, "", "")],
+        false,
+    ),
+    tool(
+        "create_grid",
+        "创建网格",
+        ToolCategory::DataManagement,
+        "按范围与格距生成规则格网（ROW/COL 属性）",
+        &[
+            // 范围默认取当前数据范围（app 打开对话框时填入，可改）。
+            param(
+                "extent",
+                "范围",
+                ParamKind::Text,
+                true,
+                "minx,miny,maxx,maxy（默认已填当前数据范围）",
+                "",
+            ),
+            param(
+                "cell_size",
+                "格距",
+                ParamKind::Number,
+                true,
+                "CRS 单位，>0",
+                "",
+            ),
         ],
         false,
     ),
@@ -570,6 +710,9 @@ pub fn validate(def: &ToolDef, values: &[String]) -> Result<(), String> {
                     return Err(format!("「{}」须为数值: {v}", p.label));
                 }
             }
+            ParamKind::NumberList => {
+                parse_number_list(v).map_err(|e| format!("「{}」{e}", p.label))?;
+            }
             ParamKind::Enum(options) if !options.iter().any(|(_, label)| *label == v) => {
                 return Err(format!("「{}」取值非法: {v}", p.label));
             }
@@ -605,6 +748,68 @@ fn enum_value(def: &ToolDef, values: &[String], key: &str) -> String {
         .unwrap_or(label)
 }
 
+// ===== 纯解析/校验辅助（注册表参数 → 内核入参）=====
+
+/// 解析数值列表（逗号分隔）：非空、全部有限、非负、严格递增（多环缓冲语义）。
+pub fn parse_number_list(raw: &str) -> Result<Vec<f64>, String> {
+    let mut out = Vec::new();
+    for part in raw.split(',') {
+        let part = part.trim();
+        let v: f64 = part
+            .parse::<f64>()
+            .ok()
+            .filter(|v| v.is_finite())
+            .ok_or_else(|| format!("须为逗号分隔的数值列表，遇到: '{part}'"))?;
+        if v < 0.0 {
+            return Err(format!("距离须非负: {v}"));
+        }
+        if let Some(&prev) = out.last() {
+            if v <= prev {
+                return Err(format!("距离列表须严格递增: {prev} 之后出现 {v}"));
+            }
+        }
+        out.push(v);
+    }
+    if out.is_empty() {
+        return Err("距离列表不能为空".to_string());
+    }
+    Ok(out)
+}
+
+/// 解析范围四数 "minx,miny,maxx,maxy"（创建网格）。
+pub fn parse_extent(raw: &str) -> Result<[f64; 4], String> {
+    let parts: Vec<&str> = raw.split(',').map(|s| s.trim()).collect();
+    if parts.len() != 4 {
+        return Err(format!("范围须为 minx,miny,maxx,maxy 四个数值: '{raw}'"));
+    }
+    let mut out = [0.0; 4];
+    for (i, p) in parts.iter().enumerate() {
+        out[i] = p
+            .parse::<f64>()
+            .ok()
+            .filter(|v| v.is_finite())
+            .ok_or_else(|| format!("范围第 {} 个数须为数值: '{p}'", i + 1))?;
+    }
+    if out[0] >= out[2] || out[1] >= out[3] {
+        return Err(format!("范围须满足 min<max: '{raw}'"));
+    }
+    Ok(out)
+}
+
+/// 解析"须为正数"的数值参数（凹度/间距/格距等）。
+pub fn parse_positive(raw: &str, label: &str) -> Result<f64, String> {
+    let v: f64 = raw
+        .trim()
+        .parse::<f64>()
+        .ok()
+        .filter(|v| v.is_finite())
+        .ok_or_else(|| format!("{label}须为数值: {raw}"))?;
+    if v <= 0.0 {
+        return Err(format!("{label}须为正数: {v}"));
+    }
+    Ok(v)
+}
+
 // ===== 执行 =====
 
 /// 工具产出（app 结算）。
@@ -614,6 +819,11 @@ pub enum ToolOutcome {
     NewLayer {
         collection: FeatureCollection,
         base: String,
+        verb: String,
+    },
+    /// 多产出新图层（如分割矢量图层：逐组一个，base 已含组值）。
+    NewLayers {
+        layers: Vec<(String, FeatureCollection)>,
         verb: String,
     },
     /// 终端报告（统计/检查类）。
@@ -685,6 +895,39 @@ pub fn run_tool(
             .map_err(|e| e.to_string())?;
             new_layer(c, format!("mean_{src}"))
         }
+        "distance_matrix" => {
+            let m = geoprocess::distance_matrix(&layer("layer")?, &layer("layer2")?)
+                .map_err(|e| e.to_string())?;
+            Ok(ToolOutcome::Report(format!(
+                "距离矩阵 {} × {}（米）:\n{}",
+                value_of(def, values, "layer"),
+                value_of(def, values, "layer2"),
+                serde_json::to_string_pretty(&m).map_err(|e| e.to_string())?
+            )))
+        }
+        "nearest_neighbor" => {
+            let r = geoprocess::nearest_neighbor(&layer("layer")?).map_err(|e| e.to_string())?;
+            Ok(ToolOutcome::Report(format!(
+                "最近邻分析 {src}:\n{}",
+                serde_json::to_string_pretty(&r).map_err(|e| e.to_string())?
+            )))
+        }
+        "multi_ring_buffer" => {
+            let distances = parse_number_list(&value_of(def, values, "distances"))?;
+            let c = geoprocess::multi_ring_buffer(&layer("layer")?, &distances)
+                .map_err(|e| e.to_string())?;
+            new_layer(c, format!("rings_{src}"))
+        }
+        "variable_buffer" => {
+            let segments = parse_positive(&value_of(def, values, "segments"), "圆弧分段数")? as u32;
+            let c = geoprocess::variable_buffer(
+                &layer("layer")?,
+                &value_of(def, values, "field"),
+                segments,
+            )
+            .map_err(|e| e.to_string())?;
+            new_layer(c, format!("vbuf_{src}"))
+        }
         "dissolve" => {
             let f = value_of(def, values, "field");
             let c = geoprocess::dissolve(
@@ -734,6 +977,22 @@ pub fn run_tool(
             let c = geoprocess::bounding_boxes(&layer("layer")?).map_err(|e| e.to_string())?;
             new_layer(c, format!("bbox_{src}"))
         }
+        "points_along_lines" => {
+            let d = parse_positive(&value_of(def, values, "distance"), "间距")?;
+            let c =
+                geoprocess::points_along_lines(&layer("layer")?, d).map_err(|e| e.to_string())?;
+            new_layer(c, format!("pal_{src}"))
+        }
+        "concave_hull" => {
+            let k = parse_positive(&value_of(def, values, "concavity"), "凹度")?;
+            let c = geoprocess::concave_hull(&layer("layer")?, k).map_err(|e| e.to_string())?;
+            new_layer(c, format!("chull_{src}"))
+        }
+        "minimum_rotated_rect" => {
+            let c =
+                geoprocess::minimum_rotated_rect(&layer("layer")?).map_err(|e| e.to_string())?;
+            new_layer(c, format!("mrr_{src}"))
+        }
         "topology_check" => {
             let report =
                 analysis::topology_check(&layer("layer")?, &[analysis::TopologyRule::NoOverlap])
@@ -770,6 +1029,38 @@ pub fn run_tool(
             let (a, b) = (layer("layer")?, layer("layer2")?);
             let c = geoprocess::merge(&[&a, &b]).map_err(|e| e.to_string())?;
             new_layer(c, format!("mrg_{src}"))
+        }
+        "split_by_field" => {
+            let groups =
+                geoprocess::split_by_field(&layer("layer")?, &value_of(def, values, "field"))
+                    .map_err(|e| e.to_string())?;
+            // 多产出：每组一个新图层（split_源图层_组值；空串组用「空值」）。
+            let layers = groups
+                .into_iter()
+                .map(|(g, c)| {
+                    let g = if g.is_empty() {
+                        "空值".to_string()
+                    } else {
+                        g
+                    };
+                    (format!("split_{src}_{g}"), c)
+                })
+                .collect();
+            Ok(ToolOutcome::NewLayers {
+                layers,
+                verb: def.name.to_string(),
+            })
+        }
+        "add_geometry_attributes" => {
+            let c =
+                geoprocess::add_geometry_attributes(&layer("layer")?).map_err(|e| e.to_string())?;
+            new_layer(c, format!("gattr_{src}"))
+        }
+        "create_grid" => {
+            let extent = parse_extent(&value_of(def, values, "extent"))?;
+            let cell = parse_positive(&value_of(def, values, "cell_size"), "格距")?;
+            let c = geoprocess::create_grid(extent, cell).map_err(|e| e.to_string())?;
+            new_layer(c, "grid".to_string())
         }
         "reproject" => {
             let c = crs::reproject(
@@ -883,7 +1174,7 @@ pub fn run_form(
                 let labels: Vec<&str> = options.iter().map(|(_, l)| *l).collect();
                 combo_static(ui, p.label, &mut st.values[i], &labels, true);
             }
-            ParamKind::Number | ParamKind::Text | ParamKind::Expression => {
+            ParamKind::Number | ParamKind::NumberList | ParamKind::Text | ParamKind::Expression => {
                 text_input(ui, p.label, &mut st.values[i], p.hint, true);
             }
         }
@@ -991,9 +1282,10 @@ mod tests {
                 "{} 缺名称/说明",
                 t.id
             );
-            // 图层参数必存在（除导出等也都有输入图层）。
+            // 图层参数必存在（创建网格为无输入图层的生成器，豁免）。
             assert!(
-                t.params.iter().any(|p| matches!(p.kind, ParamKind::Layer)),
+                t.id == "create_grid"
+                    || t.params.iter().any(|p| matches!(p.kind, ParamKind::Layer)),
                 "{} 无输入图层参数",
                 t.id
             );
@@ -1024,11 +1316,13 @@ mod tests {
     /// 工具总数与分类计数（防手滑删工具）。
     #[test]
     fn registry_size() {
-        assert_eq!(TOOLS.len(), 27);
-        for cat in ToolCategory::ALL {
-            let n = TOOLS.iter().filter(|t| t.category == cat).count();
-            assert!(n >= 3, "{:?} 分类工具过少: {n}", cat);
-        }
+        assert_eq!(TOOLS.len(), 37);
+        let count = |c: ToolCategory| TOOLS.iter().filter(|t| t.category == c).count();
+        assert_eq!(count(ToolCategory::Analysis), 12);
+        assert_eq!(count(ToolCategory::Geometry), 12);
+        assert_eq!(count(ToolCategory::Selection), 3);
+        assert_eq!(count(ToolCategory::DataManagement), 6);
+        assert_eq!(count(ToolCategory::Statistics), 4);
     }
 
     /// 校验：必填留空报错。
@@ -1113,6 +1407,69 @@ mod tests {
                 assert_eq!(verb, "质心");
             }
             _ => panic!("centroid 应为新图层"),
+        }
+    }
+
+    /// 纯解析：数值列表（非空/非负/严格递增）。
+    #[test]
+    fn number_list_rules() {
+        assert_eq!(
+            parse_number_list("100, 200,300").unwrap(),
+            vec![100.0, 200.0, 300.0]
+        );
+        assert!(parse_number_list("").is_err()); // 空
+        assert!(parse_number_list("100,abc").is_err()); // 非数值
+        assert!(parse_number_list("100,-5").is_err()); // 负数
+        assert!(parse_number_list("100,100").is_err()); // 非严格递增
+        assert!(parse_number_list("200,100").is_err());
+        // validate 集成：多环缓冲区的距离列表走同一规则。
+        let mrb = find("multi_ring_buffer").unwrap();
+        assert!(validate(mrb, &["a".into(), "1,2,3".into()]).is_ok());
+        assert!(validate(mrb, &["a".into(), "3,2".into()]).is_err());
+    }
+
+    /// 纯解析：范围四数与正数参数。
+    #[test]
+    fn extent_and_positive_rules() {
+        assert_eq!(parse_extent("0,0, 10, 20").unwrap(), [0.0, 0.0, 10.0, 20.0]);
+        assert!(parse_extent("0,0,10").is_err()); // 个数不足
+        assert!(parse_extent("0,0,10,x").is_err()); // 非数值
+        assert!(parse_extent("10,0,0,20").is_err()); // min>=max
+        assert_eq!(parse_positive("2.0", "凹度").unwrap(), 2.0);
+        assert!(parse_positive("0", "凹度").is_err());
+        assert!(parse_positive("-1", "格距").is_err());
+        assert!(parse_positive("abc", "间距").is_err());
+        // run_tool 集成：凹度非正在执行期拦截。
+        let empty = FeatureCollection {
+            bbox: None,
+            features: Vec::new(),
+            foreign_members: None,
+        };
+        let err = run_tool("concave_hull", &["a".into(), "0".into()], |_| {
+            Some(empty.clone())
+        })
+        .unwrap_err();
+        assert!(err.contains("凹度"), "{err}");
+    }
+
+    /// 执行：分割矢量图层走多产出分支；空集合 → 0 组。
+    #[test]
+    fn run_tool_split_multi_output() {
+        let empty = FeatureCollection {
+            bbox: None,
+            features: Vec::new(),
+            foreign_members: None,
+        };
+        let out = run_tool("split_by_field", &["a".into(), "usage".into()], |_| {
+            Some(empty.clone())
+        })
+        .unwrap();
+        match out {
+            ToolOutcome::NewLayers { layers, verb } => {
+                assert!(layers.is_empty());
+                assert_eq!(verb, "分割矢量图层");
+            }
+            _ => panic!("split_by_field 应为多产出"),
         }
     }
 }

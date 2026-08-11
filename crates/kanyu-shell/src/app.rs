@@ -1311,6 +1311,16 @@ impl KanyuApp {
                                 }
                             }
                         }
+                        // 创建网格的范围默认取当前数据范围（可改）。
+                        if def.id == "create_grid" {
+                            for (p, v) in def.params.iter().zip(st.values.iter_mut()) {
+                                if p.key == "extent" && v.is_empty() {
+                                    if let Some(b) = self.data_extent {
+                                        *v = format!("{},{},{},{}", b[0], b[1], b[2], b[3]);
+                                    }
+                                }
+                            }
+                        }
                         self.tool_run = Some(st);
                     }
                 }
@@ -1675,6 +1685,20 @@ impl eframe::App for KanyuApp {
                             verb,
                         }) => {
                             let msg = self.add_result_layer(&base, collection, &verb);
+                            self.status = msg.clone();
+                            self.console.info(msg);
+                        }
+                        Ok(crate::toolbox::ToolOutcome::NewLayers { layers, verb }) => {
+                            // 多产出（分割矢量图层）：逐组登记，终端汇报组数。
+                            let n = layers.len();
+                            let mut last_msg = String::new();
+                            for (base, collection) in layers {
+                                last_msg = self.add_result_layer(&base, collection, &verb);
+                            }
+                            if n > 0 {
+                                self.console.info(last_msg);
+                            }
+                            let msg = format!("{verb}：共 {n} 组");
                             self.status = msg.clone();
                             self.console.info(msg);
                         }

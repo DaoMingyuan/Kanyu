@@ -45,7 +45,7 @@ impl Default for ConsolePanel {
             input: String::new(),
             lines: vec![ConsoleLine {
                 kind: LineKind::Info,
-                text: "堪舆终端 v0.2 —— 输入 help 查看命令；终端与界面共享数据现场。".to_string(),
+                text: "堪舆内置终端 —— 输入 help 查看命令；终端与界面共享数据现场。".to_string(),
             }],
             cmd_history: Vec::new(),
             nav: None,
