@@ -98,6 +98,12 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-11 kimi-code(main) — 长期项四件：kanyu-edit 增量 + 打印布局 + 性能基准 + （前两条已会签）
+- 提交：见本次 commit 组；测试：290 全绿（272→290）+ clippy 零警告 + fmt 净
+- 内容：③ kanyu-edit 新 crate（Undo/Redo 框架 + 五基础编辑命令 + GeomPath 定位，8 单测；introspect/ARCHITECTURE 登记）；④ render::layout 打印布局（A4 排版：标题/地图/图例/比例尺/指北针，SVG 完整文字；壳层布局页签与目录「布局框」兑现，导出 PNG/SVG）+ canvas composite_layers_png 按层合成；⑤ 性能基准（core::bench 确定性场景 + kanyu analysis bench 五项三档，首轮实测入 §8.1：100 万档加载 4.5s/buffer 9.3s/overlay 3.3s/sjoin 1.8s/render 3.8s，Ryzen 9 9950X；overlay 平方项坐实 rstar 路线）
+- 验证：布局页签截图目检（标题/图例/比例尺/指北针齐全）；bench 三档实跑
+- 后续：§9.1 余——壳层编辑模式（kanyu-edit 接线）、服务链接（WFS/WMS）、3D 真管线
+
 ### [收工] 2026-08-11 kimi-code(main) — 长期项两件：MCP 工具面收敛 + UI 状态持久化
 - 提交：见本次 commit 组；测试：272 全绿（mcp 6→9、shell 90→94）+ clippy 零警告 + fmt 净
 - 内容：① MCP 新增 kanyu_toolbox_list/toolbox_run（tooldef 注册表投影 + toolrun 统一执行 + SEP-2663 白名单第 7 席），introspect 登记，MCP.md §3.19/3.20——三面一处声明收敛落地；② uistate.rs：停靠/收藏/最近/缩放/地图色彩/工程坐标系/视图清单落盘 %LOCALAPPDATA%\kanyu\ui-state.json（1s 防抖+on_exit 写盘，坏文件 .bad 备份回退），两轮启动截图实证恢复链路

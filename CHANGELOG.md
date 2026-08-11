@@ -6,6 +6,17 @@
 
 ### 新增
 
+- **编辑内核 kanyu-edit 首个增量**（Phase 3 落地第一步）：Undo/Redo 框架
+  （`EditCommand` apply/revert + 容量栈，命令逆操作语义）+ 基础编辑命令
+  （MoveVertex/MoveFeature/DeleteFeatures/InsertFeature/UpdateProperties，
+  GeomPath 三级定位）。
+- **打印布局 v1**（`render::layout` + 壳层布局页签）：A4 横/纵排版（标题/地图框/
+  图例/比例尺/指北针），SVG 完整文字 + PNG 光栅；目录「布局框」分类兑现
+  （新建/激活/徽标计数），导出 PNG/SVG。
+- **性能基准设施**：`kanyu analysis bench [--size N]`（加载/buffer/overlay/sjoin/
+  render 五项三档计时）+ 确定性场景生成器（`core::bench`，零依赖 xorshift）；
+  首轮三档实测数字入 ARCHITECTURE §8.1（100 万档五项全完成；overlay 平方项坐实，
+  rstar 索引为既定路线）。
 - **MCP 工具面收敛**：新增 `kanyu_toolbox_list` / `kanyu_toolbox_run` 两个 MCP 工具
   （37 工具注册表直接投影 + 统一执行，文件路径图层注入，SEP-2663 长任务白名单接入），
   壳层/MCP/Python 三面共用 `core::tooldef` 一处声明，漂移消除。
