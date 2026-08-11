@@ -84,6 +84,8 @@ pub enum Icon {
     Database,
     /// CAD 图纸 .dwg/.dxf（位图 caddataset32，手绘回退同 Ruler）。
     Cad,
+    /// 工具箱（扳手）。
+    Toolbox,
 }
 
 /// 在 rect 内绘制图标（stroke 1.5px、圆角端点）。
@@ -478,6 +480,18 @@ pub fn draw(painter: &Painter, icon: Icon, rect: Rect, color: Color32) {
         Icon::Project => draw(painter, Icon::Info, rect, color),
         Icon::Database => draw(painter, Icon::Grid, rect, color),
         Icon::Cad => draw(painter, Icon::Ruler, rect, color),
+        Icon::Toolbox => {
+            // 扳手：开口（圆缺右上弧段示意）+ 斜柄。
+            circle(p(x0 + w * 0.34, y0 + h * 0.34), w * 0.17);
+            line(
+                p(x0 + w * 0.47, y0 + h * 0.47),
+                p(x1 - w * 0.12, y1 - h * 0.12),
+            );
+            line(
+                p(x1 - w * 0.12, y1 - h * 0.12),
+                p(x1 - w * 0.05, y1 - h * 0.26),
+            );
+        }
     }
 }
 
@@ -546,6 +560,7 @@ pub fn arcgis_resource_name(icon: Icon) -> &'static str {
         Icon::Project => "mapfile32",
         Icon::Database => "geodatabase32",
         Icon::Cad => "caddataset32",
+        Icon::Toolbox => "geoprocessingtoolboxshow32",
     }
 }
 

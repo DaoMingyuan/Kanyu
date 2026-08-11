@@ -29,6 +29,8 @@ pub struct Palette {
     pub accent_secondary: Color32,
     /// 三强调（琥珀/金珀，选中）。
     pub accent_tertiary: Color32,
+    /// 信息色（蓝灰；几何图例中线要素、信息性标记）。
+    pub info: Color32,
     /// 边框。
     pub border: Color32,
     /// 悬停背景（强调 8–12%）。
@@ -60,6 +62,7 @@ pub fn palette(theme: Theme) -> Palette {
             accent: rgb(0x2D6A5E),
             accent_secondary: rgb(0xC75B3A),
             accent_tertiary: rgb(0xD4A843),
+            info: rgb(0x4A7C9B),
             border: rgb(0xE0DDD8),
             hover: Color32::from_rgba_unmultiplied(0x2D, 0x6A, 0x5E, 20),
             pressed: rgb(0xE8E5E1),
@@ -76,6 +79,7 @@ pub fn palette(theme: Theme) -> Palette {
             accent: rgb(0x4DB8A8),
             accent_secondary: rgb(0xE07A5F),
             accent_tertiary: rgb(0xE9C46A),
+            info: rgb(0x7AA7C7),
             border: rgb(0x2A2F36),
             hover: Color32::from_rgba_unmultiplied(0x4D, 0xB8, 0xA8, 31),
             pressed: rgb(0x2A2F36),

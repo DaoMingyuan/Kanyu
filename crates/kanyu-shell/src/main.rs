@@ -6,8 +6,8 @@
 //!
 //! 用法：
 //! - `kanyu-shell`                     打开窗口（空状态引导）
-//! - `kanyu-shell --load <file>`       启动即加载数据文件
-//! - `kanyu-shell --screenshot <out.png> [--load <file>] [--theme dark] [--delay <秒>]`
+//! - `kanyu-shell --load <file>`       启动即加载数据文件（可多次指定；.kyu 走工程恢复）
+//! - `kanyu-shell --screenshot <out.png> [--load <file>]… [--theme dark] [--delay <秒>]`
 //!   截图验证模式：启动 → 加载 → 渲染 → 保存窗口截图 → 退出
 //!   （走 egui `ViewportCommand::Screenshot` → `Event::Screenshot` 原生管线，
 //!   截取的是真实窗口内容，含 TitleBar / 面板 / 画布 / 状态栏）。
@@ -21,9 +21,13 @@ mod canvas;
 mod catalog;
 mod console;
 mod dialogs;
+mod dock;
 mod panels;
 mod ribbon;
+mod settings;
 mod theme;
+mod toc;
+mod toolbox;
 mod ui_kit;
 mod view;
 
@@ -32,31 +36,40 @@ use kanyu_render::Theme;
 
 /// 命令行参数（截图验证模式 + 常规启动）。
 pub struct ShellArgs {
-    /// 启动即加载的数据文件。
-    pub load: Option<String>,
+    /// 启动即加载的数据文件 / 工程（--load 可多次指定；.kyu 走工程恢复）。
+    pub load: Vec<String>,
     /// 初始主题（默认晨山）。
     pub theme: Theme,
     /// 截图输出路径（Some 即进入截图验证模式）。
     pub screenshot: Option<String>,
     /// 截图前等待秒数（等窗口与纹理就绪）。
     pub delay_secs: f64,
+    /// 隐藏验证参数：预设「右区停靠 + 浮动窗 + 已关闭」的停靠演示布局。
+    pub dock_demo: bool,
+    /// 隐藏验证参数：启动即打开设置对话框（截图验证）。
+    pub open_settings: bool,
+    /// 隐藏验证参数：启动即打开工具箱「缓冲区」参数对话框（截图验证）。
+    pub tool_demo: bool,
 }
 
 impl Default for ShellArgs {
     fn default() -> Self {
         Self {
-            load: None,
+            load: Vec::new(),
             theme: Theme::Light,
             screenshot: None,
             delay_secs: 2.0,
+            dock_demo: false,
+            open_settings: false,
+            tool_demo: false,
         }
     }
 }
 
 fn usage() -> String {
-    "用法: kanyu-shell [--load <数据文件>] [--theme light|dark] \\\n\
+    "用法: kanyu-shell [--load <数据文件|工程.kyu>]…（可多次指定） [--theme light|dark] \\\n\
      \x20             [--screenshot <out.png> [--delay <秒>]]\n\
-     支持格式: shp/geojson/fgb/parquet/dxf/dwg/kml/kmz/csv/tsv/xlsx"
+     支持格式: shp/geojson/fgb/parquet/dxf/dwg/kml/kmz/csv/tsv/xlsx（.kyu 为堪舆工程）"
         .to_string()
 }
 
@@ -67,10 +80,11 @@ fn parse_args() -> ShellArgs {
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--load" => {
-                args.load = Some(it.next().unwrap_or_else(|| {
+                let path = it.next().unwrap_or_else(|| {
                     eprintln!("--load 缺少文件路径\n{}", usage());
                     std::process::exit(2);
-                }));
+                });
+                args.load.push(path);
             }
             "--theme" => {
                 let v = it.next().unwrap_or_else(|| {
@@ -98,6 +112,9 @@ fn parse_args() -> ShellArgs {
                     std::process::exit(2);
                 });
             }
+            "--dock-demo" => args.dock_demo = true,
+            "--open-settings" => args.open_settings = true,
+            "--tool-demo" => args.tool_demo = true,
             "-h" | "--help" => {
                 println!("{}", usage());
                 std::process::exit(0);

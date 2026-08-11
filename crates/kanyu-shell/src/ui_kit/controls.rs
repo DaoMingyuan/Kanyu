@@ -6,7 +6,7 @@
 use eframe::egui;
 use egui::{Response, RichText, Stroke, Vec2};
 
-use super::tokens::{radius, sizes, text};
+use super::tokens::{animation, radius, sizes, spacing, text};
 use crate::theme::{palette, Palette};
 
 /// 按钮变体（对应总规语义色彩）。
@@ -239,10 +239,28 @@ pub fn ribbon_button(
     let rect = resp.rect;
     let color = if enabled { p.text_primary } else { p.text_weak };
 
-    // 图标（上部；位图优先、手绘回退）。
+    // 悬停动画（egui 原生驱动，动画期间自动重绘）：
+    // 背景淡入 hover 底色 + 图标 1.0→HOVER_SCALE 放大并微上移；按下缩至 PRESS_SCALE。
+    let hover_t =
+        ui.ctx()
+            .animate_bool_with_time(resp.id, resp.hovered() && enabled, animation::HOVER_SECS);
+    if hover_t > 0.0 {
+        let bg = p.hover;
+        let bg = egui::Color32::from_rgba_unmultiplied(
+            bg.r(),
+            bg.g(),
+            bg.b(),
+            (f32::from(bg.a()) * hover_t) as u8,
+        );
+        ui.painter().rect_filled(rect, radius::SM, bg);
+    }
+    let scale = animation::icon_scale(hover_t, resp.is_pointer_button_down_on());
+    let lift = animation::icon_lift(hover_t);
+
+    // 图标（上部；位图优先、手绘回退；矩形随动画缩放/上移）。
     let icon_rect = egui::Rect::from_center_size(
-        egui::pos2(rect.center().x, rect.min.y + ICON_TOP + ICON / 2.0),
-        Vec2::splat(ICON),
+        egui::pos2(rect.center().x, rect.min.y + ICON_TOP + ICON / 2.0 - lift),
+        Vec2::splat(ICON * scale),
     );
     super::icons::draw_or_image(ui, cache, icon, icon_rect, color);
     // 标题（底部）。
@@ -373,6 +391,152 @@ pub fn tree_row(
         resp
     });
     (row.inner, toggled)
+}
+
+/// TOC 树行响应（Contents 窗格专用行组件的返回）。
+pub struct TocRowResponse {
+    /// 整行响应（单击选中 / 右键上下文菜单共用此 Response——
+    /// 行内不再叠手写 interact 矩形，避免错位）。
+    pub row: Response,
+    /// 展开箭头被点击。
+    pub toggled: bool,
+    /// 复选框新状态（未变动为 None）。
+    pub checked: Option<bool>,
+}
+
+/// Contents 目录树行（ArcGIS Pro 图层行范式）：
+/// `[缩进参考线] [可见性复选框] [展开箭头/占位] [图标或几何色块] [文本]`。
+///
+/// - 整行一个 Response（先分配行矩形，子控件在其上排布：复选框/箭头
+///   自占点击，其余区域归行响应）；选中底色 = palette.selection，
+///   悬停 = palette.hover；不可见条目文本取弱色。
+/// - `icon` 与 `swatch` 二选一（组行传图标，图层行传几何图例色块）。
+/// - 样式数值为规范常量（与 tree_row 同一缩进/行高标尺）。
+///
+/// ```
+/// let r = toc_row(ui, &mut cache, 0, true, Some(true), Some(Icon::Folder), None, "基底 (3 项)", false, false);
+/// if r.row.clicked() { /* 选中 */ }
+/// r.row.context_menu(|ui| { /* 右键菜单 */ });
+/// ```
+#[allow(clippy::too_many_arguments)]
+pub fn toc_row(
+    ui: &mut egui::Ui,
+    cache: &mut super::icons::IconCache,
+    depth: usize,
+    checked: bool,
+    expanded: Option<bool>,
+    icon: Option<super::icons::Icon>,
+    swatch: Option<egui::Color32>,
+    label: &str,
+    weak: bool,
+    selected: bool,
+) -> TocRowResponse {
+    // 规范常量：与 tree_row 同标尺（每级缩进 14px、箭头槽 16px、图标槽 15px）。
+    const INDENT: f32 = 14.0;
+    const ARROW: f32 = 16.0;
+    const SLOT: f32 = 15.0;
+
+    let p = palette_of(ui);
+    let row_h = sizes::CONTROL_SM;
+    let width = ui.available_width();
+    let (rect, row) = ui.allocate_exact_size(Vec2::new(width, row_h), egui::Sense::click());
+
+    // 行底：选中 > 悬停（先铺底，子控件叠上）。
+    if selected {
+        ui.painter().rect_filled(rect, radius::SM, p.selection);
+    } else if row.hovered() {
+        ui.painter().rect_filled(rect, radius::SM, p.hover);
+    }
+
+    let mut toggled = false;
+    let mut checked_out = None;
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(rect)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+    );
+    let ui = &mut child;
+    ui.add_space(spacing::XS);
+
+    // 缩进参考线（每级 14px + 竖线，与 tree_row 一致）。
+    for _ in 0..depth {
+        let (r, _) = ui.allocate_exact_size(Vec2::new(INDENT, row_h), egui::Sense::hover());
+        ui.painter().line_segment(
+            [
+                egui::pos2(r.center().x, r.min.y),
+                egui::pos2(r.center().x, r.max.y),
+            ],
+            Stroke::new(1.0, p.border),
+        );
+    }
+
+    // 可见性复选框（egui 原生，主题色出自 apply_theme 的 visuals）。
+    let mut c = checked;
+    if ui.checkbox(&mut c, "").changed() {
+        checked_out = Some(c);
+    }
+
+    // 展开箭头（无子节点时占位，保持对齐）。
+    match expanded {
+        Some(is_open) => {
+            let (r, resp) = ui.allocate_exact_size(Vec2::new(ARROW, row_h), egui::Sense::click());
+            let cy = r.center().y;
+            let cx = r.center().x;
+            let pts = if is_open {
+                vec![
+                    egui::pos2(cx - 4.0, cy - 2.0),
+                    egui::pos2(cx + 4.0, cy - 2.0),
+                    egui::pos2(cx, cy + 4.0),
+                ]
+            } else {
+                vec![
+                    egui::pos2(cx - 2.0, cy - 4.0),
+                    egui::pos2(cx + 4.0, cy),
+                    egui::pos2(cx - 2.0, cy + 4.0),
+                ]
+            };
+            ui.painter()
+                .add(egui::Shape::convex_polygon(pts, p.text_weak, Stroke::NONE));
+            if resp.clicked() {
+                toggled = true;
+            }
+        }
+        None => {
+            ui.allocate_exact_size(Vec2::new(ARROW, row_h), egui::Sense::hover());
+        }
+    }
+
+    // 图标（组）或几何图例色块（图层）。
+    let (slot, _) = ui.allocate_exact_size(Vec2::new(SLOT, row_h), egui::Sense::hover());
+    if let Some(ic) = icon {
+        let icon_rect = egui::Rect::from_center_size(slot.center(), Vec2::splat(SLOT));
+        super::icons::draw_or_image(ui, cache, ic, icon_rect, p.accent);
+    } else if let Some(color) = swatch {
+        let sw = egui::Rect::from_center_size(slot.center(), Vec2::splat(10.0));
+        ui.painter().rect_filled(sw, 2.0, color);
+        ui.painter().rect_stroke(
+            sw,
+            2.0,
+            Stroke::new(0.5, p.border),
+            egui::StrokeKind::Middle,
+        );
+    }
+    ui.add_space(spacing::XS);
+
+    // 文本（弱色 = 不可见；选中加粗）。Label 默认不吞点击，
+    // 点击穿透到行响应（整行选中/右键统一由 row 承担）。
+    let color = if weak { p.text_weak } else { p.text_primary };
+    let mut t = text::body(label).color(color);
+    if selected {
+        t = t.strong();
+    }
+    ui.add(egui::Label::new(t).selectable(false));
+
+    TocRowResponse {
+        row,
+        toggled,
+        checked: checked_out,
+    }
 }
 
 /// 密码输入（API Key 掩码）。

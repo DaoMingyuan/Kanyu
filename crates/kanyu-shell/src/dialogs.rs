@@ -5,8 +5,7 @@
 use eframe::egui;
 
 use crate::ui_kit::{
-    combo_static, dialog_shell, error_caption, hint_caption, layer_picker, text_area, text_input,
-    DialogAction,
+    combo_static, dialog_shell, error_caption, hint_caption, layer_picker, text_input, DialogAction,
 };
 
 /// 对话框集合（任一时刻至多一个活动）。
@@ -28,8 +27,6 @@ pub struct Dialogs {
     pub zonal: Option<ZonalState>,
     /// 测地度量。
     pub measure: Option<MeasureState>,
-    /// 渲染设置。
-    pub render_settings: Option<RenderSettingsState>,
     /// 地图导出。
     pub export_map: Option<ExportMapState>,
     /// 运行技能。
@@ -120,26 +117,6 @@ pub struct MeasureState {
     pub kind: String,
 }
 
-/// 渲染设置表单。
-pub struct RenderSettingsState {
-    /// 输出宽（像素）。
-    pub width: String,
-    /// 输出高（像素）。
-    pub height: String,
-    /// 符号化样式 JSON（可空）。
-    pub style: String,
-}
-
-impl Default for RenderSettingsState {
-    fn default() -> Self {
-        Self {
-            width: "1200".into(),
-            height: "800".into(),
-            style: String::new(),
-        }
-    }
-}
-
 /// 地图导出表单。
 #[derive(Default)]
 pub struct ExportMapState {
@@ -196,12 +173,6 @@ pub enum DialogResult {
     },
     /// 测地度量。
     Measure { layer: String, kind: String },
-    /// 渲染设置（地图导出用）。
-    RenderSettings {
-        width: u32,
-        height: u32,
-        style: String,
-    },
     /// 地图导出。
     ExportMap { out: String },
     /// 运行技能。
@@ -410,48 +381,10 @@ impl Dialogs {
             }
         }
 
-        if let Some(st) = &mut self.render_settings {
-            match dialog_shell(ctx, "渲染设置（地图导出用）", |ui| {
-                text_input(ui, "宽度 px", &mut st.width, "64–8192", true);
-                text_input(ui, "高度 px", &mut st.height, "64–8192", true);
-                ui.label(crate::ui_kit::text::body("符号化样式 JSON（可空）："));
-                text_area(
-                    ui,
-                    &mut st.style,
-                    4,
-                    r##"{"type":"graduated","field":"height","stops":[[0,"#2D6A5E"],[50,"#D4A843"]]}"##,
-                    true,
-                );
-            }) {
-                DialogAction::Ok => {
-                    let w = st
-                        .width
-                        .trim()
-                        .parse::<u32>()
-                        .unwrap_or(1200)
-                        .clamp(64, 8192);
-                    let h = st
-                        .height
-                        .trim()
-                        .parse::<u32>()
-                        .unwrap_or(800)
-                        .clamp(64, 8192);
-                    result = Some(DialogResult::RenderSettings {
-                        width: w,
-                        height: h,
-                        style: st.style.clone(),
-                    });
-                    self.render_settings = None;
-                }
-                DialogAction::Cancel => self.render_settings = None,
-                DialogAction::None => {}
-            }
-        }
-
         if let Some(st) = &mut self.export_map {
             match dialog_shell(ctx, "导出地图", |ui| {
                 text_input(ui, "输出路径", &mut st.out, "如 map.png 或 map.svg", true);
-                hint_caption(ui, "范围 = 当前视图；尺寸/样式取「渲染设置」");
+                hint_caption(ui, "范围 = 当前视图；尺寸/样式取「设置 → 渲染」");
             }) {
                 DialogAction::Ok => {
                     result = Some(DialogResult::ExportMap {

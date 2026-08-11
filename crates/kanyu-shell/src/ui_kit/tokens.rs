@@ -49,6 +49,63 @@ pub mod sizes {
     pub const CONSOLE_H: f32 = 180.0;
 }
 
+/// 动画参数（egui 原生 `animate_*` 驱动；图标/下划线过渡的唯一事实来源）。
+pub mod animation {
+    /// 悬停/选中过渡时长（秒）。
+    pub const HOVER_SECS: f32 = 0.12;
+    /// 悬停图标放大倍率。
+    pub const HOVER_SCALE: f32 = 1.12;
+    /// 悬停图标上移量（px，≤1px 微位移）。
+    pub const HOVER_LIFT: f32 = 1.0;
+    /// 按下图标缩小倍率。
+    pub const PRESS_SCALE: f32 = 0.92;
+
+    /// 图标动画缩放（纯函数）：悬停插值放大（hover_t∈[0,1]，越界钳制），
+    /// 按下优先缩至 [`PRESS_SCALE`]。
+    pub fn icon_scale(hover_t: f32, pressed: bool) -> f32 {
+        if pressed {
+            return PRESS_SCALE;
+        }
+        1.0 + (HOVER_SCALE - 1.0) * hover_t.clamp(0.0, 1.0)
+    }
+
+    /// 图标动画上移量（px，随 hover_t 插值，钳制）。
+    pub fn icon_lift(hover_t: f32) -> f32 {
+        HOVER_LIFT * hover_t.clamp(0.0, 1.0)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn constants_are_sane() {
+            const {
+                assert!(HOVER_SECS > 0.0 && HOVER_SECS <= 0.5);
+                assert!(HOVER_SCALE > 1.0 && HOVER_SCALE <= 1.25);
+                assert!(PRESS_SCALE < 1.0 && PRESS_SCALE >= 0.8);
+                assert!(HOVER_LIFT <= 1.0 && HOVER_LIFT >= 0.0);
+            }
+        }
+
+        #[test]
+        fn icon_scale_clamps_and_press_wins() {
+            assert_eq!(icon_scale(0.0, false), 1.0);
+            assert_eq!(icon_scale(1.0, false), HOVER_SCALE);
+            assert_eq!(icon_scale(2.5, false), HOVER_SCALE); // 越界钳制
+            assert_eq!(icon_scale(-1.0, false), 1.0);
+            assert_eq!(icon_scale(0.5, true), PRESS_SCALE); // 按下优先
+        }
+
+        #[test]
+        fn icon_lift_clamps() {
+            assert_eq!(icon_lift(0.0), 0.0);
+            assert_eq!(icon_lift(1.0), HOVER_LIFT);
+            assert_eq!(icon_lift(9.0), HOVER_LIFT);
+        }
+    }
+}
+
 /// 文本分级（Apple HIG 字号层级适配桌面端：Large Title 28 / Title2 22 /
 /// Headline 17sb / Subhead 15 / Footnote 13 / Caption2 11 / 数据等宽 12；
 /// 行内引用 HIG Type Scale，比例关系与 iOS 一致，绝对值按桌面密度下调）。

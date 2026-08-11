@@ -7,6 +7,7 @@
 use eframe::egui;
 use egui::{RichText, Vec2};
 
+use crate::dock::PanelId;
 use crate::ui_kit::icons::Icon;
 use crate::ui_kit::{ribbon_button, text};
 
@@ -94,8 +95,6 @@ pub enum RibbonAction {
     /// 测地线度量对话框。
     MeasureDialog,
     // 制图
-    /// 渲染设置对话框。
-    RenderSettingsDialog,
     /// 地图导出对话框。
     ExportMapDialog,
     // 视图
@@ -103,10 +102,10 @@ pub enum RibbonAction {
     ZoomToFit,
     /// 复位视图。
     ResetView,
-    /// 图层面板显隐。
-    ToggleLayersPanel,
-    /// 底部停靠区显隐。
-    ToggleConsole,
+    /// 面板开关（目录/图层/终端/AI 对话；关闭后可经此重开）。
+    TogglePanel(PanelId),
+    /// 打开设置对话框（坐标系 / 渲染）。
+    SettingsDialog,
     /// 地图色彩模式循环（固定晨山 → 固定夜观星 → 跟随界面）。
     CycleMapTheme,
     // 技能
@@ -174,6 +173,7 @@ fn groups_of(tab: RibbonTab) -> Vec<Group> {
                 buttons: vec![
                     btn(Icon::Camera, "保存截图", RibbonAction::SaveScreenshot, "窗口截图", "把当前整个窗口保存为 PNG（含 Ribbon 与面板）"),
                     btn(Icon::Sun, "切换主题", RibbonAction::ToggleTheme, "切换界面主题", "晨山 / 夜观星；只改变界面，不改变地图色彩（见「视图 → 地图色彩」）"),
+                    btn(Icon::Settings, "设置…", RibbonAction::SettingsDialog, "设置", "工程坐标系选择与渲染设置（独立设置对话框，不占功能区）"),
                 ],
             },
             Group {
@@ -218,8 +218,7 @@ fn groups_of(tab: RibbonTab) -> Vec<Group> {
         RibbonTab::Cartography => vec![Group {
             name: "地图输出",
             buttons: vec![
-                btn(Icon::Image, "渲染设置…", RibbonAction::RenderSettingsDialog, "渲染设置", "输出尺寸与符号化样式（graduated/categorical JSON）"),
-                btn(Icon::Export, "导出地图…", RibbonAction::ExportMapDialog, "导出地图", "当前视图导出为 PNG / SVG（色彩由「视图 → 地图色彩」决定，与界面主题无关）"),
+                btn(Icon::Export, "导出地图…", RibbonAction::ExportMapDialog, "导出地图", "当前视图导出为 PNG / SVG（尺寸/样式在「设置 → 渲染」，色彩由「视图 → 地图色彩」决定）"),
             ],
         }],
         RibbonTab::View => vec![
@@ -233,8 +232,11 @@ fn groups_of(tab: RibbonTab) -> Vec<Group> {
             Group {
                 name: "面板",
                 buttons: vec![
-                    btn(Icon::PanelLeft, "图层面板", RibbonAction::ToggleLayersPanel, "左侧停靠区显隐", "目录 / 图层 双页签"),
-                    btn(Icon::PanelBottom, "终端面板", RibbonAction::ToggleConsole, "底部停靠区显隐", "终端 / AI 对话 双页签"),
+                    btn(Icon::Folder, "目录", RibbonAction::TogglePanel(PanelId::Catalog), "目录面板", "显示/关闭目录面板（页签可拖动改停靠、拖到画布变浮动窗）"),
+                    btn(Icon::Layers, "图层", RibbonAction::TogglePanel(PanelId::Layers), "图层面板", "显示/关闭图层面板（Contents 目录树）"),
+                    btn(Icon::Toolbox, "工具箱", RibbonAction::TogglePanel(PanelId::Toolbox), "工具箱面板", "显示/关闭工具箱面板（QGIS Processing 式算法清单）"),
+                    btn(Icon::PanelBottom, "终端", RibbonAction::TogglePanel(PanelId::Console), "终端面板", "显示/关闭终端面板（命令直达内核）"),
+                    btn(Icon::Chat, "AI 对话", RibbonAction::TogglePanel(PanelId::AiChat), "AI 对话面板", "显示/关闭 AI 对话面板（自然语言驱动分析）"),
                 ],
             },
             Group {
@@ -325,6 +327,10 @@ impl Ribbon {
                 {
                     action = Some(RibbonAction::ToggleTheme);
                 }
+                if qat_button(ui, cache, Icon::Settings, "设置（坐标系 / 渲染）").clicked()
+                {
+                    action = Some(RibbonAction::SettingsDialog);
+                }
             });
         });
         ui.add_space(2.0);
@@ -341,15 +347,23 @@ impl Ribbon {
                     text::body(tab.label())
                 };
                 let resp = ui.selectable_label(selected, t);
-                if selected {
+                // 选中下划线：淡入 + 宽度滑动（egui 原生动画驱动）。
+                let line_t = ui.ctx().animate_bool_with_time(
+                    resp.id.with("tab_underline"),
+                    selected,
+                    crate::ui_kit::tokens::animation::HOVER_SECS,
+                );
+                if line_t > 0.0 {
                     let rect = resp.rect;
                     let y = rect.max.y + 1.0;
+                    let half = (rect.width() - 8.0) / 2.0 * line_t;
+                    let accent = crate::theme::palette(theme_of(ui)).accent;
                     ui.painter().line_segment(
                         [
-                            egui::pos2(rect.min.x + 4.0, y),
-                            egui::pos2(rect.max.x - 4.0, y),
+                            egui::pos2(rect.center().x - half, y),
+                            egui::pos2(rect.center().x + half, y),
                         ],
-                        egui::Stroke::new(2.0, crate::theme::palette(theme_of(ui)).accent),
+                        egui::Stroke::new(2.0, accent.gamma_multiply(line_t.clamp(0.0, 1.0))),
                     );
                 }
                 if resp.clicked() {
@@ -416,13 +430,14 @@ impl Ribbon {
     }
 }
 
-/// QAT 小图标按钮（20px，悬停提示）。
+/// QAT 小图标按钮（20px，悬停提示；悬停背景淡入 + 图标动画，与 ribbon_button 同一参数）。
 fn qat_button(
     ui: &mut egui::Ui,
     cache: &mut crate::ui_kit::icons::IconCache,
     icon: Icon,
     tip: &str,
 ) -> egui::Response {
+    let p = crate::theme::palette(theme_of(ui));
     let resp = ui.add(
         egui::Button::new("")
             .fill(egui::Color32::TRANSPARENT)
@@ -430,7 +445,30 @@ fn qat_button(
             .corner_radius(crate::ui_kit::tokens::radius::SM)
             .min_size(Vec2::new(22.0, 20.0)),
     );
-    icons_draw(ui, cache, icon, resp.rect.shrink(3.0));
+    let hover_t = ui.ctx().animate_bool_with_time(
+        resp.id,
+        resp.hovered(),
+        crate::ui_kit::tokens::animation::HOVER_SECS,
+    );
+    if hover_t > 0.0 {
+        let bg = p.hover;
+        let bg = egui::Color32::from_rgba_unmultiplied(
+            bg.r(),
+            bg.g(),
+            bg.b(),
+            (f32::from(bg.a()) * hover_t) as u8,
+        );
+        ui.painter()
+            .rect_filled(resp.rect, crate::ui_kit::tokens::radius::SM, bg);
+    }
+    let scale =
+        crate::ui_kit::tokens::animation::icon_scale(hover_t, resp.is_pointer_button_down_on());
+    let lift = crate::ui_kit::tokens::animation::icon_lift(hover_t);
+    let icon_rect = egui::Rect::from_center_size(
+        egui::pos2(resp.rect.center().x, resp.rect.center().y - lift),
+        Vec2::splat(16.0 * scale),
+    );
+    icons_draw(ui, cache, icon, icon_rect);
     resp.on_hover_text(tip)
 }
 

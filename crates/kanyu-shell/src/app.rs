@@ -28,6 +28,7 @@ use crate::console::{ConsoleHost, ConsolePanel, HELP_TEXT};
 use crate::dialogs::{DialogResult, Dialogs};
 use crate::panels::{self, LayerView, PanelAction, SkillView};
 use crate::ribbon::{Ribbon, RibbonAction};
+use crate::toc::{self, TocNode};
 use crate::ui_kit::sizes;
 use crate::view::{self, BBox};
 use crate::ShellArgs;
@@ -103,11 +104,41 @@ struct ScreenshotState {
     requested: bool,
 }
 
+/// 重命名/新建组 模态对话框的目标（目录树右键「重命名…」「新建组…」）。
+enum RenameTarget {
+    /// 重命名图层（改显示名 file_name；id 不动——id 是树节点与操作的稳定身份）。
+    Layer(String),
+    /// 重命名组（值为组路径）。
+    Group(String),
+    /// 「移至分组 ▸ 新建组…」：建新组并把该图层移入（值为图层 id）。
+    NewGroupForLayer(String),
+}
+
+/// 重命名/新建组 模态对话框状态（ui_kit::dialog_shell 采集）。
+struct RenameState {
+    target: RenameTarget,
+    /// 名称输入框当前值。
+    name: String,
+}
+
+/// 停靠编排输出（各停靠区/浮动窗内容渲染产生的动作，统一在布局后结算）。
+#[derive(Default)]
+struct DockOutputs {
+    catalog: Vec<crate::catalog::CatalogAction>,
+    panel: Vec<PanelAction>,
+}
+
 /// 堪舆桌面壳层应用。
 pub struct KanyuApp {
     layers: Vec<LayerEntry>,
+    /// 目录树（Contents 窗格模型；节点以图层 id 引用 layers，见 toc.rs 约定）。
+    toc: Vec<TocNode>,
     /// 属性面板选中的图层索引。
     selected: Option<usize>,
+    /// 目录树选中的组路径（与 selected 互斥：点图层清组选，点组清图层选）。
+    selected_group: Option<String>,
+    /// 重命名/新建组 模态对话框状态。
+    rename: Option<RenameState>,
     theme: Theme,
     ribbon: Ribbon,
     console: ConsolePanel,
@@ -123,22 +154,26 @@ pub struct KanyuApp {
     /// 可见图层合并缓存（仅在加载/可见性/增删时重建，平移缩放不重建）。
     merged: FeatureCollection,
     data_extent: Option<BBox>,
-    /// 地图导出设置（渲染设置对话框采集）。
+    /// 地图导出设置（渲染设置对话框采集 → 现由「设置 → 渲染」编辑）。
     map_export_size: (u32, u32),
     map_export_style: Option<StyleRule>,
+    /// 工程坐标系（保存进 .kyu；投影变换默认目标；状态栏显示）。
+    project_crs: String,
+    /// 工具箱面板状态。
+    toolbox: crate::toolbox::ToolboxPanel,
+    /// 工具箱参数对话框状态。
+    tool_run: Option<crate::toolbox::ToolRunState>,
+    /// 设置对话框状态（坐标系/渲染）。
+    settings: Option<crate::settings::SettingsDialog>,
     error_msg: Option<String>,
     status: String,
     mouse_data: Option<(f64, f64)>,
-    show_layers_panel: bool,
-    show_console: bool,
-    /// 左侧停靠区当前页签（目录 | 图层）。
-    left_tab: panels::LeftTab,
+    /// 停靠布局状态（每面板所在区/浮动/关闭 + 页签 + 拖拽中）。
+    dock: crate::dock::DockState,
     /// 目录面板（Catalog 文件浏览）。
     catalog: crate::catalog::CatalogPanel,
-    /// 图层筛选框（QGIS 图层面板工具栏）。
+    /// 图层筛选框（图层面板工具栏）。
     layer_filter: String,
-    /// 底部停靠区当前页签（终端 | AI 对话）。
-    dock_tab: panels::DockTab,
     /// AI 对话面板。
     ai_chat: crate::ai::AiChatPanel,
     /// 地图色彩模式（默认固定晨山）。
@@ -166,7 +201,10 @@ impl KanyuApp {
         });
         let mut app = Self {
             layers: Vec::new(),
+            toc: Vec::new(),
             selected: None,
+            selected_group: None,
+            rename: None,
             theme: args.theme,
             ribbon: Ribbon::default(),
             console: ConsolePanel::default(),
@@ -185,15 +223,16 @@ impl KanyuApp {
             data_extent: None,
             map_export_size: (1200, 800),
             map_export_style: None,
+            project_crs: "EPSG:4326".to_string(),
+            toolbox: crate::toolbox::ToolboxPanel::default(),
+            tool_run: None,
+            settings: None,
             error_msg: None,
             status: "就绪".to_string(),
             mouse_data: None,
-            show_layers_panel: true,
-            show_console: true,
-            left_tab: panels::LeftTab::Catalog,
+            dock: crate::dock::DockState::default(),
             catalog: crate::catalog::CatalogPanel::default(),
             layer_filter: String::new(),
-            dock_tab: panels::DockTab::Console,
             ai_chat: crate::ai::AiChatPanel::default(),
             map_theme_mode: MapThemeMode::FixedLight,
             pending_window_shot: None,
@@ -202,8 +241,35 @@ impl KanyuApp {
             fit_extent: None,
             icon_cache: crate::ui_kit::icons::IconCache::default(),
         };
-        if let Some(path) = &args.load {
-            app.open_file(Path::new(path));
+        // --dock-demo（隐藏验证参数）：预设「右区停靠 + 浮动窗 + 已关闭」布局。
+        if args.dock_demo {
+            use crate::dock::{DockZone, PanelId};
+            app.dock.dock_to(PanelId::Toolbox, DockZone::Right);
+            app.dock.dock_to(PanelId::AiChat, DockZone::Right);
+            app.dock.set_active(DockZone::Right, PanelId::Toolbox);
+            app.dock.float(PanelId::Console);
+            app.dock.close_panel(PanelId::Catalog);
+        }
+        // --open-settings / --tool-demo（隐藏验证参数）：预设对话框打开态。
+        if args.open_settings {
+            app.open_settings();
+        }
+        if args.tool_demo {
+            if let Some(def) = crate::toolbox::find("buffer") {
+                app.tool_run = Some(crate::toolbox::ToolRunState::new(def));
+            }
+        }
+        // --load 可多次指定；.kyu 走工程恢复，其余走数据加载。
+        for path in &args.load {
+            let p = Path::new(path);
+            if p.extension()
+                .map(|e| e.eq_ignore_ascii_case("kyu"))
+                .unwrap_or(false)
+            {
+                app.open_project(p);
+            } else {
+                app.open_file(p);
+            }
         }
         app
     }
@@ -244,6 +310,7 @@ impl KanyuApp {
                 );
                 self.status = msg.clone();
                 self.console.info(msg);
+                let id = layer.id().to_string();
                 self.layers.push(LayerEntry {
                     layer,
                     summary,
@@ -252,6 +319,8 @@ impl KanyuApp {
                     expanded: false,
                     source_path: Some(path_str.to_string()),
                 });
+                // 新图层插入目录树顶（ArcGIS 约定：最新加载在最上方/最上层）。
+                toc::insert_layer_top(&mut self.toc, &id);
                 self.selected = Some(self.layers.len() - 1);
                 self.rebuild_merged();
                 self.needs_fit = true;
@@ -283,6 +352,8 @@ impl KanyuApp {
             expanded: false,
             source_path: None,
         });
+        // 结果图层同样插入目录树顶。
+        toc::insert_layer_top(&mut self.toc, &id);
         self.selected = Some(self.layers.len() - 1);
         self.rebuild_merged();
         let msg = format!("{verb} → 新图层 {id}（{n} 要素）");
@@ -290,12 +361,30 @@ impl KanyuApp {
         msg
     }
 
-    /// 重建可见图层合并缓存与数据范围。
+    /// 重建有效可见图层合并缓存与数据范围。
+    ///
+    /// 约定（见 toc.rs）：
+    /// - **有效可见性** = 图层自身 visible 且所有祖先组 visible；
+    /// - **渲染顺序** = 目录树自下而上——树底图层先绘制，树顶图层最后压入
+    ///   要素流、绘制在最上层。
     fn rebuild_merged(&mut self) {
+        let mut order = toc::visible_draw_order(&self.toc, |id| {
+            self.layers
+                .iter()
+                .find(|e| e.layer.id() == id)
+                .map(|e| e.visible)
+                .unwrap_or(false)
+        });
+        // 防御：不在目录树中的可见图层（正常不会发生）补在绘制队列尾部（最上层）。
+        for e in &self.layers {
+            if e.visible && !order.iter().any(|id| id == e.layer.id()) {
+                order.push(e.layer.id().to_string());
+            }
+        }
         let mut features = Vec::new();
         let mut extents = Vec::new();
-        for entry in &self.layers {
-            if entry.visible {
+        for id in &order {
+            if let Some(entry) = self.layers.iter().find(|e| e.layer.id() == id) {
                 let collection = entry.layer.collection();
                 if let Ok(Some(ext)) = collection_extent(&collection) {
                     extents.push(ext);
@@ -312,10 +401,18 @@ impl KanyuApp {
         self.canvas.dirty = true;
     }
 
+    /// 有效可见图层的要素总数（状态栏）。
     fn visible_feature_count(&self) -> usize {
-        self.layers
+        let order = toc::visible_draw_order(&self.toc, |id| {
+            self.layers
+                .iter()
+                .find(|e| e.layer.id() == id)
+                .map(|e| e.visible)
+                .unwrap_or(false)
+        });
+        order
             .iter()
-            .filter(|e| e.visible)
+            .filter_map(|id| self.layers.iter().find(|e| e.layer.id() == id))
             .map(|e| e.summary.feature_count)
             .sum()
     }
@@ -330,8 +427,8 @@ impl KanyuApp {
     fn layer_views(&self) -> Vec<LayerView> {
         self.layers
             .iter()
-            .enumerate()
-            .map(|(i, e)| LayerView {
+            .map(|e| LayerView {
+                id: e.layer.id().to_string(),
                 file_name: e.file_name.clone(),
                 format: e.summary.format.clone(),
                 feature_count: e.summary.feature_count,
@@ -339,9 +436,13 @@ impl KanyuApp {
                 fields: e.summary.fields.clone(),
                 visible: e.visible,
                 expanded: e.expanded,
-                selected: self.selected == Some(i),
             })
             .collect()
+    }
+
+    /// 按 id 定位图层下标（layers Vec 增删会使下标漂移，一律现查现用）。
+    fn layer_index(&self, id: &str) -> Option<usize> {
+        self.layers.iter().position(|e| e.layer.id() == id)
     }
 
     /// 地图输出的有效主题（界面主题与地图色彩解耦，默认固定晨山）。
@@ -376,18 +477,21 @@ impl KanyuApp {
             path.file_stem()
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "untitled".to_string()),
-            "EPSG:4326",
+            &self.project_crs,
         );
         project.viewport = self.view_bbox;
         project.map_theme = self.map_theme_mode.as_str().to_string();
         let mut skipped = 0;
         for entry in &self.layers {
             match &entry.source_path {
+                // 分组路径：根级图层写 None（不输出 group 键，保持文件干净）。
                 Some(src) => project.layers.push(kanyu_core::project::ProjectLayer {
                     id: entry.layer.id().to_string(),
                     source: src.clone(),
                     visible: entry.visible,
                     style: None,
+                    group: toc::group_path_of(&self.toc, entry.layer.id())
+                        .filter(|p| !p.is_empty()),
                 }),
                 None => skipped += 1,
             }
@@ -428,7 +532,9 @@ impl KanyuApp {
         };
         // 清空当前现场再恢复（与"打开工程"语义一致）。
         self.layers.clear();
+        self.toc.clear();
         self.selected = None;
+        self.selected_group = None;
         self.console.info(format!(
             "打开工程 {}（{} 个图层引用）",
             project.name,
@@ -440,12 +546,18 @@ impl KanyuApp {
             self.open_file(Path::new(&pl.source));
             if self.layers.len() > before {
                 self.layers[before].visible = pl.visible;
+                // 按工程记录的分组路径重建组树（缺失组自动逐级创建）。
+                if let Some(group) = &pl.group {
+                    let id = self.layers[before].layer.id().to_string();
+                    toc::insert_layer_into(&mut self.toc, Some(group), &id);
+                }
             } else {
                 failed += 1;
                 self.error_msg = None; // 单源失败不阻塞整工程
             }
         }
         self.map_theme_mode = MapThemeMode::parse(&project.map_theme);
+        self.project_crs = project.crs.clone();
         self.view_bbox = project.viewport;
         if project.viewport.is_some() {
             self.canvas.dirty = true;
@@ -667,6 +779,15 @@ impl KanyuApp {
 
     // ===== 动作分派 =====
 
+    /// 打开设置对话框（以工程当前值快照）。
+    fn open_settings(&mut self) {
+        self.settings = Some(crate::settings::SettingsDialog::open_with(
+            &self.project_crs,
+            self.map_export_size,
+            self.map_theme_mode,
+        ));
+    }
+
     fn dispatch(&mut self, action: RibbonAction, ctx: &egui::Context) {
         match action {
             RibbonAction::OpenData => {
@@ -732,7 +853,12 @@ impl KanyuApp {
                 self.dialogs.export = Some(crate::dialogs::ExportState::default())
             }
             RibbonAction::ReprojectDialog => {
-                self.dialogs.reproject = Some(crate::dialogs::ReprojectState::default())
+                // 目标 CRS 默认取工程坐标系（设置页可改）。
+                self.dialogs.reproject = Some(crate::dialogs::ReprojectState {
+                    from: "EPSG:4326".to_string(),
+                    to: self.project_crs.clone(),
+                    ..Default::default()
+                })
             }
             RibbonAction::BufferDialog => {
                 self.dialogs.buffer = Some(crate::dialogs::BufferState::default())
@@ -761,9 +887,7 @@ impl KanyuApp {
             RibbonAction::MeasureDialog => {
                 self.dialogs.measure = Some(crate::dialogs::MeasureState::default())
             }
-            RibbonAction::RenderSettingsDialog => {
-                self.dialogs.render_settings = Some(crate::dialogs::RenderSettingsState::default())
-            }
+            RibbonAction::SettingsDialog => self.open_settings(),
             RibbonAction::ExportMapDialog => {
                 self.dialogs.export_map = Some(crate::dialogs::ExportMapState::default())
             }
@@ -773,8 +897,13 @@ impl KanyuApp {
                 self.needs_fit = true;
                 self.canvas.dirty = true;
             }
-            RibbonAction::ToggleLayersPanel => self.show_layers_panel = !self.show_layers_panel,
-            RibbonAction::ToggleConsole => self.show_console = !self.show_console,
+            RibbonAction::TogglePanel(id) => {
+                if self.dock.is_open(id) {
+                    self.dock.close_panel(id);
+                } else {
+                    self.dock.open_panel(id);
+                }
+            }
             RibbonAction::CycleMapTheme => {
                 self.map_theme_mode = self.map_theme_mode.next();
                 self.console
@@ -856,35 +985,6 @@ impl KanyuApp {
                 stats,
             } => self.op_zonal(&zones, &values, &field, &stats),
             DialogResult::Measure { layer, kind } => self.op_measure(&layer, &kind),
-            DialogResult::RenderSettings {
-                width,
-                height,
-                style,
-            } => {
-                self.map_export_size = (width, height);
-                self.map_export_style = if style.trim().is_empty() {
-                    None
-                } else {
-                    match serde_json::from_str::<StyleRule>(&style) {
-                        Ok(s) => Some(s),
-                        Err(e) => {
-                            self.console.push(
-                                crate::console::LineKind::Err,
-                                format!("样式 JSON 解析失败: {e}"),
-                            );
-                            None
-                        }
-                    }
-                };
-                Ok(format!(
-                    "渲染设置已更新（{width}×{height}{}）",
-                    if self.map_export_style.is_some() {
-                        "，含符号化"
-                    } else {
-                        ""
-                    }
-                ))
-            }
             DialogResult::ExportMap { out } => self.op_export_map(&out),
             DialogResult::SkillRun { skill_id, layer } => self.op_skill_run(&skill_id, &layer),
             DialogResult::Invalid { reason } => Err(reason),
@@ -901,11 +1001,93 @@ impl KanyuApp {
         }
     }
 
+    /// 移除图层（本体 + 目录树节点），修正选中下标并重建合并缓存。
+    fn remove_layer_by_id(&mut self, id: &str) {
+        if let Some(i) = self.layer_index(id) {
+            let name = self.layers[i].file_name.clone();
+            self.layers.remove(i);
+            toc::remove_layer(&mut self.toc, id);
+            match self.selected {
+                Some(s) if s == i => self.selected = None,
+                Some(s) if s > i => self.selected = Some(s - 1),
+                _ => {}
+            }
+            self.console.info(format!("已移除图层 {name}"));
+            self.rebuild_merged();
+        }
+    }
+
+    /// 移除图层本体（不动目录树——供 RemoveGroup 在摘除组节点后逐图层清理）。
+    fn remove_layer_entry(&mut self, id: &str) {
+        if let Some(i) = self.layer_index(id) {
+            self.layers.remove(i);
+            match self.selected {
+                Some(s) if s == i => self.selected = None,
+                Some(s) if s > i => self.selected = Some(s - 1),
+                _ => {}
+            }
+        }
+    }
+
+    /// 应用重命名/新建组对话框结果。
+    fn apply_rename(&mut self, state: RenameState) {
+        let name = state.name.trim().to_string();
+        if name.is_empty() {
+            self.console
+                .push(crate::console::LineKind::Err, "名称不能为空");
+            return;
+        }
+        match state.target {
+            RenameTarget::Layer(id) => {
+                if let Some(i) = self.layer_index(&id) {
+                    self.layers[i].file_name = name.clone();
+                    self.console.info(format!("图层已重命名为 {name}"));
+                }
+            }
+            RenameTarget::Group(path) => match toc::rename_group(&mut self.toc, &path, &name) {
+                Ok(new_path) => {
+                    if self.selected_group.as_deref() == Some(path.as_str()) {
+                        self.selected_group = Some(new_path.clone());
+                    }
+                    self.console.info(format!("组已重命名为 {new_path}"));
+                }
+                Err(e) => self.console.push(crate::console::LineKind::Err, e),
+            },
+            RenameTarget::NewGroupForLayer(id) => {
+                match toc::new_group_named(&mut self.toc, None, &name) {
+                    Ok(path) => {
+                        toc::insert_layer_into(&mut self.toc, Some(&path), &id);
+                        self.console
+                            .info(format!("已新建组「{path}」并移入图层 {id}"));
+                        self.rebuild_merged();
+                    }
+                    Err(e) => self.console.push(crate::console::LineKind::Err, e),
+                }
+            }
+        }
+    }
+
     fn dispatch_panel_action(&mut self, action: PanelAction) {
         match action {
-            PanelAction::ZoomToLayer(i) => {
-                if let Some(entry) = self.layers.get(i) {
-                    if let Ok(Some(ext)) = collection_extent(&entry.layer.collection()) {
+            PanelAction::SelectLayer(id) => {
+                self.selected = self.layer_index(&id);
+                self.selected_group = None;
+            }
+            PanelAction::SetLayerVisible(id, v) => {
+                if let Some(i) = self.layer_index(&id) {
+                    self.layers[i].visible = v;
+                    self.rebuild_merged();
+                }
+            }
+            PanelAction::ToggleLayerVisible(id) => {
+                if let Some(i) = self.layer_index(&id) {
+                    self.layers[i].visible = !self.layers[i].visible;
+                    self.rebuild_merged();
+                }
+            }
+            PanelAction::ZoomToLayer(id) => {
+                if let Some(i) = self.layer_index(&id) {
+                    if let Ok(Some(ext)) = collection_extent(&self.layers[i].layer.collection()) {
                         self.selected = Some(i);
                         // 下一帧以该图层范围（而非可见并集）做一次性适配。
                         self.fit_extent = Some(ext);
@@ -913,46 +1095,235 @@ impl KanyuApp {
                     }
                 }
             }
-            PanelAction::RemoveLayer(i) => {
-                if i < self.layers.len() {
-                    let name = self.layers[i].file_name.clone();
-                    self.layers.remove(i);
-                    if self.selected == Some(i) {
-                        self.selected = None;
-                    } else if let Some(s) = self.selected {
-                        if s > i {
-                            self.selected = Some(s - 1);
+            PanelAction::ShowSummary(id) => {
+                if let Some(i) = self.layer_index(&id) {
+                    let s = &self.layers[i].summary;
+                    self.console.info(format!(
+                        "图层 {}: {} 要素 | 格式 {} | 几何 {} | 字段 [{}]",
+                        s.id,
+                        s.feature_count,
+                        s.format,
+                        s.geometry_types.join(", "),
+                        s.fields.join(", ")
+                    ));
+                }
+            }
+            PanelAction::MoveLayer(id, dir) => {
+                // 父列表内位移影响渲染叠置顺序 → 重建合并缓存。
+                if toc::move_layer(&mut self.toc, &id, dir) {
+                    self.rebuild_merged();
+                }
+            }
+            PanelAction::RenameLayer(id) => {
+                if let Some(i) = self.layer_index(&id) {
+                    self.rename = Some(RenameState {
+                        target: RenameTarget::Layer(id),
+                        name: self.layers[i].file_name.clone(),
+                    });
+                }
+            }
+            PanelAction::MoveLayerToGroup(id, path) => {
+                toc::insert_layer_into(&mut self.toc, path.as_deref(), &id);
+                self.rebuild_merged();
+            }
+            PanelAction::NewGroupForLayer(id) => {
+                self.rename = Some(RenameState {
+                    target: RenameTarget::NewGroupForLayer(id),
+                    name: "新建图层组".to_string(),
+                });
+            }
+            PanelAction::ExportLayer(id) => {
+                if let Some(i) = self.layer_index(&id) {
+                    self.selected = Some(i);
+                    self.dialogs.export = Some(crate::dialogs::ExportState::default());
+                }
+            }
+            PanelAction::RemoveLayer(id) => self.remove_layer_by_id(&id),
+            PanelAction::ToggleExpand(id) => {
+                if let Some(i) = self.layer_index(&id) {
+                    self.layers[i].expanded = !self.layers[i].expanded;
+                }
+            }
+            PanelAction::SelectGroup(path) => {
+                self.selected_group = Some(path);
+                self.selected = None;
+            }
+            PanelAction::ToggleGroupExpand(path) => {
+                toc::toggle_group_expand(&mut self.toc, &path);
+            }
+            PanelAction::SetGroupExpanded(path, v) => {
+                toc::set_group_expanded(&mut self.toc, &path, v);
+            }
+            PanelAction::SetGroupVisible(path, on) => {
+                let toc = &mut self.toc;
+                let layers = &mut self.layers;
+                toc::set_group_all(toc, &path, on, |id, v| {
+                    if let Some(e) = layers.iter_mut().find(|e| e.layer.id() == id) {
+                        e.visible = v;
+                    }
+                });
+                self.rebuild_merged();
+            }
+            PanelAction::ZoomToGroup(path) => {
+                if let Some(g) = toc::find_group(&self.toc, &path) {
+                    let ids = toc::group_layer_ids(&g.children);
+                    let mut extents = Vec::new();
+                    for id in &ids {
+                        if let Some(i) = self.layer_index(id) {
+                            if let Ok(Some(ext)) =
+                                collection_extent(&self.layers[i].layer.collection())
+                            {
+                                extents.push(ext);
+                            }
                         }
                     }
-                    self.console.info(format!("已移除图层 {name}"));
+                    if let Some(u) = view::union(extents) {
+                        self.fit_extent = Some(u);
+                        self.needs_fit = true;
+                    }
+                }
+            }
+            PanelAction::RenameGroup(path) => {
+                let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+                self.rename = Some(RenameState {
+                    target: RenameTarget::Group(path),
+                    name,
+                });
+            }
+            PanelAction::NewGroup(parent) => {
+                let path = toc::new_group(&mut self.toc, parent.as_deref());
+                self.console.info(format!("已新建图层组「{path}」"));
+            }
+            PanelAction::Ungroup(path) => {
+                if toc::ungroup(&mut self.toc, &path) {
+                    if self.selected_group.as_deref() == Some(path.as_str()) {
+                        self.selected_group = None;
+                    }
+                    self.console
+                        .info(format!("已取消分组「{path}」（子项上移一级）"));
                     self.rebuild_merged();
                 }
             }
-            PanelAction::VisibilityChanged(i, _vis) => {
-                if i < self.layers.len() {
+            PanelAction::RemoveGroup(path) => {
+                if let Some(ids) = toc::remove_group(&mut self.toc, &path) {
+                    let n = ids.len();
+                    for id in &ids {
+                        self.remove_layer_entry(id);
+                    }
+                    if self.selected_group.as_deref() == Some(path.as_str()) {
+                        self.selected_group = None;
+                    }
+                    self.console
+                        .info(format!("已移除组「{path}」及 {n} 个图层"));
                     self.rebuild_merged();
-                }
-            }
-            PanelAction::SelectLayer(i) => {
-                if i < self.layers.len() {
-                    self.selected = Some(i);
-                }
-            }
-            PanelAction::ToggleExpand(i) => {
-                if let Some(entry) = self.layers.get_mut(i) {
-                    entry.expanded = !entry.expanded;
                 }
             }
             PanelAction::SetAllExpanded(expanded) => {
+                toc::set_all_expanded(&mut self.toc, expanded);
                 for entry in &mut self.layers {
                     entry.expanded = expanded;
                 }
             }
-            PanelAction::ExportLayer(i) => {
-                if i < self.layers.len() {
-                    self.selected = Some(i);
-                    self.dialogs.export = Some(crate::dialogs::ExportState::default());
+            PanelAction::SetAllVisible(v) => {
+                toc::set_all_groups_visible(&mut self.toc, v);
+                for entry in &mut self.layers {
+                    entry.visible = v;
                 }
+                self.rebuild_merged();
+            }
+        }
+    }
+
+    // ===== 停靠区渲染（dock.rs 编排，此处提供内容）=====
+
+    /// 单个停靠区：页签条（拖动/关闭/全部开关）+ 当前页签内容。
+    fn dock_zone_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        zone: crate::dock::DockZone,
+        views: &[LayerView],
+        selected_id: Option<&str>,
+        out: &mut DockOutputs,
+    ) {
+        let panels = self.dock.panels_in(zone);
+        let Some(active) = self.dock.active_in(zone) else {
+            return;
+        };
+        ui.add_space(4.0);
+        let strip = crate::dock::dock_tab_strip(ui, &panels, active, self.dock.dragging);
+        if let Some(id) = strip.activated {
+            self.dock.set_active(zone, id);
+        }
+        if let Some(id) = strip.closed {
+            self.dock.close_panel(id);
+            self.console.info(format!("面板「{}」已关闭", id.title()));
+        }
+        if let Some(id) = strip.drag_started {
+            self.dock.dragging = Some(id);
+        }
+        if let Some(open) = strip.set_all_open {
+            self.dock.set_all_open(open);
+        }
+        ui.separator();
+        // 当前页签内容（可能刚被关闭/拖走 → active_in 自动回落）。
+        if let Some(active) = self.dock.active_in(zone) {
+            self.panel_content(ui, active, views, selected_id, out);
+        }
+    }
+
+    /// 面板内容渲染（注册表的"渲染回调"：新增面板在此加分支）。
+    fn panel_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        id: crate::dock::PanelId,
+        views: &[LayerView],
+        selected_id: Option<&str>,
+        out: &mut DockOutputs,
+    ) {
+        match id {
+            crate::dock::PanelId::Catalog => {
+                let mut catalog = std::mem::take(&mut self.catalog);
+                out.catalog.extend(catalog.ui(ui, &mut self.icon_cache));
+                self.catalog = catalog;
+            }
+            crate::dock::PanelId::Layers => {
+                let mut filter = std::mem::take(&mut self.layer_filter);
+                out.panel.extend(panels::layers_tree(
+                    ui,
+                    &self.toc,
+                    views,
+                    selected_id,
+                    self.selected_group.as_deref(),
+                    &mut filter,
+                    &mut self.icon_cache,
+                ));
+                self.layer_filter = filter;
+            }
+            crate::dock::PanelId::Toolbox => {
+                if let Some(tool_id) = self.toolbox.ui(ui, &mut self.icon_cache) {
+                    if let Some(def) = crate::toolbox::find(tool_id) {
+                        let mut st = crate::toolbox::ToolRunState::new(def);
+                        // 投影变换的目标 CRS 默认取工程坐标系。
+                        if def.id == "reproject" {
+                            for (p, v) in def.params.iter().zip(st.values.iter_mut()) {
+                                if p.key == "to" && v.is_empty() {
+                                    *v = self.project_crs.clone();
+                                }
+                            }
+                        }
+                        self.tool_run = Some(st);
+                    }
+                }
+            }
+            crate::dock::PanelId::Console => {
+                let mut console = std::mem::take(&mut self.console);
+                console.ui(ui, self);
+                self.console = console;
+            }
+            crate::dock::PanelId::AiChat => {
+                let mut ai_chat = std::mem::take(&mut self.ai_chat);
+                ai_chat.ui(ui, self);
+                self.ai_chat = ai_chat;
             }
         }
     }
@@ -1063,44 +1434,129 @@ impl eframe::App for KanyuApp {
         let status = self.status.clone();
         let count = self.visible_feature_count();
         let mouse = self.mouse_data;
-        panels::status_bar(ui, &status, mouse, count, span, self.map_theme_mode.label());
+        panels::status_bar(
+            ui,
+            &status,
+            mouse,
+            count,
+            span,
+            self.map_theme_mode.label(),
+            &self.project_crs,
+        );
 
-        // 底部双页签停靠区（终端 | AI 对话）。
-        if self.show_console {
-            let mut dock_tab = self.dock_tab;
-            let mut console = std::mem::take(&mut self.console);
-            let mut ai_chat = std::mem::take(&mut self.ai_chat);
-            panels::bottom_dock(ui, &mut dock_tab, &mut console, &mut ai_chat, self);
-            self.dock_tab = dock_tab;
-            self.console = console;
-            self.ai_chat = ai_chat;
-        }
+        // ===== 停靠系统（左/右/底停靠区 + 浮动窗，数据驱动，见 dock.rs）=====
 
-        // 左侧停靠区（目录 | 图层 双页签）。
-        if self.show_layers_panel {
-            let mut left_tab = self.left_tab;
-            let mut catalog = std::mem::take(&mut self.catalog);
-            let mut layer_filter = std::mem::take(&mut self.layer_filter);
-            let views = self.layer_views();
-            let (catalog_actions, layer_actions) = panels::left_dock(
-                ui,
-                &mut left_tab,
-                &mut catalog,
-                &views,
-                &mut layer_filter,
-                &mut self.icon_cache,
-            );
-            self.left_tab = left_tab;
-            self.catalog = catalog;
-            self.layer_filter = layer_filter;
-            for action in catalog_actions {
-                match action {
-                    crate::catalog::CatalogAction::LoadFile(path) => self.open_file(&path),
+        // 内容区 = Ribbon 与状态栏之间（投放判定/提示都以它为基准）。
+        let screen = ctx.content_rect();
+        let content_area = egui::Rect::from_min_max(
+            egui::pos2(screen.min.x, screen.min.y + sizes::RIBBON),
+            egui::pos2(screen.max.x, screen.max.y - sizes::STATUS_BAR),
+        );
+
+        // 1) 拖放结算（松开瞬间，布局前处理，本帧即按新停靠渲染）。
+        if let Some(drag_id) = self.dock.dragging {
+            if !ctx.input(|i| i.pointer.primary_down()) {
+                self.dock.dragging = None;
+                if let Some(pos) = ctx.pointer_latest_pos() {
+                    // 源区矩形（"源区取消"规则：在源面板矩形内松开不触发浮动）。
+                    let origin = match self.dock.zone_of(drag_id) {
+                        crate::dock::DockZone::Floating => None,
+                        zone => self.dock.zone_rects[zone.docked_index()].map(|r| (zone, r)),
+                    };
+                    match crate::dock::resolve_drop(pos, content_area, origin) {
+                        Some(crate::dock::DockZone::Floating) => {
+                            self.dock.float(drag_id);
+                            self.console
+                                .info(format!("面板「{}」已转为浮动窗口", drag_id.title()));
+                        }
+                        Some(zone) => {
+                            self.dock.dock_to(drag_id, zone);
+                            self.console
+                                .info(format!("面板「{}」已停靠", drag_id.title()));
+                        }
+                        None => {}
+                    }
                 }
             }
-            for action in layer_actions {
-                self.dispatch_panel_action(action);
+        } else {
+            // 拖拽也可能始于浮动窗标题条（页签内开始由页签条上报）：
+            // 以「按下起点」命中标题条（当前指针早已移离标题条）。
+            let (dragging_ptr, press_origin) =
+                ctx.input(|i| (i.pointer.is_decidedly_dragging(), i.pointer.press_origin()));
+            if dragging_ptr {
+                if let Some(pos) = press_origin {
+                    if let Some(id) = self.dock.hit_floating_title(pos) {
+                        self.dock.dragging = Some(id);
+                    }
+                }
             }
+        }
+
+        // 2) 停靠区布局（底 → 右 → 左；egui 后注册的面板占剩余空间，与旧布局一致）。
+        let views = self.layer_views();
+        let selected_id = self
+            .selected
+            .and_then(|i| self.layers.get(i))
+            .map(|e| e.layer.id().to_string());
+        let mut dock_out = DockOutputs::default();
+        for zone in [
+            crate::dock::DockZone::Bottom,
+            crate::dock::DockZone::Right,
+            crate::dock::DockZone::Left,
+        ] {
+            self.dock.zone_rects[zone.docked_index()] = None;
+            if !self.dock.zone_has_panels(zone) {
+                continue; // 区内面板全关 → 整区隐藏
+            }
+            let content = |ui: &mut egui::Ui, app: &mut Self, out: &mut DockOutputs| {
+                app.dock_zone_content(ui, zone, &views, selected_id.as_deref(), out);
+            };
+            let resp = match zone {
+                crate::dock::DockZone::Bottom => egui::Panel::bottom("dock_bottom")
+                    .default_size(200.0)
+                    .size_range(120.0..=420.0)
+                    .show(ui, |ui| content(ui, self, &mut dock_out)),
+                crate::dock::DockZone::Right => egui::Panel::right("dock_right")
+                    .default_size(280.0)
+                    .size_range(200.0..=480.0)
+                    .show(ui, |ui| content(ui, self, &mut dock_out)),
+                crate::dock::DockZone::Left => egui::Panel::left("dock_left")
+                    .default_size(280.0)
+                    .size_range(200.0..=480.0)
+                    .show(ui, |ui| content(ui, self, &mut dock_out)),
+                crate::dock::DockZone::Floating => unreachable!("浮动区无停靠面板"),
+            };
+            self.dock.zone_rects[zone.docked_index()] = Some(resp.response.rect);
+        }
+
+        // 3) 浮动窗（egui::Window：可拖动/缩放/原生 × 关闭）。
+        for id in crate::dock::PanelId::ALL {
+            if !self.dock.is_floating(id) {
+                continue;
+            }
+            let mut open = true;
+            let resp = egui::Window::new(id.title())
+                .default_size([380.0, 320.0])
+                .open(&mut open)
+                .show(&ctx, |ui| {
+                    self.panel_content(ui, id, &views, selected_id.as_deref(), &mut dock_out);
+                });
+            if let Some(inner) = &resp {
+                self.dock.float_rects[id.index()] = Some(inner.response.rect);
+            }
+            if !open {
+                self.dock.close_panel(id);
+            }
+        }
+
+        // 停靠编排产生的动作统一结算。
+        for action in dock_out.catalog {
+            match action {
+                crate::catalog::CatalogAction::LoadFile(path) => self.open_file(&path),
+            }
+        }
+        for action in dock_out.panel {
+            self.dispatch_panel_action(action);
         }
 
         // 中央地图画布（地图色彩由 map_theme_mode 决定，与界面主题解耦）。
@@ -1126,11 +1582,126 @@ impl eframe::App for KanyuApp {
             self.status = e;
         }
 
+        // 4) 拖拽中的投放提示（Foreground 层：三边缘投放区 + 中央浮动提示）。
+        if self.dock.dragging.is_some() {
+            let pointer = ctx.pointer_latest_pos();
+            let origin = self
+                .dock
+                .dragging
+                .and_then(|id| match self.dock.zone_of(id) {
+                    crate::dock::DockZone::Floating => None,
+                    zone => self.dock.zone_rects[zone.docked_index()].map(|r| (zone, r)),
+                });
+            crate::dock::paint_drop_hints(
+                &ctx,
+                &crate::theme::palette(self.theme),
+                content_area,
+                pointer,
+                origin,
+            );
+        }
+
         // 对话框与模态。
         let layer_ids = self.layer_ids();
         let skill_ids: Vec<String> = self.skill_metas.iter().map(|g| g.id.clone()).collect();
         if let Some(result) = self.dialogs.ui(&ctx, &layer_ids, &skill_ids) {
             self.dispatch_dialog_result(result);
+        }
+        // 重命名/新建组 模态（目录树右键「重命名…」「移至分组 ▸ 新建组…」）。
+        if let Some(mut state) = self.rename.take() {
+            let title = match &state.target {
+                RenameTarget::Layer(_) => "重命名图层",
+                RenameTarget::Group(_) => "重命名组",
+                RenameTarget::NewGroupForLayer(_) => "新建组",
+            };
+            match crate::ui_kit::dialog_shell(&ctx, title, |ui| {
+                crate::ui_kit::text_input(ui, "名称", &mut state.name, "输入名称", true);
+            }) {
+                crate::ui_kit::DialogAction::None => self.rename = Some(state),
+                crate::ui_kit::DialogAction::Cancel => {}
+                crate::ui_kit::DialogAction::Ok => self.apply_rename(state),
+            }
+        }
+        // 设置对话框（坐标系 / 渲染）。
+        if let Some(dlg) = self.settings.take() {
+            let mut dlg = dlg;
+            match dlg.ui(&ctx) {
+                crate::settings::SettingsUi::Open => self.settings = Some(dlg),
+                crate::settings::SettingsUi::Closed => {}
+                crate::settings::SettingsUi::Applied(o) => {
+                    self.project_crs = o.crs.clone();
+                    self.map_export_size = o.export_size;
+                    self.map_export_style = o.export_style;
+                    self.map_theme_mode = o.map_theme;
+                    self.canvas.dirty = true;
+                    let msg = format!(
+                        "设置已应用（坐标系 {}，导出 {}×{}，{}）",
+                        o.crs,
+                        o.export_size.0,
+                        o.export_size.1,
+                        o.map_theme.label()
+                    );
+                    self.status = msg.clone();
+                    self.console.info(msg);
+                }
+            }
+        }
+        // 工具箱参数对话框（通用表单由注册表驱动）。
+        if let Some(mut st) = self.tool_run.take() {
+            let layer_ids = self.layer_ids();
+            let title = format!("{}（工具箱）", st.tool.name);
+            match crate::ui_kit::dialog_shell(&ctx, &title, |ui| {
+                crate::toolbox::run_form(ui, &mut st, &layer_ids, &|id| {
+                    self.layers
+                        .iter()
+                        .find(|e| e.layer.id() == id)
+                        .map(|e| e.summary.fields.clone())
+                        .unwrap_or_default()
+                });
+            }) {
+                crate::ui_kit::DialogAction::None => self.tool_run = Some(st),
+                crate::ui_kit::DialogAction::Cancel => {}
+                crate::ui_kit::DialogAction::Ok => {
+                    let outcome = crate::toolbox::run_tool(st.tool.id, &st.values, |id| {
+                        self.layers
+                            .iter()
+                            .find(|e| e.layer.id() == id)
+                            .map(|e| e.layer.collection())
+                    });
+                    match outcome {
+                        Ok(crate::toolbox::ToolOutcome::NewLayer {
+                            collection,
+                            base,
+                            verb,
+                        }) => {
+                            let msg = self.add_result_layer(&base, collection, &verb);
+                            self.status = msg.clone();
+                            self.console.info(msg);
+                        }
+                        Ok(crate::toolbox::ToolOutcome::Report(text)) => {
+                            self.console.info(text);
+                        }
+                        Ok(crate::toolbox::ToolOutcome::Export { layer, out }) => {
+                            let fmt = out.rsplit('.').next().unwrap_or("").to_string();
+                            match self.op_export(&layer, &out, &fmt) {
+                                Ok(m) => {
+                                    self.status = m.clone();
+                                    self.console.info(m);
+                                }
+                                Err(e) => {
+                                    self.console.push(crate::console::LineKind::Err, &e);
+                                    self.error_msg = Some(e);
+                                }
+                            }
+                        }
+                        // 校验/执行失败：留在对话框内红字（不吞输入）。
+                        Err(e) => {
+                            st.err = Some(e);
+                            self.tool_run = Some(st);
+                        }
+                    }
+                }
+            }
         }
         self.error_modal(&ctx);
         self.handle_screenshots(&ctx);

@@ -33,7 +33,7 @@
 //! | 类别 | 模块 | 组件 |
 //! |------|------|------|
 //! | 设计令牌 | [`tokens`] | 间距/圆角/控件高度/文本分级 |
-//! | 基础控件 | [`controls`] | KButton(四变体)、KIconButton、KTextInput、KCombo、KCheckbox、ribbon_button、tab_strip、tree_row、password_input |
+//! | 基础控件 | [`controls`] | KButton(四变体)、KIconButton、KTextInput、KCombo、KCheckbox、ribbon_button、tab_strip、tree_row、toc_row、password_input |
 //! | 容器组件 | [`containers`] | KCard、KSectionHeader、KDialogShell、KBadge |
 //! | 图标系统 | [`icons`] | 33 枚线性图标（stroke 1.5px、几何极简，总规 §1.4） |
 //! | 业务组件 | 各面板模块 | 图层条目、终端行、ribbon 组（基于基础控件组合） |
@@ -60,7 +60,8 @@ pub mod tokens;
 pub use containers::{badge, card, dialog_shell, section_header, DialogAction};
 pub use controls::{
     button, checkbox, combo, combo_static, error_caption, hint_caption, icon_button, layer_picker,
-    password_input, ribbon_button, tab_strip, text_area, text_input, tree_row, ButtonVariant,
+    password_input, ribbon_button, tab_strip, text_area, text_input, toc_row, tree_row,
+    ButtonVariant, TocRowResponse,
 };
 pub use icons::{icon_ui, icons_color, Icon};
 pub use tokens::{sizes, spacing, text};
