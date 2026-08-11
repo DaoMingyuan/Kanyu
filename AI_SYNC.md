@@ -183,3 +183,7 @@
 - 本机资源：icons light 10916 + dark 10900 PNG（提取自用户已授权 ArcGIS Pro 安装，未入仓库）
 - 偏差：clippy map_entry 改 entry API；Icon::Gene 改名遗漏修正（Skill）
 - 后续：目录树/图层树行图标仍走手绘 draw（tree_row 未接线，可后续评估）；crates.io 发布仍待 token
+### [收工] 2026-08-11 kimi-code(main) — 树行图标位图双轨接线（图标任务完全闭环）
+- 提交：d3830c0；测试：149 全绿 + clippy 零警告；验证：双主题截图目检（目录树原生文件夹位图、dark 变体正确）；release exe 已同步安装（运行中实例用改名替换法更新）
+- 内容：Icon 枚举 33→37（FolderPlain/Project/Database/Cad 目录树专用，手绘回退委托既有画法）；tree_row/render_node/layers_tree/left_dock 全链 IconCache；目录节点语义校正（文件夹不再用 folder+加号，.kyu/.kdb/.dwg/.dxf 各有专用位图）
+- 后续：图标体系完全闭环（Ribbon + QAT + 目录树 + 图层树）；crates.io 发布仍待 token
