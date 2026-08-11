@@ -39,7 +39,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 - **脊髓 CLI**：`kanyu data info/load/query/export`、`kanyu introspect`、`kanyu agents init/validate`、`kanyu mcp serve`，全局 `--json`。
 - **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。
 - **离屏渲染**：`kanyu render map` / MCP `kanyu_render_map`——数据 → PNG（tiny-skia）/ SVG 地图图片，晨山/夜观星双主题，AI 代理可直接"看见"数据。
-- **桌面壳层**：`kanyu-shell` v0.6（ArcGIS Pro 化）——Contents 图层面板（复选框显隐/图层组嵌套分组/中文右键菜单）、五面板拖拽停靠系统（左/右/底三区 + 浮动窗 + 关闭重开）、QGIS 式工具箱（27 工具 5 分类）、独立设置对话框（坐标系选择/渲染设置）、三段式 Ribbon（悬停与页签动画）、独立终端 + AI 对话（本地规则/OpenAI 兼容双驱动）、`.kyu` 工程（含分组路径）打开/保存、内置 `ui_kit` 设计系统，晨山/夜观星双主题。
+- **桌面壳层**：`kanyu-shell` v0.6（ArcGIS Pro 化）——Contents 图层面板（复选框显隐/图层组嵌套分组/中文右键菜单）、五面板拖拽停靠系统（左/右/底三区 + 浮动窗 + 关闭重开）、QGIS 式工具箱（37 工具 5 分类）、独立设置对话框（坐标系选择/渲染设置）、三段式 Ribbon（悬停与页签动画）、独立终端 + AI 对话（本地规则/OpenAI 兼容双驱动）、`.kyu` 工程（含分组路径）打开/保存、内置 `ui_kit` 设计系统，晨山/夜观星双主题。
 - **技能热加载**：MCP `kanyu_system_hotload` / `kanyu_skill_run` / `kanyu_skill_list`——WASM 技能（wasmtime 沙箱）远程加载校验与执行，AI 代理可远程扩展内核能力。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 
@@ -66,7 +66,8 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 
 - **桌面端 MSI**：从 [Releases](https://github.com/DaoMingyuan/Kanyu/releases) 下载
   `kanyu-<版本>-x86_64.msi`——用户级安装（免 UAC），含 GUI 壳层 + CLI + MCP，
-  自动创建桌面「堪舆」快捷方式与开始菜单项。
+  单入口：自动创建桌面「堪舆」快捷方式与开始菜单项（CLI/MCP 经 GUI 内置终端集成，
+  不再提供独立终端入口）。
 - 或使用三平台 CLI 压缩包（`kanyu` 命令行，免安装解压即用）。
 
 ### 从源码构建

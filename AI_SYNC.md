@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-11 · v0.16.0 · 199 测试全绿**。
+> 每次收工回记时更新。截至 **2026-08-11 · v0.17.0 · 212 测试全绿**。
 
 ### 1.1 已完成实现
 
@@ -61,12 +61,12 @@
 | kanyu-core | ✅ stable | GeoArrow RecordBatch 内存模型；17 格式注册表；AGENTS.md 语义层；系统自省 |
 | 格式 I/O | ✅ | GeoJSON/CSV/TSV/xlsx/SHP(读写)/FGB/GeoParquet/DXF/KML/KMZ/DWG(读) 全免 GDAL |
 | DWG | ✅(读) | acadrust+自持补丁层（裁决 #18）；六类几何+标注要素+椭圆；143 样本/52 万实体验证 |
-| 分析 | ✅ | buffer/overlay/topology/sjoin/zonal_stats/measure + EPSG 全库投影；geoprocess 两批 QGIS 移植（一批：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats；二批：boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates） |
+| 分析 | ✅ | buffer/overlay/topology/sjoin/zonal_stats/measure + EPSG 全库投影；geoprocess 三批 QGIS 移植（一批：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats；二批：boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates；三批：distance_matrix/nearest_neighbor/multi_ring_buffer/variable_buffer/split_by_field/add_geometry_attributes/create_grid/points_along_lines/concave_hull/minimum_rotated_rect） |
 | kanyu-render | ✅ | 离屏 PNG/SVG；晨山/夜观星；graduated/categorical 符号化 |
 | kanyu-mcp | ✅ | 17 stable 工具；stdio+streamable HTTP；SEP-2663 长任务 |
 | kanyu-skill | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/skill_run/skill_list） |
 | kanyu-cli | ✅ | 7 命令组，全局 --json；v0.14.0 已发布并安装 |
-| kanyu-shell | 🚧 incubating | v0.6：ArcGIS Pro Contents 图层面板（复选框显隐/嵌套分组/中文右键菜单，组路径入 .kyu）、dock.rs 三区停靠系统（拖拽停靠/浮动/关闭/视图重开）、toolbox.rs QGIS 式工具箱（27 工具 5 分类）、settings.rs 独立设置（坐标系/渲染）、Ribbon 悬停动画、ui_kit 设计系统、终端/AI 对话双驱动 |
+| kanyu-shell | 🚧 incubating | v0.6：ArcGIS Pro Contents 图层面板（复选框显隐/嵌套分组/中文右键菜单，组路径入 .kyu）、dock.rs 三区停靠系统（拖拽停靠/浮动/关闭/视图重开）、toolbox.rs QGIS 式工具箱（37 工具 5 分类）、settings.rs 独立设置（坐标系/渲染）、Ribbon 悬停动画、ui_kit 设计系统、内置终端/AI 对话双驱动 |
 | 堪舆数据库 .kdb | ✅ | 自研存档（裁决 #19）：Arrow IPC + kanyu.* 元数据，RecordBatch 直通类型保真，全格式转换接入 |
 | 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
 | 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
@@ -74,7 +74,7 @@
 
 ### 1.2 待完成事项（优先级序）
 
-1. **基础 GIS 功能移植**（用户指令，进行中）：宗地 TXT + 图层统计（第一批）与 geoprocess 第二批 8 算法已落地（v0.16.0）；壳层 QGIS 式工具箱 27 工具已可用；后续批次见 §6.4 移植清单与 ARCHITECTURE §9.1 路线推荐
+1. **基础 GIS 功能移植**（用户指令，进行中）：宗地 TXT + 图层统计（第一批）、geoprocess 第二批 8 算法（v0.16.0）与第三批 10 算法（v0.17.0）已落地；壳层 QGIS 式工具箱 37 工具可用；后续批次见 §6.4 移植清单与 ARCHITECTURE §9.1 路线推荐
 2. **crates.io 发布**：六个名称可注册，待用户 cargo login（发布顺序 core→render→skill→mcp→cli）
 3. **DWG 深化**（用户决定后置）：INSERT 拆块 / HATCH 边界 / SPLINE 采样 / R2018+ 复测
 4. **Phase 2 视界续**：wgpu 实时渲染管线（KanyuDB→SSBO）、MLT 瓦片、SDF 文字
@@ -96,6 +96,18 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-11 kimi-code(main) — v0.17.0：geoprocess 第三批移植 + 工具箱 37 + 打包单入口
+- 提交：见本次 commit 组；测试：212 全绿（199→212，core 104）+ clippy 零警告 + fmt 净
+- 验证：工具箱面板截图目检（37 工具分类树：矢量分析 12/矢量几何 12/数据管理 6）；MSI magic + msiexec /qn 静默安装验证（开始菜单仅「堪舆」、桌面仅「堪舆」、kanyu.exe 随包在位）
+- 内容：① geoprocess 第三批 10 算法（distance_matrix+DistanceMatrix/nearest_neighbor+NearestNeighborReport/multi_ring_buffer/variable_buffer/split_by_field/add_geometry_attributes/create_grid/points_along_lines/concave_hull/minimum_rotated_rect，geo ConcaveHull/MinimumRotatedRect/InterpolateLine 直用未降级，各配语义测试）；② toolbox.rs 扩编 27→37（ParamKind::NumberList、ToolOutcome::NewLayers、创建网格范围预填当前数据范围）；③ 打包单入口：wxs 去「堪舆终端」开始菜单快捷方式（kanyu.exe 保留供 MCP 直调）、README 同步、内置终端欢迎语去旧版本号；④ 版本 0.16.0→0.17.0；MASTERPLAN §6.4/ARCHITECTURE §2+§9.1/CHANGELOG [0.17.0]/API.md §15 全链同步
+- 偏差：无（本机无既有「堪舆终端」快捷方式残留，无需清理）
+- 后续：ARCHITECTURE §9.1 五条路线推荐不变（属性表/编辑内核为主线）；crates.io 发布仍待 token
+
+### [开工] 2026-08-11 kimi-code(main) — v0.17.0：geoprocess 第三批移植 + 工具箱扩编 + 打包单入口
+- 范围：kanyu-core geoprocess（第三批 10 算法）、kanyu-shell toolbox 注册、packaging/wix（去「堪舆终端」快捷方式）、docs（MASTERPLAN/ARCHITECTURE/CHANGELOG/README）、AI_SYNC
+- 依据：用户指令（按功能计划继续移植；打包不出现独立堪舆终端，全部集成）；总规 §6.4 Phase 1.5；ARCHITECTURE §9.1
+- 预计：大（10 算法 + 工具箱 27→37 + MSI 重制与本机清理）
 
 ### [收工] 2026-08-11 kimi-code(main) — shell v0.6：图层面板 ArcGIS Pro 化 + 停靠系统 + Ribbon 动画 + QGIS 工具箱 + 设置组件
 - 提交：见本次 commit 组；测试：199 全绿（159→174→182→199 四阶段累计）+ clippy 零警告 + fmt 净

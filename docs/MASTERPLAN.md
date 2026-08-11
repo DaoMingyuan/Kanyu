@@ -1146,6 +1146,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] MCP streamable HTTP 传输（远程 AI 代理接入，2026-08-02）。
 - [x] MCP tasks 长任务（SEP-2663 协议级任务：白名单分析工具 `"task": true` 异步化，rmcp TaskManager；2026-08-02）。
 - [x] **QGIS 核心算法移植**（geoprocess 模块：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats（亩/公顷），语义对齐 QGIS Processing，2026-08-03）。
+- [x] **QGIS 核心算法移植第二/三批**（第二批 2026-08-11：boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates；第三批 2026-08-11：距离矩阵/最近邻分析/多环缓冲区/按字段缓冲区/分割矢量图层/添加几何属性/创建网格/沿线等距点/凹包/定向最小包络矩形；壳层工具箱同步扩编至 37 工具）。
 - [x] **宗地 TXT 格式**（移植自堪舆工具箱 txt_feature.py：双段解析/校验/写出/质检；简单点表回退；注册表第 19 格式，2026-08-03）。
 - [x] **kanyu-py + Python 工具箱**（裁决 #20：PyO3 扩展模块全量暴露内核；ArcGIS .pyt 式 Toolbox/Tool/Param 约定，`kanyu toolbox list/run` 驱动，2026-08-03）。
 

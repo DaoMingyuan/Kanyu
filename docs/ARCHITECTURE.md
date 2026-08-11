@@ -51,7 +51,7 @@
 
 | crate | 角色 | 状态 | 依赖的兄弟 crate |
 |---|---|---|---|
-| `kanyu-core` | 数据心脏：格式注册表（19 格式含自研 .kdb/.txt）、图层模型、空间分析（buffer/overlay/topology/sjoin/zonal）、QGIS 核心算法（geoprocess 一批：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats；二批：boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates）、投影/度量、宗地 TXT（parcel）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
+| `kanyu-core` | 数据心脏：格式注册表（19 格式含自研 .kdb/.txt）、图层模型、空间分析（buffer/overlay/topology/sjoin/zonal）、QGIS 核心算法（geoprocess 一批：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats；二批：boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates；三批：distance_matrix/nearest_neighbor/multi_ring_buffer/variable_buffer/split_by_field/add_geometry_attributes/create_grid/points_along_lines/concave_hull/minimum_rotated_rect）、投影/度量、宗地 TXT（parcel）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
 | `kanyu-py` | Python 桥接：PyO3 扩展模块 `kanyu`（GeoJSON 文本契约全量暴露内核）+ .pyt 式工具箱运行时 | ✅ stable | kanyu-core, kanyu-render |
 | `kanyu-cli` | 脊髓：`kanyu` 命令行（clap derive） | ✅ stable | kanyu-core, kanyu-mcp, kanyu-render |
 | `kanyu-mcp` | 神经接口：MCP Server（rmcp，stdio + streamable HTTP，SEP-2663 长任务） | ✅ incubating | kanyu-core, kanyu-render |
@@ -209,17 +209,20 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
 当前 v0.1.0 已交付：kanyu-core 四大模块、kanyu CLI 全部子命令、
 kanyu-mcp stdio Server（6 个工具）。细分状态以 `kanyu introspect` 输出为准。
 
-### 9.1 近期路线推荐（2026-08-11）
+### 9.1 近期路线推荐（2026-08-11，v0.17.0 刷新）
 
-基于 v0.16.0 本轮落地（壳层 ArcGIS Pro 化 + 工具箱 + 第二批算法）的下一步推荐：
+v0.17.0 已推进：geoprocess 第三批 10 算法（距离矩阵/最近邻分析/多环与按字段缓冲区/
+分割矢量图层/添加几何属性/创建网格/沿线等距点/凹包/定向最小包络矩形），壳层工具箱
+扩编至 37 工具；MSI 打包收敛为单入口（CLI/MCP 经 GUI 内置终端集成）。下一步推荐：
 
 1. **属性表与编辑内核（Phase 3 接续）**：Contents/工具箱/设置已齐备，桌面端最显眼的
    缺口是属性表查看编辑与 Undo/Redo——`kanyu-edit`（DCEL）仍是 📋，建议作为下一主线。
-2. **工具箱与 MCP 工具面收敛**：`toolbox.rs` 注册表与 MCP 工具清单（`introspect.rs`）
-   目前是两份声明；中期宜收敛为「内核算法一处声明、壳层/MCP/CLI 三面投影」，消除漂移。
+2. **工具箱与 MCP 工具面收敛**：`toolbox.rs` 注册表（37 工具）与 MCP 工具清单
+   （`introspect.rs`）目前是两份声明；中期宜收敛为「内核算法一处声明、壳层/MCP/CLI
+   三面投影」，消除漂移。
 3. **§8 性能目标实测**：overlay/sjoin 为 O(n·m) 朴素实现（rustdoc 已注明待 rstar 索引）；
    百万要素渲染 60fps 目标尚无基准数据，建议先建基准场景再谈 wgpu 管线（Phase 2）。
 4. **停靠布局持久化**：`DockState` 现为内存态（浮动窗位由 egui 记忆、重启即丢），
    可随 `.kyu` 或独立 ui-state 文件落盘，与工程恢复链路对齐。
 5. **工具箱产出接入 AI 对话**：LocalDriver 意图解析目前只覆盖加载/概要等少数命令，
-   工具箱 27 工具是其天然的意图面（中文名即触发词）。
+   工具箱 37 工具是其天然的意图面（中文名即触发词）。

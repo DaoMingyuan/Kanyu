@@ -6,7 +6,7 @@
   <!-- 堪舆 Kanyu 桌面端 MSI 安装包（WiX v5 源文件） -->
   <Package Name="堪舆 Kanyu"
            Manufacturer="DaoMingyuan (道明远)"
-           Version="0.15.0"
+           Version="0.17.0"
            UpgradeCode="{7F3A9C21-4B6E-4D8A-9E51-2C0A1B3D5F47}"
            Scope="perUser">
 
@@ -66,14 +66,9 @@
                   Target="[INSTALLFOLDER]kanyu-shell.exe"
                   WorkingDirectory="INSTALLFOLDER"
                   Icon="kanyu.ico"
-                  Description="堪舆 Kanyu —— AI 原生地理空间操作系统" />
-        <Shortcut Id="MenuKanyuCli"
-                  Name="堪舆终端"
-                  Target="[INSTALLFOLDER]kanyu.exe"
-                  WorkingDirectory="INSTALLFOLDER"
-                  Icon="kanyu.ico"
-                  IconIndex="0"
-                  Description="堪舆 CLI 与 MCP 神经接口" />
+                  Description="堪舆 Kanyu —— AI 原生地理空间操作系统（CLI/MCP 集成于内置终端）" />
+        <!-- 单入口原则（v0.17.0 起）：不再提供独立「堪舆终端」快捷方式；
+             CLI/MCP 能力经 GUI 内置终端使用，kanyu.exe 仍随包安装供 MCP 客户端直调。 -->
         <RegistryValue Root="HKCU" Key="Software\Kanyu\Shortcuts" Name="menu" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </ComponentGroup>

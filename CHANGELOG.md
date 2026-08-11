@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-11
+
+**QGIS 核心算法第三批移植（工具箱扩编至 37 工具）+ 打包单入口整合。**
+
+### 新增
+
+- **geoprocess 第三批 10 算法**（语义对齐 QGIS Processing）：距离矩阵、
+  最近邻分析（观测/期望平均距离与最近邻指数）、多环缓冲区（逐环差集）、
+  按字段缓冲区、分割矢量图层、添加几何属性（测地线面积/周长/长度入列）、
+  创建网格、沿线等距点、凹包、定向最小包络矩形。
+- **壳层工具箱扩编 27 → 37 工具**：第三批全部注册（矢量分析/矢量几何/
+  数据管理分类），沿用声明式注册表与通用参数表单。
+
+### 变更
+
+- **打包单入口整合**：MSI 不再创建「堪舆终端」开始菜单快捷方式——CLI/MCP
+  能力全部经 GUI 内置终端使用；`kanyu.exe` 仍随包安装（MCP 客户端直调与
+  高级命令行场景保留），桌面与开始菜单仅余「堪舆」一个入口。
+
 ## [0.16.0] - 2026-08-11
 
 **桌面壳层 v0.6 全面 ArcGIS Pro 化（Contents 图层面板 + 停靠系统 + Ribbon 动画）+
@@ -524,7 +543,8 @@ QGIS 式工具箱面板 + geoprocess 第二批算法移植。**
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.17.0
 [0.16.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.16.0
 [0.15.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.15.0
 [0.14.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.14.0
