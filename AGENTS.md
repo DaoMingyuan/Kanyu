@@ -29,7 +29,7 @@ cargo fmt --all
 | `crates/kanyu-render/` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG，晨山/夜观星主题） |
 | `crates/kanyu-skill/` | 技能：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额） |
 | `crates/kanyu-cli/` | `kanyu` 命令行（clap derive） |
-| `crates/kanyu-shell/` | 桌面壳层（egui）v0.6：Ribbon 功能区（悬停/页签动画）/ `dock.rs` 三区停靠系统（拖拽/浮动/关闭）/ Contents 图层树（`toc.rs` 复选框+嵌套分组+右键菜单）/ `toolbox.rs` 工具箱（37 工具注册表）/ `settings.rs` 设置（坐标系/渲染）/ 终端 / AI 对话 / **`src/ui_kit/` = UI 组件规范库**（截图验证模式） |
+| `crates/kanyu-shell/` | 桌面壳层（egui）v0.7：声明式命令注册表（`commands.rs`，DAML 范式投影）/ Ribbon 功能区（动画）/ `dock.rs` 三区停靠（跨区回流自适配）/ Contents 图层树（`toc.rs`）/ `toolbox/` 工具箱（参数组件独立模块，注册表已下沉 `core::tooldef`）/ `attrtable.rs` 属性表（字段计算器）/ `mapview.rs` 多视图 + `scene3d.rs` 实验 3D / `settings.rs`（坐标系全库搜索/渲染/界面缩放）/ 终端 / AI 对话 / **`src/ui_kit/` = UI 组件规范库**（WCAG 对比度/24px 目标强制，截图验证模式） |
 | `crates/kanyu-mcp/` | MCP Server（rmcp 3.x，stdio + streamable HTTP，SEP-2663 长任务） |
 | `docs/` | 总规 + 架构/API/SDK/MCP/CLI 文档 |
 | `AI_SYNC.md` | **长久性联动机制**（开工登记/收工回记/状态快照/迭代边界）——先于一切阅读 |
@@ -67,9 +67,10 @@ cargo fmt --all
   **许可边界**：ArcGIS Pro 位图 PNG 仅存在用户本机 `%LOCALAPPDATA%\Programs\kanyu\icons\`
   （light/dark 双主题），**不得提交进仓库再分发**；仓库内只保留手绘图标与映射表，
   克隆环境自动回退手绘，功能不受影响。
-- **加工具箱工具**：`crates/kanyu-shell/src/toolbox.rs` 的 `TOOLS` 注册表加 `ToolDef`
+- **加工具箱工具**：`crates/kanyu-core/src/tooldef.rs` 的 `TOOLS` 注册表加 `ToolDef`
   （分类/中文名/参数表）→ 内核算法在 kanyu-core（`analysis`/`geoprocess`/`crs`）→
-  `run_tool` 加分支 → 截图验证（可用隐藏参数 `--tool-demo` 预设参数对话框）。
+  `toolrun.rs` 的 `run_tool` 加分支 → 壳层/CLI/Python 自动可见 → 截图验证
+  （可用隐藏参数 `--tool-demo` 预设参数对话框）。
 
 ## 自定义工具
 

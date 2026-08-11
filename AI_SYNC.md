@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-11 · v0.17.0 · 212 测试全绿**。
+> 每次收工回记时更新。截至 **2026-08-11 · v0.18.0 · 252 测试全绿**。
 
 ### 1.1 已完成实现
 
@@ -66,7 +66,8 @@
 | kanyu-mcp | ✅ | 17 stable 工具；stdio+streamable HTTP；SEP-2663 长任务 |
 | kanyu-skill | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/skill_run/skill_list） |
 | kanyu-cli | ✅ | 7 命令组，全局 --json；v0.14.0 已发布并安装 |
-| kanyu-shell | 🚧 incubating | v0.6：ArcGIS Pro Contents 图层面板（复选框显隐/嵌套分组/中文右键菜单，组路径入 .kyu）、dock.rs 三区停靠系统（拖拽停靠/浮动/关闭/视图重开）、toolbox.rs QGIS 式工具箱（37 工具 5 分类）、settings.rs 独立设置（坐标系/渲染）、Ribbon 悬停动画、ui_kit 设计系统、内置终端/AI 对话双驱动 |
+| kanyu-shell | 🚧 incubating | v0.7：声明式命令注册表（commands.rs，DAML 范式投影）、dock.rs 三区停靠（跨区回流自适配）、toolbox/（参数组件独立模块，注册表下沉 core::tooldef）、attrtable.rs 属性表+字段计算器、mapview.rs 多视图+scene3d.rs 实验 3D、settings.rs（CRS 全库搜索/渲染/界面缩放）、WCAG 2.2 对比度/24px 目标强制、内置终端/AI 对话 |
+| kanyu-py | ✅ | 48 绑定（geoprocess 三批/attrcalc/crs 检索/toolrun）+ Layer 28 链式方法 + toolbox registry |
 | 堪舆数据库 .kdb | ✅ | 自研存档（裁决 #19）：Arrow IPC + kanyu.* 元数据，RecordBatch 直通类型保真，全格式转换接入 |
 | 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
 | 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
@@ -96,6 +97,18 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-11 kimi-code(main) — v0.18.0：UI ArcGIS Pro SDK 范式重组 + 属性表 + 多视图 3D + CRS 完善 + SDK 打通
+- 提交：见本次 commit 组；测试：252 全绿（212→252 六阶段累计）+ clippy 零警告 + fmt 净；Python 冒烟 22 断言全过（Python 3.13）
+- 验证：截图集目检（双主题/工具对话框帮助区/属性表/字段计算器预览/3D 棱柱/125%·150% 缩放/跨区停靠回流）；MSI magic + 升级安装（kanyu 0.18.0 覆盖正确）+ 装机截图冒烟
+- 内容：① commands.rs 声明式命令注册表（32 命令，DAML 范式投影 Ribbon/QAT/右键菜单 + 条件置灰）；② toolbox/ 拆分（params 参数组件独立模块 + ArcGIS Pro 式对话框：焦点帮助/内联校验/运行门控/收藏/最近使用）；③ attrcalc.rs 字段计算器表达式引擎（NULL 传播/QGIS 语义）+ attrtable.rs 属性表（虚拟滚动/排序/筛选/字段 CRUD/计算器预览）；④ mapview.rs 多地图视图 + scene3d.rs 实验 3D 棱柱（背面剔除/深度排序/高度字段驱动）；⑤ crs.rs 全库检索（7507 条 CrsInfo/search_crs，轴序实测 GIS 序一致无需修正，4490→4527 ±1m 断言）；⑥ UI 国际规范（WCAG 2.2 对比度单测强制：晨山朱砂调 0xB14E32 达 4.79:1；指针目标 24px；界面缩放 100/125/150% 等比实证；停靠跨区回流修复）；⑦ tooldef/toolrun 下沉 core（37 工具一处声明，壳层/CLI/Python 三面投影）；⑧ kanyu-py 21→48 绑定 + Layer 28 链式方法 + toolbox registry 命令；⑨ ui_kit 扩件 menu_button/spinner/toast；版本 0.17.0→0.18.0；docs 全链
+- 偏差：gallery 控件未建（无消费场景，不为建而建）；4547 实测为 CGCS2000 CM 114E 非北京54（已注释更正抽测清单）
+- 后续：ARCHITECTURE §9.1 五条（编辑内核主线/MCP 收敛收尾/性能实测/UI 状态持久化/3D 真管线化）；MSI 附 Release 待 gh CLI
+
+### [开工] 2026-08-11 kimi-code(main) — v0.18.0：工具箱 ArcGIS Pro 化 + 属性表 + 多地图视图 + CRS 完善 + SDK 打通
+- 范围：kanyu-core（crs 增强、attrcalc 新模块、tooldef 下沉）、kanyu-shell（commands 注册表/toolbox 拆分/ui_kit 扩件/attrtable/地图多视图）、kanyu-py（绑定补齐）、docs 全链
+- 依据：用户四点指令（工具箱 ArcGIS Pro 化组件独立组合；图层+属性表+字段计算器；地图视图窗口化 2D/3D+坐标系完善；参照 ArcGIS Pro SDK GitHub 文档重组 UI 并保 SDK 可调）；计划文件 she-hulk-static-red-star.md
+- 预计：大（六阶段）
 
 ### [收工] 2026-08-11 kimi-code(main) — v0.17.0：geoprocess 第三批移植 + 工具箱 37 + 打包单入口
 - 提交：见本次 commit 组；测试：212 全绿（199→212，core 104）+ clippy 零警告 + fmt 净

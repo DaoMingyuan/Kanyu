@@ -1163,7 +1163,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 
 #### Phase 3：手 —— 矢量编辑（Months 7–9）
 
-- [ ] egui 应用壳（TitleBar/StatusBar/磁吸面板，Shell-Layer-Grid 三级架构）。
+- [x] egui 应用壳（磁吸面板/多地图视图/属性表查看与字段计算，v0.16–v0.18 分批落地，2026-08-11）。
 - [ ] GPU SSBO 编辑管线（顶点拖拽、拓扑捕捉）。
 - [ ] 增量 DCEL 拓扑内核；Undo/Redo（GeoArrow Delta 快照）。
 - [ ] DXF 符号 ↔ 堪舆符号双向映射。

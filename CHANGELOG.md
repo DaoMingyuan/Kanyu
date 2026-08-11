@@ -4,6 +4,47 @@
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-11
+
+**UI 构成 ArcGIS Pro SDK 范式重组（声明式命令注册表 + 组件拆分组合）+ 属性表与字段
+计算器 + 多地图视图（含实验性 3D）+ 坐标系体系完善 + SDK 全量打通。**
+
+### 新增
+
+- **命令注册表**（`shell/commands.rs`，ArcGIS Pro DAML 范式落地）：32 个 UI 命令
+  一处声明（id/中文标题/图标/简介/可用条件），Ribbon 页签组、QAT、右键菜单统一
+  从注册表投影；`run_command` 单一执行入口为 SDK/AI 调用同一命令面打底。
+- **工具箱 ArcGIS Pro 化**：参数组件独立成模块（`toolbox/params.rs`，每参数类型
+  独立组件、统一契约）；工具对话框含焦点参数帮助区、失焦内联校验、「运行」门控；
+  面板加收藏 ★ 与最近使用区（ArcGIS Pro Favorites/Recent）。
+- **属性表**（`shell/attrtable.rs`，可停靠面板）：虚拟滚动表格（万级要素不卡）、
+  列头三态排序、子串筛选、添加/删除/重命名字段、**字段计算器**（表达式 + 前 5 行
+  预览）；图层右键新增「打开属性表」「图层属性…」。
+- **字段计算器引擎**（`core/attrcalc.rs`，纯 Rust 零依赖）：递归下降表达式解析
+  （字段引用/四则/比较/逻辑/常用函数/$area/$length/$x/$y 测地虚列），NULL 传播
+  语义对齐 QGIS；配套 add/delete/rename_field。
+- **多地图视图**（`shell/mapview.rs`）：「新建地图视图」开可移动/缩放/关闭的独立
+  视图窗，独立视口、内容绑定图层列表有效可见性，标题栏显示工程坐标系。
+- **实验性 3D 场景**（`shell/scene3d.rs`）：透视投影 + 面要素棱柱拉伸（高度字段
+  驱动）+ 背面剔除 + 深度排序，egui painter 零 GPU 依赖；拖拽旋转/平移/缩放。
+- **坐标系体系**：`crs::search_crs/crs_info/CrsInfo`——EPSG 全库 7507 条检索
+  （代码/名称，类型与单位中文标注）；轴序实测核验（proj4rs GIS 序与数据约定一致，
+  4490↔3857 与 4326↔3857 毫米级一致；4490→4527 高斯克吕格 ±1m 断言）；设置对话框
+  坐标系页全库搜索。
+- **ui_kit 扩件**：`menu_button`（split button）/`spinner`（数值步进）/`toast`
+  （成功/失败轻提示队列，3 秒自消）。
+- **SDK 打通**：`core::tooldef`（37 工具注册表 JSON 序列化）与 `core::toolrun`
+  （统一执行）下沉内核，壳层/CLI/Python 共用一处声明；kanyu-py 绑定补齐 geoprocess
+  第二/三批、attrcalc、crs 检索与 `run_tool/toolbox_registry`。
+
+### 变更
+
+- **UI 国际规范约束落地**：WCAG 2.2 对比度单测强制（晨山朱砂 0xC75B3A→0xB14E32
+  调至 4.79:1）；指针目标尺寸 22→24px（§2.5.8）；设置新增「界面」页全局缩放
+  100%/125%/150%（图标文字等比例）；停靠面板跨区拖动回流修复（窄区换行/截断
+  不撑破布局）。
+- 图层树行高 24px、长名截断为省略号。
+
 ## [0.17.0] - 2026-08-11
 
 **QGIS 核心算法第三批移植（工具箱扩编至 37 工具）+ 打包单入口整合。**
@@ -543,7 +584,8 @@ QGIS 式工具箱面板 + geoprocess 第二批算法移植。**
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.18.0
 [0.17.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.17.0
 [0.16.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.16.0
 [0.15.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.15.0
