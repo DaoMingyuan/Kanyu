@@ -250,8 +250,18 @@ pub struct KanyuApp {
     map_views: Vec<crate::mapview::MapView>,
     /// 视图序号计数（标题「地图 N」递增）。
     next_view_id: usize,
-    /// 中央当前页签（None = 主视图「地图」）。
+    /// 中央当前页签（None = 主视图「地图」；Some = map_views 下标）。
     active_view: Option<usize>,
+    /// 当前布局页签（Some 时优先于 active_view；layouts 下标）。
+    active_layout: Option<usize>,
+    /// 布局视图清单（内存态；.kyu 持久化列入后续）。
+    layouts: Vec<crate::layoutview::LayoutView>,
+    /// 布局序号计数（「布局 N」递增）。
+    next_layout_id: usize,
+    /// 新建布局对话框状态。
+    layout_dlg: Option<crate::layoutview::LayoutDialogState>,
+    /// 渲染内容纪元（rebuild_merged 递增；布局地图缓存据此刻意重合成）。
+    render_epoch: u64,
     /// 中央页签条矩形（浮动视图拖入吸附的投放区）。
     view_strip_rect: Option<egui::Rect>,
     /// 正在拖拽的浮动视图（map_views 下标）。
@@ -351,6 +361,11 @@ impl KanyuApp {
             map_views: Vec::new(),
             next_view_id: 2,
             active_view: None,
+            active_layout: None,
+            layouts: Vec::new(),
+            next_layout_id: 1,
+            layout_dlg: None,
+            render_epoch: 1,
             view_strip_rect: None,
             dragging_view: None,
             error_msg: None,
@@ -477,6 +492,21 @@ impl KanyuApp {
             for e in &mut app.layers {
                 e.expanded = true;
             }
+        }
+        // --layout-demo：创建并激活布局页签（截图验证）。
+        if args.layout_demo {
+            let id = app.next_layout_id;
+            app.next_layout_id += 1;
+            let spec = kanyu_render::layout::LayoutSpec {
+                title: "示范区总图".to_string(),
+                ..Default::default()
+            };
+            app.layouts.push(crate::layoutview::LayoutView::new(
+                id,
+                "示范区总图".to_string(),
+                spec,
+            ));
+            app.active_layout = Some(app.layouts.len() - 1);
         }
         // --props-demo：打开首图层属性页（直达符号化页，截图验证）。
         if args.props_demo {
@@ -742,6 +772,7 @@ impl KanyuApp {
         };
         self.data_extent = view::union(extents);
         self.canvas.dirty = true;
+        self.render_epoch += 1;
         // 全部额外视图同脏（可见性/增删变化 → 各视图重渲）。
         for v in &mut self.map_views {
             v.canvas.dirty = true;
@@ -2009,6 +2040,134 @@ impl KanyuApp {
         }
     }
 
+    /// 布局页签内容（排版视图 + 导出）。
+    fn layout_view_content(&mut self, ui: &mut egui::Ui, li: usize, ctx: &egui::Context) {
+        // 图例行：各可见图层符号化分类（层名前缀）。
+        let legend = self.layout_legend();
+        let epoch = self.render_epoch;
+        let viewport = self.view_bbox.or(self.data_extent);
+        let span_m = viewport.map(|b| (b[2] - b[0]).abs() * 111320.0); // 赤道近似（注释：示意级）
+        let mut lv = self.layouts.remove(li);
+        if lv.epoch != epoch || lv.map_png.is_none() {
+            let f = kanyu_render::layout::LayoutFrame::compute(&lv.spec);
+            lv.map_png = crate::canvas::composite_layers_png(
+                &build_layer_slices(&self.render_cache),
+                f.map[2].round().max(1.0) as u32,
+                f.map[3].round().max(1.0) as u32,
+                viewport,
+                self.effective_map_theme(),
+            )
+            .ok();
+            lv.epoch = epoch;
+        }
+        let map_png = lv.map_png.clone();
+        let action = crate::layoutview::layout_ui(ui, &mut lv, &legend, span_m, map_png.as_deref());
+        self.layouts.insert(li, lv);
+        match action {
+            Some(crate::layoutview::LayoutAction::ExportPng) => self.export_layout(li, "png"),
+            Some(crate::layoutview::LayoutAction::ExportSvg) => self.export_layout(li, "svg"),
+            None => {}
+        }
+        let _ = ctx;
+    }
+
+    /// 布局图例行（可见图层 × 符号化分类）。
+    fn layout_legend(&self) -> Vec<kanyu_render::layout::LegendRow> {
+        let mut rows = Vec::new();
+        for (id, _, sym) in &self.render_cache {
+            let name = self
+                .layers
+                .iter()
+                .find(|e| e.layer.id() == id)
+                .map(|e| e.file_name.clone())
+                .unwrap_or_else(|| id.clone());
+            let single_label = self
+                .layers
+                .iter()
+                .find(|e| e.layer.id() == id)
+                .map(|e| e.summary.geometry_types.join(", "))
+                .unwrap_or_default();
+            for (color, label) in crate::symbology::class_rows(sym, &single_label) {
+                rows.push(kanyu_render::layout::LegendRow {
+                    color,
+                    label: format!("{name} · {label}"),
+                });
+            }
+        }
+        rows
+    }
+
+    /// 布局导出（PNG/SVG 写盘 + toast）。
+    fn export_layout(&mut self, li: usize, fmt: &str) {
+        if li >= self.layouts.len() {
+            return;
+        }
+        let lv = &self.layouts[li];
+        let (default_name, filter_name) = (format!("{}.{}", lv.title, fmt), fmt.to_uppercase());
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter(filter_name, &[fmt])
+            .set_file_name(&default_name)
+            .save_file()
+        else {
+            return;
+        };
+        let f = kanyu_render::layout::LayoutFrame::compute(&lv.spec);
+        let viewport = self.view_bbox.or(self.data_extent);
+        let span_m = viewport.map(|b| (b[2] - b[0]).abs() * 111320.0);
+        let scale = span_m.map(|s| {
+            let (label, bar_px, _) = kanyu_render::layout::nice_scale(s, f.map[2], lv.spec.dpi);
+            (label, bar_px)
+        });
+        let legend = self.layout_legend();
+        // 地图 PNG（打印尺寸合成；SVG 内经 base64 data-URI 内嵌，保持按层符号化）。
+        let map_png = crate::canvas::composite_layers_png(
+            &build_layer_slices(&self.render_cache),
+            f.map[2].round().max(1.0) as u32,
+            f.map[3].round().max(1.0) as u32,
+            viewport,
+            self.effective_map_theme(),
+        );
+        let out_path = path.to_string_lossy().into_owned();
+        let result: Result<(), String> = (|| {
+            let map_png = map_png?;
+            let bytes = match fmt {
+                "svg" => {
+                    let img = format!(
+                        "<image x=\"0\" y=\"0\" width=\"{:.0}\" height=\"{:.0}\" href=\"data:image/png;base64,{}\"/>",
+                        f.map[2], f.map[3], base64_encode(&map_png)
+                    );
+                    kanyu_render::layout::render_layout_svg(
+                        &lv.spec,
+                        &img,
+                        &legend,
+                        scale.as_ref().map(|(l, b)| (l.as_str(), *b)),
+                    )
+                    .into_bytes()
+                }
+                _ => kanyu_render::layout::render_layout_png(
+                    &lv.spec,
+                    &map_png,
+                    &legend,
+                    scale.as_ref().map(|(l, b)| (l.as_str(), *b)),
+                )
+                .map_err(|e| e.to_string())?,
+            };
+            std::fs::write(&out_path, bytes).map_err(|e| e.to_string())
+        })();
+        match result {
+            Ok(()) => {
+                let msg = format!("布局「{}」已导出 → {out_path}", lv.title);
+                self.console.info(msg.clone());
+                self.toast_ok(msg);
+            }
+            Err(e) => {
+                self.console
+                    .push(crate::console::LineKind::Err, format!("布局导出失败: {e}"));
+                self.toast_err(format!("布局导出失败: {e}"));
+            }
+        }
+    }
+
     // ===== 停靠区渲染（dock.rs 编排，此处提供内容）=====
 
     /// 单个停靠区：页签条（拖动/关闭/全部开关）+ 当前页签内容。
@@ -2073,9 +2232,15 @@ impl KanyuApp {
                         dim_label: v.dim.label(),
                     });
                 }
+                let layout_titles: Vec<String> =
+                    self.layouts.iter().map(|l| l.title.clone()).collect();
                 let mut catalog = std::mem::take(&mut self.catalog);
-                out.catalog
-                    .extend(catalog.ui(ui, &mut self.icon_cache, &view_rows));
+                out.catalog.extend(catalog.ui(
+                    ui,
+                    &mut self.icon_cache,
+                    &view_rows,
+                    &layout_titles,
+                ));
                 self.catalog = catalog;
             }
             crate::dock::PanelId::Layers => {
@@ -2525,6 +2690,18 @@ impl eframe::App for KanyuApp {
                 crate::catalog::CatalogAction::NewMapView => {
                     self.dispatch(RibbonAction::NewMapView, &ctx)
                 }
+                crate::catalog::CatalogAction::ActivateLayout(i) => {
+                    if i < self.layouts.len() {
+                        self.active_layout = Some(i);
+                        self.active_view = None;
+                    }
+                }
+                crate::catalog::CatalogAction::NewLayout => {
+                    self.layout_dlg = Some(crate::layoutview::LayoutDialogState {
+                        title: format!("布局 {}", self.next_layout_id),
+                        ..Default::default()
+                    });
+                }
             }
         }
         for action in dock_out.panel {
@@ -2532,20 +2709,46 @@ impl eframe::App for KanyuApp {
         }
 
         // 中央：视图页签条（文档页签范式）+ 当前视图内容。
-        // 主视图「地图」恒在首位（不可关闭/弹出，启动即有地图框）。
-        let docked_tabs: Vec<(usize, String)> = self
+        // 主视图「地图」恒在首位（不可关闭/弹出，启动即有地图框）；
+        // 布局页签与地图页签同机制（布局不可浮动）。
+        use crate::mapview::CentralTabKey;
+        let mut docked_tabs: Vec<(CentralTabKey, String)> = self
             .map_views
             .iter()
             .enumerate()
             .filter(|(_, v)| v.docked)
-            .map(|(i, v)| (i, v.title.clone()))
+            .map(|(i, v)| (CentralTabKey::Map(i), v.title.clone()))
             .collect();
+        docked_tabs.extend(
+            self.layouts
+                .iter()
+                .enumerate()
+                .map(|(i, l)| (CentralTabKey::Layout(i), l.title.clone())),
+        );
+        let strip_active = if let Some(l) = self.active_layout {
+            Some(CentralTabKey::Layout(l))
+        } else {
+            self.active_view.map(CentralTabKey::Map)
+        };
         let strip_out =
-            ui.scope(|ui| crate::mapview::view_tab_strip(ui, &docked_tabs, self.active_view));
+            ui.scope(|ui| crate::mapview::view_tab_strip(ui, &docked_tabs, strip_active));
         self.view_strip_rect = Some(strip_out.response.rect);
         let act = strip_out.inner;
         if let Some(sel) = act.activated {
-            self.active_view = sel;
+            match sel {
+                None => {
+                    self.active_view = None;
+                    self.active_layout = None;
+                }
+                Some(CentralTabKey::Map(i)) => {
+                    self.active_view = Some(i);
+                    self.active_layout = None;
+                }
+                Some(CentralTabKey::Layout(i)) => {
+                    self.active_layout = Some(i);
+                    self.active_view = None;
+                }
+            }
             self.mark_state_dirty();
         }
         if let Some(i) = act.floated {
@@ -2557,41 +2760,61 @@ impl eframe::App for KanyuApp {
                 self.mark_state_dirty();
             }
         }
-        if let Some(i) = act.closed {
-            if i < self.map_views.len() {
-                let title = self.map_views[i].title.clone();
-                self.map_views.remove(i);
-                match self.active_view {
-                    Some(a) if a == i => self.active_view = None,
-                    Some(a) if a > i => self.active_view = Some(a - 1),
-                    _ => {}
+        if let Some(key) = act.closed {
+            match key {
+                CentralTabKey::Map(i) if i < self.map_views.len() => {
+                    let title = self.map_views[i].title.clone();
+                    self.map_views.remove(i);
+                    match self.active_view {
+                        Some(a) if a == i => self.active_view = None,
+                        Some(a) if a > i => self.active_view = Some(a - 1),
+                        _ => {}
+                    }
+                    self.console.info(format!("视图「{title}」已关闭"));
                 }
-                self.console.info(format!("视图「{title}」已关闭"));
-                self.mark_state_dirty();
+                CentralTabKey::Layout(i) if i < self.layouts.len() => {
+                    let title = self.layouts[i].title.clone();
+                    self.layouts.remove(i);
+                    match self.active_layout {
+                        Some(a) if a == i => self.active_layout = None,
+                        Some(a) if a > i => self.active_layout = Some(a - 1),
+                        _ => {}
+                    }
+                    self.console.info(format!("布局「{title}」已关闭"));
+                }
+                _ => {}
             }
+            self.mark_state_dirty();
         }
         if act.new_view {
             self.dispatch(RibbonAction::NewMapView, &ctx);
             self.mark_state_dirty();
         }
 
-        // 当前视图内容：None = 主视图；Some(i) = 吸附的额外视图。
-        match self.active_view {
-            Some(i) if i < self.map_views.len() && self.map_views[i].docked => {
-                let mut v = self.map_views.remove(i);
-                let vinput = crate::mapview::ViewInput {
-                    layers: &build_layer_slices(&self.render_cache),
-                    theme: self.effective_map_theme(),
-                    data_extent: self.data_extent,
-                    crs: &self.project_crs,
-                };
-                crate::mapview::content_ui(ui, &mut v, &vinput, false);
-                self.map_views.insert(i, v);
+        // 当前页签内容：布局 > 吸附地图视图 > 主视图。
+        if let Some(li) = self.active_layout {
+            if li < self.layouts.len() {
+                self.layout_view_content(ui, li, &ctx);
+            } else {
+                self.active_layout = None;
             }
-            Some(_) => self.active_view = None, // 目标已浮动/关闭 → 回落主视图
-            None => {
-                // 主视图「地图」（地图色彩由 map_theme_mode 决定，与界面主题解耦）。
-                let out = self.canvas.ui(
+        } else {
+            match self.active_view {
+                Some(i) if i < self.map_views.len() && self.map_views[i].docked => {
+                    let mut v = self.map_views.remove(i);
+                    let vinput = crate::mapview::ViewInput {
+                        layers: &build_layer_slices(&self.render_cache),
+                        theme: self.effective_map_theme(),
+                        data_extent: self.data_extent,
+                        crs: &self.project_crs,
+                    };
+                    crate::mapview::content_ui(ui, &mut v, &vinput, false);
+                    self.map_views.insert(i, v);
+                }
+                Some(_) => self.active_view = None, // 目标已浮动/关闭 → 回落主视图
+                None => {
+                    // 主视图「地图」（地图色彩由 map_theme_mode 决定，与界面主题解耦）。
+                    let out = self.canvas.ui(
                     ui,
                     CanvasInput {
                         layers: &build_layer_slices(&self.render_cache),
@@ -2602,17 +2825,18 @@ impl eframe::App for KanyuApp {
                         empty_hint: "◇ 堪舆\n\n拖入数据文件，或经「主页 → 打开数据…」\n支持 shp / geojson / fgb / parquet / dxf / dwg / kml / kmz / csv / tsv / xlsx",
                     },
                 );
-                self.view_bbox = out.view_bbox;
-                self.mouse_data = out.mouse_data;
-                if out.fit_consumed {
-                    self.needs_fit = false;
-                    self.fit_extent = None;
-                }
-                if let Some(e) = out.render_error {
-                    self.status = e;
+                    self.view_bbox = out.view_bbox;
+                    self.mouse_data = out.mouse_data;
+                    if out.fit_consumed {
+                        self.needs_fit = false;
+                        self.fit_extent = None;
+                    }
+                    if let Some(e) = out.render_error {
+                        self.status = e;
+                    }
                 }
             }
-        }
+        } // end else（布局页签未激活时的地图视图分支）
 
         // 浮动视图窗口（docked=false 的视图；关闭即从清单移除）。
         {
@@ -2792,6 +3016,56 @@ impl eframe::App for KanyuApp {
         }
         // 图层属性页（常规/源/字段/符号化）。
         self.layer_props_ui(&ctx);
+        // 新建布局对话框。
+        if let Some(mut dlg) = self.layout_dlg.take() {
+            let action = crate::ui_kit::dialog_shell(&ctx, "新建布局框", |ui| {
+                crate::ui_kit::text_input(ui, "标题", &mut dlg.title, "如 示范区总图", true);
+                let mut ls = dlg.landscape;
+                ui.horizontal(|ui| {
+                    ui.label(crate::ui_kit::text::body("纸张:"));
+                    if ui
+                        .selectable_label(ls, crate::ui_kit::text::body("A4 横"))
+                        .clicked()
+                    {
+                        ls = true;
+                    }
+                    if ui
+                        .selectable_label(!ls, crate::ui_kit::text::body("A4 纵"))
+                        .clicked()
+                    {
+                        ls = false;
+                    }
+                });
+                dlg.landscape = ls;
+                crate::ui_kit::checkbox(ui, &mut dlg.legend, "图例");
+                crate::ui_kit::checkbox(ui, &mut dlg.scalebar, "比例尺");
+                crate::ui_kit::checkbox(ui, &mut dlg.north, "指北针");
+            });
+            match action {
+                crate::ui_kit::DialogAction::Ok => match dlg.validate() {
+                    Ok(()) => {
+                        let id = self.next_layout_id;
+                        self.next_layout_id += 1;
+                        let title = dlg.title.trim().to_string();
+                        self.layouts.push(crate::layoutview::LayoutView::new(
+                            id,
+                            title.clone(),
+                            dlg.to_spec(),
+                        ));
+                        self.active_layout = Some(self.layouts.len() - 1);
+                        self.active_view = None;
+                        self.console.info(format!("已新建布局「{title}」"));
+                        self.mark_state_dirty();
+                    }
+                    Err(e) => {
+                        self.toast_err(&e);
+                        self.console.push(crate::console::LineKind::Err, e);
+                    }
+                },
+                crate::ui_kit::DialogAction::Cancel => {} // 取消：丢弃
+                crate::ui_kit::DialogAction::None => self.layout_dlg = Some(dlg), // 继续显示
+            }
+        }
         // 工具后台执行：进度模态 + 完成轮询 + 可终止。
         self.tool_progress_ui(&ctx);
         self.error_modal(&ctx);
@@ -2914,6 +3188,31 @@ impl ConsoleHost for KanyuApp {
         self.theme_dirty = true;
         self.canvas.dirty = true;
     }
+}
+
+/// base64 编码（布局 SVG 内嵌 PNG 用；RFC 4648 标准表，无依赖）。
+fn base64_encode(data: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len() * 4 / 3 + 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = chunk.get(1).copied().unwrap_or(0) as u32;
+        let b2 = chunk.get(2).copied().unwrap_or(0) as u32;
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(T[(n >> 18) as usize & 63] as char);
+        out.push(T[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 {
+            T[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            T[n as usize & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
 }
 
 /// ColorImage（直通 RGBA）→ PNG 落盘：转预乘后交给 tiny-skia 编码

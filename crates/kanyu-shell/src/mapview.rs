@@ -174,26 +174,35 @@ pub fn window_ui(ctx: &egui::Context, view: &mut MapView, input: &ViewInput<'_>)
 
 // ===== 中央视图页签条 =====
 
+/// 中央页签键（主视图「地图」不在其中——它恒在首位）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CentralTabKey {
+    /// 地图视图（map_views 下标）。
+    Map(usize),
+    /// 布局视图（layouts 下标）。
+    Layout(usize),
+}
+
 /// 页签条动作。
 #[derive(Default)]
 pub struct ViewStripActions {
     /// 激活页签（None = 主视图「地图」）。
-    pub activated: Option<Option<usize>>,
-    /// 关闭视图（下标）。
-    pub closed: Option<usize>,
-    /// 弹出为浮动窗（下标）。
+    pub activated: Option<Option<CentralTabKey>>,
+    /// 关闭页签。
+    pub closed: Option<CentralTabKey>,
+    /// 弹出为浮动窗（仅地图视图；map_views 下标）。
     pub floated: Option<usize>,
     /// 「＋新建地图框」。
     pub new_view: bool,
 }
 
 /// 中央视图页签条：`＋新建地图框` + 主视图页签（不可关/不可弹出）+
-/// 各吸附视图页签（⤢ 弹出 / × 关闭）。样式与 dock 页签条同一语言。
-/// `docked` = (map_views 下标, 标题) 序列；`active` = 当前页签（None = 主视图）。
+/// 各吸附页签（地图：⤢ 弹出 / × 关闭；布局：× 关闭）。样式与 dock 页签条同一语言。
+/// `docked` = (页签键, 标题) 序列；`active` = 当前页签（None = 主视图）。
 pub fn view_tab_strip(
     ui: &mut egui::Ui,
-    docked: &[(usize, String)],
-    active: Option<usize>,
+    docked: &[(CentralTabKey, String)],
+    active: Option<CentralTabKey>,
 ) -> ViewStripActions {
     let p = palette_of(ui);
     let mut out = ViewStripActions::default();
@@ -243,17 +252,20 @@ pub fn view_tab_strip(
                     out.activated = Some(None);
                 }
 
-                // 吸附视图页签。
-                for (idx, title) in docked {
-                    let r = strip_tab(ui, &p, title, active == Some(*idx), true, true);
+                // 吸附页签（地图可弹出；布局仅关闭）。
+                for (key, title) in docked {
+                    let floatable = matches!(key, CentralTabKey::Map(_));
+                    let r = strip_tab(ui, &p, title, active == Some(*key), true, floatable);
                     if r.clicked {
-                        out.activated = Some(Some(*idx));
+                        out.activated = Some(Some(*key));
                     }
                     if r.close_clicked {
-                        out.closed = Some(*idx);
+                        out.closed = Some(*key);
                     }
                     if r.float_clicked {
-                        out.floated = Some(*idx);
+                        if let CentralTabKey::Map(i) = key {
+                            out.floated = Some(*i);
+                        }
                     }
                 }
             });

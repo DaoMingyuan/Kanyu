@@ -76,6 +76,67 @@ pub struct CanvasInput<'a> {
     pub empty_hint: &'a str,
 }
 
+/// 逐图层渲染并合成单张 PNG（白底键控叠图；布局地图框/导出共用）。
+pub fn composite_layers_png(
+    layers: &[LayerSlice],
+    width: u32,
+    height: u32,
+    viewport: Option<BBox>,
+    theme: Theme,
+) -> Result<Vec<u8>, String> {
+    use tiny_skia::{Pixmap, PixmapPaint, Transform};
+    let mut base = Pixmap::new(width.max(1), height.max(1))
+        .ok_or_else(|| format!("合成尺寸非法（{width}×{height}）"))?;
+    base.fill(tiny_skia::Color::from_rgba8(255, 255, 255, 255));
+    for (i, slice) in layers.iter().enumerate() {
+        let opts = RenderOptions {
+            width,
+            height,
+            padding: 0.0,
+            theme,
+            background: Some(CANVAS_BACKGROUND.to_string()),
+            viewport,
+            style: slice.style.clone(),
+        };
+        let png = render_png(slice.collection, &opts).map_err(|e| e.to_string())?;
+        let pixmap =
+            tiny_skia::Pixmap::decode_png(&png).map_err(|e| format!("PNG 解码失败: {e}"))?;
+        if i == 0 {
+            base.draw_pixmap(
+                0,
+                0,
+                pixmap.as_ref(),
+                &PixmapPaint::default(),
+                Transform::default(),
+                None,
+            );
+        } else {
+            // 上层：纯白底抠为透明后叠图（画布恒纯白，键控边缘无感知）。
+            let mut data = pixmap.data().to_vec();
+            for px in data.chunks_exact_mut(4) {
+                if px[0] > 250 && px[1] > 250 && px[2] > 250 {
+                    px[3] = 0;
+                }
+            }
+            let keyed = tiny_skia::Pixmap::from_vec(
+                data,
+                tiny_skia::IntSize::from_wh(pixmap.width(), pixmap.height())
+                    .ok_or("合成像素缓冲构造失败")?,
+            )
+            .ok_or("合成像素缓冲构造失败")?;
+            base.draw_pixmap(
+                0,
+                0,
+                keyed.as_ref(),
+                &PixmapPaint::default(),
+                Transform::default(),
+                None,
+            );
+        }
+    }
+    base.encode_png().map_err(|e| format!("PNG 编码失败: {e}"))
+}
+
 /// 画布帧输出。
 pub struct CanvasOutput {
     /// 交互后的视口。

@@ -196,6 +196,33 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
 | 内存占用（同等数据） | 100% | 50% | 2x |
 | 启动时间 | 8s | 1s | 8x |
 
+### 8.1 首轮实测（2026-08-11）
+
+基准设施：`kanyu-core::bench` 确定性场景生成器（xorshift64*，种子 42，
+零依赖）+ `kanyu analysis bench [--size N]`（每项 3 次取中位数，
+`--json` 结构化）。实测机：AMD Ryzen 9 9950X（16 核）/ 128GB RAM /
+Windows 11 专业工作站版，release 构建（thin LTO）。
+
+| 项目（场景） | 1 万 | 10 万 | 100 万 | 吞吐（100 万档） |
+|---|---|---|---|---|
+| 加载解析（GeoJSON→Layer） | 32.0 ms | 373.1 ms | 4508.1 ms | 22.2 万要素/秒 |
+| buffer（0.01°，segments=8） | 81.6 ms | 816.0 ms | 9285.5 ms | 10.8 万要素/秒 |
+| overlay_union（单侧 √N 格） | 26.7 ms（100²对） | 277.5 ms（316²对） | 3289.4 ms（1000²对） | 304 要素/秒（单侧） |
+| sjoin（N × 16 格，intersects） | 14.1 ms | 155.9 ms | 1820.4 ms | 54.9 万要素/秒 |
+| render_png（800×600 晨山） | 46.9 ms | 369.6 ms | 3785.4 ms | 26.4 万要素/秒 |
+
+差距分析（一句话级）：
+
+- **线性项健康**：加载/buffer/sjoin/render 吞吐跨档近似恒定（线性缩放）；
+  buffer 为最重线性项（多边形偏移+布尔成本，每要素 ≈9µs）。
+- **overlay 平方项坐实**：耗时随图层规模呈平方增长（×10 规模 → ×10.4/×11.9 耗时，
+  即 O(n·m) 朴素笛卡尔积），rstar 空间索引裁剪为既定路线项。
+- **渲染口径差异**：render_png 为 CPU 离屏**单帧**口径（100 万要素 ≈3.8s/帧，
+  折合 0.26 fps），与 §8「60 fps」实时渲染目标差约 230 倍——该目标对应
+  Phase 2 wgpu GPU 管线（GeoArrow→SSBO 直通），CPU 离屏渲染不承担该指标。
+- **GeoJSON 文本解析为加载瓶颈**（100 万 ≈4.5s）；FGB/GeoParquet 二进制
+  直通（Phase 1 进行中）预期量级改善，下轮实测补二进制格式对照行。
+
 ## 9. 演进路线
 
 | 阶段 | 目标 | 状态 |
@@ -222,8 +249,9 @@ v0.18.0–v0.19.0 已推进：壳层 ArcGIS Pro SDK 范式重组（命令注册�
    Delta 快照 → DCEL 拓扑」路线继续。
 2. **MCP 工具面收敛收尾**：tooldef/toolrun 已下沉 core（壳层与 Python 已共用一处
    声明）；MCP 工具清单（`introspect.rs`）尚为独立声明，建议接入同一注册表。
-3. **§8 性能目标实测**：overlay/sjoin 为 O(n·m) 朴素实现（rustdoc 已注明待 rstar 索引）；
-   按层渲染后画布成本随图层数线性增长，建议基准场景量化后再谈 wgpu 管线（Phase 2）。
+3. **§8 性能优化（基准已立）**：`bench` 生成器 + `kanyu analysis bench` 已落地并
+   完成首轮实测（§8.1）：overlay 平方项坐实（rstar 索引裁剪优先）、GeoJSON 文本
+   加载为瓶颈（FGB/GeoParquet 二进制对照行待补）、60fps 指标归 Phase 2 wgpu 管线。
 4. **UI 状态持久化**：`DockState`/收藏/界面缩放/视图布局现为内存态，可随 `.kyu`
    或独立 ui-state 文件落盘。
 5. **布局框与服务链接占位兑现**：目录分类框架已立，打印布局（排版输出）与 WFS/WMS

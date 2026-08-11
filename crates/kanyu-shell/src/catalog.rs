@@ -19,6 +19,10 @@ pub enum CatalogAction {
     ActivateView(Option<usize>),
     /// 新建地图框（同功能区命令）。
     NewMapView,
+    /// 激活布局页签（layouts 下标）。
+    ActivateLayout(usize),
+    /// 新建布局框（打开规格对话框）。
+    NewLayout,
 }
 
 /// 地图视图行（app 注入，地图框分类的数据源）。
@@ -46,6 +50,7 @@ pub struct CategoryMeta {
 /// 五分类（固定序；纯结构函数，可测）。
 pub fn categories(
     view_count: usize,
+    layout_count: usize,
     has_default_kdb: bool,
     root_count: usize,
 ) -> [CategoryMeta; 5] {
@@ -59,8 +64,8 @@ pub fn categories(
         CategoryMeta {
             name: "布局框",
             icon: Icon::List,
-            count: 0,
-            placeholder: Some("打印布局待后续阶段（排版输出）"),
+            count: layout_count,
+            placeholder: None,
         },
         CategoryMeta {
             name: "数据库",
@@ -250,12 +255,14 @@ impl CatalogPanel {
         p.is_file().then_some(p)
     }
 
-    /// 面板 UI。`views` = 地图框分类数据（app 注入）。返回产生的动作。
+    /// 面板 UI。`views` = 地图框分类数据、`layouts` = 布局标题清单（app 注入）。
+    /// 返回产生的动作。
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
         cache: &mut crate::ui_kit::icons::IconCache,
         views: &[ViewRow],
+        layouts: &[String],
     ) -> Vec<CatalogAction> {
         let mut actions = Vec::new();
         // 状态行。
@@ -263,7 +270,12 @@ impl CatalogPanel {
             hint_caption(ui, note);
         }
         let default_kdb = Self::default_kdb();
-        let cats = categories(views.len(), default_kdb.is_some(), self.roots.len());
+        let cats = categories(
+            views.len(),
+            layouts.len(),
+            default_kdb.is_some(),
+            self.roots.len(),
+        );
         // 展开/加载/打开动作延后收集（避免借用冲突），迭代后统一应用。
         let mut toggles: Vec<Vec<usize>> = Vec::new();
         // auto_shrink([false, true])：滚动条出现/消失不引发布局宽度跳动。
@@ -321,8 +333,30 @@ impl CatalogPanel {
                                 actions.push(CatalogAction::NewMapView);
                             }
                         }
-                        1 | 3 => {
-                            // 布局框 / 服务链接：占位空态。
+                        1 => {
+                            // 布局框：布局行（单击激活页签）+ 新建入口。
+                            for (i, title) in layouts.iter().enumerate() {
+                                let (resp, _) =
+                                    tree_row(ui, cache, 1, Some(Icon::List), title, None, |_ui| {});
+                                if resp.clicked() {
+                                    actions.push(CatalogAction::ActivateLayout(i));
+                                }
+                            }
+                            let (resp, _) = tree_row(
+                                ui,
+                                cache,
+                                1,
+                                Some(Icon::Play),
+                                "＋ 新建布局框",
+                                None,
+                                |_ui| {},
+                            );
+                            if resp.clicked() {
+                                actions.push(CatalogAction::NewLayout);
+                            }
+                        }
+                        3 => {
+                            // 服务链接：占位空态。
                             if let Some(ph) = cat.placeholder {
                                 ui.horizontal(|ui| {
                                     ui.add_space(16.0);
@@ -534,19 +568,18 @@ mod tests {
 
     #[test]
     fn categories_fixed_order_and_counts() {
-        let cats = categories(3, true, 6);
+        let cats = categories(3, 2, true, 6);
         let names: Vec<&str> = cats.iter().map(|c| c.name).collect();
         assert_eq!(
             names,
             vec!["地图框", "布局框", "数据库", "服务链接", "本机数据"]
         );
         assert_eq!(cats[0].count, 3);
-        assert_eq!(cats[1].count, 0);
-        assert!(cats[1].placeholder.is_some());
+        assert_eq!(cats[1].count, 2); // 布局框计数兑现
         assert_eq!(cats[2].count, 1);
         assert!(cats[3].placeholder.is_some());
         assert_eq!(cats[4].count, 6);
-        let cats2 = categories(1, false, 0);
+        let cats2 = categories(1, 0, false, 0);
         assert_eq!(cats2[2].count, 0);
     }
 

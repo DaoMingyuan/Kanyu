@@ -24,6 +24,7 @@ mod commands;
 mod console;
 mod dialogs;
 mod dock;
+mod layoutview;
 mod mapview;
 mod panels;
 mod ribbon;
@@ -70,6 +71,8 @@ pub struct ShellArgs {
     pub props_demo: bool,
     /// 隐藏验证参数：展开全部图层节点（截图验证符号化分类行）。
     pub expand_layers: bool,
+    /// 隐藏验证参数：启动即创建并激活一个布局页签（截图验证）。
+    pub layout_demo: bool,
 }
 
 impl Default for ShellArgs {
@@ -89,6 +92,7 @@ impl Default for ShellArgs {
             catalog_demo: false,
             props_demo: false,
             expand_layers: false,
+            layout_demo: false,
         }
     }
 }
@@ -148,6 +152,7 @@ fn parse_args() -> ShellArgs {
             "--catalog-demo" => args.catalog_demo = true,
             "--props-demo" => args.props_demo = true,
             "--expand-layers" => args.expand_layers = true,
+            "--layout-demo" => args.layout_demo = true,
             "--zoom" => {
                 let v = it.next().unwrap_or_else(|| {
                     eprintln!("--zoom 缺少倍率（如 1.25）\n{}", usage());

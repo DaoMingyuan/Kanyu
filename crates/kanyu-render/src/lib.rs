@@ -11,6 +11,9 @@
 
 use geojson::{FeatureCollection, Value};
 
+/// 打印布局排版器（SVG + PNG；见模块 rustdoc）。
+pub mod layout;
+
 /// 渲染错误。
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
