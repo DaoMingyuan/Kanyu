@@ -76,6 +76,14 @@ pub enum Icon {
     EyeOff,
     /// 字段（小表格行）。
     Field,
+    /// 普通文件夹（目录树节点；位图 folder32，手绘回退同 Folder）。
+    FolderPlain,
+    /// 堪舆工程 .kyu（位图 mapfile32，手绘回退同 Info）。
+    Project,
+    /// 堪舆数据库 .kdb（位图 geodatabase32，手绘回退同 Grid）。
+    Database,
+    /// CAD 图纸 .dwg/.dxf（位图 caddataset32，手绘回退同 Ruler）。
+    Cad,
 }
 
 /// 在 rect 内绘制图标（stroke 1.5px、圆角端点）。
@@ -465,6 +473,11 @@ pub fn draw(painter: &Painter, icon: Icon, rect: Rect, color: Color32) {
                 line(p(x0, yy), p(x1 * 0.75 + x0 * 0.25, yy));
             }
         }
+        // 目录树专用变体：手绘回退直接复用最接近的现有画法。
+        Icon::FolderPlain => draw(painter, Icon::Folder, rect, color),
+        Icon::Project => draw(painter, Icon::Info, rect, color),
+        Icon::Database => draw(painter, Icon::Grid, rect, color),
+        Icon::Cad => draw(painter, Icon::Ruler, rect, color),
     }
 }
 
@@ -529,6 +542,10 @@ pub fn arcgis_resource_name(icon: Icon) -> &'static str {
         Icon::Eye => "showdetailspanel32",
         Icon::EyeOff => "hidedetailspanel32",
         Icon::Field => "tablefieldsview32",
+        Icon::FolderPlain => "folder32",
+        Icon::Project => "mapfile32",
+        Icon::Database => "geodatabase32",
+        Icon::Cad => "caddataset32",
     }
 }
 
@@ -649,6 +666,10 @@ mod tests {
             Icon::Eye,
             Icon::EyeOff,
             Icon::Field,
+            Icon::FolderPlain,
+            Icon::Project,
+            Icon::Database,
+            Icon::Cad,
         ];
         for (i, a) in icons.iter().enumerate() {
             for (j, b) in icons.iter().enumerate() {
@@ -657,6 +678,6 @@ mod tests {
                 }
             }
         }
-        assert_eq!(icons.len(), 33);
+        assert_eq!(icons.len(), 37);
     }
 }

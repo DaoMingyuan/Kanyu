@@ -156,7 +156,11 @@ impl CatalogPanel {
     }
 
     /// 面板 UI。返回产生的动作。
-    pub fn ui(&mut self, ui: &mut egui::Ui) -> Vec<CatalogAction> {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        cache: &mut crate::ui_kit::icons::IconCache,
+    ) -> Vec<CatalogAction> {
         let mut actions = Vec::new();
         // 状态行。
         if let Some(note) = &self.note {
@@ -178,6 +182,7 @@ impl CatalogPanel {
                         &mut path_buf,
                         &mut toggles,
                         &mut actions,
+                        cache,
                     );
                 }
             });
@@ -205,6 +210,7 @@ fn render_node(
     idx_path: &mut Vec<usize>,
     toggles: &mut Vec<Vec<usize>>,
     actions: &mut Vec<CatalogAction>,
+    cache: &mut crate::ui_kit::icons::IconCache,
 ) {
     let my_path = idx_path.clone();
     ui.horizontal(|ui| {
@@ -249,9 +255,10 @@ fn render_node(
         } else {
             ui.allocate_exact_size(egui::Vec2::new(16.0, 20.0), egui::Sense::hover());
         }
-        // 图标 + 名称。
+        // 图标 + 名称（位图优先、手绘回退；tint 为手绘回退色）。
         let (icon, tint) = node_visual(node);
-        icons::icon_ui(ui, icon, 14.0, tint);
+        let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(14.0), egui::Sense::hover());
+        icons::draw_or_image(ui, cache, icon, rect, tint);
         ui.add_space(2.0);
         let label = match node.size {
             Some(size) => format!("{}  （{}）", node.name, human_size(size)),
@@ -283,7 +290,7 @@ fn render_node(
             }
             for (i, child) in children.iter().enumerate() {
                 idx_path.push(i);
-                render_node(ui, child, depth + 1, idx_path, toggles, actions);
+                render_node(ui, child, depth + 1, idx_path, toggles, actions, cache);
                 idx_path.pop();
             }
         }
@@ -293,7 +300,7 @@ fn render_node(
 /// 节点图标与着色。
 fn node_visual(node: &CatalogNode) -> (Icon, egui::Color32) {
     if node.is_dir {
-        return (Icon::Folder, egui::Color32::from_rgb(0xD4, 0xA8, 0x43));
+        return (Icon::FolderPlain, egui::Color32::from_rgb(0xD4, 0xA8, 0x43));
     }
     let ext = node
         .path
@@ -301,9 +308,9 @@ fn node_visual(node: &CatalogNode) -> (Icon, egui::Color32) {
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
     match ext.as_str() {
-        "kyu" => (Icon::Info, egui::Color32::from_rgb(0xC7, 0x5B, 0x3A)),
-        "kdb" => (Icon::Skill, egui::Color32::from_rgb(0x2D, 0x6A, 0x5E)),
-        "dwg" | "dxf" => (Icon::Ruler, egui::Color32::from_rgb(0x4A, 0x7C, 0x9B)),
+        "kyu" => (Icon::Project, egui::Color32::from_rgb(0xC7, 0x5B, 0x3A)),
+        "kdb" => (Icon::Database, egui::Color32::from_rgb(0x2D, 0x6A, 0x5E)),
+        "dwg" | "dxf" => (Icon::Cad, egui::Color32::from_rgb(0x4A, 0x7C, 0x9B)),
         _ => (Icon::Layers, egui::Color32::from_rgb(0x2D, 0x6A, 0x5E)),
     }
 }

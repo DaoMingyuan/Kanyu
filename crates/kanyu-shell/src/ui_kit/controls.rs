@@ -305,10 +305,11 @@ pub fn tab_strip(ui: &mut egui::Ui, tabs: &[&str], active: &mut usize) {
 /// 图标（可选）+ 文本 + 行尾操作区。返回 (行响应, 展开箭头是否被点)。
 ///
 /// ```
-/// let (row, toggled) = tree_row(ui, 1, Some(Icon::Layers), "buildings.geojson", true, |ui| { /* 行尾按钮 */ });
+/// let (row, toggled) = tree_row(ui, &mut cache, 1, Some(Icon::Layers), "buildings.geojson", true, |ui| { /* 行尾按钮 */ });
 /// ```
 pub fn tree_row(
     ui: &mut egui::Ui,
+    cache: &mut super::icons::IconCache,
     depth: usize,
     icon: Option<super::icons::Icon>,
     label: &str,
@@ -359,9 +360,10 @@ pub fn tree_row(
                 ui.allocate_exact_size(Vec2::new(16.0, 22.0), egui::Sense::hover());
             }
         }
-        // 图标。
+        // 图标（位图优先、手绘回退）。
         if let Some(ic) = icon {
-            super::icons::icon_ui(ui, ic, 15.0, p.accent);
+            let (rect, _) = ui.allocate_exact_size(Vec2::splat(15.0), egui::Sense::hover());
+            super::icons::draw_or_image(ui, cache, ic, rect, p.accent);
             ui.add_space(2.0);
         }
         // 文本。

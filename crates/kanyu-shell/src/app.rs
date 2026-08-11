@@ -1082,8 +1082,14 @@ impl eframe::App for KanyuApp {
             let mut catalog = std::mem::take(&mut self.catalog);
             let mut layer_filter = std::mem::take(&mut self.layer_filter);
             let views = self.layer_views();
-            let (catalog_actions, layer_actions) =
-                panels::left_dock(ui, &mut left_tab, &mut catalog, &views, &mut layer_filter);
+            let (catalog_actions, layer_actions) = panels::left_dock(
+                ui,
+                &mut left_tab,
+                &mut catalog,
+                &views,
+                &mut layer_filter,
+                &mut self.icon_cache,
+            );
             self.left_tab = left_tab;
             self.catalog = catalog;
             self.layer_filter = layer_filter;

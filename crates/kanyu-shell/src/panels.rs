@@ -73,7 +73,13 @@ fn geom_color(types: &[String]) -> egui::Color32 {
 // ===== 图层节点（骨架目录树的图层行与子节点）=====
 
 /// 单个图层节点（含可折叠子节点）。
-fn layer_node(ui: &mut egui::Ui, index: usize, lv: &LayerView, actions: &mut Vec<PanelAction>) {
+fn layer_node(
+    ui: &mut egui::Ui,
+    cache: &mut crate::ui_kit::icons::IconCache,
+    index: usize,
+    lv: &LayerView,
+    actions: &mut Vec<PanelAction>,
+) {
     let idx = index;
     // 图层行：几何色块 + 名称（选中加粗）+ 行尾[可见性|缩放|移除]。
     let name = if lv.selected {
@@ -81,7 +87,7 @@ fn layer_node(ui: &mut egui::Ui, index: usize, lv: &LayerView, actions: &mut Vec
     } else {
         text::body(&lv.file_name)
     };
-    let (row, toggled) = tree_row(ui, 1, None, "", Some(lv.expanded), |ui| {
+    let (row, toggled) = tree_row(ui, cache, 1, None, "", Some(lv.expanded), |ui| {
         // 行尾操作（图标按钮，hover 提示）。
         let eye = if lv.visible { Icon::Eye } else { Icon::EyeOff };
         if icon_btn(ui, eye, "可见性").clicked() {
@@ -152,6 +158,7 @@ fn layer_node(ui: &mut egui::Ui, index: usize, lv: &LayerView, actions: &mut Vec
     if lv.expanded {
         let (_r, _) = tree_row(
             ui,
+            cache,
             2,
             Some(Icon::Info),
             &format!("几何: {}", lv.geometry_types.join(", ")),
@@ -165,6 +172,7 @@ fn layer_node(ui: &mut egui::Ui, index: usize, lv: &LayerView, actions: &mut Vec
         };
         let (_r, _) = tree_row(
             ui,
+            cache,
             2,
             Some(Icon::Field),
             &format!("字段: {fields}"),
@@ -173,6 +181,7 @@ fn layer_node(ui: &mut egui::Ui, index: usize, lv: &LayerView, actions: &mut Vec
         );
         let (_r, _) = tree_row(
             ui,
+            cache,
             2,
             Some(Icon::List),
             &format!("格式: {} · {} 要素", lv.format, lv.feature_count),
@@ -213,6 +222,7 @@ pub fn left_dock(
     catalog: &mut crate::catalog::CatalogPanel,
     layers: &[LayerView],
     layer_filter: &mut String,
+    cache: &mut crate::ui_kit::icons::IconCache,
 ) -> (Vec<crate::catalog::CatalogAction>, Vec<PanelAction>) {
     let mut catalog_actions = Vec::new();
     let mut layer_actions = Vec::new();
@@ -231,10 +241,10 @@ pub fn left_dock(
             ui.separator();
             match active {
                 LeftTab::Catalog => {
-                    catalog_actions = catalog.ui(ui);
+                    catalog_actions = catalog.ui(ui, cache);
                 }
                 LeftTab::Layers => {
-                    layer_actions = layers_tree(ui, layers, layer_filter);
+                    layer_actions = layers_tree(ui, layers, layer_filter, cache);
                 }
             }
         });
@@ -247,6 +257,7 @@ pub fn layers_tree(
     ui: &mut egui::Ui,
     layers: &[LayerView],
     filter: &mut String,
+    cache: &mut crate::ui_kit::icons::IconCache,
 ) -> Vec<PanelAction> {
     let mut actions = Vec::new();
 
@@ -298,7 +309,7 @@ pub fn layers_tree(
             hint_caption(ui, &format!("无匹配「{filter}」的图层"));
         }
         for (i, lv) in filtered {
-            layer_node(ui, i, lv, &mut actions);
+            layer_node(ui, cache, i, lv, &mut actions);
         }
     });
     actions
