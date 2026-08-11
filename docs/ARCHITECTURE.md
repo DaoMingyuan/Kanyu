@@ -51,14 +51,14 @@
 
 | crate | 角色 | 状态 | 依赖的兄弟 crate |
 |---|---|---|---|
-| `kanyu-core` | 数据心脏：格式注册表（19 格式含自研 .kdb/.txt）、图层模型、空间分析（buffer/overlay/topology/sjoin/zonal）、QGIS 核心算法（geoprocess：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats）、投影/度量、宗地 TXT（parcel）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
+| `kanyu-core` | 数据心脏：格式注册表（19 格式含自研 .kdb/.txt）、图层模型、空间分析（buffer/overlay/topology/sjoin/zonal）、QGIS 核心算法（geoprocess 一批：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats；二批：boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates）、投影/度量、宗地 TXT（parcel）、AGENTS.md 语义、系统自省 | ✅ stable | 无 |
 | `kanyu-py` | Python 桥接：PyO3 扩展模块 `kanyu`（GeoJSON 文本契约全量暴露内核）+ .pyt 式工具箱运行时 | ✅ stable | kanyu-core, kanyu-render |
 | `kanyu-cli` | 脊髓：`kanyu` 命令行（clap derive） | ✅ stable | kanyu-core, kanyu-mcp, kanyu-render |
 | `kanyu-mcp` | 神经接口：MCP Server（rmcp，stdio + streamable HTTP，SEP-2663 长任务） | ✅ incubating | kanyu-core, kanyu-render |
 | `kanyu-render` | 眼睛：离屏地图渲染（SVG 零依赖 + tiny-skia PNG 光栅化，晨山/夜观星主题，属性驱动符号化 graduated/categorical）；wgpu 实时管线待壳层 | 🚧 incubating | kanyu-core |
 | `kanyu-edit` | 手：DCEL 增量拓扑编辑，Undo/Redo | 📋 planned | kanyu-core |
 | `kanyu-skill` | 技能：WASM 插件宿主（wasmtime 沙箱 + WIT 组件模型 ABI + fuel 配额）；MCP 热加载接线 📋 | 🚧 incubating | kanyu-core |
-| `kanyu-shell` | 壳层：egui 深度桌面 UI（v0.3）——ArcGIS Pro 式七页签 Ribbon（`ui_kit::icons` 线性图标 + 图标/文字/介绍卡大按钮）、Contents 骨架目录树、底部双页签（终端 \| AI 对话：LocalDriver 离线规则 + OpenAiDriver 兼容端点）、地图色彩与界面主题解耦（`MapThemeMode`，默认固定晨山）、`.kyu` 工程打开/保存、内置 `ui_kit` 设计系统 | 🚧 incubating | kanyu-core, kanyu-render, kanyu-skill |
+| `kanyu-shell` | 壳层：egui 深度桌面 UI（v0.6，ArcGIS Pro 化）——Contents 图层面板（`toc.rs` 纯函数目录树：复选框显隐/图层组嵌套分组（组路径入 .kyu）/中文右键菜单含移动排序与分组操作）、`dock.rs` 停靠系统（五面板左/右/底三区拖拽停靠 + 浮动窗 + 关闭/视图功能区重开 + 投放区高亮）、`toolbox.rs` QGIS 式工具箱（27 工具 5 分类声明式注册表 + 通用参数表单）、`settings.rs` 独立设置（坐标系选择校验入 .kyu/渲染设置）、七页签 Ribbon（悬停/按下/页签下划线动画，参数集中 `tokens::animation`）、独立终端 + AI 对话（LocalDriver 离线规则 + OpenAiDriver 兼容端点）、地图色彩与界面主题解耦、内置 `ui_kit` 设计系统 | 🚧 incubating | kanyu-core, kanyu-render, kanyu-skill |
 
 依赖规则（编译期强制，review 时核对）：
 
@@ -208,3 +208,18 @@ kanyu data export buildings.geojson -f dwg --out out.dwg
 
 当前 v0.1.0 已交付：kanyu-core 四大模块、kanyu CLI 全部子命令、
 kanyu-mcp stdio Server（6 个工具）。细分状态以 `kanyu introspect` 输出为准。
+
+### 9.1 近期路线推荐（2026-08-11）
+
+基于 v0.16.0 本轮落地（壳层 ArcGIS Pro 化 + 工具箱 + 第二批算法）的下一步推荐：
+
+1. **属性表与编辑内核（Phase 3 接续）**：Contents/工具箱/设置已齐备，桌面端最显眼的
+   缺口是属性表查看编辑与 Undo/Redo——`kanyu-edit`（DCEL）仍是 📋，建议作为下一主线。
+2. **工具箱与 MCP 工具面收敛**：`toolbox.rs` 注册表与 MCP 工具清单（`introspect.rs`）
+   目前是两份声明；中期宜收敛为「内核算法一处声明、壳层/MCP/CLI 三面投影」，消除漂移。
+3. **§8 性能目标实测**：overlay/sjoin 为 O(n·m) 朴素实现（rustdoc 已注明待 rstar 索引）；
+   百万要素渲染 60fps 目标尚无基准数据，建议先建基准场景再谈 wgpu 管线（Phase 2）。
+4. **停靠布局持久化**：`DockState` 现为内存态（浮动窗位由 egui 记忆、重启即丢），
+   可随 `.kyu` 或独立 ui-state 文件落盘，与工程恢复链路对齐。
+5. **工具箱产出接入 AI 对话**：LocalDriver 意图解析目前只覆盖加载/概要等少数命令，
+   工具箱 27 工具是其天然的意图面（中文名即触发词）。

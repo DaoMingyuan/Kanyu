@@ -4,8 +4,37 @@
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-08-11
+
+**桌面壳层 v0.6 全面 ArcGIS Pro 化（Contents 图层面板 + 停靠系统 + Ribbon 动画）+
+QGIS 式工具箱面板 + geoprocess 第二批算法移植。**
+
 ### 新增
 
+- **kanyu-shell v0.6：图层面板 ArcGIS Pro Contents 化**：复选框显隐、图层组
+  嵌套分组（一键全显/全隐）、组路径入 `.kyu` 工程、中文右键菜单（缩放/概要/
+  移动排序/移至分组/重命名/导出/移除）；目录树模型 `toc.rs` 纯函数化
+  （插入/移除/移动/分组/有效可见性全单测覆盖）；渲染顺序 = 目录树自下而上。
+- **可停靠面板系统**（`dock.rs`）：目录/图层/工具箱/终端/AI 对话五面板，
+  左/右/底三停靠区页签拖拽改停靠、拖到画布变浮动窗、× 关闭并经
+  「视图 → 面板」重开；投放区半透明高亮提示；布局状态集中 `DockState`。
+- **QGIS 式工具箱面板**（`toolbox.rs`）：27 工具 5 分类（矢量分析/矢量几何/
+  矢量选择/数据管理/统计度量）声明式注册表 + 通用参数表单对话框
+  （图层/字段联动下拉、中文枚举、红字校验）；裁剪/差值等独立中文工具名
+  映射同一内核函数；统计类结果输出终端，其余登记新图层。
+- **独立设置组件**（`settings.rs`，ArcGIS Pro「选项」式左导航对话框）：
+  坐标系选择（常用 EPSG 下拉 + 手动定义经 `crs::validate_crs` 新公开入口
+  校验）保存进 .kyu 并显示于状态栏、作为投影变换默认目标；渲染设置
+  （导出尺寸/符号化样式/地图色彩三态）自功能区迁入。
+- **Ribbon 动画**：图标悬停淡入放大/按下缩小、页签选中下划线滑动淡入
+  （egui `animate_bool_with_time` 驱动，参数集中 `ui_kit::tokens::animation`）。
+- **geoprocess 第二批 QGIS 移植**：boundary（边界）、bounding_boxes
+  （包络矩形）、merge（合并矢量图层）、extract_by_attribute（按属性提取）、
+  extract_by_location（按位置提取）、count_points_in_polygon（面内点计数）、
+  field_stats（字段基本统计，新 `FieldStats`）、mean_coordinates（平均坐标）。
+- **kanyu-core project.rs**：`ProjectLayer.group` 分组路径字段
+  （嵌套组 "/" 连接；`#[serde(default)]` 向后兼容旧工程文件）。
+- **kanyu-shell 启动参数**：`--load` 可多次指定（多文件加载）；.kyu 直接恢复。
 - **QGIS 核心算法移植**（新模块 `kanyu-core/src/geoprocess.rs`，语义对齐
   QGIS Processing）：dissolve（按字段分组并集，keep-first 属性）、simplify
   （Douglas-Peucker，退化剔除）、centroid、convex_hull、delete_holes
@@ -495,7 +524,8 @@
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.16.0
 [0.15.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.15.0
 [0.14.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.14.0
 [0.13.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.13.0

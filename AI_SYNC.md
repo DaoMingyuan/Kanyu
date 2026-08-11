@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-03 · v0.15.0 · 134 测试全绿**。
+> 每次收工回记时更新。截至 **2026-08-11 · v0.16.0 · 199 测试全绿**。
 
 ### 1.1 已完成实现
 
@@ -61,12 +61,12 @@
 | kanyu-core | ✅ stable | GeoArrow RecordBatch 内存模型；17 格式注册表；AGENTS.md 语义层；系统自省 |
 | 格式 I/O | ✅ | GeoJSON/CSV/TSV/xlsx/SHP(读写)/FGB/GeoParquet/DXF/KML/KMZ/DWG(读) 全免 GDAL |
 | DWG | ✅(读) | acadrust+自持补丁层（裁决 #18）；六类几何+标注要素+椭圆；143 样本/52 万实体验证 |
-| 分析 | ✅ | buffer/overlay/topology/sjoin/zonal_stats/measure + EPSG 全库投影 |
+| 分析 | ✅ | buffer/overlay/topology/sjoin/zonal_stats/measure + EPSG 全库投影；geoprocess 两批 QGIS 移植（一批：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats；二批：boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates） |
 | kanyu-render | ✅ | 离屏 PNG/SVG；晨山/夜观星；graduated/categorical 符号化 |
 | kanyu-mcp | ✅ | 17 stable 工具；stdio+streamable HTTP；SEP-2663 长任务 |
 | kanyu-skill | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/skill_run/skill_list） |
 | kanyu-cli | ✅ | 7 命令组，全局 --json；v0.14.0 已发布并安装 |
-| kanyu-shell | 🚧 incubating | v0.3：ArcGIS Pro 式 Ribbon 图标大按钮（ui_kit::icons 33 枚线性图标）、Contents 骨架目录树、终端/AI 对话双页签（LocalDriver+OpenAiDriver 双驱动）、地图色彩解耦、ui_kit 设计系统 |
+| kanyu-shell | 🚧 incubating | v0.6：ArcGIS Pro Contents 图层面板（复选框显隐/嵌套分组/中文右键菜单，组路径入 .kyu）、dock.rs 三区停靠系统（拖拽停靠/浮动/关闭/视图重开）、toolbox.rs QGIS 式工具箱（27 工具 5 分类）、settings.rs 独立设置（坐标系/渲染）、Ribbon 悬停动画、ui_kit 设计系统、终端/AI 对话双驱动 |
 | 堪舆数据库 .kdb | ✅ | 自研存档（裁决 #19）：Arrow IPC + kanyu.* 元数据，RecordBatch 直通类型保真，全格式转换接入 |
 | 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
 | 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
@@ -74,7 +74,7 @@
 
 ### 1.2 待完成事项（优先级序）
 
-1. **基础 GIS 功能移植**（用户指令，进行中）：宗地 TXT（读/写/质检）+ 图层统计（亩/公顷）——本轮落地；后续批次见 §6.4 移植清单
+1. **基础 GIS 功能移植**（用户指令，进行中）：宗地 TXT + 图层统计（第一批）与 geoprocess 第二批 8 算法已落地（v0.16.0）；壳层 QGIS 式工具箱 27 工具已可用；后续批次见 §6.4 移植清单与 ARCHITECTURE §9.1 路线推荐
 2. **crates.io 发布**：六个名称可注册，待用户 cargo login（发布顺序 core→render→skill→mcp→cli）
 3. **DWG 深化**（用户决定后置）：INSERT 拆块 / HATCH 边界 / SPLINE 采样 / R2018+ 复测
 4. **Phase 2 视界续**：wgpu 实时渲染管线（KanyuDB→SSBO）、MLT 瓦片、SDF 文字
@@ -96,6 +96,18 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-11 kimi-code(main) — shell v0.6：图层面板 ArcGIS Pro 化 + 停靠系统 + Ribbon 动画 + QGIS 工具箱 + 设置组件
+- 提交：见本次 commit 组；测试：199 全绿（159→174→182→199 四阶段累计）+ clippy 零警告 + fmt 净
+- 验证：九张截图目检（双主题默认布局/分组场景/演示停靠：终端浮动+AI 对话右靠+目录关闭/工具箱树/设置对话框/工具参数对话框）
+- 内容：① Contents 图层面板（toc.rs 纯函数目录树：复选框显隐、嵌套分组、组路径入 .kyu、全中文右键菜单含排序/分组操作）；② dock.rs 三区停靠系统（目录/图层/终端/AI 对话/工具箱拖拽停靠、浮动窗、关闭+视图重开）；③ toolbox.rs QGIS 式工具箱（27 工具 5 分类声明式注册表 + 通用参数表单）；④ settings.rs 独立设置（坐标系选择 validate_crs 校验入 .kyu/状态栏；渲染设置自功能区迁入）；⑤ Ribbon 悬停/按下/页签下划线动画（tokens::animation）；⑥ geoprocess 第二批 8 算法（boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates + FieldStats）；⑦ project.rs ProjectLayer.group 向后兼容字段；版本 0.15.0→0.16.0；ARCHITECTURE/CHANGELOG/API/README/AGENTS 全链同步
+- 偏差：无（egui 0.35 适配：content_rect/is_decidedly_dragging；geo 无 Boundary 按 OGC/QGIS 语义手写）
+- 后续：ARCHITECTURE §9.1 五条路线推荐（属性表/编辑内核、工具箱与 MCP 收敛、§8 性能实测、DockState 持久化、工具箱接 AI 意图）；crates.io 发布仍待 token
+
+### [开工] 2026-08-11 kimi-code(main) — shell v0.6：图层面板 ArcGIS Pro 化 + 可停靠面板 + Ribbon 动画 + QGIS 工具箱
+- 范围：kanyu-shell（panels/ribbon/app/ui_kit + 新 dock/toolbox 模块）、kanyu-core geoprocess 补齐、ARCHITECTURE/CHANGELOG 文档同步、GitHub 推送
+- 依据：用户四点指令（图层勾选/分组/右键菜单 ArcGIS Pro 化；面板拖动停靠关闭；Ribbon 图标悬停动画；QGIS 核心分析工具逐个移植成工具箱；功能内名称全部中文）
+- 预计：大（UI 三大块 + 工具箱 + 文档）
 
 ### [收工] 2026-08-03 kimi-code(agent-5) — kanyu-shell 桌面 UI MVP 落地
 - 提交：见本次 commit；测试：112 全绿（core 65/render 15/shell-view 8/mcp 6/gene 4/集成 14）；验证：fmt/clippy 零警告 + 晨山/夜观星/空状态三截图目检 + release 冒烟
