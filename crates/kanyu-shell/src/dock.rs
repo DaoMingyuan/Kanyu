@@ -79,6 +79,23 @@ impl PanelId {
             PanelId::AiChat => 5,
         }
     }
+
+    /// 英文键（ui-state 持久化）。
+    pub fn key(self) -> &'static str {
+        match self {
+            PanelId::Catalog => "catalog",
+            PanelId::Layers => "layers",
+            PanelId::Toolbox => "toolbox",
+            PanelId::AttrTable => "attrtable",
+            PanelId::Console => "console",
+            PanelId::AiChat => "aichat",
+        }
+    }
+
+    /// 英文键 → 面板（ui-state 恢复）。
+    pub fn from_key(key: &str) -> Option<PanelId> {
+        PanelId::ALL.into_iter().find(|p| p.key() == key)
+    }
 }
 
 /// 停靠区（Floating = 浮动窗口，不占停靠边）。
@@ -247,6 +264,37 @@ impl DockState {
         if !open {
             self.dragging = None;
         }
+    }
+
+    /// 恢复面板状态（ui-state 加载：区 + 开闭，不动当前页签）。
+    pub fn restore_panel(&mut self, id: PanelId, zone: DockZone, open: bool) {
+        self.panels[id.index()].zone = zone;
+        self.panels[id.index()].open = open;
+    }
+
+    /// 停靠区键 ↔ DockZone（ui-state 序列化）。
+    pub fn zone_key(zone: DockZone) -> &'static str {
+        match zone {
+            DockZone::Left => "left",
+            DockZone::Right => "right",
+            DockZone::Bottom => "bottom",
+            DockZone::Floating => "floating",
+        }
+    }
+
+    /// 键 → DockZone。
+    pub fn zone_from_key(key: &str) -> DockZone {
+        match key {
+            "right" => DockZone::Right,
+            "bottom" => DockZone::Bottom,
+            "floating" => DockZone::Floating,
+            _ => DockZone::Left,
+        }
+    }
+
+    /// 停靠区键（active_tabs 数组序：left/right/bottom）。
+    pub fn zone_by_index(i: usize) -> DockZone {
+        DockZone::DOCKED[i]
     }
 
     /// 浮动窗标题条命中（拖拽改停靠的发起判定）：标题条 = 窗矩形顶部 28px。

@@ -240,6 +240,12 @@ pub struct KanyuApp {
     layer_props: Option<LayerPropsState>,
     /// Toast 轻提示队列（右上角，自动消退）。
     toasts: Vec<crate::ui_kit::Toast>,
+    /// UI 状态写盘防抖（变化时刻；1s 合并写一次）。
+    state_dirty: Option<Instant>,
+    /// 工具箱状态版本快照（收藏/最近变更检测）。
+    last_toolbox_state: u64,
+    /// ui-state.json 路径。
+    state_path: std::path::PathBuf,
     /// 额外地图视图（主画布 = 默认视图「地图」恒吸附；窗口化/吸附见 mapview.rs）。
     map_views: Vec<crate::mapview::MapView>,
     /// 视图序号计数（标题「地图 N」递增）。
@@ -339,6 +345,9 @@ impl KanyuApp {
             attrtable: crate::attrtable::AttrTablePanel::default(),
             layer_props: None,
             toasts: Vec::new(),
+            state_dirty: None,
+            last_toolbox_state: 0,
+            state_path: crate::uistate::state_path(),
             map_views: Vec::new(),
             next_view_id: 2,
             active_view: None,
@@ -359,6 +368,12 @@ impl KanyuApp {
             fit_extent: None,
             icon_cache: crate::ui_kit::icons::IconCache::default(),
         };
+        // UI 状态恢复（ui-state.json；坏文件/版本不符自动回退默认）。
+        // 先恢复再应用演示参数（演示预设覆盖在恢复态之上）。
+        {
+            let s = crate::uistate::UiState::load(&app.state_path);
+            app.apply_ui_state(&s, &cc.egui_ctx);
+        }
         // --dock-demo（隐藏验证参数）：预设「右区停靠 + 浮动窗 + 已关闭」布局。
         if args.dock_demo {
             use crate::dock::{DockZone, PanelId};
@@ -474,6 +489,122 @@ impl KanyuApp {
             }
         }
         app
+    }
+
+    // ===== 图层与数据现场 =====
+
+    /// 应用 UI 状态（ui-state.json 恢复；逐项容错）。
+    fn apply_ui_state(&mut self, s: &crate::uistate::UiState, ctx: &egui::Context) {
+        use crate::dock::{DockZone, PanelId};
+        // 停靠布局。
+        for p in &s.panels {
+            if let Some(id) = PanelId::from_key(&p.id) {
+                self.dock
+                    .restore_panel(id, crate::dock::DockState::zone_from_key(&p.zone), p.open);
+            }
+        }
+        for (i, tab) in s.active_tabs.iter().enumerate() {
+            if i >= DockZone::DOCKED.len() {
+                break;
+            }
+            if let Some(key) = tab {
+                if let Some(id) = PanelId::from_key(key) {
+                    self.dock
+                        .set_active(crate::dock::DockState::zone_by_index(i), id);
+                }
+            }
+        }
+        // 工具箱收藏/最近。
+        self.toolbox
+            .restore(&s.toolbox_favorites, &s.toolbox_recent);
+        self.last_toolbox_state = self.toolbox.state_version();
+        // 设置。
+        if s.ui_zoom > 0.0 {
+            self.ui_zoom = s.ui_zoom;
+            ctx.set_zoom_factor(s.ui_zoom);
+        }
+        if !s.map_theme.is_empty() {
+            self.map_theme_mode = MapThemeMode::parse(&s.map_theme);
+        }
+        if !s.project_crs.is_empty() {
+            self.project_crs = s.project_crs.clone();
+        }
+        // 视图清单。
+        for v in &s.views {
+            let mut view = crate::mapview::MapView::new(self.next_view_id);
+            self.next_view_id += 1;
+            view.title = v.title.clone();
+            view.dim = if v.dim == "3d" {
+                crate::mapview::ViewDim::ThreeD
+            } else {
+                crate::mapview::ViewDim::TwoD
+            };
+            view.docked = v.docked;
+            view.view_bbox = v.bbox;
+            view.needs_fit = v.bbox.is_none();
+            self.map_views.push(view);
+        }
+        if let Some(a) = s.active_view {
+            if a < self.map_views.len() && self.map_views[a].docked {
+                self.active_view = Some(a);
+            }
+        }
+    }
+
+    /// 采集当前 UI 状态（保存用快照）。
+    fn collect_ui_state(&self) -> crate::uistate::UiState {
+        use crate::dock::{DockState, PanelId};
+        let mut s = crate::uistate::UiState::new();
+        s.panels = PanelId::ALL
+            .iter()
+            .map(|&id| crate::uistate::PanelStateJson {
+                id: id.key().to_string(),
+                zone: DockState::zone_key(self.dock.zone_of(id)).to_string(),
+                open: self.dock.is_open(id),
+            })
+            .collect();
+        s.active_tabs = (0..3)
+            .map(|i| {
+                self.dock
+                    .active_in(DockState::zone_by_index(i))
+                    .map(|p| p.key().to_string())
+            })
+            .collect();
+        s.toolbox_favorites = self.toolbox.favorites_snapshot();
+        s.toolbox_recent = self.toolbox.recent_snapshot();
+        s.ui_zoom = self.ui_zoom;
+        s.map_theme = self.map_theme_mode.as_str().to_string();
+        s.project_crs = self.project_crs.clone();
+        s.views = self
+            .map_views
+            .iter()
+            .map(|v| crate::uistate::ViewStateJson {
+                title: v.title.clone(),
+                dim: match v.dim {
+                    crate::mapview::ViewDim::TwoD => "2d".to_string(),
+                    crate::mapview::ViewDim::ThreeD => "3d".to_string(),
+                },
+                bbox: v.view_bbox,
+                docked: v.docked,
+            })
+            .collect();
+        s.active_view = self.active_view;
+        s
+    }
+
+    /// 标记 UI 状态已变更（防抖 1s 合并写盘）。
+    fn mark_state_dirty(&mut self) {
+        self.state_dirty = Some(Instant::now());
+    }
+
+    /// 防抖写盘判定（每帧末尾调用）。
+    fn flush_ui_state_if_due(&mut self) {
+        if let Some(t) = self.state_dirty {
+            if t.elapsed() >= Duration::from_secs(1) {
+                self.state_dirty = None;
+                self.collect_ui_state().save(&self.state_path);
+            }
+        }
     }
 
     // ===== 图层与数据现场 =====
@@ -1154,6 +1285,7 @@ impl KanyuApp {
                 } else {
                     self.dock.open_panel(id);
                 }
+                self.mark_state_dirty();
             }
             RibbonAction::CycleMapTheme => {
                 self.map_theme_mode = self.map_theme_mode.next();
@@ -1896,16 +2028,19 @@ impl KanyuApp {
         let strip = crate::dock::dock_tab_strip(ui, &panels, active, self.dock.dragging);
         if let Some(id) = strip.activated {
             self.dock.set_active(zone, id);
+            self.mark_state_dirty();
         }
         if let Some(id) = strip.closed {
             self.dock.close_panel(id);
             self.console.info(format!("面板「{}」已关闭", id.title()));
+            self.mark_state_dirty();
         }
         if let Some(id) = strip.drag_started {
             self.dock.dragging = Some(id);
         }
         if let Some(open) = strip.set_all_open {
             self.dock.set_all_open(open);
+            self.mark_state_dirty();
         }
         ui.separator();
         // 当前页签内容（可能刚被关闭/拖走 → active_in 自动回落）。
@@ -1980,6 +2115,11 @@ impl KanyuApp {
                         }
                         self.tool_run = Some(st);
                     }
+                }
+                // 收藏/最近变更 → ui-state 脏标记（面板内部自管状态）。
+                if self.toolbox.state_version() != self.last_toolbox_state {
+                    self.last_toolbox_state = self.toolbox.state_version();
+                    self.mark_state_dirty();
                 }
             }
             crate::dock::PanelId::AttrTable => {
@@ -2064,6 +2204,7 @@ impl KanyuApp {
         // 成功执行记入「最近使用」。
         if succeeded {
             self.toolbox.note_run(tool_id);
+            self.mark_state_dirty();
         }
     }
 
@@ -2268,11 +2409,13 @@ impl eframe::App for KanyuApp {
                             self.dock.float(drag_id);
                             self.console
                                 .info(format!("面板「{}」已转为浮动窗口", drag_id.title()));
+                            self.mark_state_dirty();
                         }
                         Some(zone) => {
                             self.dock.dock_to(drag_id, zone);
                             self.console
                                 .info(format!("面板「{}」已停靠", drag_id.title()));
+                            self.mark_state_dirty();
                         }
                         None => {}
                     }
@@ -2403,6 +2546,7 @@ impl eframe::App for KanyuApp {
         let act = strip_out.inner;
         if let Some(sel) = act.activated {
             self.active_view = sel;
+            self.mark_state_dirty();
         }
         if let Some(i) = act.floated {
             if let Some(v) = self.map_views.get_mut(i) {
@@ -2410,6 +2554,7 @@ impl eframe::App for KanyuApp {
                 if self.active_view == Some(i) {
                     self.active_view = None;
                 }
+                self.mark_state_dirty();
             }
         }
         if let Some(i) = act.closed {
@@ -2422,10 +2567,12 @@ impl eframe::App for KanyuApp {
                     _ => {}
                 }
                 self.console.info(format!("视图「{title}」已关闭"));
+                self.mark_state_dirty();
             }
         }
         if act.new_view {
             self.dispatch(RibbonAction::NewMapView, &ctx);
+            self.mark_state_dirty();
         }
 
         // 当前视图内容：None = 主视图；Some(i) = 吸附的额外视图。
@@ -2512,6 +2659,7 @@ impl eframe::App for KanyuApp {
                         self.active_view = Some(idx);
                         self.console
                             .info(format!("视图「{}」已吸附到中央", self.map_views[idx].title));
+                        self.mark_state_dirty();
                     }
                 }
             }
@@ -2572,6 +2720,7 @@ impl eframe::App for KanyuApp {
                     self.ui_zoom = o.ui_zoom;
                     ctx.set_zoom_factor(o.ui_zoom);
                     self.canvas.dirty = true;
+                    self.mark_state_dirty();
                     let msg = format!(
                         "设置已应用（坐标系 {}，导出 {}×{}，{}）",
                         o.crs,
@@ -2679,6 +2828,13 @@ impl eframe::App for KanyuApp {
         }
         // Toast 轻提示栈（最顶层，自动消退）。
         crate::ui_kit::toast_stack(&ctx, &mut self.toasts, &crate::theme::palette(self.theme));
+        // UI 状态防抖写盘（变更后 1s 合并写一次）。
+        self.flush_ui_state_if_due();
+    }
+
+    /// 退出时立即写盘（eframe 关闭钩子）。
+    fn on_exit(&mut self) {
+        self.collect_ui_state().save(&self.state_path);
     }
 }
 

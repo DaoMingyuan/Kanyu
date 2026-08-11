@@ -34,6 +34,7 @@ mod theme;
 mod toc;
 mod toolbox;
 mod ui_kit;
+mod uistate;
 mod view;
 
 use eframe::egui;

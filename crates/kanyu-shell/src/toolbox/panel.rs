@@ -22,6 +22,8 @@ pub struct ToolboxPanel {
     recent: Vec<&'static str>,
     /// 收藏（注册表序；内存态）。
     favorites: Vec<&'static str>,
+    /// 状态变更计数（ui-state 防抖写盘的脏判定）。
+    state_version: u64,
 }
 
 impl ToolboxPanel {
@@ -30,6 +32,7 @@ impl ToolboxPanel {
         self.recent.retain(|&r| r != id);
         self.recent.insert(0, id);
         self.recent.truncate(RECENT_MAX);
+        self.state_version += 1;
     }
 
     /// 收藏开关。
@@ -40,6 +43,34 @@ impl ToolboxPanel {
             self.favorites.push(id);
             self.favorites.sort();
         }
+        self.state_version += 1;
+    }
+
+    /// 状态版本（收藏/最近变化即递增；app 据此刻意写盘）。
+    pub fn state_version(&self) -> u64 {
+        self.state_version
+    }
+
+    /// 收藏清单快照（ui-state 保存用，英文 id）。
+    pub fn favorites_snapshot(&self) -> Vec<String> {
+        self.favorites.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// 最近使用清单快照（ui-state 保存用，英文 id）。
+    pub fn recent_snapshot(&self) -> Vec<String> {
+        self.recent.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// 恢复收藏/最近（ui-state 加载；非法 id 过滤丢弃）。
+    pub fn restore(&mut self, favorites: &[String], recent: &[String]) {
+        self.favorites = favorites
+            .iter()
+            .filter_map(|s| super::find(s).map(|t| t.id))
+            .collect();
+        self.recent = recent
+            .iter()
+            .filter_map(|s| super::find(s).map(|t| t.id))
+            .collect();
     }
 
     /// 是否已收藏。
