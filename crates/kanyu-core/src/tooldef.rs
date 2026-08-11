@@ -11,22 +11,54 @@ use serde::Serialize;
 // ===== 注册表类型 =====
 
 /// 参数类型（serde Serialize 供 SDK JSON 投影消费）。
+///
+/// 对照 ArcGIS Pro Python 工具箱参数数据类型（pro.arcgis.com「Defining
+/// parameter data types」）：Layer=Feature Layer、MultiLayers=multiValue、
+/// Field=Field（dependency 联动）、Number=Double、Long=Long、Text=String、
+/// Boolean=Boolean、Expression=SQL Expression、Enum=Value List filter、
+/// Extent=Extent、Crs=Coordinate System、LinearUnit=Linear Unit、
+/// OutFile=File（direction=输出）。
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub enum ParamKind {
     /// 输入图层（下拉选图层 id）。
     Layer,
-    /// 数值（f64 文本输入）。
+    /// 多值图层（multiValue；复选列表，内部以换行分隔 id 列表承载）。
+    MultiLayers,
+    /// 数值（f64 文本输入；ArcGIS Double）。
     Number,
+    /// 整数（ArcGIS Long；校验整数性）。
+    Long,
     /// 数值列表（逗号分隔，如多环距离）。
     NumberList,
-    /// 自由文本（路径、CRS、范围四数、逗号清单等）。
+    /// 自由文本（路径、逗号清单等；ArcGIS String）。
     Text,
+    /// 布尔（复选框；ArcGIS Boolean）。
+    Boolean,
     /// 字段名：选项取自第 N 个 Layer 参数（params 下标）所选图层的字段。
     Field(usize),
-    /// 枚举：（内核值， 中文标签）静态选项。
+    /// 枚举：（内核值， 中文标签）静态选项（ArcGIS 值列表 filter）。
     Enum(&'static [(&'static str, &'static str)]),
-    /// 属性表达式（如 `height > 50`）。
+    /// 属性/SQL 表达式（如 `height > 50`；ArcGIS SQL Expression）。
     Expression,
+    /// 范围四数 "minx,miny,maxx,maxy"（ArcGIS Extent）。
+    Extent,
+    /// 坐标系定义（ArcGIS Coordinate System；crs::validate_crs 校验）。
+    Crs,
+    /// 线性单位（ArcGIS Linear Unit）：数值 + 单位（米/千米/度）；
+    /// 内部文本承载为 "数值|单位"（如 `500|米`），米/千米换算为米，
+    /// 度按 CRS 单位直通（经纬度的米换算请先投影变换，见工具 hint）。
+    LinearUnit,
+    /// 输出文件路径（ArcGIS File，direction=输出；格式按扩展名）。
+    OutFile,
+}
+
+/// 参数方向（ArcGIS direction：输入/输出）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
+pub enum Direction {
+    /// 输入参数。
+    Input,
+    /// 输出参数（表单落入「输出」分组区）。
+    Output,
 }
 
 /// 工具参数声明。
@@ -46,6 +78,8 @@ pub struct ToolParam {
     pub default: &'static str,
     /// 参数帮助（ArcGIS Pro 式焦点说明区文案）。
     pub help: &'static str,
+    /// 方向（输入/输出）。
+    pub direction: Direction,
 }
 
 const fn param(
@@ -65,6 +99,27 @@ const fn param(
         hint,
         default,
         help,
+        direction: Direction::Input,
+    }
+}
+
+/// 输出参数构造（direction = 输出）。
+const fn param_out(
+    key: &'static str,
+    label: &'static str,
+    kind: ParamKind,
+    hint: &'static str,
+    help: &'static str,
+) -> ToolParam {
+    ToolParam {
+        key,
+        label,
+        kind,
+        required: true,
+        hint,
+        default: "",
+        help,
+        direction: Direction::Output,
     }
 }
 
@@ -179,11 +234,11 @@ pub const TOOLS: &[ToolDef] = &[
             param(
                 "distance",
                 "距离",
-                ParamKind::Number,
+                ParamKind::LinearUnit,
                 true,
-                "CRS 单位（投影后为米）",
+                "数值 + 单位（米/千米/度）",
                 "",
-                "缓冲半径。EPSG:4326 下单位为度，米制缓冲请先「投影变换」。",
+                "缓冲半径。EPSG:4326 下请选「度」（米/千米按米直通内核，经纬度米制缓冲请先「投影变换」）。",
             ),
         ],
         false,
@@ -483,9 +538,9 @@ pub const TOOLS: &[ToolDef] = &[
             param(
                 "segments",
                 "圆弧分段数",
-                ParamKind::Number,
+                ParamKind::Long,
                 true,
-                "≥1",
+                "≥1 整数",
                 "16",
                 "圆弧逼近分段数，越大越圆滑。",
             ),
@@ -671,12 +726,12 @@ pub const TOOLS: &[ToolDef] = &[
             ),
             param(
                 "distance",
-                "间距（米）",
-                ParamKind::Number,
+                "间距",
+                ParamKind::LinearUnit,
                 true,
-                ">0",
+                ">0，单位米/千米",
                 "",
-                "相邻点的测地线里程间隔（米）。",
+                "相邻点的测地线里程间隔（选「度」则按 CRS 单位）。",
             ),
         ],
         false,
@@ -836,27 +891,16 @@ pub const TOOLS: &[ToolDef] = &[
         "merge",
         "合并矢量图层",
         ToolCategory::DataManagement,
-        "两图层要素按序拼接为一层",
-        &[
-            param(
-                "layer",
-                "图层 A",
-                ParamKind::Layer,
-                true,
-                "",
-                "",
-                "要素排在前。",
-            ),
-            param(
-                "layer2",
-                "图层 B",
-                ParamKind::Layer,
-                true,
-                "",
-                "",
-                "要素排在后；属性原样保留。",
-            ),
-        ],
+        "多图层要素按序拼接为一层（multiValue）",
+        &[param(
+            "layers",
+            "输入图层列表",
+            ParamKind::MultiLayers,
+            true,
+            "勾选两个及以上",
+            "",
+            "复选多个图层，要素按勾选顺序拼接；属性原样保留。",
+        )],
         false,
     ),
     tool(
@@ -911,7 +955,7 @@ pub const TOOLS: &[ToolDef] = &[
             param(
                 "extent",
                 "范围",
-                ParamKind::Text,
+                ParamKind::Extent,
                 true,
                 "minx,miny,maxx,maxy（默认已填当前数据范围）",
                 "",
@@ -947,7 +991,7 @@ pub const TOOLS: &[ToolDef] = &[
             param(
                 "from",
                 "源 CRS",
-                ParamKind::Text,
+                ParamKind::Crs,
                 true,
                 "如 EPSG:4326",
                 "EPSG:4326",
@@ -956,7 +1000,7 @@ pub const TOOLS: &[ToolDef] = &[
             param(
                 "to",
                 "目标 CRS",
-                ParamKind::Text,
+                ParamKind::Crs,
                 true,
                 "默认 = 工程坐标系",
                 "",
@@ -980,14 +1024,12 @@ pub const TOOLS: &[ToolDef] = &[
                 "",
                 "要导出的图层。",
             ),
-            param(
+            param_out(
                 "out",
                 "输出路径",
-                ParamKind::Text,
-                true,
+                ParamKind::OutFile,
                 "如 out.fgb",
-                "",
-                "格式按扩展名推断。",
+                "输出文件；格式按扩展名推断。",
             ),
         ],
         false,
@@ -1129,10 +1171,13 @@ mod tests {
                 "{} 缺名称/说明",
                 t.id
             );
-            // 图层参数必存在（创建网格为无输入图层的生成器，豁免）。
+            // 图层参数必存在（创建网格为无输入图层的生成器，豁免；
+            // MultiLayers 多值图层视同图层参数）。
             assert!(
                 t.id == "create_grid"
-                    || t.params.iter().any(|p| matches!(p.kind, ParamKind::Layer)),
+                    || t.params
+                        .iter()
+                        .any(|p| matches!(p.kind, ParamKind::Layer | ParamKind::MultiLayers)),
                 "{} 无输入图层参数",
                 t.id
             );
