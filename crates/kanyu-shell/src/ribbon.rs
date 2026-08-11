@@ -19,6 +19,8 @@ pub enum RibbonTab {
     Home,
     /// 数据：图层、查询、交换、投影。
     Data,
+    /// 编辑：编辑会话、编辑工具、撤销/重做。
+    Edit,
     /// 分析：几何、叠加、关系统计。
     Analysis,
     /// 制图：渲染、输出。
@@ -33,9 +35,10 @@ pub enum RibbonTab {
 
 impl RibbonTab {
     /// 全部页签（顺序即显示顺序）。
-    pub const ALL: [RibbonTab; 7] = [
+    pub const ALL: [RibbonTab; 8] = [
         RibbonTab::Home,
         RibbonTab::Data,
+        RibbonTab::Edit,
         RibbonTab::Analysis,
         RibbonTab::Cartography,
         RibbonTab::View,
@@ -48,6 +51,7 @@ impl RibbonTab {
         match self {
             RibbonTab::Home => "主页",
             RibbonTab::Data => "数据",
+            RibbonTab::Edit => "编辑",
             RibbonTab::Analysis => "分析",
             RibbonTab::Cartography => "制图",
             RibbonTab::View => "视图",
@@ -82,6 +86,19 @@ pub enum RibbonAction {
     ExportDialog,
     /// 投影变换对话框。
     ReprojectDialog,
+    // 编辑
+    /// 开始编辑（当前选中图层）。
+    StartEdit,
+    /// 保存编辑（结束会话）。
+    SaveEdit,
+    /// 放弃编辑（逐条逆回）。
+    DiscardEdit,
+    /// 切换编辑工具。
+    SetEditTool(crate::edit::EditTool),
+    /// 撤销一步。
+    Undo,
+    /// 重做一步。
+    Redo,
     // 分析
     /// 缓冲区对话框。
     BufferDialog,
@@ -156,6 +173,26 @@ fn layout_of(tab: RibbonTab) -> &'static [GroupLayout] {
             GroupLayout {
                 name: "交换",
                 commands: &["export_layer", "reproject"],
+            },
+        ],
+        RibbonTab::Edit => &[
+            GroupLayout {
+                name: "会话",
+                commands: &["start_edit", "save_edit", "discard_edit"],
+            },
+            GroupLayout {
+                name: "工具",
+                commands: &[
+                    "edit_select",
+                    "edit_vertex",
+                    "edit_move",
+                    "edit_add_point",
+                    "edit_delete",
+                ],
+            },
+            GroupLayout {
+                name: "撤销",
+                commands: &["undo", "redo"],
             },
         ],
         RibbonTab::Analysis => &[
@@ -246,9 +283,16 @@ impl Ribbon {
                     action = Some(c.action);
                 }
             }
-            ui.add_enabled_ui(false, |ui| {
-                let _ = qat_button(ui, cache, Icon::Reset, "撤销（待编辑内核落地）");
-                let _ = qat_button(ui, cache, Icon::Reset, "重做（待编辑内核落地）");
+            // 撤销/重做（接编辑会话 History；无可撤销/重做置灰）。
+            ui.add_enabled_ui(snap.can_undo, |ui| {
+                if qat_button(ui, cache, Icon::Reset, "撤销（编辑会话）").clicked() {
+                    action = Some(RibbonAction::Undo);
+                }
+            });
+            ui.add_enabled_ui(snap.can_redo, |ui| {
+                if qat_button(ui, cache, Icon::Play, "重做（编辑会话）").clicked() {
+                    action = Some(RibbonAction::Redo);
+                }
             });
             ui.separator();
             ui.label(

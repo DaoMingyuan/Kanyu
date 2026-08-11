@@ -25,6 +25,13 @@ const IDX_W: f32 = 44.0;
 pub enum AttrAction {
     /// 对图层应用字段操作。
     Apply { layer: String, op: FieldOp },
+    /// 单元格编辑提交（文本，类型由 app 按可解析性定）。
+    EditCell {
+        layer: String,
+        feature: usize,
+        field: String,
+        text: String,
+    },
 }
 
 /// 字段操作（与 attrcalc API 一一对应）。
@@ -168,6 +175,18 @@ struct AddFieldState {
     err: Option<String>,
 }
 
+/// 单元格编辑态（双击进入；Enter 提交 / Esc 取消）。
+struct CellEditState {
+    /// 要素原下标。
+    feature: usize,
+    /// 字段名。
+    field: String,
+    /// 编辑中文本。
+    text: String,
+    /// 首帧聚焦标记。
+    focused: bool,
+}
+
 /// 字段计算器对话框状态。
 #[derive(Default)]
 struct CalcState {
@@ -191,6 +210,8 @@ pub struct AttrTablePanel {
     add_dlg: Option<AddFieldState>,
     rename_dlg: Option<(String, String)>,
     calc_dlg: Option<CalcState>,
+    /// 单元格编辑态。
+    cell_edit: Option<CellEditState>,
 }
 
 impl AttrTablePanel {
@@ -427,6 +448,41 @@ impl AttrTablePanel {
                             egui::pos2(row_rect.min.x + IDX_W + ci as f32 * COL_W, y),
                             egui::Vec2::new(COL_W, row_h),
                         );
+                        let editing_this = self
+                            .cell_edit
+                            .as_ref()
+                            .is_some_and(|s| s.feature == fi && s.field == *name);
+                        if editing_this {
+                            // 编辑态：内嵌文本框（Enter 提交 / Esc 取消）。
+                            let Some(st) = &mut self.cell_edit else {
+                                continue;
+                            };
+                            let resp = ui.put(
+                                cell,
+                                egui::TextEdit::singleline(&mut st.text)
+                                    .font(egui::FontId::proportional(text::SIZE_BODY)),
+                            );
+                            if !st.focused {
+                                resp.request_focus();
+                                st.focused = true;
+                            }
+                            let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+                            let esc = ui.input(|i| i.key_pressed(egui::Key::Escape));
+                            if enter {
+                                if let Some(layer) = self.layer.clone() {
+                                    actions.push(AttrAction::EditCell {
+                                        layer,
+                                        feature: st.feature,
+                                        field: st.field.clone(),
+                                        text: st.text.clone(),
+                                    });
+                                }
+                                self.cell_edit = None;
+                            } else if esc {
+                                self.cell_edit = None;
+                            }
+                            continue;
+                        }
                         let v = props.and_then(|pr| pr.get(name));
                         painter.with_clip_rect(cell).text(
                             egui::pos2(cell.min.x + spacing::XS, cell.center().y),
@@ -435,6 +491,20 @@ impl AttrTablePanel {
                             egui::FontId::proportional(text::SIZE_BODY),
                             p.text_primary,
                         );
+                        // 双击进入编辑（文本框预填当前值）。
+                        let resp = ui.interact(
+                            cell,
+                            ui.id().with(("attr_cell", fi, ci)),
+                            egui::Sense::click(),
+                        );
+                        if resp.double_clicked() {
+                            self.cell_edit = Some(CellEditState {
+                                feature: fi,
+                                field: name.clone(),
+                                text: cell_text(v),
+                                focused: false,
+                            });
+                        }
                     }
                 }
             });

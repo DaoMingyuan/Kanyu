@@ -19,6 +19,12 @@ pub struct AppSnapshot {
     pub layer_count: usize,
     /// 是否有选中图层。
     pub has_selection: bool,
+    /// 编辑会话进行中。
+    pub editing: bool,
+    /// 可撤销。
+    pub can_undo: bool,
+    /// 可重做。
+    pub can_redo: bool,
 }
 
 /// 恒可用。
@@ -32,6 +38,22 @@ fn has_layers(s: &AppSnapshot) -> bool {
 /// 有选中图层可用。
 fn has_selection(s: &AppSnapshot) -> bool {
     s.has_selection
+}
+/// 有选中图层且未在编辑（开始编辑条件）。
+fn can_start_edit(s: &AppSnapshot) -> bool {
+    s.has_selection && !s.editing
+}
+/// 编辑会话中可用。
+fn editing(s: &AppSnapshot) -> bool {
+    s.editing
+}
+/// 可撤销。
+fn can_undo(s: &AppSnapshot) -> bool {
+    s.can_undo
+}
+/// 可重做。
+fn can_redo(s: &AppSnapshot) -> bool {
+    s.can_redo
 }
 
 /// 命令定义（DAML `<button>` 的 Rust 形态）。
@@ -382,6 +404,97 @@ pub const COMMANDS: &[CommandDef] = &[
         RibbonAction::ShowHelp,
         always,
     ),
+    // —— 编辑 ——
+    cmd(
+        "start_edit",
+        "开始编辑",
+        Icon::Play,
+        "开始编辑会话",
+        "以当前选中图层为目标开启编辑（同一时刻仅一个图层可编辑）",
+        RibbonAction::StartEdit,
+        can_start_edit,
+    ),
+    cmd(
+        "save_edit",
+        "保存编辑",
+        Icon::Export,
+        "保存编辑",
+        "结束编辑会话（编辑即时生效；落盘请用「导出图层」）",
+        RibbonAction::SaveEdit,
+        editing,
+    ),
+    cmd(
+        "discard_edit",
+        "放弃编辑",
+        Icon::Close,
+        "放弃编辑",
+        "逐条撤销到会话起点并结束会话",
+        RibbonAction::DiscardEdit,
+        editing,
+    ),
+    cmd(
+        "edit_select",
+        "选择",
+        Icon::Info,
+        "选择工具",
+        "点击画布要素选中（空白处取消）",
+        RibbonAction::SetEditTool(crate::edit::EditTool::Select),
+        editing,
+    ),
+    cmd(
+        "edit_vertex",
+        "顶点编辑",
+        Icon::Field,
+        "顶点编辑工具",
+        "拖拽顶点句柄移动顶点（MoveVertex 命令入历史）",
+        RibbonAction::SetEditTool(crate::edit::EditTool::Vertex),
+        editing,
+    ),
+    cmd(
+        "edit_move",
+        "移动要素",
+        Icon::Reset,
+        "移动要素工具",
+        "拖动要素整体平移",
+        RibbonAction::SetEditTool(crate::edit::EditTool::Move),
+        editing,
+    ),
+    cmd(
+        "edit_add_point",
+        "添加点要素",
+        Icon::Example,
+        "添加点要素",
+        "点击画布插入点（面/线添加属后续增量）",
+        RibbonAction::SetEditTool(crate::edit::EditTool::AddPoint),
+        editing,
+    ),
+    cmd(
+        "edit_delete",
+        "删除要素",
+        Icon::Close,
+        "删除要素",
+        "点选要素后按 Delete 键或再次点击删除",
+        RibbonAction::SetEditTool(crate::edit::EditTool::Delete),
+        editing,
+    ),
+    cmd(
+        "undo",
+        "撤销",
+        Icon::Reset,
+        "撤销",
+        "撤销一步编辑（编辑会话历史）",
+        RibbonAction::Undo,
+        can_undo,
+    ),
+    cmd(
+        "redo",
+        "重做",
+        Icon::Play,
+        "重做",
+        "重做一步编辑",
+        RibbonAction::Redo,
+        can_redo,
+    ),
 ];
 
 /// 按 id 查命令。
@@ -421,10 +534,12 @@ mod tests {
         let with_layers = AppSnapshot {
             layer_count: 2,
             has_selection: false,
+            ..Default::default()
         };
         let with_sel = AppSnapshot {
             layer_count: 2,
             has_selection: true,
+            ..Default::default()
         };
         let e = |id: &str, s: &AppSnapshot| (find(id).unwrap().enabled)(s);
         assert!(e("open_data", &empty));

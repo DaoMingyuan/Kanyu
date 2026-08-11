@@ -25,6 +25,27 @@ pub struct MapCanvas {
     textures: Vec<egui::TextureHandle>,
     /// 渲染脏标记。
     pub dirty: bool,
+    /// 编辑按下捕获（编辑态手势暂存）。
+    edit_press: Option<EditPress>,
+}
+
+/// 编辑按下捕获（顶点/要素/起点）。
+struct EditPress {
+    feature: Option<usize>,
+    path: Option<kanyu_edit::GeomPath>,
+    old: Option<Vec<f64>>,
+    start: (f64, f64),
+}
+
+impl EditPress {
+    fn empty(start: (f64, f64)) -> Self {
+        Self {
+            feature: None,
+            path: None,
+            old: None,
+            start,
+        }
+    }
 }
 
 impl Default for MapCanvas {
@@ -34,6 +55,7 @@ impl Default for MapCanvas {
             tex_px: [0, 0],
             textures: Vec::new(),
             dirty: true,
+            edit_press: None,
         }
     }
 }
@@ -44,6 +66,166 @@ impl MapCanvas {
         Self {
             tex_name: name.into(),
             ..Default::default()
+        }
+    }
+
+    /// 编辑手势（按下捕获 → 松开结算为 EditAction）。
+    #[allow(clippy::too_many_arguments)]
+    fn handle_edit_gestures(
+        &mut self,
+        ui: &mut egui::Ui,
+        response: &egui::Response,
+        rect: Rect,
+        bbox: BBox,
+        w: f64,
+        h: f64,
+        layers: &[LayerSlice<'_>],
+        ev: &EditView<'_>,
+    ) -> Option<crate::edit::EditAction> {
+        use crate::edit::{EditAction, EditTool};
+        let slice = layers.iter().find(|l| l.id == ev.target)?;
+        let to_data = |pos: Pos2| {
+            view::screen_to_data(
+                f64::from(pos.x - rect.min.x),
+                f64::from(pos.y - rect.min.y),
+                bbox,
+                w,
+                h,
+            )
+        };
+        // 按下：按工具捕获。
+        if response.drag_started_by(egui::PointerButton::Primary) {
+            if let Some(pos) = response.interact_pointer_pos() {
+                let sp = (pos.x - rect.min.x, pos.y - rect.min.y);
+                self.edit_press = Some(match ev.tool {
+                    EditTool::Vertex => crate::edit::hit_vertex(
+                        slice.collection,
+                        bbox,
+                        w,
+                        h,
+                        sp,
+                        crate::edit::HIT_TOL_PX,
+                    )
+                    .map(|(fi, path, data)| EditPress {
+                        feature: Some(fi),
+                        path: Some(path),
+                        old: Some(data),
+                        start: to_data(pos),
+                    })
+                    .unwrap_or_else(|| EditPress::empty(to_data(pos))),
+                    EditTool::Move => {
+                        let hit = crate::edit::hit_feature(
+                            slice.collection,
+                            bbox,
+                            w,
+                            h,
+                            sp,
+                            crate::edit::HIT_TOL_PX,
+                        );
+                        EditPress {
+                            feature: hit,
+                            path: None,
+                            old: None,
+                            start: to_data(pos),
+                        }
+                    }
+                    _ => EditPress::empty(to_data(pos)),
+                });
+            }
+        }
+        // 松开：结算。
+        if response.drag_stopped_by(egui::PointerButton::Primary) {
+            let press = self.edit_press.take()?;
+            let pos = response.interact_pointer_pos()?;
+            let cur = to_data(pos);
+            let moved_px = response.drag_delta().length();
+            match ev.tool {
+                EditTool::Vertex => {
+                    if let (Some(fi), Some(path), Some(old)) =
+                        (press.feature, press.path, press.old)
+                    {
+                        if moved_px > 2.0 {
+                            return Some(EditAction::MoveVertex {
+                                feature: fi,
+                                path,
+                                old,
+                                new: vec![cur.0, cur.1],
+                            });
+                        }
+                    }
+                    None
+                }
+                EditTool::Move => {
+                    if let Some(fi) = press.feature {
+                        if moved_px > 2.0 {
+                            return Some(EditAction::MoveFeature {
+                                feature: fi,
+                                dx: cur.0 - press.start.0,
+                                dy: cur.1 - press.start.1,
+                            });
+                        }
+                    }
+                    None
+                }
+                EditTool::AddPoint => Some(EditAction::InsertPoint { pos: cur }),
+                EditTool::Select | EditTool::Delete => {
+                    let sp = (pos.x - rect.min.x, pos.y - rect.min.y);
+                    let hit = crate::edit::hit_feature(
+                        slice.collection,
+                        bbox,
+                        w,
+                        h,
+                        sp,
+                        crate::edit::HIT_TOL_PX,
+                    );
+                    Some(EditAction::Select(hit))
+                }
+            }
+        } else {
+            // Delete 键删选中（悬停画布时）。
+            if response.hovered()
+                && ev.selected.is_some()
+                && ui.input(|i| i.key_pressed(egui::Key::Delete))
+            {
+                return Some(EditAction::DeleteSelected);
+            }
+            None
+        }
+    }
+
+    /// 编辑句柄绘制（顶点小方块；选中要素高亮）。
+    #[allow(clippy::too_many_arguments)]
+    fn draw_edit_handles(
+        &self,
+        ui: &egui::Ui,
+        rect: Rect,
+        bbox: BBox,
+        w: f64,
+        h: f64,
+        layers: &[LayerSlice<'_>],
+        ev: &EditView<'_>,
+    ) {
+        let Some(slice) = layers.iter().find(|l| l.id == ev.target) else {
+            return;
+        };
+        let p = crate::theme::palette(if ui.visuals().dark_mode {
+            kanyu_render::Theme::Dark
+        } else {
+            kanyu_render::Theme::Light
+        });
+        let painter = ui.painter();
+        for ((fi, _path), (sx, sy)) in crate::edit::vertex_positions(slice.collection, bbox, w, h) {
+            let center = egui::pos2(rect.min.x + sx, rect.min.y + sy);
+            let is_sel = ev.selected == Some(fi);
+            let r =
+                egui::Rect::from_center_size(center, Vec2::splat(if is_sel { 9.0 } else { 7.0 }));
+            painter.rect_filled(r, 1.0, Color32::WHITE);
+            painter.rect_stroke(
+                r,
+                1.0,
+                egui::Stroke::new(if is_sel { 2.0 } else { 1.0 }, p.accent),
+                egui::StrokeKind::Middle,
+            );
         }
     }
 }
@@ -74,6 +256,18 @@ pub struct CanvasInput<'a> {
     pub data_extent: Option<BBox>,
     /// 空状态提示（无图层时）。
     pub empty_hint: &'a str,
+    /// 编辑态（Some = 编辑会话中：手势走编辑工具而非平移）。
+    pub edit: Option<EditView<'a>>,
+}
+
+/// 编辑态画布输入。
+pub struct EditView<'a> {
+    /// 当前工具。
+    pub tool: crate::edit::EditTool,
+    /// 目标图层 id。
+    pub target: &'a str,
+    /// 选中要素（句柄高亮）。
+    pub selected: Option<usize>,
 }
 
 /// 逐图层渲染并合成单张 PNG（白底键控叠图；布局地图框/导出共用）。
@@ -147,6 +341,8 @@ pub struct CanvasOutput {
     pub fit_consumed: bool,
     /// 渲染错误（状态栏反馈）。
     pub render_error: Option<String>,
+    /// 编辑手势产出（编辑态下）。
+    pub edit_action: Option<crate::edit::EditAction>,
 }
 
 impl MapCanvas {
@@ -157,6 +353,7 @@ impl MapCanvas {
             mouse_data: None,
             fit_consumed: false,
             render_error: None,
+            edit_action: None,
         };
         let rect = ui.available_rect_before_wrap();
         let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
@@ -203,8 +400,12 @@ impl MapCanvas {
                 }
             }
 
-            // 左键拖拽平移（内容跟随鼠标）。
-            if response.dragged_by(egui::PointerButton::Primary) {
+            // 编辑态：手势走编辑工具（平移让位；滚轮缩放保留）。
+            if let Some(ev) = &input.edit {
+                output.edit_action =
+                    self.handle_edit_gestures(ui, &response, rect, bbox, w, h, input.layers, ev);
+            } else if response.dragged_by(egui::PointerButton::Primary) {
+                // 左键拖拽平移（内容跟随鼠标）。
                 let d = response.drag_delta();
                 if d != Vec2::ZERO {
                     output.view_bbox = Some(view::pan(bbox, f64::from(d.x), f64::from(d.y), w, h));
@@ -294,6 +495,10 @@ impl MapCanvas {
                 Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
                 Color32::WHITE,
             );
+        }
+        // 编辑态：顶点句柄叠加（纹理之上）。
+        if let (Some(ev), Some(bbox)) = (&input.edit, output.view_bbox) {
+            self.draw_edit_handles(ui, rect, bbox, w, h, input.layers, ev);
         }
         if input
             .layers

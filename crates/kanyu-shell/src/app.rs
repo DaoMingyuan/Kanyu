@@ -202,6 +202,8 @@ pub struct KanyuApp {
     selected_group: Option<String>,
     /// 重命名/新建组 模态对话框状态。
     rename: Option<RenameState>,
+    /// 编辑会话（同一时刻仅一个图层编辑态；kanyu-edit History）。
+    edit_session: Option<crate::edit::EditSession>,
     theme: Theme,
     ribbon: Ribbon,
     console: ConsolePanel,
@@ -260,6 +262,12 @@ pub struct KanyuApp {
     next_layout_id: usize,
     /// 新建布局对话框状态。
     layout_dlg: Option<crate::layoutview::LayoutDialogState>,
+    /// 服务链接清单（WFS；持久化入 ui-state.json）。
+    services: Vec<crate::services::WfsConnection>,
+    /// 新建服务链接对话框状态。
+    service_dlg: Option<crate::services::ServiceDialogState>,
+    /// WFS 后台拉取句柄（进度模态 + 每帧轮询；复用工具运行模式）。
+    service_progress: Option<ServiceFetch>,
     /// 渲染内容纪元（rebuild_merged 递增；布局地图缓存据此刻意重合成）。
     render_epoch: u64,
     /// 中央页签条矩形（浮动视图拖入吸附的投放区）。
@@ -290,6 +298,14 @@ pub struct KanyuApp {
     screenshot: Option<ScreenshotState>,
     /// 位图图标缓存（ArcGIS Pro 本机资源；缺图自动回退手绘线性图标）。
     icon_cache: crate::ui_kit::icons::IconCache,
+}
+
+/// WFS 后台拉取句柄（app 持有，每帧轮询；取消 = 析构接收端丢弃结果）。
+struct ServiceFetch {
+    /// 连接名（结果图层 file_name / 消息用）。
+    name: String,
+    /// 结果通道。
+    rx: std::sync::mpsc::Receiver<Result<FeatureCollection, String>>,
 }
 
 /// 渲染缓存 → 画布切片（目录树自下而上序；与 rebuild_merged 同一顺序约定）。
@@ -327,6 +343,7 @@ impl KanyuApp {
             selected: None,
             selected_group: None,
             rename: None,
+            edit_session: None,
             theme: args.theme,
             ribbon: Ribbon::default(),
             console: ConsolePanel::default(),
@@ -365,6 +382,9 @@ impl KanyuApp {
             layouts: Vec::new(),
             next_layout_id: 1,
             layout_dlg: None,
+            services: Vec::new(),
+            service_dlg: None,
+            service_progress: None,
             render_epoch: 1,
             view_strip_rect: None,
             dragging_view: None,
@@ -518,6 +538,40 @@ impl KanyuApp {
                 }
             }
         }
+        // --edit-demo：编辑会话预设（顶点工具，截图验证句柄）。
+        if args.edit_demo {
+            if let Some(first) = app.layers.first() {
+                let id = first.layer.id().to_string();
+                let name = first.file_name.clone();
+                let mut s = crate::edit::EditSession::new(id, name);
+                s.tool = crate::edit::EditTool::Vertex;
+                app.edit_session = Some(s);
+            }
+        }
+        // --service-demo：目录「服务链接」预置一条演示连接并展开分类（截图验证）；
+        // --service-dlg-demo 另打开新建对话框。
+        if args.service_demo || args.service_dlg_demo {
+            // 覆盖式预置（非追加）：持久化恢复后重复演示不累积重复行。
+            app.services = vec![crate::services::WfsConnection {
+                name: "示例 WFS（演示）".to_string(),
+                url: "https://example.com/geoserver/wfs?service=WFS&request=GetFeature\
+                      &typeNames=demo:blocks&outputFormat=application/json"
+                    .to_string(),
+            }];
+            app.catalog.demo_expand_services();
+            // 演示布局确定性：目录停靠左区并激活；关闭浮动终端避免遮挡。
+            app.dock
+                .dock_to(crate::dock::PanelId::Catalog, crate::dock::DockZone::Left);
+            app.dock
+                .set_active(crate::dock::DockZone::Left, crate::dock::PanelId::Catalog);
+            app.dock.close_panel(crate::dock::PanelId::Console);
+            if args.service_dlg_demo {
+                app.service_dlg = Some(crate::services::ServiceDialogState {
+                    name: format!("WFS 服务 {}", app.services.len() + 1),
+                    ..Default::default()
+                });
+            }
+        }
         app
     }
 
@@ -579,6 +633,8 @@ impl KanyuApp {
                 self.active_view = Some(a);
             }
         }
+        // 服务链接清单。
+        self.services = s.services.clone();
     }
 
     /// 采集当前 UI 状态（保存用快照）。
@@ -619,6 +675,7 @@ impl KanyuApp {
             })
             .collect();
         s.active_view = self.active_view;
+        s.services = self.services.clone();
         s
     }
 
@@ -1171,6 +1228,120 @@ impl KanyuApp {
         Ok(format!("已导出地图 → {out}（{w}×{h}）"))
     }
 
+    /// 应用编辑动作（命令入会话 History，即时重建图层可见）。
+    fn apply_edit_action(&mut self, action: crate::edit::EditAction) {
+        use crate::edit::EditAction;
+        let Some(mut session) = self.edit_session.take() else {
+            return;
+        };
+        let Some(i) = self.layer_index(&session.target) else {
+            self.edit_session = Some(session);
+            return;
+        };
+        let mut coll = self.layers[i].layer.collection();
+        let cmd: Option<Box<dyn kanyu_edit::EditCommand>> = match action {
+            EditAction::MoveVertex {
+                feature,
+                path,
+                old,
+                new,
+            } => Some(Box::new(kanyu_edit::MoveVertex {
+                index: feature,
+                path,
+                old_pos: old,
+                new_pos: new,
+            })),
+            EditAction::MoveFeature { feature, dx, dy } => {
+                Some(Box::new(kanyu_edit::MoveFeature {
+                    index: feature,
+                    dx,
+                    dy,
+                }))
+            }
+            EditAction::InsertPoint { pos } => {
+                let feature = geojson::Feature {
+                    bbox: None,
+                    geometry: Some(geojson::Geometry::new(geojson::Value::Point(vec![
+                        pos.0, pos.1,
+                    ]))),
+                    id: None,
+                    properties: None,
+                    foreign_members: None,
+                };
+                Some(Box::new(kanyu_edit::InsertFeature {
+                    feature,
+                    index: coll.features.len(),
+                }))
+            }
+            EditAction::Select(hit) => {
+                session.selected = hit;
+                self.edit_session = Some(session);
+                return;
+            }
+            EditAction::DeleteSelected => match session.selected {
+                Some(sel) => match kanyu_edit::DeleteFeatures::new(&coll, &[sel]) {
+                    Ok(c) => Some(Box::new(c)),
+                    Err(e) => {
+                        self.toast_err(e.to_string());
+                        None
+                    }
+                },
+                None => {
+                    self.toast_err("未选中要素（先用选择工具点选）");
+                    None
+                }
+            },
+        };
+        if let Some(cmd) = cmd {
+            let desc = cmd.describe();
+            match session.history.push(cmd, &mut coll) {
+                Ok(()) => {
+                    // 命令即时生效：同 id 重建图层 + 刷新概要 + 置脏重渲。
+                    let id = self.layers[i].layer.id().to_string();
+                    self.layers[i].layer = Layer::from_collection(id, coll);
+                    self.layers[i].summary = self.layers[i].layer.summary();
+                    session.selected = None;
+                    self.rebuild_merged();
+                    self.status = format!("已{desc}（{} 步可撤销）", session.history.len());
+                }
+                Err(e) => {
+                    self.toast_err(e.to_string());
+                    self.console
+                        .push(crate::console::LineKind::Err, e.to_string());
+                }
+            }
+        }
+        self.edit_session = Some(session);
+    }
+
+    /// 撤销/重做一步。
+    fn edit_undo(&mut self, redo: bool) {
+        let Some(mut session) = self.edit_session.take() else {
+            return;
+        };
+        let Some(i) = self.layer_index(&session.target) else {
+            self.edit_session = Some(session);
+            return;
+        };
+        let mut coll = self.layers[i].layer.collection();
+        let result = if redo {
+            session.history.redo(&mut coll)
+        } else {
+            session.history.undo(&mut coll)
+        };
+        match result {
+            Ok(desc) => {
+                let id = self.layers[i].layer.id().to_string();
+                self.layers[i].layer = Layer::from_collection(id, coll);
+                self.layers[i].summary = self.layers[i].layer.summary();
+                self.rebuild_merged();
+                self.status = format!("已{} {}", if redo { "重做" } else { "撤销" }, desc);
+            }
+            Err(e) => self.toast_err(e.to_string()),
+        }
+        self.edit_session = Some(session);
+    }
+
     // ===== 动作分派 =====
 
     /// 成功轻提示（右上角青条，自动消退）。
@@ -1297,6 +1468,56 @@ impl KanyuApp {
                 self.dialogs.export_map = Some(crate::dialogs::ExportMapState::default())
             }
             RibbonAction::ZoomToFit => self.needs_fit = true,
+            RibbonAction::StartEdit => {
+                if let Some(i) = self.selected {
+                    let (id, name) = (
+                        self.layers[i].layer.id().to_string(),
+                        self.layers[i].file_name.clone(),
+                    );
+                    self.edit_session = Some(crate::edit::EditSession::new(id, name.clone()));
+                    self.console
+                        .info(format!("编辑会话已开始：{name}（编辑页签选择工具）"));
+                    self.toast_ok(format!("开始编辑 {name}"));
+                }
+            }
+            RibbonAction::SaveEdit => {
+                if let Some(s) = self.edit_session.take() {
+                    let msg = format!(
+                        "编辑会话已结束：{}（编辑即时生效；落盘请用「数据 → 导出图层…」）",
+                        s.target_name
+                    );
+                    self.console.info(msg.clone());
+                    self.toast_ok(msg);
+                }
+            }
+            RibbonAction::DiscardEdit => {
+                if let Some(mut s) = self.edit_session.take() {
+                    // 逐条逆回到会话起点。
+                    if let Some(i) = self.layer_index(&s.target) {
+                        let mut coll = self.layers[i].layer.collection();
+                        while s.history.can_undo() {
+                            if s.history.undo(&mut coll).is_err() {
+                                break;
+                            }
+                        }
+                        let id = self.layers[i].layer.id().to_string();
+                        self.layers[i].layer = Layer::from_collection(id, coll);
+                        self.layers[i].summary = self.layers[i].layer.summary();
+                        self.rebuild_merged();
+                    }
+                    let msg = format!("已放弃编辑：{}", s.target_name);
+                    self.console.info(msg.clone());
+                    self.toast_ok(msg);
+                }
+            }
+            RibbonAction::SetEditTool(tool) => {
+                if let Some(s) = &mut self.edit_session {
+                    s.tool = tool;
+                    self.status = format!("编辑工具 → {}", tool.label());
+                }
+            }
+            RibbonAction::Undo => self.edit_undo(false),
+            RibbonAction::Redo => self.edit_undo(true),
             RibbonAction::NewMapView => {
                 let id = self.next_view_id;
                 self.next_view_id += 1;
@@ -1663,7 +1884,21 @@ impl KanyuApp {
     /// 应用属性表字段操作（attrcalc 写回：重建图层 + 刷新概要 + 合并缓存）。
     fn apply_attr_action(&mut self, action: crate::attrtable::AttrAction) {
         use crate::attrtable::FieldOp;
-        let crate::attrtable::AttrAction::Apply { layer, op } = action;
+        // 单元格编辑走 UpdateProperties 命令（入编辑会话历史）。
+        if let crate::attrtable::AttrAction::EditCell {
+            layer,
+            feature,
+            field,
+            text,
+        } = action
+        {
+            self.apply_cell_edit(&layer, feature, &field, &text);
+            return;
+        }
+        let (layer, op) = match action {
+            crate::attrtable::AttrAction::Apply { layer, op } => (layer, op),
+            crate::attrtable::AttrAction::EditCell { .. } => unreachable!("上方分支已返回"),
+        };
         let Some(i) = self.layer_index(&layer) else {
             return;
         };
@@ -2168,6 +2403,70 @@ impl KanyuApp {
         }
     }
 
+    /// 属性表单元格编辑：UpdateProperties 命令入编辑会话（无会话自动开启）。
+    fn apply_cell_edit(&mut self, layer: &str, feature: usize, field: &str, text: &str) {
+        let Some(i) = self.layer_index(layer) else {
+            return;
+        };
+        let mut coll = self.layers[i].layer.collection();
+        let Some(f) = coll.features.get_mut(feature) else {
+            return;
+        };
+        let old = f.properties.clone();
+        // 类型按可解析性：数值 > 布尔 > 空 > 文本。
+        let t = text.trim();
+        let v = if let Ok(n) = t.parse::<f64>() {
+            serde_json::Number::from_f64(n)
+                .map(serde_json::Value::from)
+                .unwrap_or(serde_json::Value::Null)
+        } else if t == "true" || t == "false" {
+            serde_json::Value::from(t == "true")
+        } else if t.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::from(t)
+        };
+        f.properties
+            .get_or_insert_with(Default::default)
+            .insert(field.to_string(), v);
+        let new = f.properties.clone();
+        // 会话：同图层复用；他图层/无会话则自动开启（注释：替换会丢其历史，会话唯一约束）。
+        let mut session = match self.edit_session.take() {
+            Some(s) if s.target == layer => s,
+            other => {
+                if let Some(o) = &other {
+                    self.console.info(format!(
+                        "编辑会话已切换（放弃 {} 的会话历史）",
+                        o.target_name
+                    ));
+                }
+                crate::edit::EditSession::new(layer.to_string(), self.layers[i].file_name.clone())
+            }
+        };
+        let cmd = kanyu_edit::UpdateProperties {
+            index: feature,
+            old,
+            new,
+        };
+        match session.history.push(Box::new(cmd), &mut coll) {
+            Ok(()) => {
+                let id = self.layers[i].layer.id().to_string();
+                self.layers[i].layer = Layer::from_collection(id, coll);
+                self.layers[i].summary = self.layers[i].layer.summary();
+                self.rebuild_merged();
+                let msg = format!("单元格已更新（{layer}[{feature}].{field}）");
+                self.console.info(msg.clone());
+                self.toast_ok(msg);
+            }
+            Err(e) => {
+                self.console
+                    .push(crate::console::LineKind::Err, e.to_string());
+                self.toast_err(e.to_string());
+            }
+        }
+        self.edit_session = Some(session);
+    }
+
     // ===== 停靠区渲染（dock.rs 编排，此处提供内容）=====
 
     /// 单个停靠区：页签条（拖动/关闭/全部开关）+ 当前页签内容。
@@ -2240,6 +2539,7 @@ impl KanyuApp {
                     &mut self.icon_cache,
                     &view_rows,
                     &layout_titles,
+                    &self.services,
                 ));
                 self.catalog = catalog;
             }
@@ -2430,6 +2730,107 @@ impl KanyuApp {
         }
     }
 
+    // ===== 服务链接（WFS）=====
+
+    /// 连接服务：后台线程拉取（10s 超时）+ 进度模态（复用工具运行模式，不卡 UI）。
+    fn start_service_fetch(&mut self, conn: crate::services::WfsConnection) {
+        if self.service_progress.is_some() {
+            self.toast_err("已有服务连接进行中，请稍候");
+            return;
+        }
+        self.console
+            .info(format!("正在连接「{}」：{}", conn.name, conn.url));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let name = conn.name.clone();
+        // 结果上限 5 万条（超大结果集防御；fetch_wfs 内截断）。
+        std::thread::spawn(move || {
+            let _ = tx.send(crate::services::fetch_wfs(&conn, 50_000));
+        });
+        self.service_progress = Some(ServiceFetch { name, rx });
+    }
+
+    /// WFS 结果登记为内存图层（file_name=连接名，source_path=None）。
+    fn add_service_layer(&mut self, name: &str, collection: FeatureCollection) {
+        let n = collection.features.len();
+        let id = self.unique_id(name);
+        let layer = Layer::from_collection(id.clone(), collection);
+        let summary = layer.summary();
+        let symbology = crate::symbology::default_single(&summary.geometry_types);
+        self.layers.push(LayerEntry {
+            layer,
+            summary,
+            visible: true,
+            file_name: name.to_string(),
+            expanded: false,
+            source_path: None,
+            symbology,
+        });
+        // 同 open_file 约定：新图层插入目录树顶并选中。
+        toc::insert_layer_top(&mut self.toc, &id);
+        self.selected = Some(self.layers.len() - 1);
+        self.rebuild_merged();
+        self.needs_fit = true;
+        let msg = format!("已加载 {name}（{n} 要素，WFS 服务）");
+        self.status = msg.clone();
+        self.console.info(msg.clone());
+        self.toast_ok(msg);
+    }
+
+    /// WFS 后台拉取：进度模态（不确定态 + 取消）+ 完成轮询。
+    fn service_progress_ui(&mut self, ctx: &egui::Context) {
+        let Some(prog) = &mut self.service_progress else {
+            return;
+        };
+        match prog.rx.try_recv() {
+            Ok(result) => {
+                let prog = self.service_progress.take().expect("轮询分支已保证存在");
+                match result {
+                    Ok(collection) => self.add_service_layer(&prog.name, collection),
+                    Err(e) => {
+                        let msg = format!("服务链接「{}」失败: {e}", prog.name);
+                        self.console.push(crate::console::LineKind::Err, &msg);
+                        self.toast_err(&msg);
+                    }
+                }
+                return;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.service_progress = None;
+                return;
+            }
+        }
+        let name = self
+            .service_progress
+            .as_ref()
+            .map(|p| p.name.clone())
+            .unwrap_or_default();
+        let mut cancel = false;
+        egui::Window::new(crate::ui_kit::text::heading("连接服务"))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add(egui::Spinner::new());
+                    ui.label(crate::ui_kit::text::body(format!("正在连接「{name}」…")));
+                });
+                ui.add_space(8.0);
+                if crate::ui_kit::button(ui, "取 消", crate::ui_kit::ButtonVariant::Secondary, true)
+                    .clicked()
+                {
+                    cancel = true;
+                }
+            });
+        ctx.request_repaint(); // 进度动画/轮询持续推进
+        if cancel {
+            // 同工具取消语义：丢弃结果（接收端析构，线程结果被忽略）。
+            let prog = self.service_progress.take().expect("取消分支已保证存在");
+            self.console
+                .info(format!("已取消连接「{}」（后台结果将被丢弃）", prog.name));
+        }
+    }
+
     // ===== 帧处理辅助 =====
 
     fn error_modal(&mut self, ctx: &egui::Context) {
@@ -2526,6 +2927,17 @@ impl eframe::App for KanyuApp {
         let snap = crate::commands::AppSnapshot {
             layer_count: self.layers.len(),
             has_selection: self.selected.is_some(),
+            editing: self.edit_session.is_some(),
+            can_undo: self
+                .edit_session
+                .as_ref()
+                .map(|s| s.history.can_undo())
+                .unwrap_or(false),
+            can_redo: self
+                .edit_session
+                .as_ref()
+                .map(|s| s.history.can_redo())
+                .unwrap_or(false),
         };
         egui::Panel::top("ribbon")
             .exact_size(sizes::RIBBON)
@@ -2537,7 +2949,17 @@ impl eframe::App for KanyuApp {
 
         // StatusBar（最底；先注册的 bottom 面板居最下）。
         let span = self.view_bbox.map(|b| b[2] - b[0]);
-        let status = self.status.clone();
+        // 编辑会话指示（ArcGIS 状态栏语义）。
+        let status = match &self.edit_session {
+            Some(s) => format!(
+                "编辑中: {}（{} 步可撤销，工具: {}） | {}",
+                s.target_name,
+                s.history.len(),
+                s.tool.label(),
+                self.status
+            ),
+            None => self.status.clone(),
+        };
         let count = self.visible_feature_count();
         let mouse = self.mouse_data;
         panels::status_bar(
@@ -2702,6 +3124,25 @@ impl eframe::App for KanyuApp {
                         ..Default::default()
                     });
                 }
+                crate::catalog::CatalogAction::NewService => {
+                    self.service_dlg = Some(crate::services::ServiceDialogState {
+                        name: format!("WFS 服务 {}", self.services.len() + 1),
+                        ..Default::default()
+                    });
+                }
+                crate::catalog::CatalogAction::DeleteService(i) => {
+                    if i < self.services.len() {
+                        let conn = self.services.remove(i);
+                        self.console
+                            .info(format!("已删除服务链接「{}」", conn.name));
+                        self.mark_state_dirty();
+                    }
+                }
+                crate::catalog::CatalogAction::ConnectService(i) => {
+                    if let Some(conn) = self.services.get(i).cloned() {
+                        self.start_service_fetch(conn);
+                    }
+                }
             }
         }
         for action in dock_out.panel {
@@ -2814,17 +3255,24 @@ impl eframe::App for KanyuApp {
                 Some(_) => self.active_view = None, // 目标已浮动/关闭 → 回落主视图
                 None => {
                     // 主视图「地图」（地图色彩由 map_theme_mode 决定，与界面主题解耦）。
+                    // 编辑会话中：手势走编辑工具（平移让位），顶点句柄叠加。
+                    let edit_view = self.edit_session.as_ref().map(|s| crate::canvas::EditView {
+                        tool: s.tool,
+                        target: s.target.as_str(),
+                        selected: s.selected,
+                    });
                     let out = self.canvas.ui(
-                    ui,
-                    CanvasInput {
-                        layers: &build_layer_slices(&self.render_cache),
-                        theme: self.effective_map_theme(),
-                        view_bbox: self.view_bbox,
-                        needs_fit: self.needs_fit,
-                        data_extent: self.fit_extent.or(self.data_extent),
-                        empty_hint: "◇ 堪舆\n\n拖入数据文件，或经「主页 → 打开数据…」\n支持 shp / geojson / fgb / parquet / dxf / dwg / kml / kmz / csv / tsv / xlsx",
-                    },
-                );
+                        ui,
+                        CanvasInput {
+                            layers: &build_layer_slices(&self.render_cache),
+                            theme: self.effective_map_theme(),
+                            view_bbox: self.view_bbox,
+                            needs_fit: self.needs_fit,
+                            data_extent: self.fit_extent.or(self.data_extent),
+                            empty_hint: "◇ 堪舆\n\n拖入数据文件，或经「主页 → 打开数据…」\n支持 shp / geojson / fgb / parquet / dxf / dwg / kml / kmz / csv / tsv / xlsx",
+                            edit: edit_view,
+                        },
+                    );
                     self.view_bbox = out.view_bbox;
                     self.mouse_data = out.mouse_data;
                     if out.fit_consumed {
@@ -2833,6 +3281,9 @@ impl eframe::App for KanyuApp {
                     }
                     if let Some(e) = out.render_error {
                         self.status = e;
+                    }
+                    if let Some(action) = out.edit_action {
+                        self.apply_edit_action(action);
                     }
                 }
             }
@@ -3066,8 +3517,51 @@ impl eframe::App for KanyuApp {
                 crate::ui_kit::DialogAction::None => self.layout_dlg = Some(dlg), // 继续显示
             }
         }
+        // 新建服务链接对话框。
+        if let Some(mut dlg) = self.service_dlg.take() {
+            let action = crate::ui_kit::dialog_shell(&ctx, "新建服务链接", |ui| {
+                crate::ui_kit::text_input(ui, "名称", &mut dlg.name, "如 全国区县 WFS", true);
+                crate::ui_kit::text_input(
+                    ui,
+                    "地址",
+                    &mut dlg.url,
+                    "https://…?service=WFS&request=GetFeature&typeNames=…",
+                    true,
+                );
+                crate::ui_kit::hint_caption(
+                    ui,
+                    "填写完整 WFS GetFeature 请求地址（含 service=WFS、request=GetFeature、\
+                     typeNames、outputFormat=application/json）；\n双击目录中的连接名即加载为图层。",
+                );
+            });
+            match action {
+                crate::ui_kit::DialogAction::Ok => {
+                    match crate::services::validate_connection(&dlg.name, &dlg.url) {
+                        Ok(()) => {
+                            let conn = crate::services::WfsConnection {
+                                name: dlg.name.trim().to_string(),
+                                url: dlg.url.trim().to_string(),
+                            };
+                            self.console
+                                .info(format!("已新建服务链接「{}」", conn.name));
+                            self.services.push(conn);
+                            self.mark_state_dirty();
+                        }
+                        Err(e) => {
+                            self.toast_err(&e);
+                            self.console.push(crate::console::LineKind::Err, e);
+                            self.service_dlg = Some(dlg); // 校验失败保留输入
+                        }
+                    }
+                }
+                crate::ui_kit::DialogAction::Cancel => {} // 取消：丢弃
+                crate::ui_kit::DialogAction::None => self.service_dlg = Some(dlg), // 继续显示
+            }
+        }
         // 工具后台执行：进度模态 + 完成轮询 + 可终止。
         self.tool_progress_ui(&ctx);
+        // WFS 后台拉取：进度模态 + 完成轮询 + 可终止。
+        self.service_progress_ui(&ctx);
         self.error_modal(&ctx);
         self.handle_screenshots(&ctx);
         // 主题切换交叉淡化：旧主题底色遮罩 0.2s 渐隐（animate_value_with_time）。
