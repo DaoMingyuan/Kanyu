@@ -211,6 +211,52 @@ kanyu.export(buf, "out.kdb", "kdb")            # 导出（含自研 .kdb）
 kanyu.Layer.load("buildings.geojson").query("height > 50").buffer(500).export("out.fgb", "fgb")
 ```
 
+### 绑定清单（v0.18 全量）
+
+- **I/O 与查询**：`load` / `export` / `query` / `extract_by_attribute` / `extract_by_location` / `merge`
+- **分析**：`buffer` / `multi_ring_buffer` / `variable_buffer` / `overlay` / `sjoin` / `zonal_stats` / `dissolve` / `count_points_in_polygon`
+- **几何**：`centroid` / `convex_hull` / `concave_hull` / `simplify` / `delete_holes` / `explode` / `boundary` / `bounding_boxes` / `minimum_rotated_rect` / `points_along_lines` / `add_geometry_attributes` / `mean_coordinates` / `create_grid`
+- **统计度量（返回 JSON 文本）**：`stats` / `field_stats` / `measure` / `topology` / `distance_matrix` / `nearest_neighbor`
+- **属性表**：`calc_field` / `add_field` / `delete_field` / `rename_field`
+- **坐标系**：`reproject` / `search_crs` / `crs_info` / `validate_crs`
+- **渲染**：`render_png` / `render_svg`
+- **工具注册表**：`toolbox_registry()`（37 工具 ToolDef JSON）/ `run_tool(tool_id, params_json, layers_json)` 统一执行
+- **多输出**：`split_by_field` → `[{"key", "collection"}]` JSON
+
+`run_tool` 契约：`params_json` 为 `{参数键: 值}`（按注册表参数序对齐，缺省取默认值；
+枚举参数取**中文标签**）；`layers_json` 为 `{图层id: GeoJSON 对象}`；返回
+`{"type": "new_layer"|"new_layers", "verb", "layers": {名称: GeoJSON 对象}}`
+（新图层由调用方命名落层）或 `{"type": "report", "report": 文本}`。
+
+### 字段计算器与统一执行示例
+
+```python
+import json, kanyu
+
+layer = kanyu.Layer.load("buildings.geojson")
+# 字段计算器：$area 测地面积虚列（Karney 2013，㎡）；表达式支持 [字段] 引用。
+layer2 = layer.calc_field("area2", "$area")
+props = json.loads(layer2.geojson)["features"][0]["properties"]
+assert "area2" in props
+
+# 统一执行：缓冲区工具（layers_json 注入图层，产出 {名称: GeoJSON} 由调用方落层）。
+fc = json.loads(layer.geojson)
+out = json.loads(kanyu.run_tool(
+    "buffer",
+    json.dumps({"layer": "buildings", "distance": "100"}),
+    json.dumps({"buildings": fc}),
+))
+assert out["type"] == "new_layer"
+buf_fc = out["layers"]["buf_buildings"]   # GeoJSON 对象，直接可用或 json.dumps 落层
+
+# EPSG 检索：命中 CGCS2000。
+hits = json.loads(kanyu.search_crs("4490"))
+assert any(h["code"] == 4490 for h in hits)
+
+# 工具注册表（37 个）：python -m kanyu.toolbox registry 亦可列出。
+registry = json.loads(kanyu.toolbox_registry())
+```
+
 ### Python 工具箱（ArcGIS Pro .pyt 式样）
 
 工具箱是一个 `.py` 文件（约定见 `python/kanyu/toolbox.py`）：`Toolbox` 子类 +

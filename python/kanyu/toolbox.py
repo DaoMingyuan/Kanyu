@@ -29,6 +29,7 @@
 CLI 驱动（JSON over stdout）：
     kanyu toolbox list mytools.py
     kanyu toolbox run mytools.py buffer500 --param input=a.geojson --param distance=500
+    python -m kanyu.toolbox registry        # 列出内核 37 工具注册表（tooldef 单一事实来源）
 """
 
 from __future__ import annotations
@@ -134,6 +135,14 @@ def cmd_list(path: str) -> None:
     _emit({"toolbox_file": path, "tools": tools})
 
 
+def cmd_registry() -> None:
+    """列出内核工具注册表（kanyu-core tooldef 单一事实来源，当前 37 个）。"""
+    from . import toolbox_registry
+
+    tools = json.loads(toolbox_registry())
+    _emit({"count": len(tools), "tools": tools})
+
+
 def cmd_run(path: str, tool_name: str, args: dict) -> None:
     module = _load_module(path)
     for toolbox_cls, tool_cls in _collect_tools(module):
@@ -154,6 +163,16 @@ def cmd_run(path: str, tool_name: str, args: dict) -> None:
 
 
 def main(argv: list[str]) -> int:
+    if len(argv) < 2:
+        _emit({"ok": False, "error": "用法: python -m kanyu.toolbox registry | list|run <file.py> [tool] [--params-json '{...}']"})
+        return 2
+    if argv[1] == "registry":
+        try:
+            cmd_registry()
+            return 0
+        except Exception as exc:  # noqa: BLE001
+            _emit({"ok": False, "error": str(exc)})
+            return 1
     if len(argv) < 3:
         _emit({"ok": False, "error": "用法: python -m kanyu.toolbox list|run <file.py> [tool] [--params-json '{...}']"})
         return 2
