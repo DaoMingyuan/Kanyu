@@ -236,23 +236,24 @@ Windows 11 专业工作站版，release 构建（thin LTO）。
 当前 v0.1.0 已交付：kanyu-core 四大模块、kanyu CLI 全部子命令、
 kanyu-mcp stdio Server（6 个工具）。细分状态以 `kanyu introspect` 输出为准。
 
-### 9.1 近期路线推荐（2026-08-11，v0.19.0 刷新）
+### 9.1 近期路线推荐（2026-08-11，v0.20.0 刷新）
 
-v0.18.0–v0.19.0 已推进：壳层 ArcGIS Pro SDK 范式重组（命令注册表/参数组件/工具对话
-框统一骨架/后台执行+进度模态）、属性表与字段计算器、多地图视图（页签吸附/浮动互转、
-纯白画布、实验性 3D）、图层符号化系统（按层渲染、Contents 分类行、属性页、入 .kyu）、
-目录五分类、CRS 全库检索与轴序核验、tooldef/toolrun 下沉内核、WCAG 2.2 与状态色体系。
+v0.18.0–v0.20.0 已推进：壳层 ArcGIS Pro SDK 范式重组（命令注册表/参数组件/统一
+对话框骨架/后台执行+进度模态）、属性表与字段计算器、多地图视图（页签吸附/纯白
+画布/实验性 3D）、图层符号化系统、目录五分类**全部兑现**（布局框=打印布局 v1、
+服务链接=WFS GetFeature）、CRS 全库检索与轴序核验、tooldef/toolrun 下沉内核并
+收敛 MCP 面（toolbox_list/toolbox_run）、UI 状态持久化、性能基准首轮实测（§8.1）、
+kanyu-edit 首个增量 + 壳层编辑模式（顶点编辑/属性单元格编辑/Undo·Redo 接线）。
 下一步推荐：
 
-1. **编辑内核（Phase 3 深水区）**：符号化/属性表/字段计算已备——`kanyu-edit` 首个
-   增量（Undo/Redo 框架 + 基础编辑命令）已落地 🚧，建议沿「壳层编辑模式 →
-   Delta 快照 → DCEL 拓扑」路线继续。
-2. **MCP 工具面收敛收尾**：tooldef/toolrun 已下沉 core（壳层与 Python 已共用一处
-   声明）；MCP 工具清单（`introspect.rs`）尚为独立声明，建议接入同一注册表。
-3. **§8 性能优化（基准已立）**：`bench` 生成器 + `kanyu analysis bench` 已落地并
-   完成首轮实测（§8.1）：overlay 平方项坐实（rstar 索引裁剪优先）、GeoJSON 文本
-   加载为瓶颈（FGB/GeoParquet 二进制对照行待补）、60fps 指标归 Phase 2 wgpu 管线。
-4. **UI 状态持久化**：`DockState`/收藏/界面缩放/视图布局现为内存态，可随 `.kyu`
-   或独立 ui-state 文件落盘。
-5. **布局框与服务链接占位兑现**：目录分类框架已立，打印布局（排版输出）与 WFS/WMS
-   服务接入为两个独立可交付增量。
+1. **编辑深化**：壳层编辑模式已闭环（顶点/移动/插入/删除/属性），下一步沿
+   「线面要素添加 → GeoArrow Delta 快照 → DCEL 增量拓扑」推进。
+2. **§8 性能优化（基准已立）**：overlay 平方项坐实（rstar 索引裁剪优先）、
+   GeoJSON 文本加载为瓶颈（FGB/GeoParquet 二进制对照行待补）、60fps 指标归
+   Phase 2 wgpu 管线。
+3. **服务链接 v2**：WFS GetFeature 已通；GetCapabilities 解析（图层发现）与
+   WMS 底图叠加为后续增量。
+4. **布局 v2**：PNG 中文字体栈（当前 PNG 省略中文标题，SVG 完整）、布局入 .kyu
+   持久化、多地图框混排。
+5. **3D 场景真管线化**：scene3d 为 egui painter 实验实现；真 3D（地形/纹理/拾取）
+   待 Phase 2 wgpu 管线接入。

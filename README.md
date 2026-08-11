@@ -39,7 +39,7 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 - **脊髓 CLI**：`kanyu data info/load/query/export`、`kanyu introspect`、`kanyu agents init/validate`、`kanyu mcp serve`，全局 `--json`。
 - **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。
 - **离屏渲染**：`kanyu render map` / MCP `kanyu_render_map`——数据 → PNG（tiny-skia）/ SVG 地图图片，晨山/夜观星双主题，AI 代理可直接"看见"数据。
-- **桌面壳层**：`kanyu-shell` v0.8（ArcGIS Pro SDK 范式）——声明式命令注册表（Ribbon/QAT/右键菜单统一投影）、Contents 图层面板（复选框显隐/图层组嵌套分组/符号化分类展开行/图层属性页）、六面板拖拽停靠系统（跨区回流自适配 + 滚动契约）、中央视图停靠区（地图框页签吸附/浮动互转、纯白画布、多视图含实验性 3D 棱柱场景）、图层符号化（单色/唯一值分类/分级设色，入 `.kyu` 工程）、工程目录五分类（地图框/布局框/数据库/服务链接/本机数据）、QGIS 式工具箱（37 工具 5 分类，参数类型对齐 ArcGIS Python 工具箱规范 + 进度模态可取消 + 三级日志）、属性表（虚拟滚动/排序/字段计算器）、独立设置对话框（坐标系全库搜索/渲染/界面缩放）、三段式 Ribbon（悬停与页签动画）、独立终端 + AI 对话、内置 `ui_kit` 设计系统（WCAG 2.2 对比度强制 + 状态色派生体系），晨山/夜观星双主题。
+- **桌面壳层**：`kanyu-shell` v0.9（ArcGIS Pro SDK 范式）——声明式命令注册表（Ribbon/QAT/右键菜单统一投影）、Contents 图层面板（复选框显隐/图层组嵌套分组/符号化分类展开行/图层属性页）、六面板拖拽停靠系统（跨区回流自适配 + 滚动契约）、中央视图停靠区（地图框与布局页签吸附/浮动互转、纯白画布、多视图含实验性 3D 棱柱场景）、图层符号化（单色/唯一值分类/分级设色，入 `.kyu` 工程）、工程目录五分类（地图框/布局框（打印布局 v1）/数据库/服务链接（WFS）/本机数据）、**编辑模式**（顶点拖拽/要素移动与增删/属性单元格编辑/Undo·Redo，kanyu-edit 内核）、QGIS 式工具箱（37 工具 5 分类，参数类型对齐 ArcGIS Python 工具箱规范 + 进度模态可取消 + 三级日志）、属性表（虚拟滚动/排序/字段计算器）、独立设置对话框（坐标系全库搜索/渲染/界面缩放）、三段式 Ribbon（悬停与页签动画）、独立终端 + AI 对话、UI 状态持久化、内置 `ui_kit` 设计系统（WCAG 2.2 对比度强制 + 状态色派生体系），晨山/夜观星双主题。
 - **技能热加载**：MCP `kanyu_system_hotload` / `kanyu_skill_run` / `kanyu_skill_list`——WASM 技能（wasmtime 沙箱）远程加载校验与执行，AI 代理可远程扩展内核能力。
 - **项目罗盘**：`AGENTS.md` 地理 profile 的生成、解析与完整性校验。
 

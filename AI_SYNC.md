@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-11 · v0.19.0 · 265 测试全绿**。
+> 每次收工回记时更新。截至 **2026-08-11 · v0.20.0 · 298 测试全绿**。
 
 ### 1.1 已完成实现
 
@@ -98,8 +98,15 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-11 kimi-code(main) — v0.20.0：壳层编辑模式 + 服务链接 + 长期项捆版
+- 提交：见本次 commit 组；测试：298 全绿（shell 103/edit 8/mcp 9/render 21/core 136 等）+ clippy 零警告 + fmt 净
+- 内容：⑥ 壳层编辑模式（edit.rs 会话 + 画布顶点句柄拖拽/移动/插点/删选 + 属性表单元格编辑 + 「编辑」功能区页签与 QAT 撤销/重做接线，保存/放弃会话语义）；⑦ 服务链接 v1（services.rs WFS GetFeature：连接管理入 ui-state、后台线程+进度模态可取消、GeoJSON 解析登记图层，目录五分类全部兑现）；捆版 v0.20.0（含前四件长期项：kanyu-edit/布局/基准/MCP 收敛/状态持久化）
+- 验证：编辑态句柄截图、服务链接对话框与分类行截图、布局页签截图均目检通过；WFS 网络路径无离线测试服务器未实打外网（解析/校验 4 测试离线覆盖，ureq API 签名核源码）
+- 偏差：无
+- 后续：§9.1 v0.20.0 五条（编辑深化线面添加/Delta 快照/DCEL；性能 rstar 与二进制对照；服务链接 v2 GetCapabilities/WMS；布局 v2 中文字体栈/入 .kyu；3D 真管线）
+
 ### [收工] 2026-08-11 kimi-code(main) — 长期项四件：kanyu-edit 增量 + 打印布局 + 性能基准 + （前两条已会签）
-- 提交：见本次 commit 组；测试：290 全绿（272→290）+ clippy 零警告 + fmt 净
+- 提交：见本次 commit 组；测试：298 全绿（272→298）+ clippy 零警告 + fmt 净
 - 内容：③ kanyu-edit 新 crate（Undo/Redo 框架 + 五基础编辑命令 + GeomPath 定位，8 单测；introspect/ARCHITECTURE 登记）；④ render::layout 打印布局（A4 排版：标题/地图/图例/比例尺/指北针，SVG 完整文字；壳层布局页签与目录「布局框」兑现，导出 PNG/SVG）+ canvas composite_layers_png 按层合成；⑤ 性能基准（core::bench 确定性场景 + kanyu analysis bench 五项三档，首轮实测入 §8.1：100 万档加载 4.5s/buffer 9.3s/overlay 3.3s/sjoin 1.8s/render 3.8s，Ryzen 9 9950X；overlay 平方项坐实 rstar 路线）
 - 验证：布局页签截图目检（标题/图例/比例尺/指北针齐全）；bench 三档实跑
 - 后续：§9.1 余——壳层编辑模式（kanyu-edit 接线）、服务链接（WFS/WMS）、3D 真管线
