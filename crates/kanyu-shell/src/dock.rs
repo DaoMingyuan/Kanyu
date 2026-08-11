@@ -28,6 +28,8 @@ pub enum PanelId {
     Layers,
     /// 工具箱（QGIS Processing 式算法清单）。
     Toolbox,
+    /// 属性表（要素字段表格 + 字段计算器）。
+    AttrTable,
     /// 独立终端。
     Console,
     /// AI 对话。
@@ -36,10 +38,11 @@ pub enum PanelId {
 
 impl PanelId {
     /// 全部面板（注册表顺序即页签排列顺序）。
-    pub const ALL: [PanelId; 5] = [
+    pub const ALL: [PanelId; 6] = [
         PanelId::Catalog,
         PanelId::Layers,
         PanelId::Toolbox,
+        PanelId::AttrTable,
         PanelId::Console,
         PanelId::AiChat,
     ];
@@ -50,6 +53,7 @@ impl PanelId {
             PanelId::Catalog => "目录",
             PanelId::Layers => "图层",
             PanelId::Toolbox => "工具箱",
+            PanelId::AttrTable => "属性表",
             PanelId::Console => "终端",
             PanelId::AiChat => "AI 对话",
         }
@@ -60,7 +64,7 @@ impl PanelId {
         match self {
             PanelId::Catalog | PanelId::Layers => DockZone::Left,
             PanelId::Toolbox => DockZone::Right,
-            PanelId::Console | PanelId::AiChat => DockZone::Bottom,
+            PanelId::AttrTable | PanelId::Console | PanelId::AiChat => DockZone::Bottom,
         }
     }
 
@@ -70,8 +74,9 @@ impl PanelId {
             PanelId::Catalog => 0,
             PanelId::Layers => 1,
             PanelId::Toolbox => 2,
-            PanelId::Console => 3,
-            PanelId::AiChat => 4,
+            PanelId::AttrTable => 3,
+            PanelId::Console => 4,
+            PanelId::AiChat => 5,
         }
     }
 }
@@ -143,8 +148,9 @@ impl Default for DockState {
             };
         }
         // 工具箱默认关闭（按需经「视图 → 面板 → 工具箱」开启；保持首启布局简洁，
-        // 右停靠区在其打开前整体隐藏）。
+        // 右停靠区在其打开前整体隐藏）。属性表同理默认关闭（经图层右键打开）。
         s.panels[PanelId::Toolbox.index()].open = false;
+        s.panels[PanelId::AttrTable.index()].open = false;
         // 默认页签：左区落「图层」（主工作区），底区落「终端」。
         s.active[DockZone::Left.docked_index()] = Some(PanelId::Layers);
         s.active[DockZone::Bottom.docked_index()] = Some(PanelId::Console);
@@ -335,7 +341,8 @@ pub fn dock_tab_strip(
 ) -> StripActions {
     let p = palette_of(ui);
     let mut out = StripActions::default();
-    ui.horizontal(|ui| {
+    // horizontal_wrapped：窄停靠区（200px 下限）内页签过多时换行而非截断溢出。
+    ui.horizontal_wrapped(|ui| {
         ui.add_space(spacing::SM);
         for &id in panels {
             let is_active = id == active;

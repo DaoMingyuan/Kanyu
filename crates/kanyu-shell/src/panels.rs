@@ -23,6 +23,10 @@ pub enum PanelAction {
     ZoomToLayer(String),
     /// 显示概要（输出终端）。
     ShowSummary(String),
+    /// 打开属性表（打开面板并选中该图层）。
+    OpenAttrTable(String),
+    /// 图层属性（只读概览对话框）。
+    LayerProperties(String),
     /// 父列表内移动（上移/下移/顶层/底层）。
     MoveLayer(String, MoveDir),
     /// 重命名图层（打开模态对话框）。
@@ -179,6 +183,14 @@ fn layer_row(
             actions.push(PanelAction::ShowSummary(id.clone()));
             ui.close();
         }
+        if ui.button("打开属性表").clicked() {
+            actions.push(PanelAction::OpenAttrTable(id.clone()));
+            ui.close();
+        }
+        if ui.button("图层属性…").clicked() {
+            actions.push(PanelAction::LayerProperties(id.clone()));
+            ui.close();
+        }
         if ui.button("显示或隐藏").clicked() {
             actions.push(PanelAction::ToggleLayerVisible(id.clone()));
             ui.close();
@@ -224,7 +236,11 @@ fn layer_row(
             }
         });
         ui.separator();
-        if ui.button("导出…").clicked() {
+        // 全局动作文案取自命令注册表（单一事实来源）。
+        let export_title = crate::commands::find("export_layer")
+            .map(|c| c.title)
+            .unwrap_or("导出…");
+        if ui.button(export_title).clicked() {
             actions.push(PanelAction::ExportLayer(id.clone()));
             ui.close();
         }
@@ -395,15 +411,18 @@ fn toc_nodes_ui(
     }
 }
 
-/// 行尾小图标按钮（14px，hover 提示）。
+/// 行尾小图标按钮（24px = WCAG 2.2 §2.5.8 指针目标达标档，hover 提示）。
 fn icon_btn(ui: &mut egui::Ui, icon: Icon, tip: &str) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(egui::Vec2::splat(18.0), egui::Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(
+        egui::Vec2::splat(crate::ui_kit::sizes::CONTROL_SM),
+        egui::Sense::click(),
+    );
     let color = if resp.hovered() {
         crate::ui_kit::icons_color(ui)
     } else {
         ui.visuals().weak_text_color()
     };
-    icons::draw(ui.painter(), icon, rect.shrink(2.0), color);
+    icons::draw(ui.painter(), icon, rect.shrink(3.0), color);
     resp.on_hover_text(tip)
 }
 

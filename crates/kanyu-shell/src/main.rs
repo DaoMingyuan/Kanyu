@@ -17,13 +17,17 @@
 
 mod ai;
 mod app;
+mod attrtable;
 mod canvas;
 mod catalog;
+mod commands;
 mod console;
 mod dialogs;
 mod dock;
+mod mapview;
 mod panels;
 mod ribbon;
+mod scene3d;
 mod settings;
 mod theme;
 mod toc;
@@ -50,6 +54,14 @@ pub struct ShellArgs {
     pub open_settings: bool,
     /// 隐藏验证参数：启动即打开工具箱「缓冲区」参数对话框（截图验证）。
     pub tool_demo: bool,
+    /// 隐藏验证参数：启动即打开属性表面板 + 字段计算器对话框（截图验证）。
+    pub calc_demo: bool,
+    /// 隐藏验证参数：启动即开一个三维「地图 2」浮动视图（截图验证）。
+    pub view_demo: bool,
+    /// 隐藏验证参数：启动界面缩放档（如 1.25/1.5，截图验证）。
+    pub zoom: Option<f32>,
+    /// 隐藏验证参数：错位停靠布局（属性表→窄右区、工具箱→宽底区，截图验证回流）。
+    pub dock_demo2: bool,
 }
 
 impl Default for ShellArgs {
@@ -62,6 +74,10 @@ impl Default for ShellArgs {
             dock_demo: false,
             open_settings: false,
             tool_demo: false,
+            calc_demo: false,
+            view_demo: false,
+            zoom: None,
+            dock_demo2: false,
         }
     }
 }
@@ -115,6 +131,19 @@ fn parse_args() -> ShellArgs {
             "--dock-demo" => args.dock_demo = true,
             "--open-settings" => args.open_settings = true,
             "--tool-demo" => args.tool_demo = true,
+            "--calc-demo" => args.calc_demo = true,
+            "--view-demo" => args.view_demo = true,
+            "--dock-demo2" => args.dock_demo2 = true,
+            "--zoom" => {
+                let v = it.next().unwrap_or_else(|| {
+                    eprintln!("--zoom 缺少倍率（如 1.25）\n{}", usage());
+                    std::process::exit(2);
+                });
+                args.zoom = Some(v.parse().unwrap_or_else(|_| {
+                    eprintln!("--zoom 须为数值倍率: '{v}'\n{}", usage());
+                    std::process::exit(2);
+                }));
+            }
             "-h" | "--help" => {
                 println!("{}", usage());
                 std::process::exit(0);

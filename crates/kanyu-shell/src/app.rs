@@ -159,12 +159,24 @@ pub struct KanyuApp {
     map_export_style: Option<StyleRule>,
     /// 工程坐标系（保存进 .kyu；投影变换默认目标；状态栏显示）。
     project_crs: String,
+    /// 界面缩放档位（egui zoom_factor；内存态，重启恢复 1.0）。
+    ui_zoom: f32,
     /// 工具箱面板状态。
     toolbox: crate::toolbox::ToolboxPanel,
     /// 工具箱参数对话框状态。
     tool_run: Option<crate::toolbox::ToolRunState>,
     /// 设置对话框状态（坐标系/渲染）。
     settings: Option<crate::settings::SettingsDialog>,
+    /// 属性表面板状态。
+    attrtable: crate::attrtable::AttrTablePanel,
+    /// 图层属性对话框（值为图层 id）。
+    layer_props: Option<String>,
+    /// Toast 轻提示队列（右上角，自动消退）。
+    toasts: Vec<crate::ui_kit::Toast>,
+    /// 额外地图视图（主画布 = 默认视图「地图」；窗口化视图见 mapview.rs）。
+    map_views: Vec<crate::mapview::MapView>,
+    /// 视图序号计数（标题「地图 N」递增）。
+    next_view_id: usize,
     error_msg: Option<String>,
     status: String,
     mouse_data: Option<(f64, f64)>,
@@ -224,9 +236,15 @@ impl KanyuApp {
             map_export_size: (1200, 800),
             map_export_style: None,
             project_crs: "EPSG:4326".to_string(),
+            ui_zoom: 1.0,
             toolbox: crate::toolbox::ToolboxPanel::default(),
             tool_run: None,
             settings: None,
+            attrtable: crate::attrtable::AttrTablePanel::default(),
+            layer_props: None,
+            toasts: Vec::new(),
+            map_views: Vec::new(),
+            next_view_id: 2,
             error_msg: None,
             status: "就绪".to_string(),
             mouse_data: None,
@@ -249,6 +267,11 @@ impl KanyuApp {
             app.dock.set_active(DockZone::Right, PanelId::Toolbox);
             app.dock.float(PanelId::Console);
             app.dock.close_panel(PanelId::Catalog);
+            // 预置工具箱「最近使用/收藏」演示数据（面板区块截图验证）。
+            app.toolbox.note_run("centroid");
+            app.toolbox.note_run("buffer");
+            app.toolbox.toggle_favorite("dissolve");
+            app.toolbox.toggle_favorite("buffer");
         }
         // --open-settings / --tool-demo（隐藏验证参数）：预设对话框打开态。
         if args.open_settings {
@@ -269,6 +292,54 @@ impl KanyuApp {
                 app.open_project(p);
             } else {
                 app.open_file(p);
+            }
+        }
+        // dock-demo 附加：属性表打开态（选中首个图层，截图验证）。
+        if args.dock_demo {
+            if let Some(first) = app.layers.first() {
+                let id = first.layer.id().to_string();
+                app.dock.open_panel(crate::dock::PanelId::AttrTable);
+                app.attrtable.set_layer(id);
+            }
+        }
+        // calc-demo：属性表 + 字段计算器对话框（预填示例与预览，截图验证）。
+        if args.calc_demo {
+            if let Some(first) = app.layers.first() {
+                let id = first.layer.id().to_string();
+                app.dock.open_panel(crate::dock::PanelId::AttrTable);
+                app.attrtable.set_layer(id.clone());
+                let preview = crate::attrtable::preview_calc(
+                    Some(&first.layer.collection()),
+                    "楼高米",
+                    "height * 3.5",
+                    5,
+                );
+                app.attrtable.demo_open_calc(preview);
+            }
+        }
+        // view-demo：三维「地图 2」浮动视图（预置方位角，截图验证）。
+        if args.view_demo {
+            let mut v = crate::mapview::MapView::new(app.next_view_id);
+            app.next_view_id += 1;
+            v.dim = crate::mapview::ViewDim::ThreeD;
+            app.map_views.push(v);
+        }
+        // --zoom：启动缩放档（截图验证等比缩放）。
+        if let Some(z) = args.zoom {
+            cc.egui_ctx.set_zoom_factor(z);
+            app.ui_zoom = z;
+        }
+        // --dock-demo2：错位停靠（属性表→窄右区、工具箱→宽底区，回流验证）。
+        if args.dock_demo2 {
+            use crate::dock::{DockZone, PanelId};
+            app.dock.dock_to(PanelId::AttrTable, DockZone::Right);
+            app.dock.dock_to(PanelId::Toolbox, DockZone::Bottom);
+            app.dock.set_active(DockZone::Right, PanelId::AttrTable);
+            app.dock.set_active(DockZone::Bottom, PanelId::Toolbox);
+            app.dock.float(PanelId::Console);
+            app.dock.close_panel(PanelId::Catalog);
+            if let Some(first) = app.layers.first() {
+                app.attrtable.set_layer(first.layer.id().to_string());
             }
         }
         app
@@ -309,7 +380,8 @@ impl KanyuApp {
                     summary.feature_count, summary.format
                 );
                 self.status = msg.clone();
-                self.console.info(msg);
+                self.console.info(msg.clone());
+                self.toast_ok(msg);
                 let id = layer.id().to_string();
                 self.layers.push(LayerEntry {
                     layer,
@@ -328,6 +400,7 @@ impl KanyuApp {
             Err(e) => {
                 let msg = format!("无法打开 {file_name}: {e}");
                 self.console.push(crate::console::LineKind::Err, &msg);
+                self.toast_err(&msg);
                 self.error_msg = Some(msg);
             }
         }
@@ -399,6 +472,10 @@ impl KanyuApp {
         };
         self.data_extent = view::union(extents);
         self.canvas.dirty = true;
+        // 全部额外视图同脏（可见性/增删变化 → 各视图重渲）。
+        for v in &mut self.map_views {
+            v.canvas.dirty = true;
+        }
     }
 
     /// 有效可见图层的要素总数（状态栏）。
@@ -509,7 +586,8 @@ impl KanyuApp {
                     ));
                 }
                 self.status = msg.clone();
-                self.console.info(msg);
+                self.console.info(msg.clone());
+                self.toast_ok(msg);
             }
             Err(e) => {
                 self.console
@@ -779,12 +857,23 @@ impl KanyuApp {
 
     // ===== 动作分派 =====
 
+    /// 成功轻提示（右上角青条，自动消退）。
+    fn toast_ok(&mut self, msg: impl Into<String>) {
+        crate::ui_kit::push_toast(&mut self.toasts, crate::ui_kit::ToastKind::Success, msg);
+    }
+
+    /// 失败轻提示（朱砂条）。
+    fn toast_err(&mut self, msg: impl Into<String>) {
+        crate::ui_kit::push_toast(&mut self.toasts, crate::ui_kit::ToastKind::Error, msg);
+    }
+
     /// 打开设置对话框（以工程当前值快照）。
     fn open_settings(&mut self) {
         self.settings = Some(crate::settings::SettingsDialog::open_with(
             &self.project_crs,
             self.map_export_size,
             self.map_theme_mode,
+            self.ui_zoom,
         ));
     }
 
@@ -892,6 +981,12 @@ impl KanyuApp {
                 self.dialogs.export_map = Some(crate::dialogs::ExportMapState::default())
             }
             RibbonAction::ZoomToFit => self.needs_fit = true,
+            RibbonAction::NewMapView => {
+                let id = self.next_view_id;
+                self.next_view_id += 1;
+                self.map_views.push(crate::mapview::MapView::new(id));
+                self.console.info(format!("已新建地图视图「地图 {id}」"));
+            }
             RibbonAction::ResetView => {
                 self.view_bbox = None;
                 self.needs_fit = true;
@@ -992,11 +1087,13 @@ impl KanyuApp {
         match outcome {
             Ok(msg) => {
                 self.status = msg.clone();
-                self.console.info(msg);
+                self.console.info(msg.clone());
+                self.toast_ok(msg);
             }
             Err(e) => {
                 self.status = format!("失败: {e}");
-                self.console.push(crate::console::LineKind::Err, e);
+                self.console.push(crate::console::LineKind::Err, e.clone());
+                self.toast_err(e);
             }
         }
     }
@@ -1106,6 +1203,18 @@ impl KanyuApp {
                         s.geometry_types.join(", "),
                         s.fields.join(", ")
                     ));
+                }
+            }
+            PanelAction::OpenAttrTable(id) => {
+                if self.layer_index(&id).is_some() {
+                    self.selected = self.layer_index(&id);
+                    self.dock.open_panel(crate::dock::PanelId::AttrTable);
+                    self.attrtable.set_layer(id);
+                }
+            }
+            PanelAction::LayerProperties(id) => {
+                if self.layer_index(&id).is_some() {
+                    self.layer_props = Some(id);
                 }
             }
             PanelAction::MoveLayer(id, dir) => {
@@ -1234,6 +1343,50 @@ impl KanyuApp {
         }
     }
 
+    /// 应用属性表字段操作（attrcalc 写回：重建图层 + 刷新概要 + 合并缓存）。
+    fn apply_attr_action(&mut self, action: crate::attrtable::AttrAction) {
+        use crate::attrtable::FieldOp;
+        let crate::attrtable::AttrAction::Apply { layer, op } = action;
+        let Some(i) = self.layer_index(&layer) else {
+            return;
+        };
+        let collection = self.layers[i].layer.collection();
+        let result = match &op {
+            FieldOp::Add { name, default } => {
+                kanyu_core::attrcalc::add_field(&collection, name, default.clone())
+            }
+            FieldOp::Delete { name } => kanyu_core::attrcalc::delete_field(&collection, name),
+            FieldOp::Rename { old, new } => {
+                kanyu_core::attrcalc::rename_field(&collection, old, new)
+            }
+            FieldOp::Calc { target, expr } => {
+                kanyu_core::attrcalc::calc_field(&collection, target, expr)
+            }
+        };
+        let verb = match &op {
+            FieldOp::Add { .. } => "添加字段",
+            FieldOp::Delete { .. } => "删除字段",
+            FieldOp::Rename { .. } => "重命名字段",
+            FieldOp::Calc { .. } => "字段计算",
+        };
+        match result {
+            Ok(c) => {
+                let id = self.layers[i].layer.id().to_string();
+                self.layers[i].layer = Layer::from_collection(id, c);
+                self.layers[i].summary = self.layers[i].layer.summary();
+                self.rebuild_merged();
+                let msg = format!("{verb} 已应用到图层 {layer}");
+                self.console.info(msg.clone());
+                self.toast_ok(msg);
+            }
+            Err(e) => {
+                let msg = format!("{verb} 失败: {e}");
+                self.console.push(crate::console::LineKind::Err, &msg);
+                self.toast_err(msg);
+            }
+        }
+    }
+
     // ===== 停靠区渲染（dock.rs 编排，此处提供内容）=====
 
     /// 单个停靠区：页签条（拖动/关闭/全部开关）+ 当前页签内容。
@@ -1323,6 +1476,22 @@ impl KanyuApp {
                         }
                         self.tool_run = Some(st);
                     }
+                }
+            }
+            crate::dock::PanelId::AttrTable => {
+                let layers_meta: Vec<(String, String)> = self
+                    .layers
+                    .iter()
+                    .map(|e| (e.layer.id().to_string(), e.file_name.clone()))
+                    .collect();
+                let collection = self
+                    .attrtable
+                    .layer()
+                    .and_then(|id| self.layers.iter().find(|e| e.layer.id() == id))
+                    .map(|e| e.layer.collection());
+                let actions = self.attrtable.ui(ui, &layers_meta, collection.as_ref());
+                for a in actions {
+                    self.apply_attr_action(a);
                 }
             }
             crate::dock::PanelId::Console => {
@@ -1430,11 +1599,15 @@ impl eframe::App for KanyuApp {
         }
         self.handle_dropped_files(&ctx);
 
-        // Ribbon 功能区（顶部，86px）。
+        // Ribbon 功能区（顶部，86px）。命令可用条件按快照求值（无图层/无选中置灰）。
+        let snap = crate::commands::AppSnapshot {
+            layer_count: self.layers.len(),
+            has_selection: self.selected.is_some(),
+        };
         egui::Panel::top("ribbon")
             .exact_size(sizes::RIBBON)
             .show(ui, |ui| {
-                if let Some(action) = self.ribbon.ui(ui, &mut self.icon_cache) {
+                if let Some(action) = self.ribbon.ui(ui, &mut self.icon_cache, &snap) {
                     self.dispatch(action, &ctx);
                 }
             });
@@ -1592,6 +1765,22 @@ impl eframe::App for KanyuApp {
             self.status = e;
         }
 
+        // 额外地图视图窗口（多视图；关闭即从清单移除）。
+        {
+            let mut views = std::mem::take(&mut self.map_views);
+            let vinput = crate::mapview::ViewInput {
+                merged: &self.merged,
+                theme: self.effective_map_theme(),
+                data_extent: self.data_extent,
+                crs: &self.project_crs,
+            };
+            for v in &mut views {
+                crate::mapview::window_ui(&ctx, v, &vinput);
+            }
+            views.retain(|v| v.open);
+            self.map_views = views;
+        }
+
         // 4) 拖拽中的投放提示（Foreground 层：三边缘投放区 + 中央浮动提示）。
         if self.dock.dragging.is_some() {
             let pointer = ctx.pointer_latest_pos();
@@ -1643,6 +1832,9 @@ impl eframe::App for KanyuApp {
                     self.map_export_size = o.export_size;
                     self.map_export_style = o.export_style;
                     self.map_theme_mode = o.map_theme;
+                    // 界面缩放：egui 全局 zoom_factor（点单位等比放大）。
+                    self.ui_zoom = o.ui_zoom;
+                    ctx.set_zoom_factor(o.ui_zoom);
                     self.canvas.dirty = true;
                     let msg = format!(
                         "设置已应用（坐标系 {}，导出 {}×{}，{}）",
@@ -1656,40 +1848,42 @@ impl eframe::App for KanyuApp {
                 }
             }
         }
-        // 工具箱参数对话框（通用表单由注册表驱动）。
+        // 工具箱参数对话框（ArcGIS Pro 式：参数帮助区 + 内联校验 + 运行置灰）。
         if let Some(mut st) = self.tool_run.take() {
             let layer_ids = self.layer_ids();
-            let title = format!("{}（工具箱）", st.tool.name);
-            match crate::ui_kit::dialog_shell(&ctx, &title, |ui| {
-                crate::toolbox::run_form(ui, &mut st, &layer_ids, &|id| {
-                    self.layers
-                        .iter()
-                        .find(|e| e.layer.id() == id)
-                        .map(|e| e.summary.fields.clone())
-                        .unwrap_or_default()
-                });
+            match crate::toolbox::run_dialog(&ctx, &mut st, &layer_ids, &|id| {
+                self.layers
+                    .iter()
+                    .find(|e| e.layer.id() == id)
+                    .map(|e| e.summary.fields.clone())
+                    .unwrap_or_default()
             }) {
-                crate::ui_kit::DialogAction::None => self.tool_run = Some(st),
-                crate::ui_kit::DialogAction::Cancel => {}
-                crate::ui_kit::DialogAction::Ok => {
-                    let outcome = crate::toolbox::run_tool(st.tool.id, &st.values, |id| {
+                crate::toolbox::DialogOutcome::Open => self.tool_run = Some(st),
+                crate::toolbox::DialogOutcome::Cancel => {}
+                crate::toolbox::DialogOutcome::Run => {
+                    let tool_id = st.tool.id;
+                    let outcome = crate::toolbox::run_tool(tool_id, &st.values, |id| {
                         self.layers
                             .iter()
                             .find(|e| e.layer.id() == id)
                             .map(|e| e.layer.collection())
                     });
+                    let mut succeeded = false;
                     match outcome {
                         Ok(crate::toolbox::ToolOutcome::NewLayer {
                             collection,
                             base,
                             verb,
                         }) => {
+                            succeeded = true;
                             let msg = self.add_result_layer(&base, collection, &verb);
                             self.status = msg.clone();
-                            self.console.info(msg);
+                            self.console.info(msg.clone());
+                            self.toast_ok(msg);
                         }
                         Ok(crate::toolbox::ToolOutcome::NewLayers { layers, verb }) => {
                             // 多产出（分割矢量图层）：逐组登记，终端汇报组数。
+                            succeeded = true;
                             let n = layers.len();
                             let mut last_msg = String::new();
                             for (base, collection) in layers {
@@ -1700,35 +1894,90 @@ impl eframe::App for KanyuApp {
                             }
                             let msg = format!("{verb}：共 {n} 组");
                             self.status = msg.clone();
-                            self.console.info(msg);
+                            self.console.info(msg.clone());
+                            self.toast_ok(msg);
                         }
                         Ok(crate::toolbox::ToolOutcome::Report(text)) => {
+                            succeeded = true;
                             self.console.info(text);
+                            self.toast_ok(format!("{} 完成", st.tool.name));
                         }
-                        Ok(crate::toolbox::ToolOutcome::Export { layer, out }) => {
-                            let fmt = out.rsplit('.').next().unwrap_or("").to_string();
-                            match self.op_export(&layer, &out, &fmt) {
-                                Ok(m) => {
-                                    self.status = m.clone();
-                                    self.console.info(m);
-                                }
-                                Err(e) => {
-                                    self.console.push(crate::console::LineKind::Err, &e);
-                                    self.error_msg = Some(e);
-                                }
-                            }
-                        }
-                        // 校验/执行失败：留在对话框内红字（不吞输入）。
+                        // 校验/执行失败：留在对话框内红字（不吞输入）+ toast。
                         Err(e) => {
+                            self.toast_err(&e);
                             st.err = Some(e);
                             self.tool_run = Some(st);
                         }
                     }
+                    // 成功执行记入「最近使用」。
+                    if succeeded {
+                        self.toolbox.note_run(tool_id);
+                    }
                 }
+            }
+        }
+        // 图层属性（只读概览）。
+        if let Some(props_id) = self.layer_props.clone() {
+            if let Some(i) = self.layer_index(&props_id) {
+                let entry = &self.layers[i];
+                let file_name = entry.file_name.clone();
+                let source = entry
+                    .source_path
+                    .clone()
+                    .unwrap_or_else(|| "（内存图层，无来源）".to_string());
+                let s = entry.summary.clone();
+                let field_types = crate::attrtable::infer_field_types(&entry.layer.collection());
+                let crs = self.project_crs.clone();
+                let mut open = true;
+                egui::Window::new(crate::ui_kit::text::heading("图层属性"))
+                    .collapsible(false)
+                    .resizable(false)
+                    .default_width(420.0)
+                    .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+                    .open(&mut open)
+                    .show(&ctx, |ui| {
+                        ui.label(crate::ui_kit::text::body(&file_name).strong());
+                        ui.add_space(4.0);
+                        for (k, v) in [
+                            ("来源", source),
+                            ("格式", s.format.clone()),
+                            ("要素数", s.feature_count.to_string()),
+                            ("几何类型", s.geometry_types.join(", ")),
+                            ("工程坐标系", crs),
+                        ] {
+                            ui.horizontal(|ui| {
+                                ui.label(crate::ui_kit::text::body(format!("{k}:")));
+                                ui.label(crate::ui_kit::text::body(v));
+                            });
+                        }
+                        ui.add_space(4.0);
+                        ui.label(crate::ui_kit::text::body("字段：").strong());
+                        for (name, kind) in &field_types {
+                            ui.label(crate::ui_kit::text::caption(format!("{name}（{kind}）")));
+                        }
+                        ui.add_space(8.0);
+                        if crate::ui_kit::button(
+                            ui,
+                            "关 闭",
+                            crate::ui_kit::ButtonVariant::Secondary,
+                            true,
+                        )
+                        .clicked()
+                        {
+                            self.layer_props = None;
+                        }
+                    });
+                if !open {
+                    self.layer_props = None;
+                }
+            } else {
+                self.layer_props = None;
             }
         }
         self.error_modal(&ctx);
         self.handle_screenshots(&ctx);
+        // Toast 轻提示栈（最顶层，自动消退）。
+        crate::ui_kit::toast_stack(&ctx, &mut self.toasts, &crate::theme::palette(self.theme));
     }
 }
 

@@ -31,8 +31,10 @@ pub mod radius {
 
 /// 控件尺寸（高度，px）。
 pub mod sizes {
-    /// 小控件高（工具条按钮、徽章）。
-    pub const CONTROL_SM: f32 = 22.0;
+    /// 小控件高（工具条按钮、徽章、树行）。
+    /// WCAG 2.2 §2.5.8 指针目标 ≥24px——桌面端取 24px 达标档；
+    /// 更小的纯图标按钮须保证 24px 间距圆不重叠（§2.5.8 Spacing 豁免）。
+    pub const CONTROL_SM: f32 = 24.0;
     /// 标准控件高（按钮、输入框、下拉框）。
     pub const CONTROL_MD: f32 = 28.0;
     /// 大控件高（主操作按钮）。
@@ -59,6 +61,8 @@ pub mod animation {
     pub const HOVER_LIFT: f32 = 1.0;
     /// 按下图标缩小倍率。
     pub const PRESS_SCALE: f32 = 0.92;
+    /// Toast 轻提示停留时长（秒，含淡出）。
+    pub const TOAST_SECS: f32 = 3.0;
 
     /// 图标动画缩放（纯函数）：悬停插值放大（hover_t∈[0,1]，越界钳制），
     /// 按下优先缩至 [`PRESS_SCALE`]。
@@ -109,6 +113,8 @@ pub mod animation {
 /// 文本分级（Apple HIG 字号层级适配桌面端：Large Title 28 / Title2 22 /
 /// Headline 17sb / Subhead 15 / Footnote 13 / Caption2 11 / 数据等宽 12；
 /// 行内引用 HIG Type Scale，比例关系与 iOS 一致，绝对值按桌面密度下调）。
+/// 最小有效字号：caption 11px 为 100% 缩放档下限（桌面可读性下限约 11px；
+/// 低于此值的信息须改分级或放大——缩放档经 egui zoom_factor 等比放大，不破坏下限）。
 pub mod text {
     use eframe::egui::{self, RichText};
 

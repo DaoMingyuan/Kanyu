@@ -124,6 +124,18 @@ pub fn combo(
     options: &[String],
     enabled: bool,
 ) -> Response {
+    combo_width(ui, label, value, options, sizes::INPUT_W, enabled)
+}
+
+/// 指定宽度的下拉框（窄停靠区回流用，如属性表工具条）。
+pub fn combo_width(
+    ui: &mut egui::Ui,
+    label: &str,
+    value: &mut String,
+    options: &[String],
+    width: f32,
+    enabled: bool,
+) -> Response {
     ui.horizontal(|ui| {
         ui.label(text::body(format!("{label}:")));
         if options.is_empty() {
@@ -137,6 +149,7 @@ pub fn combo(
         ui.add_enabled_ui(enabled, |ui| {
             resp = egui::ComboBox::from_id_salt(label)
                 .selected_text(text::body(value.as_str()))
+                .width(width)
                 .show_ui(ui, |ui| {
                     for opt in options {
                         ui.selectable_value(value, opt.clone(), text::body(opt));
@@ -384,8 +397,8 @@ pub fn tree_row(
             super::icons::draw_or_image(ui, cache, ic, rect, p.accent);
             ui.add_space(2.0);
         }
-        // 文本。
-        let resp = ui.selectable_label(false, text::body(label));
+        // 文本（truncate：窄停靠区内超长截断为 …，不撑破布局）。
+        let resp = ui.add(egui::Button::selectable(false, text::body(label)).truncate());
         // 行尾操作。
         trailing(ui);
         resp
@@ -561,4 +574,100 @@ pub fn password_input(
         )
     })
     .inner
+}
+
+// ===== 复合控件（菜单按钮 / 数值步进）=====
+
+/// 菜单按钮响应（split button 语义）。
+pub struct MenuButtonResponse {
+    /// 主体被点（执行默认动作）。
+    pub clicked: bool,
+    /// 下拉菜单选中项下标。
+    pub selected: Option<usize>,
+}
+
+/// 菜单按钮（split button）：`[主体 ▾]`——点主体执行默认动作，点箭头开下拉菜单。
+/// 样式出自 tokens/palette（Subtle 按钮语言）。
+///
+/// ```
+/// let r = menu_button(ui, "选项", &["全部展开", "全部折叠"]);
+/// if r.clicked { /* 默认动作 */ }
+/// if let Some(0) = r.selected { /* 全部展开 */ }
+/// ```
+pub fn menu_button(ui: &mut egui::Ui, label: &str, items: &[&str]) -> MenuButtonResponse {
+    let mut out = MenuButtonResponse {
+        clicked: false,
+        selected: None,
+    };
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        out.clicked = button(ui, label, ButtonVariant::Subtle, true).clicked();
+        ui.menu_button(text::body("▾"), |ui| {
+            for (i, item) in items.iter().enumerate() {
+                if ui.button(text::body(*item)).clicked() {
+                    out.selected = Some(i);
+                    ui.close();
+                }
+            }
+        });
+    });
+    out
+}
+
+/// 数值步进钳制（纯函数）：value + delta 后钳入 [min, max]。
+pub fn clamp_step(value: f64, delta: f64, min: f64, max: f64) -> f64 {
+    (value + delta).clamp(min, max)
+}
+
+/// 数值步进输入框（spinner）：标签 + `[−] [可输入框] [＋]`，min/max 钳制。
+/// 直接输入失焦后同样钳制；步进按 step。
+///
+/// ```
+/// let mut v = 1200.0;
+/// spinner(ui, "宽度 px", &mut v, 64.0..=8192.0, 50.0);
+/// ```
+pub fn spinner(
+    ui: &mut egui::Ui,
+    label: &str,
+    value: &mut f64,
+    range: std::ops::RangeInclusive<f64>,
+    step: f64,
+) -> Response {
+    let (min, max) = (*range.start(), *range.end());
+    ui.horizontal(|ui| {
+        ui.label(text::body(format!("{label}:")));
+        if ui
+            .add(egui::Button::new(text::body("−")).min_size(Vec2::splat(sizes::CONTROL_SM)))
+            .clicked()
+        {
+            *value = clamp_step(*value, -step, min, max);
+        }
+        let resp = ui.add(
+            egui::DragValue::new(value)
+                .speed(step)
+                .range(min..=max)
+                .max_decimals(2),
+        );
+        if ui
+            .add(egui::Button::new(text::body("＋")).min_size(Vec2::splat(sizes::CONTROL_SM)))
+            .clicked()
+        {
+            *value = clamp_step(*value, step, min, max);
+        }
+        resp
+    })
+    .inner
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clamp_step_bounds() {
+        assert_eq!(clamp_step(1200.0, 50.0, 64.0, 8192.0), 1250.0);
+        assert_eq!(clamp_step(64.0, -50.0, 64.0, 8192.0), 64.0); // 下钳制
+        assert_eq!(clamp_step(8192.0, 50.0, 64.0, 8192.0), 8192.0); // 上钳制
+        assert_eq!(clamp_step(0.5, -1.0, 0.0, 10.0), 0.0);
+    }
 }

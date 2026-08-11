@@ -1,13 +1,14 @@
 //! 功能区（Ribbon）：ArcGIS Pro 分类设计 + "图标 + 文字 + 功能介绍"组合按钮
 //! （总规 §1.4 线性图标 + 悬停介绍卡）。页签内命令组细分：组内聚、组间分隔。
 //!
-//! 页签与命令组的划分即总规 §2.2.1 全局菜单的现代化落地：
-//! 主页 / 数据 / 分析 / 制图 / 视图 / 技能 / 帮助。
+//! **DAML 范式**：本文件只声明「页签 → 组 → 命令 id」的布局结构
+//! （[`layout_of`]），按钮文案/图标/简介/可用条件一律投影自
+//! [`crate::commands::COMMANDS`] 注册表（单一事实来源）。
 
 use eframe::egui;
 use egui::{RichText, Vec2};
 
-use crate::dock::PanelId;
+use crate::commands::{self, AppSnapshot};
 use crate::ui_kit::icons::Icon;
 use crate::ui_kit::{ribbon_button, text};
 
@@ -102,8 +103,10 @@ pub enum RibbonAction {
     ZoomToFit,
     /// 复位视图。
     ResetView,
+    /// 新建地图视图（浮动窗，独立视口，可切实验性三维）。
+    NewMapView,
     /// 面板开关（目录/图层/终端/AI 对话；关闭后可经此重开）。
-    TogglePanel(PanelId),
+    TogglePanel(crate::dock::PanelId),
     /// 打开设置对话框（坐标系 / 渲染）。
     SettingsDialog,
     /// 地图色彩模式循环（固定晨山 → 固定夜观星 → 跟随界面）。
@@ -122,144 +125,81 @@ pub enum RibbonAction {
     About,
 }
 
-/// 一个按钮的定义：图标 + 标签 + 动作 + 介绍（标题/正文）。
-#[derive(Clone, Copy)]
-struct Btn {
-    icon: Icon,
-    label: &'static str,
-    action: RibbonAction,
-    desc_title: &'static str,
-    desc_body: &'static str,
-}
-
-const fn btn(
-    icon: Icon,
-    label: &'static str,
-    action: RibbonAction,
-    desc_title: &'static str,
-    desc_body: &'static str,
-) -> Btn {
-    Btn {
-        icon,
-        label,
-        action,
-        desc_title,
-        desc_body,
-    }
-}
-
-/// 一个命令组：组名 + 按钮列。
-#[derive(Clone)]
-struct Group {
+/// 命令组布局：组名 + 命令 id 列（投影 [`commands::COMMANDS`]）。
+struct GroupLayout {
     name: &'static str,
-    buttons: Vec<Btn>,
+    commands: &'static [&'static str],
 }
 
-/// 页签内容（声明式布局——Ribbon 的单一事实来源；按帧构造，量小无忧）。
-fn groups_of(tab: RibbonTab) -> Vec<Group> {
+/// 页签布局（声明式；命令文案/图标/简介见注册表）。
+fn layout_of(tab: RibbonTab) -> &'static [GroupLayout] {
     match tab {
-        RibbonTab::Home => vec![
-            Group {
+        RibbonTab::Home => &[
+            GroupLayout {
                 name: "工程",
-                buttons: vec![
-                    btn(Icon::Folder, "打开数据…", RibbonAction::OpenData, "打开地理数据文件", "支持 shp/geojson/fgb/parquet/dxf/dwg/kml/kmz/csv/xlsx/kdb；也可直接拖文件入窗"),
-                    btn(Icon::Example, "打开示例", RibbonAction::OpenExample, "加载内置示例", "examples/buildings.geojson（3 建筑点 + 1 道路线）"),
-                    btn(Icon::Export, "打开工程…", RibbonAction::OpenProject, "打开堪舆工程 (.kyu)", "恢复图层清单、可见性、视口与地图色彩设置"),
-                    btn(Icon::Info, "保存工程", RibbonAction::SaveProject, "保存堪舆工程 (.kyu)", "把当前图层、可见性、视口、地图色彩保存为 .kyu 工程文件"),
-                ],
+                commands: &["open_data", "open_example", "open_project", "save_project"],
             },
-            Group {
+            GroupLayout {
                 name: "窗口",
-                buttons: vec![
-                    btn(Icon::Camera, "保存截图", RibbonAction::SaveScreenshot, "窗口截图", "把当前整个窗口保存为 PNG（含 Ribbon 与面板）"),
-                    btn(Icon::Sun, "切换主题", RibbonAction::ToggleTheme, "切换界面主题", "晨山 / 夜观星；只改变界面，不改变地图色彩（见「视图 → 地图色彩」）"),
-                    btn(Icon::Settings, "设置…", RibbonAction::SettingsDialog, "设置", "工程坐标系选择与渲染设置（独立设置对话框，不占功能区）"),
-                ],
+                commands: &["save_screenshot", "toggle_theme", "settings"],
             },
-            Group {
+            GroupLayout {
                 name: "关于",
-                buttons: vec![btn(Icon::Info, "关于堪舆", RibbonAction::About, "关于堪舆", "版本、架构、许可证")],
+                commands: &["about"],
             },
         ],
-        RibbonTab::Data => vec![
-            Group {
+        RibbonTab::Data => &[
+            GroupLayout {
                 name: "图层",
-                buttons: vec![
-                    btn(Icon::Info, "图层概要", RibbonAction::LayerInfo, "图层概要", "当前图层的要素数/几何类型/字段（输出到终端）"),
-                    btn(Icon::Funnel, "属性查询…", RibbonAction::QueryDialog, "属性查询", "如 height > 50；结果存为新图层"),
-                ],
+                commands: &["layer_info", "query"],
             },
-            Group {
+            GroupLayout {
                 name: "交换",
-                buttons: vec![
-                    btn(Icon::Export, "导出图层…", RibbonAction::ExportDialog, "导出图层", "geojson/csv/fgb/parquet/dxf/kml/kmz/shp/kdb 全格式互转"),
-                    btn(Icon::Compass, "投影变换…", RibbonAction::ReprojectDialog, "投影变换", "EPSG 全库（如 4326 → 3857），结果存为新图层"),
-                ],
+                commands: &["export_layer", "reproject"],
             },
         ],
-        RibbonTab::Analysis => vec![
-            Group {
+        RibbonTab::Analysis => &[
+            GroupLayout {
                 name: "几何分析",
-                buttons: vec![
-                    btn(Icon::Buffer, "缓冲区…", RibbonAction::BufferDialog, "缓冲区分析", "按距离生成缓冲区（结果存为新图层；米制请先投影）"),
-                    btn(Icon::Overlay, "叠加分析…", RibbonAction::OverlayDialog, "叠加分析", "union/intersection/difference/xor（两个面图层）"),
-                    btn(Icon::Topology, "拓扑检查", RibbonAction::Topology, "拓扑检查", "no_overlap 规则（结果输出到终端）"),
-                ],
+                commands: &["buffer", "overlay", "topology"],
             },
-            Group {
+            GroupLayout {
                 name: "关系统计",
-                buttons: vec![
-                    btn(Icon::Link, "空间连接…", RibbonAction::SjoinDialog, "空间连接", "按空间谓词合并两图层属性（左连接 + explode）"),
-                    btn(Icon::Grid, "分区统计…", RibbonAction::ZonalDialog, "分区统计", "面要素分区统计数值字段（count/sum/mean/min/max）"),
-                    btn(Icon::Ruler, "测地度量…", RibbonAction::MeasureDialog, "测地线度量", "Karney 2013 测地线长度/面积（米/平方米）"),
-                ],
+                commands: &["sjoin", "zonal", "measure"],
             },
         ],
-        RibbonTab::Cartography => vec![Group {
+        RibbonTab::Cartography => &[GroupLayout {
             name: "地图输出",
-            buttons: vec![
-                btn(Icon::Export, "导出地图…", RibbonAction::ExportMapDialog, "导出地图", "当前视图导出为 PNG / SVG（尺寸/样式在「设置 → 渲染」，色彩由「视图 → 地图色彩」决定）"),
-            ],
+            commands: &["export_map"],
         }],
-        RibbonTab::View => vec![
-            Group {
+        RibbonTab::View => &[
+            GroupLayout {
                 name: "相机",
-                buttons: vec![
-                    btn(Icon::ZoomFit, "缩放到图层", RibbonAction::ZoomToFit, "缩放到图层", "全部可见图层的数据范围"),
-                    btn(Icon::Reset, "复位视图", RibbonAction::ResetView, "复位视图", "恢复初始相机"),
-                ],
+                commands: &["zoom_fit", "reset_view", "new_map_view"],
             },
-            Group {
+            GroupLayout {
                 name: "面板",
-                buttons: vec![
-                    btn(Icon::Folder, "目录", RibbonAction::TogglePanel(PanelId::Catalog), "目录面板", "显示/关闭目录面板（页签可拖动改停靠、拖到画布变浮动窗）"),
-                    btn(Icon::Layers, "图层", RibbonAction::TogglePanel(PanelId::Layers), "图层面板", "显示/关闭图层面板（Contents 目录树）"),
-                    btn(Icon::Toolbox, "工具箱", RibbonAction::TogglePanel(PanelId::Toolbox), "工具箱面板", "显示/关闭工具箱面板（QGIS Processing 式算法清单）"),
-                    btn(Icon::PanelBottom, "终端", RibbonAction::TogglePanel(PanelId::Console), "终端面板", "显示/关闭终端面板（命令直达内核）"),
-                    btn(Icon::Chat, "AI 对话", RibbonAction::TogglePanel(PanelId::AiChat), "AI 对话面板", "显示/关闭 AI 对话面板（自然语言驱动分析）"),
+                commands: &[
+                    "panel_catalog",
+                    "panel_layers",
+                    "panel_toolbox",
+                    "panel_attrtable",
+                    "panel_console",
+                    "panel_aichat",
                 ],
             },
-            Group {
+            GroupLayout {
                 name: "地图色彩",
-                buttons: vec![
-                    btn(Icon::Sun, "地图色彩", RibbonAction::CycleMapTheme, "地图色彩模式", "固定晨山 → 固定夜观星 → 跟随界面（默认固定晨山，保证制图输出正确）"),
-                ],
+                commands: &["map_theme"],
             },
         ],
-        RibbonTab::Skill => vec![Group {
+        RibbonTab::Skill => &[GroupLayout {
             name: "WASM 技能",
-            buttons: vec![
-                btn(Icon::Skill, "热加载…", RibbonAction::SkillHotload, "热加载技能", "加载并校验 .wasm 技能（wasmtime 沙箱 + fuel 配额）"),
-                btn(Icon::List, "技能清单", RibbonAction::SkillList, "技能清单", "已注册技能（输出到终端）"),
-                btn(Icon::Play, "运行技能…", RibbonAction::SkillRunDialog, "运行技能", "在选定图层上执行技能，结果存为新图层"),
-            ],
+            commands: &["skill_hotload", "skill_list", "skill_run"],
         }],
-        RibbonTab::Help => vec![Group {
+        RibbonTab::Help => &[GroupLayout {
             name: "文档",
-            buttons: vec![
-                btn(Icon::Help, "命令速查", RibbonAction::ShowHelp, "命令速查", "终端命令速查（输出到终端）"),
-                btn(Icon::Info, "关于堪舆", RibbonAction::About, "关于堪舆", "版本、架构、许可证"),
-            ],
+            commands: &["help", "about"],
         }],
     }
 }
@@ -280,11 +220,13 @@ impl Default for Ribbon {
 
 impl Ribbon {
     /// 功能区 UI（ArcGIS Pro 三段式：QAT 快速访问栏 + 页签行 + 命令组行）。
+    /// `snap` 为命令可用条件求值快照（无图层/无选中 → 相应命令置灰）。
     /// 返回点击产生的动作（每帧至多一个）。
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
         cache: &mut crate::ui_kit::icons::IconCache,
+        snap: &AppSnapshot,
     ) -> Option<RibbonAction> {
         let mut action = None;
 
@@ -297,9 +239,12 @@ impl Ribbon {
                     .color(crate::theme::palette(theme_of(ui)).accent),
             );
             ui.add_space(6.0);
-            // 高频动作（ArcGIS QAT：保存/撤销/重做）。
-            if qat_button(ui, cache, Icon::Export, "保存工程 (.kyu)").clicked() {
-                action = Some(RibbonAction::SaveProject);
+            // 高频动作（注册表投影；ArcGIS QAT：保存/撤销/重做）。
+            for id in commands::QAT_COMMANDS {
+                let c = commands::find(id).expect("QAT 命令必在注册表");
+                if qat_button(ui, cache, c.icon, c.desc_title).clicked() {
+                    action = Some(c.action);
+                }
             }
             ui.add_enabled_ui(false, |ui| {
                 let _ = qat_button(ui, cache, Icon::Reset, "撤销（待编辑内核落地）");
@@ -326,10 +271,6 @@ impl Ribbon {
                 .clicked()
                 {
                     action = Some(RibbonAction::ToggleTheme);
-                }
-                if qat_button(ui, cache, Icon::Settings, "设置（坐标系 / 渲染）").clicked()
-                {
-                    action = Some(RibbonAction::SettingsDialog);
                 }
             });
         });
@@ -379,36 +320,37 @@ impl Ribbon {
         // ── 命令组行：图标大按钮 + 组分隔 + 组名（在组宽内居中，ArcGIS 式）──
         ui.horizontal(|ui| {
             ui.add_space(10.0);
-            for (gi, group) in groups_of(self.active).iter().enumerate() {
+            for (gi, group) in layout_of(self.active).iter().enumerate() {
                 if gi > 0 {
                     ui.add_space(8.0);
                     ui.separator();
                     ui.add_space(8.0);
                 }
                 // 组宽 = n×68 + (n-1)×2（组名在此宽度内居中）。
-                let n = group.buttons.len() as f32;
+                let n = group.commands.len() as f32;
                 let group_w = n * 68.0 + (n - 1.0).max(0.0) * 2.0;
                 ui.allocate_ui_with_layout(
                     Vec2::new(group_w, 70.0),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
                         ui.horizontal(|ui| {
-                            for (bi, b) in group.buttons.iter().enumerate() {
+                            for (bi, id) in group.commands.iter().enumerate() {
                                 if bi > 0 {
                                     ui.add_space(2.0);
                                 }
+                                let c = commands::find(id).expect("布局命令必在注册表");
                                 if ribbon_button(
                                     ui,
                                     cache,
-                                    b.icon,
-                                    b.label,
-                                    b.desc_title,
-                                    b.desc_body,
-                                    true,
+                                    c.icon,
+                                    c.title,
+                                    c.desc_title,
+                                    c.desc_body,
+                                    (c.enabled)(snap),
                                 )
                                 .clicked()
                                 {
-                                    action = Some(b.action);
+                                    action = Some(c.action);
                                 }
                             }
                         });
@@ -499,10 +441,22 @@ mod tests {
     #[test]
     fn every_tab_has_groups_and_buttons() {
         for tab in RibbonTab::ALL {
-            let groups = groups_of(tab);
+            let groups = layout_of(tab);
             assert!(!groups.is_empty(), "{tab:?} 无命令组");
-            for g in &groups {
-                assert!(!g.buttons.is_empty(), "{tab:?} 组无按钮");
+            for g in groups {
+                assert!(!g.commands.is_empty(), "{tab:?} 组无按钮");
+            }
+        }
+    }
+
+    /// 布局投影完整性：全部 id 在注册表可解析（DAML 投影不脱靶）。
+    #[test]
+    fn layout_ids_resolve_in_registry() {
+        for tab in RibbonTab::ALL {
+            for g in layout_of(tab) {
+                for id in g.commands {
+                    assert!(commands::find(id).is_some(), "未登记的命令 id: {id}");
+                }
             }
         }
     }
@@ -511,9 +465,9 @@ mod tests {
     fn every_action_reachable_from_some_tab() {
         let actions: Vec<RibbonAction> = RibbonTab::ALL
             .iter()
-            .flat_map(|t| groups_of(*t))
-            .flat_map(|g| g.buttons)
-            .map(|b| b.action)
+            .flat_map(|t| layout_of(*t))
+            .flat_map(|g| g.commands)
+            .map(|id| commands::find(id).unwrap().action)
             .collect();
         for required in [
             RibbonAction::OpenData,

@@ -9,8 +9,10 @@ use kanyu_render::{render_png, RenderOptions, StyleRule, Theme};
 
 use crate::view::{self, BBox};
 
-/// 画布状态（纹理与视图）。
+/// 画布状态（纹理与视图）。多实例经 `tex_name` 区分（每视图一张纹理）。
 pub struct MapCanvas {
+    /// 纹理名（egui 纹理 id 键；多视图必须唯一）。
+    pub tex_name: String,
     /// 纹理对应的物理像素尺寸（高分屏重渲判定）。
     tex_px: [u32; 2],
     texture: Option<egui::TextureHandle>,
@@ -21,9 +23,20 @@ pub struct MapCanvas {
 impl Default for MapCanvas {
     fn default() -> Self {
         Self {
+            tex_name: "map-canvas".to_string(),
             tex_px: [0, 0],
             texture: None,
             dirty: true,
+        }
+    }
+}
+
+impl MapCanvas {
+    /// 指定纹理名的实例（额外地图视图用）。
+    pub fn with_name(name: impl Into<String>) -> Self {
+        Self {
+            tex_name: name.into(),
+            ..Default::default()
         }
     }
 }
@@ -158,7 +171,7 @@ impl MapCanvas {
                         pixmap.data(),
                     );
                     self.texture = Some(ui.ctx().load_texture(
-                        "map-canvas",
+                        self.tex_name.clone(),
                         image,
                         egui::TextureOptions::LINEAR,
                     ));

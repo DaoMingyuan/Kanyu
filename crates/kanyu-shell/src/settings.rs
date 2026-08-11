@@ -22,14 +22,17 @@ pub enum SettingsPage {
     Crs,
     /// 渲染。
     Render,
+    /// 界面（缩放档位）。
+    Ui,
 }
 
 impl SettingsPage {
-    const ALL: [SettingsPage; 2] = [SettingsPage::Crs, SettingsPage::Render];
+    const ALL: [SettingsPage; 3] = [SettingsPage::Crs, SettingsPage::Render, SettingsPage::Ui];
     fn label(self) -> &'static str {
         match self {
             SettingsPage::Crs => "坐标系",
             SettingsPage::Render => "渲染",
+            SettingsPage::Ui => "界面",
         }
     }
 }
@@ -54,6 +57,8 @@ pub struct SettingsOutcome {
     pub export_style: Option<StyleRule>,
     /// 地图色彩模式。
     pub map_theme: MapThemeMode,
+    /// 界面缩放（egui zoom_factor；1.0/1.25/1.5 档）。
+    pub ui_zoom: f32,
 }
 
 /// 设置 UI 结果。
@@ -73,13 +78,15 @@ pub struct SettingsDialog {
     crs_choice: String,
     /// 坐标系：手动定义（非空时优先于下拉）。
     crs_manual: String,
-    /// 渲染：输出宽/高（像素文本）。
-    width: String,
-    height: String,
+    /// 渲染：输出宽/高（像素；spinner 步进 + 范围钳制）。
+    width: f64,
+    height: f64,
     /// 渲染：符号化样式 JSON。
     style: String,
     /// 渲染：地图色彩模式。
     map_theme: MapThemeMode,
+    /// 界面：缩放档位（1.0/1.25/1.5）。
+    ui_zoom: f32,
     /// 校验错误（error_caption 红字）。
     err: Option<String>,
 }
@@ -87,7 +94,12 @@ pub struct SettingsDialog {
 impl SettingsDialog {
     /// 以工程当前值打开（符号化样式不回填——StyleRule 仅 Deserialize，
     /// 与旧「渲染设置」对话框一致：每次打开从空开始，「确定」覆盖）。
-    pub fn open_with(crs: &str, export_size: (u32, u32), map_theme: MapThemeMode) -> Self {
+    pub fn open_with(
+        crs: &str,
+        export_size: (u32, u32),
+        map_theme: MapThemeMode,
+        ui_zoom: f32,
+    ) -> Self {
         // 当前 CRS 命中常用项则预选下拉，否则进手动框。
         let (choice, manual) = match COMMON_CRS.iter().find(|(def, _)| *def == crs) {
             Some((def, _)) => (crs_label(def), String::new()),
@@ -97,10 +109,11 @@ impl SettingsDialog {
             page: SettingsPage::Crs,
             crs_choice: choice,
             crs_manual: manual,
-            width: export_size.0.to_string(),
-            height: export_size.1.to_string(),
+            width: export_size.0 as f64,
+            height: export_size.1 as f64,
             style: String::new(),
             map_theme,
+            ui_zoom,
             err: None,
         }
     }
@@ -142,6 +155,7 @@ impl SettingsDialog {
                         match self.page {
                             SettingsPage::Crs => self.crs_page(ui),
                             SettingsPage::Render => self.render_page(ui),
+                            SettingsPage::Ui => self.ui_page(ui),
                         }
                     });
                 });
@@ -187,8 +201,8 @@ impl SettingsDialog {
     fn render_page(&mut self, ui: &mut egui::Ui) {
         ui.label(text::body("地图导出（PNG/SVG 输出）：").strong());
         ui.add_space(spacing::SM);
-        text_input(ui, "宽度 px", &mut self.width, "64–8192", true);
-        text_input(ui, "高度 px", &mut self.height, "64–8192", true);
+        crate::ui_kit::spinner(ui, "宽度 px", &mut self.width, 64.0..=8192.0, 50.0);
+        crate::ui_kit::spinner(ui, "高度 px", &mut self.height, 64.0..=8192.0, 50.0);
         ui.label(text::body("符号化样式 JSON（可空）："));
         text_area(
             ui,
@@ -208,6 +222,17 @@ impl SettingsDialog {
         }
     }
 
+    /// 界面页（缩放档位）。
+    fn ui_page(&mut self, ui: &mut egui::Ui) {
+        ui.label(text::body("界面缩放（全部面板/文字/图标等比例）：").strong());
+        ui.add_space(spacing::SM);
+        for (factor, label) in [(1.0_f32, "100%（标准）"), (1.25, "125%"), (1.5, "150%")] {
+            ui.radio_value(&mut self.ui_zoom, factor, label);
+        }
+        ui.add_space(spacing::SM);
+        crate::ui_kit::hint_caption(ui, "即时生效，随会话保持（重启恢复 100%）");
+    }
+
     /// 校验并采集（纯输入 → 结果；错误中文）。
     fn validate(&self) -> Result<SettingsOutcome, String> {
         let crs = if self.crs_manual.trim().is_empty() {
@@ -221,18 +246,9 @@ impl SettingsDialog {
             self.crs_manual.trim().to_string()
         };
         kanyu_core::crs::validate_crs(&crs).map_err(|e| e.to_string())?;
-        let w = self
-            .width
-            .trim()
-            .parse::<u32>()
-            .map_err(|_| format!("宽度须为整数像素: {}", self.width))?
-            .clamp(64, 8192);
-        let h = self
-            .height
-            .trim()
-            .parse::<u32>()
-            .map_err(|_| format!("高度须为整数像素: {}", self.height))?
-            .clamp(64, 8192);
+        // spinner 已钳制在 64..=8192，这里仅取整兜底。
+        let w = (self.width.round() as u32).clamp(64, 8192);
+        let h = (self.height.round() as u32).clamp(64, 8192);
         let style = if self.style.trim().is_empty() {
             None
         } else {
@@ -246,6 +262,7 @@ impl SettingsDialog {
             export_size: (w, h),
             export_style: style,
             map_theme: self.map_theme,
+            ui_zoom: self.ui_zoom,
         })
     }
 }
@@ -269,7 +286,7 @@ mod tests {
     use super::*;
 
     fn dlg() -> SettingsDialog {
-        SettingsDialog::open_with("EPSG:4326", (1200, 800), MapThemeMode::FixedLight)
+        SettingsDialog::open_with("EPSG:4326", (1200, 800), MapThemeMode::FixedLight, 1.0)
     }
 
     /// 打开快照：常用 CRS 预选下拉，非常用进手动框。
@@ -278,10 +295,11 @@ mod tests {
         let d = dlg();
         assert!(d.crs_choice.starts_with("EPSG:4326"));
         assert!(d.crs_manual.is_empty());
-        let d2 = SettingsDialog::open_with("EPSG:4547", (800, 600), MapThemeMode::FollowUi);
+        let d2 = SettingsDialog::open_with("EPSG:4547", (800, 600), MapThemeMode::FollowUi, 1.25);
         assert_eq!(d2.crs_manual, "EPSG:4547");
-        assert_eq!(d2.width, "800");
+        assert_eq!(d2.width, 800.0);
         assert_eq!(d2.map_theme, MapThemeMode::FollowUi);
+        assert_eq!(d2.ui_zoom, 1.25);
     }
 
     /// 校验：下拉默认路径。
@@ -303,15 +321,13 @@ mod tests {
         assert!(d.validate().unwrap_err().contains("无法解析 CRS 定义"));
     }
 
-    /// 校验：尺寸非法报错、越界钳制；样式 JSON 非法报错。
+    /// 校验：尺寸取整钳制；样式 JSON 非法报错。
     #[test]
     fn validate_size_and_style() {
         let mut d = dlg();
-        d.width = "abc".to_string();
-        assert!(d.validate().unwrap_err().contains("宽度"));
-        d.width = "99999".to_string();
+        d.width = 99999.0;
         assert_eq!(d.validate().unwrap().export_size.0, 8192); // 钳制
-        d.width = "1200".to_string();
+        d.width = 1200.0;
         d.style = "{bad json".to_string();
         assert!(d.validate().unwrap_err().contains("样式 JSON"));
         d.style = r##"{"type":"graduated","field":"h","stops":[]}"##.to_string();
