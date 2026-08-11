@@ -14,6 +14,7 @@
 
 pub mod agents;
 pub mod analysis;
+pub mod attrcalc;
 pub mod crs;
 pub mod dwg;
 pub mod error;
@@ -24,6 +25,8 @@ pub mod kdb;
 pub mod layer;
 pub mod parcel;
 pub mod project;
+pub mod tooldef;
+pub mod toolrun;
 
 pub use error::{KanyuError, Result};
 pub use format::{FormatCapabilities, FormatRegistry};

@@ -193,6 +193,19 @@ EPSG:4326 下是度而非米；米制分析请先用 [`crs::reproject`](#5-crs--
 |---|---|---|
 | `reproject` | `fn reproject(collection: &geojson::FeatureCollection, from: &str, to: &str) -> Result<geojson::FeatureCollection>` | 投影变换：逐坐标递归转换全几何类型；经纬度自动衔接度/弧度（GeoJSON 度 ↔ PROJ 弧度）；z 不变；`from == to` 原样返回；失败坐标（NaN/越界）报中文错误并指出要素序号 |
 | `measure` | `fn measure(collection: &geojson::FeatureCollection, kind: MeasureKind) -> Result<serde_json::Value>` | 测地线度量：Length 取线长与面外环周长（米）、Area 取面面积（平方米，含洞扣除，`Orient` 归一化绕向）；Point/无几何为 0。输出 `{"kind", "unit": "m"\|"m²", "total", "per_feature": [{"index", "value"}]}` |
+| `search_crs` | `fn search_crs(query: &str, limit: usize) -> Vec<CrsInfo>` | EPSG 全库检索（7507 条，代码域 2000..=32766）：代码子串或名称（大小写不敏感）匹配，代码升序；空查询返回常用精选（4326/3857/4490/4526/4527/4610/4214 等） |
+| `crs_info` | `fn crs_info(code: u32) -> Option<CrsInfo>` | 按代码查 EPSG 条目；库中不存在返回 None |
+
+### `CrsInfo` / `CrsKind`
+
+`CrsInfo { code: u32, name: String, kind: CrsKind, unit: String }`（serde Serialize）。
+名称取自 WKT 首段引号串；`kind` ∈ `Geographic`\|`Projected`\|`Other`（按 proj4 串
+`+proj=` 判定）；`unit` 中文友好：地理 CRS 为 "度"，投影 CRS 解析 `+units=`/
+`+to_meter=`（"米"/"千米"/"英尺"/"美制英尺" 等）。
+
+**轴序约定**：proj4rs 为 PROJ4 风格改写，EPSG 定义不携带官方轴序——本模块
+输入/输出一律 GIS 序（经度在前、纬度在后），与 GeoJSON 一致；EPSG:4490 与
+EPSG:4326 对同一 (lon, lat) 点转换结果一致（差异 < 1mm）。
 
 ### `MeasureKind`
 
@@ -630,6 +643,38 @@ JSON 工程清单（裁决 #19）：`kanyu_project=1` 格式标识 + 项目元�
 | `points_along_lines` | `(collection, distance: f64)` | Points along geometry（沿线每 distance 米一点，含起点、终点仅整除时含；属性 DISTANCE 里程；非线跳过） |
 | `concave_hull` | `(collection, concavity: f64)` | Concave hull（整层点集凹包单面；geo concaveman，concavity 越小越凹、∞ 等价凸包，平面口径） |
 | `minimum_rotated_rect` | `(collection)` | Oriented minimum bounding box（逐要素最小旋转矩形面，属性随行；退化要素跳过） |
+
+## 15.2 tooldef / toolrun —— 工具定义注册表与执行（一处声明，三面投影）
+
+QGIS Processing 式工具面的**单一事实来源**（自 kanyu-shell 下沉，纯数据零 UI 依赖）：
+shell 工具箱面板已投影消费；kanyu-py SDK 与 MCP 工具面为后续投影位。
+
+| 模块 | API | 说明 |
+|---|---|---|
+| `tooldef` | `TOOLS: &[ToolDef]`（37 工具 / 5 分类） | ToolDef{id/中文名/分类/说明/参数表 ToolParam{key/label/ParamKind/required/hint/default/help}}；ParamKind = Layer/Number/NumberList/Text/Field(锚点)/Enum/Text 表达式；`#[derive(Serialize)]` 供 SDK JSON 投影 |
+| | `find(id) -> Option<&ToolDef>` | 按 id 查工具 |
+| `toolrun` | `run_tool(id, values, get_layer) -> Result<ToolOutcome>` | 统一执行：图层经闭包注入；产出 NewLayer/NewLayers/Report（「导出图层」直接经 FormatRegistry + Layer::to_* 写盘） |
+| | `validate(def, values)` / `validate_param(p, v)` | 整表/单参数校验（中文错误，内联红字语义） |
+| | `parse_number_list` / `parse_extent` / `parse_positive` | 纯解析器（递增非负距离列表 / 范围四数 / 正数） |
+
+
+## 15.1 attrcalc —— 属性字段计算（字段计算器）
+
+递归下降表达式引擎（纯 Rust 零依赖），壳层属性表面板的字段计算器即由其驱动。
+
+| API | 说明 |
+|---|---|
+| `calc_field(collection, target, expr) -> Result<FeatureCollection>` | 逐要素求值写入 target 字段（不存在新建/存在覆盖；错误带要素序号） |
+| `add_field(collection, name, default)` | 添加字段（全部要素写默认值；已存在报错） |
+| `delete_field(collection, name)` | 删除字段（幂等） |
+| `rename_field(collection, old, new)` | 重命名字段（旧名不存在/新名冲突报错） |
+
+表达式语法：数值/字符串（`'…'` 或 `"…"`）/布尔/null 字面量；字段引用（裸标识符
+含中文，或 `[字段名]`）；几何虚列 `$area`（测地面积 ㎡）/`$length`（测地长度 m）/
+`$x`/`$y`（点坐标或质心）；`+ - * / %`（`+` 对字符串为拼接）、比较
+`= != < <= > >=`、逻辑 `and or not`、括号；函数 `abs/round(x[,n])/floor/ceil/sqrt/
+power/min/max/upper/lower/length/trim/concat/coalesce`。
+
 
 ## 16. parcel —— 宗地 TXT（界址点坐标）
 
