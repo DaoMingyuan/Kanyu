@@ -279,7 +279,11 @@ impl Default for Ribbon {
 impl Ribbon {
     /// 功能区 UI（ArcGIS Pro 三段式：QAT 快速访问栏 + 页签行 + 命令组行）。
     /// 返回点击产生的动作（每帧至多一个）。
-    pub fn ui(&mut self, ui: &mut egui::Ui) -> Option<RibbonAction> {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        cache: &mut crate::ui_kit::icons::IconCache,
+    ) -> Option<RibbonAction> {
         let mut action = None;
 
         // ── QAT 快速访问工具栏（26px：品牌标 + 高频小按钮 + 当前文件 + 主题）──
@@ -292,12 +296,12 @@ impl Ribbon {
             );
             ui.add_space(6.0);
             // 高频动作（ArcGIS QAT：保存/撤销/重做）。
-            if qat_button(ui, Icon::Export, "保存工程 (.kyu)").clicked() {
+            if qat_button(ui, cache, Icon::Export, "保存工程 (.kyu)").clicked() {
                 action = Some(RibbonAction::SaveProject);
             }
             ui.add_enabled_ui(false, |ui| {
-                let _ = qat_button(ui, Icon::Reset, "撤销（待编辑内核落地）");
-                let _ = qat_button(ui, Icon::Reset, "重做（待编辑内核落地）");
+                let _ = qat_button(ui, cache, Icon::Reset, "撤销（待编辑内核落地）");
+                let _ = qat_button(ui, cache, Icon::Reset, "重做（待编辑内核落地）");
             });
             ui.separator();
             ui.label(
@@ -313,6 +317,7 @@ impl Ribbon {
                 };
                 if qat_button(
                     ui,
+                    cache,
                     theme_icon,
                     "切换界面主题（晨山/夜观星，不影响地图色彩）",
                 )
@@ -380,6 +385,7 @@ impl Ribbon {
                                 }
                                 if ribbon_button(
                                     ui,
+                                    cache,
                                     b.icon,
                                     b.label,
                                     b.desc_title,
@@ -411,7 +417,12 @@ impl Ribbon {
 }
 
 /// QAT 小图标按钮（20px，悬停提示）。
-fn qat_button(ui: &mut egui::Ui, icon: Icon, tip: &str) -> egui::Response {
+fn qat_button(
+    ui: &mut egui::Ui,
+    cache: &mut crate::ui_kit::icons::IconCache,
+    icon: Icon,
+    tip: &str,
+) -> egui::Response {
     let resp = ui.add(
         egui::Button::new("")
             .fill(egui::Color32::TRANSPARENT)
@@ -419,13 +430,19 @@ fn qat_button(ui: &mut egui::Ui, icon: Icon, tip: &str) -> egui::Response {
             .corner_radius(crate::ui_kit::tokens::radius::SM)
             .min_size(Vec2::new(22.0, 20.0)),
     );
-    icons_draw(ui, icon, resp.rect.shrink(3.0));
+    icons_draw(ui, cache, icon, resp.rect.shrink(3.0));
     resp.on_hover_text(tip)
 }
 
 /// 以文本色绘制图标（QAT 用）。
-fn icons_draw(ui: &egui::Ui, icon: Icon, rect: egui::Rect) {
-    crate::ui_kit::icons::draw(ui.painter(), icon, rect, ui.visuals().text_color());
+fn icons_draw(
+    ui: &mut egui::Ui,
+    cache: &mut crate::ui_kit::icons::IconCache,
+    icon: Icon,
+    rect: egui::Rect,
+) {
+    let color = ui.visuals().text_color();
+    crate::ui_kit::icons::draw_or_image(ui, cache, icon, rect, color);
 }
 
 /// 当前主题（按 visuals 反推）。

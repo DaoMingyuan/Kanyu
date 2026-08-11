@@ -62,6 +62,12 @@ cargo fmt --all
 - **加 MCP 工具**：在 `crates/kanyu-mcp/src/server.rs` 的 `#[tool_router]` 块中添加 →
   在 `introspect.rs::tools()` 登记 → 更新 `docs/MCP.md`。
 - **加 CLI 命令**：`crates/kanyu-cli/src/cli.rs` 定义 + `commands.rs` 实现 → 更新 `docs/CLI.md`。
+- **加 UI 图标**：`ui_kit/icons.rs` 的 `Icon` 枚举加变体（含手绘 `draw` 分支）→
+  在 `arcgis_resource_name()` 登记 ArcGIS Pro 资源名映射（单一事实来源）→
+  调用方一律走 `draw_or_image()`（位图优先、手绘回退双轨）。
+  **许可边界**：ArcGIS Pro 位图 PNG 仅存在用户本机 `%LOCALAPPDATA%\Programs\kanyu\icons\`
+  （light/dark 双主题），**不得提交进仓库再分发**；仓库内只保留手绘图标与映射表，
+  克隆环境自动回退手绘，功能不受影响。
 
 ## 自定义工具
 

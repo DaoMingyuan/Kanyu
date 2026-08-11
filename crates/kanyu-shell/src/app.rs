@@ -150,6 +150,8 @@ pub struct KanyuApp {
     /// 窗口截图（非退出）待保存路径。
     pending_window_shot: Option<String>,
     screenshot: Option<ScreenshotState>,
+    /// 位图图标缓存（ArcGIS Pro 本机资源；缺图自动回退手绘线性图标）。
+    icon_cache: crate::ui_kit::icons::IconCache,
 }
 
 impl KanyuApp {
@@ -198,6 +200,7 @@ impl KanyuApp {
             screenshot,
             theme_dirty: false,
             fit_extent: None,
+            icon_cache: crate::ui_kit::icons::IconCache::default(),
         };
         if let Some(path) = &args.load {
             app.open_file(Path::new(path));
@@ -1050,7 +1053,7 @@ impl eframe::App for KanyuApp {
         egui::Panel::top("ribbon")
             .exact_size(sizes::RIBBON)
             .show(ui, |ui| {
-                if let Some(action) = self.ribbon.ui(ui) {
+                if let Some(action) = self.ribbon.ui(ui, &mut self.icon_cache) {
                     self.dispatch(action, &ctx);
                 }
             });

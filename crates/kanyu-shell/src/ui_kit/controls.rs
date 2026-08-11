@@ -216,6 +216,7 @@ fn on_accent(ui: &egui::Ui) -> egui::Color32 {
 /// ```
 pub fn ribbon_button(
     ui: &mut egui::Ui,
+    cache: &mut super::icons::IconCache,
     icon: super::icons::Icon,
     label: &str,
     desc_title: &str,
@@ -238,12 +239,12 @@ pub fn ribbon_button(
     let rect = resp.rect;
     let color = if enabled { p.text_primary } else { p.text_weak };
 
-    // 图标（上部）。
+    // 图标（上部；位图优先、手绘回退）。
     let icon_rect = egui::Rect::from_center_size(
         egui::pos2(rect.center().x, rect.min.y + ICON_TOP + ICON / 2.0),
         Vec2::splat(ICON),
     );
-    super::icons::draw(ui.painter(), icon, icon_rect, color);
+    super::icons::draw_or_image(ui, cache, icon, icon_rect, color);
     // 标题（底部）。
     ui.painter().text(
         egui::pos2(rect.center().x, rect.max.y - LABEL_BOTTOM),

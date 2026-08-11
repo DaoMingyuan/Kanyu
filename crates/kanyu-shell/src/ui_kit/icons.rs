@@ -8,7 +8,7 @@ use eframe::egui;
 use egui::{Color32, Painter, Pos2, Rect, Stroke, Vec2};
 
 /// 图标枚举（Ribbon/面板/树行/按钮共用）。
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Icon {
     /// 打开数据（文件夹）。
     Folder,
@@ -483,6 +483,129 @@ pub fn icons_color(ui: &egui::Ui) -> Color32 {
         kanyu_render::Theme::Light
     })
     .accent
+}
+
+// ===== 位图图标（ArcGIS Pro 本机资源，可选增强）=====
+//
+// 许可说明：PNG 图标来自用户本机已授权的 ArcGIS Pro 安装
+// （ArcGIS.Desktop.Resources.dll，images/ 与 darkimages/ 双主题变体），
+// 提取到用户目录 %LOCALAPPDATA%\Programs\kanyu\icons\ 使用，**不进入开源仓库**。
+// 缺图时回退到上方的手绘线性图标（draw）——双轨保证任意环境可用。
+
+/// 语义图标 → ArcGIS Pro 资源名（不含扩展名；32px 档）。
+/// 新增功能扩展图标时在此登记映射（单一事实来源）。
+pub fn arcgis_resource_name(icon: Icon) -> &'static str {
+    match icon {
+        Icon::Folder => "folderconnectionadd32",
+        Icon::Example => "genericnewsparklelarge32",
+        Icon::Camera => "itemthumbnailcreate32",
+        Icon::Sun => "sun32",
+        Icon::Moon => "colorramp32",
+        Icon::Info => "featureclassproperties32",
+        Icon::Layers => "layergroup32",
+        Icon::Funnel => "selectionselectbyattributes32",
+        Icon::Export => "exportfeatures32",
+        Icon::Compass => "projectcoordinatesystem32",
+        Icon::Buffer => "editingbuffer32",
+        Icon::Overlay => "overlaymain32",
+        Icon::Topology => "highlightgapsandoverlaps32",
+        Icon::Link => "tablespatialjoin32",
+        Icon::Grid => "tablesummarystatistics32",
+        Icon::Ruler => "measuredistance32",
+        Icon::Image => "picture32",
+        Icon::ZoomFit => "zoomfullextent32",
+        Icon::Reset => "genericreset32",
+        Icon::PanelLeft => "contentswindowshow32",
+        Icon::PanelBottom => "geoprocessingpythonwindowshow32",
+        Icon::PanelRight => "showdetailspanel32",
+        Icon::Skill => "geoprocessingtoolboxpythonnew32",
+        Icon::List => "viewgallery32",
+        Icon::Play => "genericrun32",
+        Icon::Help => "arcgisprohelp32",
+        Icon::Chat => "geoai32",
+        Icon::Send => "play16",
+        Icon::Settings => "cogwheel32",
+        Icon::Close => "close32",
+        Icon::Eye => "showdetailspanel32",
+        Icon::EyeOff => "hidedetailspanel32",
+        Icon::Field => "tablefieldsview32",
+    }
+}
+
+/// 位图图标缓存：按（图标, 主题）缓存纹理；目录不存在则全程回退手绘。
+pub struct IconCache {
+    /// 图标根目录（含 light/ dark/ 子目录）。
+    base: Option<std::path::PathBuf>,
+    textures: std::collections::HashMap<(Icon, bool), egui::TextureHandle>,
+}
+
+impl Default for IconCache {
+    fn default() -> Self {
+        let base = std::env::var_os("LOCALAPPDATA")
+            .map(std::path::PathBuf::from)
+            .map(|p| p.join("Programs").join("kanyu").join("icons"))
+            .filter(|p| p.join("light").is_dir());
+        Self {
+            base,
+            textures: std::collections::HashMap::new(),
+        }
+    }
+}
+
+impl IconCache {
+    /// 取图标纹理（dark=true 用 darkimages 变体——主题风格优化）；
+    /// 缺图返回 None（调用方回退手绘 draw）。
+    pub fn texture(
+        &mut self,
+        ctx: &egui::Context,
+        icon: Icon,
+        dark: bool,
+    ) -> Option<&egui::TextureHandle> {
+        let base = self.base.clone()?;
+        let key = (icon, dark);
+        let entry = match self.textures.entry(key) {
+            std::collections::hash_map::Entry::Occupied(e) => return Some(e.into_mut()),
+            std::collections::hash_map::Entry::Vacant(e) => e,
+        };
+        let theme_dir = if dark { "dark" } else { "light" };
+        let path = base
+            .join(theme_dir)
+            .join(format!("{}.png", arcgis_resource_name(icon)));
+        let bytes = std::fs::read(&path).ok()?;
+        let pixmap = tiny_skia::Pixmap::decode_png(&bytes).ok()?;
+        let image = egui::ColorImage::from_rgba_unmultiplied(
+            [pixmap.width() as usize, pixmap.height() as usize],
+            pixmap.data(),
+        );
+        let tex = ctx.load_texture(
+            format!("icon-{icon:?}-{dark}"),
+            image,
+            egui::TextureOptions::LINEAR,
+        );
+        Some(entry.insert(tex))
+    }
+}
+
+/// 统一图标绘制入口：**有位图用位图（按主题取 light/dark 变体），
+/// 否则回退手绘线性图标**。所有调用方（ribbon/树行/QAT/终端）走此口。
+pub fn draw_or_image(
+    ui: &mut egui::Ui,
+    cache: &mut IconCache,
+    icon: Icon,
+    rect: Rect,
+    color: Color32,
+) {
+    let dark = ui.visuals().dark_mode;
+    if let Some(tex) = cache.texture(ui.ctx(), icon, dark) {
+        ui.painter().image(
+            tex.id(),
+            rect,
+            Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+            Color32::WHITE,
+        );
+    } else {
+        draw(ui.painter(), icon, rect, color);
+    }
 }
 
 #[cfg(test)]
