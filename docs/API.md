@@ -612,6 +612,14 @@ JSON 工程清单（裁决 #19）：`kanyu_project=1` 格式标识 + 项目元�
 | `delete_holes` | `(collection, min_area: Option<f64>)` | Delete holes（None=全删） |
 | `explode` | `(collection)` | Multipart to singleparts |
 | `stats` | `(collection) -> LayerStats` | 选择集统计（测地线口径；亩/公顷/km²） |
+| `boundary` | `(collection)` | Boundary（面→全部环转线；开放线→端点 MultiPoint；闭合线/点跳过） |
+| `bounding_boxes` | `(collection)` | Bounding boxes（逐要素最小外接矩形面，属性随行） |
+| `merge` | `(collections: &[&FeatureCollection])` | Merge vector layers（多图层要素顺序拼接） |
+| `extract_by_attribute` | `(collection, expr: &str)` | Extract by attribute（"field op value"；=/==/!=/>/>=/</<=/contains，语义同 `Layer::query`） |
+| `extract_by_location` | `(collection, mask, predicate: &str)` | Extract by location（intersects/contains/within，DE-9IM；非法谓词报错） |
+| `count_points_in_polygon` | `(polygons, points)` | Count points in polygon（追加 NUMPOINTS 整数；含边界，MultiPoint 按子点计） |
+| `field_stats` | `(collection, field: &str) -> FieldStats` | Basic statistics for fields（count/null_count/min/max/sum/mean/range/总体 stddev） |
+| `mean_coordinates` | `(collection, weight_field: Option<&str>)` | Mean coordinate(s)（质心可加权平均，单点要素含 MEAN_X/MEAN_Y） |
 
 ## 16. parcel —— 宗地 TXT（界址点坐标）
 

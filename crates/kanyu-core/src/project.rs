@@ -16,7 +16,7 @@
 //!   "viewport": [116.3, 39.8, 116.5, 40.0],
 //!   "map_theme": "fixed_light",
 //!   "layers": [
-//!     {"id": "buildings", "source": "data/buildings.geojson", "visible": true, "style": null}
+//!     {"id": "buildings", "source": "data/buildings.geojson", "visible": true, "style": null, "group": "基底"}
 //!   ]
 //! }
 //! ```
@@ -70,6 +70,10 @@ pub struct ProjectLayer {
     /// 符号化样式 JSON（可空，原样透传）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style: Option<serde_json::Value>,
+    /// 分组路径（目录树组，嵌套组以 "/" 连接，如 "基底/参考"；None/缺省 = 根级）。
+    /// `#[serde(default)]` 保证旧版工程文件（无此字段）正常反序列化。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 fn default_crs() -> String {
@@ -153,12 +157,14 @@ mod tests {
             source: "data/buildings.geojson".to_string(),
             visible: true,
             style: None,
+            group: None,
         });
         p.layers.push(ProjectLayer {
             id: "roads".to_string(),
             source: "data/roads.fgb".to_string(),
             visible: false,
             style: Some(serde_json::json!({"type":"graduated"})),
+            group: Some("基底/道路".to_string()),
         });
 
         let text = p.to_json().unwrap();
@@ -171,6 +177,56 @@ mod tests {
         assert!(!back.layers[1].visible);
         assert!(back.layers[1].style.is_some());
         assert_eq!(back.viewport, Some([116.3, 39.8, 116.5, 40.0]));
+        // 分组路径往返（含无分组混合）。
+        assert_eq!(back.layers[0].group, None);
+        assert_eq!(back.layers[1].group.as_deref(), Some("基底/道路"));
+    }
+
+    /// 向后兼容：旧版工程文件无 group 字段，须正常反序列化（group = None）。
+    #[test]
+    fn legacy_without_group_parses() {
+        let text = r#"{
+            "kanyu_project": 1,
+            "name": "旧工程",
+            "layers": [
+                {"id": "a", "source": "a.geojson", "visible": true},
+                {"id": "b", "source": "b.geojson"}
+            ]
+        }"#;
+        let p = KanyuProject::from_json(text).unwrap();
+        assert_eq!(p.layers.len(), 2);
+        assert_eq!(p.layers[0].group, None);
+        assert_eq!(p.layers[1].group, None);
+        assert!(p.layers[1].visible); // visible 缺省 = true（既有约定）
+    }
+
+    /// 分组字段序列化：None 省略键、Some 写入；往返一致。
+    #[test]
+    fn group_field_roundtrip() {
+        let mut p = KanyuProject::new("分组工程", "EPSG:4326");
+        p.layers.push(ProjectLayer {
+            id: "x".to_string(),
+            source: "x.geojson".to_string(),
+            visible: true,
+            style: None,
+            group: Some("一组/子组".to_string()),
+        });
+        p.layers.push(ProjectLayer {
+            id: "y".to_string(),
+            source: "y.geojson".to_string(),
+            visible: false,
+            style: None,
+            group: None,
+        });
+        let text = p.to_json().unwrap();
+        assert!(text.contains("\"group\": \"一组/子组\""));
+        // None 不写键（保持文件干净，旧版本读取无干扰）。
+        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert!(value["layers"][1].get("group").is_none());
+        assert!(value["layers"][0].get("group").is_some());
+        let back = KanyuProject::from_json(&text).unwrap();
+        assert_eq!(back.layers[0].group.as_deref(), Some("一组/子组"));
+        assert_eq!(back.layers[1].group, None);
     }
 
     #[test]
@@ -193,6 +249,7 @@ mod tests {
             source: "a.geojson".to_string(),
             visible: true,
             style: None,
+            group: None,
         });
         p.save(path.to_str().unwrap()).unwrap();
         let back = KanyuProject::load(path.to_str().unwrap()).unwrap();

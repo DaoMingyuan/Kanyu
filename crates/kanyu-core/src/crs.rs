@@ -18,6 +18,11 @@ fn parse_crs(def: &str) -> Result<proj4rs::Proj> {
     })
 }
 
+/// 校验 CRS 定义可解析（设置对话框手动输入的预检入口；与 [`reproject`] 同一解析器）。
+pub fn validate_crs(def: &str) -> Result<()> {
+    parse_crs(def).map(|_| ())
+}
+
 /// 投影变换：逐坐标从 `from` 转换到 `to`（递归处理全部几何类型嵌套，z 不变）。
 /// `from`/`to` 接受 `"EPSG:xxxx"` 或 proj4 定义串；`from == to`（大小写不敏感）
 /// 时原样返回。转换失败（NaN/越界）报中文错误并指出要素序号。
@@ -295,6 +300,15 @@ mod tests {
             err.to_string().contains("无法解析 CRS 定义"),
             "错误应指出 CRS 解析问题: {err}"
         );
+    }
+
+    #[test]
+    fn validate_crs_entry() {
+        assert!(validate_crs("EPSG:4326").is_ok());
+        assert!(validate_crs("EPSG:4490").is_ok());
+        assert!(validate_crs("WGS84").is_ok());
+        let err = validate_crs("EPSG:foo").unwrap_err();
+        assert!(err.to_string().contains("无法解析 CRS 定义"));
     }
 
     #[test]
