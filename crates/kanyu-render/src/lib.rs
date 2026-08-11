@@ -952,6 +952,30 @@ mod tests {
     }
 
     #[test]
+    fn background_override_white_corners() {
+        // 纯白背景覆盖（壳层地图框约束）：空集合渲染后四角像素 = 纯白。
+        let empty = collection_from_str(r#"{"type":"FeatureCollection","features":[]}"#);
+        let opts = RenderOptions {
+            background: Some("#FFFFFF".to_string()),
+            ..Default::default()
+        };
+        let png = render_png(&empty, &opts).unwrap();
+        let pixmap = tiny_skia::Pixmap::decode_png(&png).unwrap();
+        let (w, h) = (pixmap.width(), pixmap.height());
+        for (x, y) in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)] {
+            let p = pixmap.pixel(x, y).unwrap();
+            assert_eq!(
+                (p.red(), p.green(), p.blue(), p.alpha()),
+                (255, 255, 255, 255),
+                "角像素 ({x},{y}) 应为纯白"
+            );
+        }
+        // SVG 同步覆盖。
+        let svg = render_svg(&empty, &opts).unwrap();
+        assert!(svg.contains("#FFFFFF"), "SVG 背景应纯白: {svg}");
+    }
+
+    #[test]
     fn viewport_single_point_does_not_divide_by_zero() {
         let single = collection_from_str(
             r#"{"type":"FeatureCollection","features":[
