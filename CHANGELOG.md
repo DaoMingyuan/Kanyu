@@ -6,6 +6,13 @@
 
 ### 新增
 
+- **MCP resources/prompts**：`kanyu://formats`、`kanyu://tools`、`kanyu://crs/{code}`
+  只读资源；数据体检/缓冲区分析流/坐标系转换流三个中文 prompts 模板（参数占位替换）。
+- **快捷键**：Ctrl+Z/Y/Shift+Z（编辑撤销重做）与 Ctrl+S（保存工程）；编辑选中要素
+  accent 加粗高亮；WMS 底图勾选态入 ui-state（重启恢复）。
+
+### 新增
+
 - **kanyu-edit v2**：Delta 快照（FeatureDelta 三态/DeltaSet，大编辑 O(1) 回放，
   阈值 256）+ 事务（原子提交、失败回滚、合并单条撤销记录）。
 - **WMS 底图入 .kyu**（框级持久化，连接失配中文提示忽略）+ 服务连接右键编辑

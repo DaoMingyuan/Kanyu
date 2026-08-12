@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-11 · v0.21.0+ · 328 测试全绿**。
+> 每次收工回记时更新。截至 **2026-08-11 · v0.21.0+ · 332 测试全绿**。
 
 ### 1.1 已完成实现
 
@@ -97,6 +97,11 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-11 kimi-code(main) — MCP resources/prompts + 快捷键/高亮/WMS 勾选持久化
+- 提交：2c85297/c1c8d10；测试：332 全绿（mcp 11/shell 117）+ clippy 零警告 + fmt 净
+- 内容：kanyu://formats/tools/crs/{code} 资源 + 三中文 prompts（PROMPTS 注册表）；Ctrl+Z/Y/S 快捷键（text_edit_focused 守卫）；选中要素高亮；WMS 勾选入 ui-state（工程优先语义注明）
+- 后续：DCEL、3D 真管线
 
 ### [收工] 2026-08-11 kimi-code(main) — kanyu-edit v2 Delta 快照/事务 + WMS 入 .kyu
 - 提交：见本次 commit 组；测试：328 全绿（edit 18）+ clippy 零警告 + fmt 净
