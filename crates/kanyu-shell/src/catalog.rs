@@ -15,12 +15,20 @@ use crate::ui_kit::{badge, hint_caption, text, tree_row, BadgeLevel};
 pub enum CatalogAction {
     /// 打开数据文件为图层（.kyu 由 app 改走工程恢复；.kdb 直接加载）。
     LoadFile(PathBuf),
-    /// 激活地图视图（None = 主视图「地图」）。
-    ActivateView(Option<usize>),
-    /// 新建地图框（同功能区命令）。
-    NewMapView,
-    /// 激活布局页签（layouts 下标）。
+    /// 激活地图框（frames 下标；已关闭则重开、浮动则吸附）。
+    ActivateFrame(usize),
+    /// 新建二维地图框。
+    NewFrame2D,
+    /// 新建三维场景。
+    NewFrame3D,
+    /// 重命名地图框（打开对话框）。
+    RenameFrame(usize),
+    /// 删除地图框（主框/最后一框由 app 阻止并中文提示）。
+    DeleteFrame(usize),
+    /// 激活布局页签（layouts 下标；已关闭则重开）。
     ActivateLayout(usize),
+    /// 删除布局。
+    DeleteLayout(usize),
     /// 新建布局框（打开规格对话框）。
     NewLayout,
     /// 新建服务链接（打开对话框）。
@@ -31,14 +39,24 @@ pub enum CatalogAction {
     ConnectService(usize),
 }
 
-/// 地图视图行（app 注入，地图框分类的数据源）。
-pub struct ViewRow {
-    /// map_views 下标（None = 主视图）。
-    pub index: Option<usize>,
-    /// 标题（地图 / 地图 N）。
+/// 地图框行（app 注入，地图框分类的数据源）。
+pub struct FrameRow {
+    /// frames 下标（0 = 主框「地图」）。
+    pub index: usize,
+    /// 标题（可重命名）。
     pub title: String,
     /// 维度角标（二维/三维）。
     pub dim_label: &'static str,
+    /// 打开状态（false = 已关闭：弱色行，双击重开）。
+    pub open: bool,
+}
+
+/// 布局行（app 注入，布局框分类的数据源）。
+pub struct LayoutRow {
+    /// 标题。
+    pub title: String,
+    /// 打开状态（false = 已关闭：弱色行）。
+    pub open: bool,
 }
 
 /// 分类元信息（计数徽标/空态提示）。
@@ -218,6 +236,11 @@ impl CatalogPanel {
         self.expanded = [false, false, false, true, false];
     }
 
+    /// 演示/验证（截图）：仅展开「地图框」分类。
+    pub fn demo_expand_frames(&mut self) {
+        self.expanded = [true, false, false, false, false];
+    }
+
     /// 读取目录子节点（目录优先、名称排序；文件仅数据扩展名）。
     fn read_children(dir: &Path) -> Result<Vec<CatalogNode>, String> {
         let rd = std::fs::read_dir(dir).map_err(|e| format!("无法读取 {}: {e}", dir.display()))?;
@@ -267,14 +290,14 @@ impl CatalogPanel {
         p.is_file().then_some(p)
     }
 
-    /// 面板 UI。`views` = 地图框分类数据、`layouts` = 布局标题清单、
-    /// `services` = 服务链接清单（app 注入）。返回产生的动作。
+    /// 面板 UI。`frames` = 地图框分类数据（全部已建框，含已关闭）、
+    /// `layouts` = 布局行清单、`services` = 服务链接清单（app 注入）。返回产生的动作。
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
         cache: &mut crate::ui_kit::icons::IconCache,
-        views: &[ViewRow],
-        layouts: &[String],
+        frames: &[FrameRow],
+        layouts: &[LayoutRow],
         services: &[crate::services::WfsConnection],
     ) -> Vec<CatalogAction> {
         let mut actions = Vec::new();
@@ -284,7 +307,7 @@ impl CatalogPanel {
         }
         let default_kdb = Self::default_kdb();
         let cats = categories(
-            views.len(),
+            frames.len(),
             layouts.len(),
             default_kdb.is_some(),
             services.len(),
@@ -319,42 +342,110 @@ impl CatalogPanel {
                     // 分类内容。
                     match ci {
                         0 => {
-                            // 地图框：视图行（单击激活）+ 新建入口。
-                            for v in views {
-                                let (resp, _) = tree_row(
-                                    ui,
-                                    cache,
-                                    1,
-                                    Some(Icon::Image),
-                                    &format!("{}（{}）", v.title, v.dim_label),
-                                    None,
-                                    |_ui| {},
-                                );
+                            // 地图框：全部已建框（含已关闭——关闭≠删除，关闭行弱色）；
+                            // 单击激活（已关闭则重开），右键重命名/删除；新建二维/三维分开。
+                            for v in frames {
+                                let label = if v.open {
+                                    format!("{}（{}）", v.title, v.dim_label)
+                                } else {
+                                    format!("{}（{}·已关闭）", v.title, v.dim_label)
+                                };
+                                let (resp, _) = if v.open {
+                                    tree_row(
+                                        ui,
+                                        cache,
+                                        1,
+                                        Some(Icon::Image),
+                                        &label,
+                                        None,
+                                        |_ui| {},
+                                    )
+                                } else {
+                                    crate::ui_kit::tree_row_weak(
+                                        ui,
+                                        cache,
+                                        1,
+                                        Some(Icon::Image),
+                                        &label,
+                                        None,
+                                        |_ui| {},
+                                    )
+                                };
                                 if resp.clicked() {
-                                    actions.push(CatalogAction::ActivateView(v.index));
+                                    actions.push(CatalogAction::ActivateFrame(v.index));
                                 }
+                                let resp = resp.on_hover_text(if v.open {
+                                    "单击激活；右键重命名/删除"
+                                } else {
+                                    "已关闭——单击重新打开；右键重命名/删除"
+                                });
+                                resp.context_menu(|ui| {
+                                    if ui.button("重命名…").clicked() {
+                                        actions.push(CatalogAction::RenameFrame(v.index));
+                                        ui.close();
+                                    }
+                                    if ui.button("删除").clicked() {
+                                        actions.push(CatalogAction::DeleteFrame(v.index));
+                                        ui.close();
+                                    }
+                                });
                             }
                             let (resp, _) = tree_row(
                                 ui,
                                 cache,
                                 1,
                                 Some(Icon::Play),
-                                "＋ 新建地图框",
+                                "＋ 新建二维地图框",
                                 None,
                                 |_ui| {},
                             );
                             if resp.clicked() {
-                                actions.push(CatalogAction::NewMapView);
+                                actions.push(CatalogAction::NewFrame2D);
+                            }
+                            let (resp, _) = tree_row(
+                                ui,
+                                cache,
+                                1,
+                                Some(Icon::Play),
+                                "＋ 新建三维场景",
+                                None,
+                                |_ui| {},
+                            );
+                            if resp.clicked() {
+                                actions.push(CatalogAction::NewFrame3D);
                             }
                         }
                         1 => {
-                            // 布局框：布局行（单击激活页签）+ 新建入口。
-                            for (i, title) in layouts.iter().enumerate() {
-                                let (resp, _) =
-                                    tree_row(ui, cache, 1, Some(Icon::List), title, None, |_ui| {});
+                            // 布局框：全部布局行（含已关闭，弱色；单击激活/重开；
+                            // 右键删除）+ 新建入口。
+                            for (i, l) in layouts.iter().enumerate() {
+                                let label = if l.open {
+                                    l.title.clone()
+                                } else {
+                                    format!("{}（已关闭）", l.title)
+                                };
+                                let (resp, _) = if l.open {
+                                    tree_row(ui, cache, 1, Some(Icon::List), &label, None, |_ui| {})
+                                } else {
+                                    crate::ui_kit::tree_row_weak(
+                                        ui,
+                                        cache,
+                                        1,
+                                        Some(Icon::List),
+                                        &label,
+                                        None,
+                                        |_ui| {},
+                                    )
+                                };
                                 if resp.clicked() {
                                     actions.push(CatalogAction::ActivateLayout(i));
                                 }
+                                resp.context_menu(|ui| {
+                                    if ui.button("删除").clicked() {
+                                        actions.push(CatalogAction::DeleteLayout(i));
+                                        ui.close();
+                                    }
+                                });
                             }
                             let (resp, _) = tree_row(
                                 ui,

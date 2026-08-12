@@ -347,6 +347,33 @@ pub fn tree_row(
     expanded: Option<bool>,
     trailing: impl FnOnce(&mut egui::Ui),
 ) -> (Response, bool) {
+    tree_row_impl(ui, cache, depth, icon, label, expanded, false, trailing)
+}
+
+/// 目录树行弱色变体（已关闭/不可用条目：文本弱色，交互不变）。
+pub fn tree_row_weak(
+    ui: &mut egui::Ui,
+    cache: &mut super::icons::IconCache,
+    depth: usize,
+    icon: Option<super::icons::Icon>,
+    label: &str,
+    expanded: Option<bool>,
+    trailing: impl FnOnce(&mut egui::Ui),
+) -> (Response, bool) {
+    tree_row_impl(ui, cache, depth, icon, label, expanded, true, trailing)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn tree_row_impl(
+    ui: &mut egui::Ui,
+    cache: &mut super::icons::IconCache,
+    depth: usize,
+    icon: Option<super::icons::Icon>,
+    label: &str,
+    expanded: Option<bool>,
+    weak: bool,
+    trailing: impl FnOnce(&mut egui::Ui),
+) -> (Response, bool) {
     let p = palette_of(ui);
     let mut toggled = false;
     let row = ui.horizontal(|ui| {
@@ -397,8 +424,13 @@ pub fn tree_row(
             super::icons::draw_or_image(ui, cache, ic, rect, p.accent);
             ui.add_space(2.0);
         }
-        // 文本（truncate：窄停靠区内超长截断为 …，不撑破布局）。
-        let resp = ui.add(egui::Button::selectable(false, text::body(label)).truncate());
+        // 文本（truncate：窄停靠区内超长截断为 …，不撑破布局；弱色行用于已关闭项）。
+        let label = if weak {
+            text::body(label).color(p.text_weak)
+        } else {
+            text::body(label)
+        };
+        let resp = ui.add(egui::Button::selectable(false, label).truncate());
         // 行尾操作。
         trailing(ui);
         resp

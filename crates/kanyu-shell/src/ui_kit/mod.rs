@@ -76,7 +76,8 @@ pub use containers::{
 pub use controls::{
     button, checkbox, clamp_step, combo, combo_static, combo_width, error_caption, hint_caption,
     icon_button, layer_picker, menu_button, password_input, ribbon_button, spinner, tab_strip,
-    text_area, text_input, toc_row, tree_row, ButtonVariant, MenuButtonResponse, TocRowResponse,
+    text_area, text_input, toc_row, tree_row, tree_row_weak, ButtonVariant, MenuButtonResponse,
+    TocRowResponse,
 };
 pub use icons::{icon_ui, icons_color, Icon};
 pub use tokens::{sizes, spacing, state, text};

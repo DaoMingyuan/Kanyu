@@ -55,6 +55,29 @@ pub struct KanyuProject {
     /// 图层清单（按打开顺序）。
     #[serde(default)]
     pub layers: Vec<ProjectLayer>,
+    /// 地图框清单（首项为默认「地图」框；缺省 = 单主框，全部图层归主框——
+    /// 旧版工程文件无此字段，serde default 向后兼容）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub frames: Vec<ProjectFrame>,
+}
+
+/// 工程中的地图框（标题即身份——[`ProjectLayer::map`] 以其引用）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectFrame {
+    /// 地图框标题。
+    pub title: String,
+    /// 维度：2d | 3d（缺省 2d）。
+    #[serde(default = "default_2d")]
+    pub dim: String,
+    /// 视口 `[minx, miny, maxx, maxy]`（可空）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub viewport: Option<[f64; 4]>,
+    /// 打开状态（关闭 ≠ 删除：目录清单保留，可重开）。
+    #[serde(default = "default_true")]
+    pub open: bool,
+    /// 吸附中央页签（false = 浮动窗）。
+    #[serde(default = "default_true")]
+    pub docked: bool,
 }
 
 /// 工程中的一个图层引用。
@@ -74,6 +97,9 @@ pub struct ProjectLayer {
     /// `#[serde(default)]` 保证旧版工程文件（无此字段）正常反序列化。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    /// 所属地图框标题（None/缺省 = 默认主框「地图」——旧工程全部图层归主框）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub map: Option<String>,
 }
 
 fn default_crs() -> String {
@@ -84,6 +110,9 @@ fn default_map_theme() -> String {
 }
 fn default_true() -> bool {
     true
+}
+fn default_2d() -> String {
+    "2d".to_string()
 }
 
 impl KanyuProject {
@@ -98,6 +127,7 @@ impl KanyuProject {
             viewport: None,
             map_theme: default_map_theme(),
             layers: Vec::new(),
+            frames: Vec::new(),
         }
     }
 
@@ -158,6 +188,7 @@ mod tests {
             visible: true,
             style: None,
             group: None,
+            map: None,
         });
         p.layers.push(ProjectLayer {
             id: "roads".to_string(),
@@ -165,6 +196,7 @@ mod tests {
             visible: false,
             style: Some(serde_json::json!({"type":"graduated"})),
             group: Some("基底/道路".to_string()),
+            map: None,
         });
 
         let text = p.to_json().unwrap();
@@ -210,6 +242,7 @@ mod tests {
             visible: true,
             style: None,
             group: Some("一组/子组".to_string()),
+            map: None,
         });
         p.layers.push(ProjectLayer {
             id: "y".to_string(),
@@ -217,6 +250,7 @@ mod tests {
             visible: false,
             style: None,
             group: None,
+            map: None,
         });
         let text = p.to_json().unwrap();
         assert!(text.contains("\"group\": \"一组/子组\""));
@@ -227,6 +261,62 @@ mod tests {
         let back = KanyuProject::from_json(&text).unwrap();
         assert_eq!(back.layers[0].group.as_deref(), Some("一组/子组"));
         assert_eq!(back.layers[1].group, None);
+    }
+
+    /// 向后兼容：旧版工程文件无 frames/map 字段，须正常反序列化
+    /// （frames = 空清单、图层 map = None 即全部归默认主框）。
+    #[test]
+    fn legacy_without_frames_and_map_parses() {
+        let text = r#"{
+            "kanyu_project": 1,
+            "name": "旧工程",
+            "layers": [{"id": "a", "source": "a.geojson", "visible": true}]
+        }"#;
+        let p = KanyuProject::from_json(text).unwrap();
+        assert!(p.frames.is_empty());
+        assert_eq!(p.layers[0].map, None);
+    }
+
+    /// 地图框清单 + 图层 map 归属往返；空 frames 不写键（保持文件干净）。
+    #[test]
+    fn frames_and_layer_map_roundtrip() {
+        let mut p = KanyuProject::new("多框工程", "EPSG:4326");
+        p.frames = vec![
+            ProjectFrame {
+                title: "地图".to_string(),
+                dim: "2d".to_string(),
+                viewport: Some([0.0, 0.0, 1.0, 1.0]),
+                open: true,
+                docked: true,
+            },
+            ProjectFrame {
+                title: "场景 2".to_string(),
+                dim: "3d".to_string(),
+                viewport: None,
+                open: false,
+                docked: false,
+            },
+        ];
+        p.layers.push(ProjectLayer {
+            id: "blocks".to_string(),
+            source: "b.geojson".to_string(),
+            visible: true,
+            style: None,
+            group: None,
+            map: Some("场景 2".to_string()),
+        });
+        let text = p.to_json().unwrap();
+        let back = KanyuProject::from_json(&text).unwrap();
+        assert_eq!(back.frames.len(), 2);
+        assert_eq!(back.frames[1].dim, "3d");
+        assert!(!back.frames[1].open);
+        assert!(!back.frames[1].docked);
+        assert_eq!(back.frames[0].viewport, Some([0.0, 0.0, 1.0, 1.0]));
+        assert_eq!(back.layers[0].map.as_deref(), Some("场景 2"));
+        // 空 frames 省略键（旧版本读取无干扰）。
+        let empty = KanyuProject::new("空", "EPSG:4326").to_json().unwrap();
+        let value: serde_json::Value = serde_json::from_str(&empty).unwrap();
+        assert!(value.get("frames").is_none());
     }
 
     #[test]
@@ -250,6 +340,7 @@ mod tests {
             visible: true,
             style: None,
             group: None,
+            map: None,
         });
         p.save(path.to_str().unwrap()).unwrap();
         let back = KanyuProject::load(path.to_str().unwrap()).unwrap();

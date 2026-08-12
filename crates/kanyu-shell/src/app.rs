@@ -19,11 +19,11 @@ use std::time::{Duration, Instant};
 
 use eframe::egui;
 use geojson::FeatureCollection;
-use kanyu_core::{analysis, crs, Layer, LayerSummary};
+use kanyu_core::{analysis, crs, Layer};
 use kanyu_render::{collection_extent, render_png, render_svg, RenderOptions, StyleRule, Theme};
 use kanyu_skill::{Skill, SkillHost};
 
-use crate::canvas::{CanvasInput, MapCanvas};
+use crate::canvas::MapCanvas;
 use crate::console::{ConsoleHost, ConsolePanel, HELP_TEXT};
 use crate::dialogs::{DialogResult, Dialogs};
 use crate::panels::{self, LayerView, PanelAction, SkillView};
@@ -39,18 +39,7 @@ const OPEN_EXTENSIONS: &[&str] = &[
 ];
 
 /// 已加载图层（含 UI 态：可见性、目录展开、符号化、来源路径）。
-struct LayerEntry {
-    layer: Layer,
-    summary: LayerSummary,
-    visible: bool,
-    file_name: String,
-    /// 骨架目录子节点展开。
-    expanded: bool,
-    /// 数据源路径（内存图层为 None，不入 .kyu 工程）。
-    source_path: Option<String>,
-    /// 符号化（默认单色按几何类型；属性页可改，.kyu 持久化）。
-    symbology: crate::symbology::LayerSymbology,
-}
+use crate::mapview::LayerEntry;
 
 /// 地图色彩模式（界面主题与地图输出解耦）。
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -248,13 +237,22 @@ pub struct KanyuApp {
     last_toolbox_state: u64,
     /// ui-state.json 路径。
     state_path: std::path::PathBuf,
-    /// 额外地图视图（主画布 = 默认视图「地图」恒吸附；窗口化/吸附见 mapview.rs）。
-    map_views: Vec<crate::mapview::MapView>,
-    /// 视图序号计数（标题「地图 N」递增）。
-    next_view_id: usize,
-    /// 中央当前页签（None = 主视图「地图」；Some = map_views 下标）。
-    active_view: Option<usize>,
-    /// 当前布局页签（Some 时优先于 active_view；layouts 下标）。
+    /// 地图框清单（frames[0] = 默认主框「地图」，不可删除；休眠框状态驻留自身
+    /// site，激活框状态平铺为本结构体的 layers/toc/render_cache/merged/
+    /// data_extent/view_bbox/needs_fit/frame_dim/canvas/scene 字段——交换模型
+    /// 见 mapview.rs 模块头）。
+    frames: Vec<crate::mapview::MapFrame>,
+    /// 地图框序号计数（「地图 N」/「场景 N」递增）。
+    next_frame_id: usize,
+    /// 当前激活地图框（frames 下标；None = 全部关闭，中央显示引导）。
+    active_frame: Option<usize>,
+    /// 激活框维度（休眠框的维度驻留 site.dim）。
+    frame_dim: crate::mapview::ViewDim,
+    /// 激活框三维场景态（休眠框的场景态驻留 site.scene）。
+    scene: crate::scene3d::Scene3D,
+    /// 重命名地图框对话框状态（frames 下标 + 新标题输入）。
+    rename_frame_dlg: Option<(usize, String)>,
+    /// 当前布局页签（Some 时优先于 active_frame；layouts 下标）。
     active_layout: Option<usize>,
     /// 布局视图清单（内存态；.kyu 持久化列入后续）。
     layouts: Vec<crate::layoutview::LayoutView>,
@@ -272,7 +270,7 @@ pub struct KanyuApp {
     render_epoch: u64,
     /// 中央页签条矩形（浮动视图拖入吸附的投放区）。
     view_strip_rect: Option<egui::Rect>,
-    /// 正在拖拽的浮动视图（map_views 下标）。
+    /// 正在拖拽的浮动视图（frames 下标）。
     dragging_view: Option<usize>,
     error_msg: Option<String>,
     status: String,
@@ -320,23 +318,8 @@ fn bare_feature(value: geojson::Value) -> geojson::Feature {
 }
 
 /// 渲染缓存 → 画布切片（目录树自下而上序；与 rebuild_merged 同一顺序约定）。
-/// 自由函数以便与 &mut canvas 共存（只借用 render_cache 字段）。
-fn build_layer_slices(
-    cache: &[(String, FeatureCollection, crate::symbology::LayerSymbology)],
-) -> Vec<crate::canvas::LayerSlice<'_>> {
-    cache
-        .iter()
-        .map(|rc| crate::canvas::LayerSlice {
-            id: &rc.0,
-            collection: &rc.1,
-            style: Some(crate::symbology::to_style_rule(&rc.2)),
-            color: {
-                let c = crate::symbology::primary_color(&rc.2);
-                egui::Color32::from_rgb(c[0], c[1], c[2])
-            },
-        })
-        .collect()
-}
+/// 移自本模块的薄封装：实现见 mapview（地图框绑定图层集后归属彼处）。
+use crate::mapview::build_layer_slices;
 
 impl KanyuApp {
     pub fn new(cc: &eframe::CreationContext<'_>, args: ShellArgs) -> Self {
@@ -386,9 +369,12 @@ impl KanyuApp {
             state_dirty: None,
             last_toolbox_state: 0,
             state_path: crate::uistate::state_path(),
-            map_views: Vec::new(),
-            next_view_id: 2,
-            active_view: None,
+            frames: vec![crate::mapview::MapFrame::main()],
+            next_frame_id: 1,
+            active_frame: Some(0),
+            frame_dim: crate::mapview::ViewDim::TwoD,
+            scene: crate::scene3d::Scene3D::default(),
+            rename_frame_dlg: None,
             active_layout: None,
             layouts: Vec::new(),
             next_layout_id: 1,
@@ -449,7 +435,12 @@ impl KanyuApp {
             }
         }
         // --load 可多次指定；.kyu 走工程恢复，其余走数据加载。
-        for path in &args.load {
+        // frames-demo 系列：load[1] 起由演示预置接管（载入新建框，验证框绑图层）。
+        let frames_demo = args.frames_demo || args.frames_demo2 || args.frames_demo3;
+        for (i, path) in args.load.iter().enumerate() {
+            if frames_demo && i > 0 {
+                continue;
+            }
             let p = Path::new(path);
             if p.extension()
                 .map(|e| e.eq_ignore_ascii_case("kyu"))
@@ -483,16 +474,58 @@ impl KanyuApp {
                 app.attrtable.demo_open_calc(preview);
             }
         }
-        // view-demo：吸附「地图 2」（二维）+ 浮动「地图 3」（三维，预置方位角）。
+        // view-demo：吸附「地图 2」（二维，自有图层集）+ 浮动「场景 3」（三维）。
         if args.view_demo {
-            let v2 = crate::mapview::MapView::new(app.next_view_id);
-            app.next_view_id += 1;
-            app.map_views.push(v2);
-            let mut v3 = crate::mapview::MapView::new(app.next_view_id);
-            app.next_view_id += 1;
-            v3.dim = crate::mapview::ViewDim::ThreeD;
+            let v2 = crate::mapview::MapFrame::new(
+                app.next_frame_id,
+                format!("地图 {}", app.next_frame_id),
+                crate::mapview::ViewDim::TwoD,
+            );
+            app.next_frame_id += 1;
+            app.frames.push(v2);
+            let mut v3 = crate::mapview::MapFrame::new(
+                app.next_frame_id,
+                format!("场景 {}", app.next_frame_id),
+                crate::mapview::ViewDim::ThreeD,
+            );
+            app.next_frame_id += 1;
             v3.docked = false;
-            app.map_views.push(v3);
+            app.frames.push(v3);
+        }
+        // frames-demo 系列公共前置：清掉 ui-state 恢复的额外框（确定性演示），
+        // 当前平铺现场（含 load[0]）直接划归主框；load[1] 载入新建三维场景框。
+        if frames_demo {
+            app.frames.truncate(1); // 丢恢复框（主框休眠位随之废弃）
+            app.active_frame = Some(0); // 平铺现场即主框现场
+            app.frame_dim = crate::mapview::ViewDim::TwoD; // 主框归位二维
+            app.scene = crate::scene3d::Scene3D::default();
+            app.next_frame_id = 1;
+            if let Some(second) = args.load.get(1).cloned() {
+                app.new_frame(crate::mapview::ViewDim::ThreeD);
+                app.open_file(Path::new(&second));
+            }
+        }
+        // --frames-demo：双框各自图层集（load[0]→主框，load[1]→三维场景框），
+        // 末态激活主框 + 图层面板（切换联动图层面板截图验证）。
+        if args.frames_demo {
+            app.activate_frame(0);
+            app.dock
+                .set_active(crate::dock::DockZone::Left, crate::dock::PanelId::Layers);
+        }
+        // --frames-demo2：场景框关闭（目录保留弱色行截图验证关闭≠删除）。
+        if args.frames_demo2 {
+            app.activate_frame(0);
+            app.close_frame(1);
+            app.catalog.demo_expand_frames();
+            app.dock
+                .dock_to(crate::dock::PanelId::Catalog, crate::dock::DockZone::Left);
+            app.dock
+                .set_active(crate::dock::DockZone::Left, crate::dock::PanelId::Catalog);
+        }
+        // --frames-demo3：末态激活场景框（三维 + 自有图层集截图验证三维独立建立）。
+        if args.frames_demo3 {
+            app.dock
+                .set_active(crate::dock::DockZone::Left, crate::dock::PanelId::Layers);
         }
         // --zoom：启动缩放档（截图验证等比缩放）。
         if let Some(z) = args.zoom {
@@ -647,24 +680,27 @@ impl KanyuApp {
         if !s.project_crs.is_empty() {
             self.project_crs = s.project_crs.clone();
         }
-        // 视图清单。
+        // 地图框清单（不含主框——恒在；恢复为休眠框，图层集由 .kyu 工程恢复，
+        // ui-state 只记壳层现场）。
         for v in &s.views {
-            let mut view = crate::mapview::MapView::new(self.next_view_id);
-            self.next_view_id += 1;
-            view.title = v.title.clone();
-            view.dim = if v.dim == "3d" {
-                crate::mapview::ViewDim::ThreeD
-            } else {
-                crate::mapview::ViewDim::TwoD
-            };
-            view.docked = v.docked;
-            view.view_bbox = v.bbox;
-            view.needs_fit = v.bbox.is_none();
-            self.map_views.push(view);
+            let id = self.next_frame_id;
+            self.next_frame_id += 1;
+            let mut f = crate::mapview::MapFrame::new(
+                id,
+                v.title.clone(),
+                crate::mapview::ViewDim::parse(&v.dim),
+            );
+            f.docked = v.docked;
+            f.open = v.open;
+            f.site.view_bbox = v.bbox;
+            f.site.needs_fit = v.bbox.is_none();
+            self.frames.push(f);
         }
         if let Some(a) = s.active_view {
-            if a < self.map_views.len() && self.map_views[a].docked {
-                self.active_view = Some(a);
+            // 清单下标 → frames 下标（+1 跳过主框）。
+            let i = a + 1;
+            if i < self.frames.len() && self.frames[i].docked && self.frames[i].open {
+                self.activate_frame(i);
             }
         }
         // 服务链接清单。
@@ -696,19 +732,31 @@ impl KanyuApp {
         s.map_theme = self.map_theme_mode.as_str().to_string();
         s.project_crs = self.project_crs.clone();
         s.views = self
-            .map_views
+            .frames
             .iter()
-            .map(|v| crate::uistate::ViewStateJson {
-                title: v.title.clone(),
-                dim: match v.dim {
-                    crate::mapview::ViewDim::TwoD => "2d".to_string(),
-                    crate::mapview::ViewDim::ThreeD => "3d".to_string(),
-                },
-                bbox: v.view_bbox,
-                docked: v.docked,
+            .enumerate()
+            .skip(1) // 主框恒在，不入清单
+            .map(|(i, f)| {
+                let active = self.active_frame == Some(i);
+                crate::uistate::ViewStateJson {
+                    title: f.title.clone(),
+                    dim: (if active { self.frame_dim } else { f.site.dim })
+                        .as_str()
+                        .to_string(),
+                    bbox: if active {
+                        self.view_bbox
+                    } else {
+                        f.site.view_bbox
+                    },
+                    docked: f.docked,
+                    open: f.open,
+                }
             })
             .collect();
-        s.active_view = self.active_view;
+        s.active_view = match self.active_frame {
+            Some(i) if i > 0 => Some(i - 1), // frames 下标 → 清单下标
+            _ => None,
+        };
         s.services = self.services.clone();
         s
     }
@@ -726,6 +774,170 @@ impl KanyuApp {
                 self.collect_ui_state().save(&self.state_path);
             }
         }
+    }
+
+    // ===== 地图框（交换模型：激活框状态平铺本结构体字段，休眠框驻留自身 site） =====
+
+    /// 确保存在激活框（全部关闭时重开主框——打开文件/结果图层等操作的前提）。
+    fn ensure_active_frame(&mut self) {
+        if self.active_frame.is_none() {
+            self.activate_frame(0); // 主框恒在
+        }
+    }
+
+    /// 休眠当前激活框：平铺状态逐项搬回框内 site。
+    fn park_frame(&mut self, cur: usize) {
+        let f = &mut self.frames[cur];
+        f.site.layers = std::mem::take(&mut self.layers);
+        f.site.toc = std::mem::take(&mut self.toc);
+        f.site.render_cache = std::mem::take(&mut self.render_cache);
+        f.site.merged = std::mem::replace(
+            &mut self.merged,
+            FeatureCollection {
+                bbox: None,
+                features: Vec::new(),
+                foreign_members: None,
+            },
+        );
+        f.site.data_extent = self.data_extent.take();
+        f.site.view_bbox = self.view_bbox.take();
+        f.site.needs_fit = self.needs_fit;
+        f.site.dim = self.frame_dim;
+        std::mem::swap(&mut f.site.canvas, &mut self.canvas);
+        std::mem::swap(&mut f.site.scene, &mut self.scene);
+    }
+
+    /// 取指定框现场到平铺字段（park 的逆操作）。
+    fn unpark_frame(&mut self, idx: usize) {
+        let f = &mut self.frames[idx];
+        self.layers = std::mem::take(&mut f.site.layers);
+        self.toc = std::mem::take(&mut f.site.toc);
+        self.render_cache = std::mem::take(&mut f.site.render_cache);
+        self.merged = std::mem::replace(
+            &mut f.site.merged,
+            FeatureCollection {
+                bbox: None,
+                features: Vec::new(),
+                foreign_members: None,
+            },
+        );
+        self.data_extent = f.site.data_extent.take();
+        self.view_bbox = f.site.view_bbox.take();
+        self.needs_fit = f.site.needs_fit;
+        self.frame_dim = f.site.dim;
+        std::mem::swap(&mut f.site.canvas, &mut self.canvas);
+        std::mem::swap(&mut f.site.scene, &mut self.scene);
+    }
+
+    /// 激活地图框（目录行/页签/新建共用；已关闭则重开、浮动则吸附）。
+    /// 编辑会话进行中阻止切换（会话图层集属于当前框）。
+    fn activate_frame(&mut self, idx: usize) {
+        if idx >= self.frames.len() {
+            return;
+        }
+        if self.active_frame == Some(idx) {
+            self.frames[idx].open = true;
+            self.frames[idx].docked = true;
+            self.active_layout = None;
+            return;
+        }
+        if self.edit_session.is_some() {
+            self.toast_err("编辑会话进行中——请先保存或放弃编辑再切换地图框");
+            return;
+        }
+        if let Some(cur) = self.active_frame {
+            self.park_frame(cur);
+        }
+        self.active_frame = Some(idx);
+        self.active_layout = None;
+        self.frames[idx].open = true;
+        self.frames[idx].docked = true;
+        self.unpark_frame(idx);
+        // 选中态指向旧框图层：清空防悬空（属性表面板对未知 id 显示空态）。
+        self.selected = None;
+        self.selected_group = None;
+        // 布局地图缓存按 render_epoch 重合成：换框即换内容，纪元递增防陈旧。
+        self.render_epoch += 1;
+        self.status = format!("当前地图框 → {}", self.frames[idx].title);
+        self.mark_state_dirty();
+    }
+
+    /// 关闭地图框（≠ 删除：目录清单保留，双击行重开）。
+    fn close_frame(&mut self, idx: usize) {
+        if idx >= self.frames.len() {
+            return;
+        }
+        if self.active_frame == Some(idx) && self.edit_session.is_some() {
+            self.toast_err("编辑会话进行中——请先保存或放弃编辑再关闭地图框");
+            return;
+        }
+        self.frames[idx].open = false;
+        if self.active_frame == Some(idx) {
+            self.park_frame(idx);
+            self.active_frame = None;
+            self.selected = None;
+            self.selected_group = None;
+        }
+        let title = self.frames[idx].title.clone();
+        self.console
+            .info(format!("已关闭地图框「{title}」（目录中保留，双击行重开）"));
+        self.mark_state_dirty();
+    }
+
+    /// 删除地图框（仅目录右键；主框不可删——主框唯一特权；最后一框不可删）。
+    fn delete_frame(&mut self, idx: usize) {
+        if idx >= self.frames.len() {
+            return;
+        }
+        if idx == 0 {
+            self.toast_err("默认地图框「地图」不可删除");
+            return;
+        }
+        if self.frames.len() <= 1 {
+            self.toast_err("至少保留一个地图框");
+            return;
+        }
+        if self.edit_session.is_some() {
+            self.toast_err("编辑会话进行中——请先保存或放弃编辑再删除地图框");
+            return;
+        }
+        let n_layers = if self.active_frame == Some(idx) {
+            self.layers.len()
+        } else {
+            self.frames[idx].site.layers.len()
+        };
+        let f = self.frames.remove(idx);
+        if self.active_frame == Some(idx) {
+            // 删的就是激活框：平铺状态随之废弃（unpark 主框时整体覆盖），回落主框。
+            self.active_frame = None;
+            self.activate_frame(0);
+        } else {
+            self.active_frame = crate::mapview::adjust_active_after_remove(self.active_frame, idx);
+        }
+        self.console.info(format!(
+            "已删除地图框「{}」（含 {n_layers} 个图层）",
+            f.title
+        ));
+        self.mark_state_dirty();
+    }
+
+    /// 新建地图框（二维/三维分开建立，创建即激活）。
+    fn new_frame(&mut self, dim: crate::mapview::ViewDim) {
+        if self.edit_session.is_some() {
+            self.toast_err("编辑会话进行中——请先保存或放弃编辑再新建地图框");
+            return;
+        }
+        let id = self.next_frame_id;
+        self.next_frame_id += 1;
+        let title = match dim {
+            crate::mapview::ViewDim::TwoD => format!("地图 {id}"),
+            crate::mapview::ViewDim::ThreeD => format!("场景 {id}"),
+        };
+        self.frames
+            .push(crate::mapview::MapFrame::new(id, title.clone(), dim));
+        self.console
+            .info(format!("已新建{}「{title}」", dim.create_label()));
+        self.activate_frame(self.frames.len() - 1);
     }
 
     // ===== 图层与数据现场 =====
@@ -746,6 +958,7 @@ impl KanyuApp {
 
     /// 加载数据文件为一个图层；失败置中文错误模态框。
     fn open_file(&mut self, path: &Path) {
+        self.ensure_active_frame(); // 图层归属当前激活地图框
         let id = path
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
@@ -798,6 +1011,7 @@ impl KanyuApp {
         collection: FeatureCollection,
         verb: &str,
     ) -> String {
+        self.ensure_active_frame(); // 结果图层归属当前激活地图框
         let id = self.unique_id(base_id);
         let n = collection.features.len();
         let layer = Layer::from_collection(id.clone(), collection);
@@ -864,10 +1078,7 @@ impl KanyuApp {
         self.data_extent = view::union(extents);
         self.canvas.dirty = true;
         self.render_epoch += 1;
-        // 全部额外视图同脏（可见性/增删变化 → 各视图重渲）。
-        for v in &mut self.map_views {
-            v.canvas.dirty = true;
-        }
+        // 休眠地图框各有自有图层集与渲染缓存，不受本框重建影响（无需同脏）。
     }
 
     /// 有效可见图层的要素总数（状态栏）。
@@ -945,7 +1156,7 @@ impl KanyuApp {
         self.canvas.dirty = true;
     }
 
-    /// 保存堪舆工程（.kyu）：图层引用 + 可见性 + 视口 + 地图色彩。
+    /// 保存堪舆工程（.kyu）：地图框清单 + 图层引用（含框归属）+ 可见性 + 视口 + 地图色彩。
     /// 无来源的内存图层（分析产出）不入工程并在终端明示。
     fn save_project(&mut self, path: &Path) {
         let mut project = kanyu_core::project::KanyuProject::new(
@@ -954,22 +1165,54 @@ impl KanyuApp {
                 .unwrap_or_else(|| "untitled".to_string()),
             &self.project_crs,
         );
-        project.viewport = self.view_bbox;
+        project.viewport = self.view_bbox; // 激活框视口（向后兼容单框语义）
         project.map_theme = self.map_theme_mode.as_str().to_string();
+        // 地图框清单（首项恒为主框「地图」）。
+        project.frames = self
+            .frames
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                let active = self.active_frame == Some(i);
+                kanyu_core::project::ProjectFrame {
+                    title: f.title.clone(),
+                    dim: (if active { self.frame_dim } else { f.site.dim })
+                        .as_str()
+                        .to_string(),
+                    viewport: if active {
+                        self.view_bbox
+                    } else {
+                        f.site.view_bbox
+                    },
+                    open: f.open,
+                    docked: f.docked,
+                }
+            })
+            .collect();
         let mut skipped = 0;
-        for entry in &self.layers {
-            match &entry.source_path {
-                // 分组路径：根级图层写 None（不输出 group 键，保持文件干净）；
-                // 符号化 JSON 写入 style（shell 侧模型，core 原样透传）。
-                Some(src) => project.layers.push(kanyu_core::project::ProjectLayer {
-                    id: entry.layer.id().to_string(),
-                    source: src.clone(),
-                    visible: entry.visible,
-                    style: serde_json::to_value(&entry.symbology).ok(),
-                    group: toc::group_path_of(&self.toc, entry.layer.id())
-                        .filter(|p| !p.is_empty()),
-                }),
-                None => skipped += 1,
+        for i in 0..self.frames.len() {
+            // 激活框图层读平铺字段，休眠框读自身 site（交换模型）。
+            let (entries, toc_ref) = if self.active_frame == Some(i) {
+                (&self.layers, &self.toc)
+            } else {
+                (&self.frames[i].site.layers, &self.frames[i].site.toc)
+            };
+            for entry in entries {
+                match &entry.source_path {
+                    // 分组路径：根级图层写 None（不输出 group 键，保持文件干净）；
+                    // 符号化 JSON 写入 style（shell 侧模型，core 原样透传）；
+                    // 框归属：主框写 None（老工程语义），其余写框标题。
+                    Some(src) => project.layers.push(kanyu_core::project::ProjectLayer {
+                        id: entry.layer.id().to_string(),
+                        source: src.clone(),
+                        visible: entry.visible,
+                        style: serde_json::to_value(&entry.symbology).ok(),
+                        group: toc::group_path_of(toc_ref, entry.layer.id())
+                            .filter(|p| !p.is_empty()),
+                        map: (i != 0).then(|| self.frames[i].title.clone()),
+                    }),
+                    None => skipped += 1,
+                }
             }
         }
         match project.save(&path.to_string_lossy()) {
@@ -996,7 +1239,8 @@ impl KanyuApp {
         }
     }
 
-    /// 打开堪舆工程（.kyu）：恢复图层（按引用加载）、可见性、视口、地图色彩。
+    /// 打开堪舆工程（.kyu）：恢复地图框清单与图层（按引用加载、按 map 归属各框）、
+    /// 可见性、视口、地图色彩。旧工程无 frames/map 字段 → 单主框全收。
     fn open_project(&mut self, path: &Path) {
         let project = match kanyu_core::project::KanyuProject::load(&path.to_string_lossy()) {
             Ok(p) => p,
@@ -1007,18 +1251,57 @@ impl KanyuApp {
                 return;
             }
         };
-        // 清空当前现场再恢复（与"打开工程"语义一致）。
+        // 清空当前现场再恢复（与"打开工程"语义一致；编辑会话随旧现场废弃）。
+        self.frames.clear();
+        self.frames.push(crate::mapview::MapFrame::main());
+        self.next_frame_id = 1;
+        self.active_frame = Some(0);
+        self.active_layout = None;
         self.layers.clear();
         self.toc.clear();
         self.selected = None;
         self.selected_group = None;
+        self.edit_session = None;
         self.console.info(format!(
-            "打开工程 {}（{} 个图层引用）",
+            "打开工程 {}（{} 个图层引用，{} 个地图框）",
             project.name,
-            project.layers.len()
+            project.layers.len(),
+            project.frames.len().max(1)
         ));
+        // 地图框清单（首项 = 主框元数据；缺省 = 单主框——旧工程兼容）。
+        if let Some(pf0) = project.frames.first() {
+            self.frames[0].title = pf0.title.clone();
+            self.frames[0].open = pf0.open;
+            self.frames[0].docked = pf0.docked;
+            self.view_bbox = pf0.viewport.or(project.viewport);
+        } else {
+            self.view_bbox = project.viewport;
+        }
+        for pf in project.frames.iter().skip(1) {
+            let id = self.next_frame_id;
+            self.next_frame_id += 1;
+            let mut f = crate::mapview::MapFrame::new(
+                id,
+                pf.title.clone(),
+                crate::mapview::ViewDim::parse(&pf.dim),
+            );
+            f.open = pf.open;
+            f.docked = pf.docked;
+            f.site.view_bbox = pf.viewport;
+            f.site.needs_fit = pf.viewport.is_none();
+            self.frames.push(f);
+        }
         let mut failed = 0;
         for pl in &project.layers {
+            // 目标框：map 标题匹配（无匹配/缺省 → 主框）。
+            let target = pl
+                .map
+                .as_deref()
+                .and_then(|t| self.frames.iter().position(|f| f.title == t))
+                .unwrap_or(0);
+            if self.active_frame != Some(target) {
+                self.activate_frame(target);
+            }
             let before = self.layers.len();
             self.open_file(Path::new(&pl.source));
             if self.layers.len() > before {
@@ -1041,10 +1324,14 @@ impl KanyuApp {
                 self.error_msg = None; // 单源失败不阻塞整工程
             }
         }
+        // 回落：激活首个打开态框（全关则主框——activate 会重开）。
+        let first_open = self.frames.iter().position(|f| f.open).unwrap_or(0);
+        if self.active_frame != Some(first_open) {
+            self.activate_frame(first_open);
+        }
         self.map_theme_mode = MapThemeMode::parse(&project.map_theme);
         self.project_crs = project.crs.clone();
-        self.view_bbox = project.viewport;
-        if project.viewport.is_some() {
+        if self.view_bbox.is_some() {
             self.canvas.dirty = true;
         } else {
             self.needs_fit = true;
@@ -1607,14 +1894,8 @@ impl KanyuApp {
             }
             RibbonAction::Undo => self.edit_undo(false),
             RibbonAction::Redo => self.edit_undo(true),
-            RibbonAction::NewMapView => {
-                let id = self.next_view_id;
-                self.next_view_id += 1;
-                // 新建视图默认吸附中央并置为当前页签。
-                self.map_views.push(crate::mapview::MapView::new(id));
-                self.active_view = Some(self.map_views.len() - 1);
-                self.console.info(format!("已新建地图视图「地图 {id}」"));
-            }
+            RibbonAction::NewFrame2D => self.new_frame(crate::mapview::ViewDim::TwoD),
+            RibbonAction::NewFrame3D => self.new_frame(crate::mapview::ViewDim::ThreeD),
             RibbonAction::ResetView => {
                 self.view_bbox = None;
                 self.needs_fit = true;
@@ -2607,27 +2888,35 @@ impl KanyuApp {
     ) {
         match id {
             crate::dock::PanelId::Catalog => {
-                // 地图框分类数据：主视图 + 全部视图（含浮动）。
-                let mut view_rows = vec![crate::catalog::ViewRow {
-                    index: None,
-                    title: "地图".to_string(),
-                    dim_label: crate::mapview::ViewDim::TwoD.label(),
-                }];
-                for (i, v) in self.map_views.iter().enumerate() {
-                    view_rows.push(crate::catalog::ViewRow {
-                        index: Some(i),
-                        title: v.title.clone(),
-                        dim_label: v.dim.label(),
-                    });
-                }
-                let layout_titles: Vec<String> =
-                    self.layouts.iter().map(|l| l.title.clone()).collect();
+                // 地图框分类数据：全部已建框（含已关闭；维度取各框现场）。
+                let frame_rows: Vec<crate::catalog::FrameRow> = self
+                    .frames
+                    .iter()
+                    .enumerate()
+                    .map(|(i, f)| {
+                        let active = self.active_frame == Some(i);
+                        crate::catalog::FrameRow {
+                            index: i,
+                            title: f.title.clone(),
+                            dim_label: (if active { self.frame_dim } else { f.site.dim }).label(),
+                            open: f.open,
+                        }
+                    })
+                    .collect();
+                let layout_rows: Vec<crate::catalog::LayoutRow> = self
+                    .layouts
+                    .iter()
+                    .map(|l| crate::catalog::LayoutRow {
+                        title: l.title.clone(),
+                        open: l.open,
+                    })
+                    .collect();
                 let mut catalog = std::mem::take(&mut self.catalog);
                 out.catalog.extend(catalog.ui(
                     ui,
                     &mut self.icon_cache,
-                    &view_rows,
-                    &layout_titles,
+                    &frame_rows,
+                    &layout_rows,
                     &self.services,
                 ));
                 self.catalog = catalog;
@@ -2840,6 +3129,7 @@ impl KanyuApp {
 
     /// WFS 结果登记为内存图层（file_name=连接名，source_path=None）。
     fn add_service_layer(&mut self, name: &str, collection: FeatureCollection) {
+        self.ensure_active_frame(); // 服务图层归属当前激活地图框
         let n = collection.features.len();
         let id = self.unique_id(name);
         let layer = Layer::from_collection(id.clone(), collection);
@@ -3189,28 +3479,37 @@ impl eframe::App for KanyuApp {
                         self.open_file(&path);
                     }
                 }
-                crate::catalog::CatalogAction::ActivateView(idx) => match idx {
-                    None => self.active_view = None,
-                    Some(i) if i < self.map_views.len() => {
-                        if self.map_views[i].docked {
-                            self.active_view = Some(i);
-                        } else {
-                            // 浮动窗：提到最前聚焦。
-                            ctx.move_to_top(egui::LayerId::new(
-                                egui::Order::Middle,
-                                egui::Id::new(("map_view", self.map_views[i].id)),
-                            ));
-                        }
+                crate::catalog::CatalogAction::ActivateFrame(i) => {
+                    self.activate_frame(i);
+                }
+                crate::catalog::CatalogAction::NewFrame2D => {
+                    self.dispatch(RibbonAction::NewFrame2D, &ctx)
+                }
+                crate::catalog::CatalogAction::NewFrame3D => {
+                    self.dispatch(RibbonAction::NewFrame3D, &ctx)
+                }
+                crate::catalog::CatalogAction::RenameFrame(i) => {
+                    if i < self.frames.len() {
+                        self.rename_frame_dlg = Some((i, self.frames[i].title.clone()));
                     }
-                    _ => {}
-                },
-                crate::catalog::CatalogAction::NewMapView => {
-                    self.dispatch(RibbonAction::NewMapView, &ctx)
+                }
+                crate::catalog::CatalogAction::DeleteFrame(i) => {
+                    self.delete_frame(i);
                 }
                 crate::catalog::CatalogAction::ActivateLayout(i) => {
                     if i < self.layouts.len() {
+                        self.layouts[i].open = true; // 关闭≠删除：重开页签
                         self.active_layout = Some(i);
-                        self.active_view = None;
+                    }
+                }
+                crate::catalog::CatalogAction::DeleteLayout(i) => {
+                    if i < self.layouts.len() {
+                        let title = self.layouts[i].title.clone();
+                        self.layouts.remove(i);
+                        self.active_layout =
+                            crate::mapview::adjust_active_after_remove(self.active_layout, i);
+                        self.console.info(format!("已删除布局「{title}」"));
+                        self.mark_state_dirty();
                     }
                 }
                 crate::catalog::CatalogAction::NewLayout => {
@@ -3244,27 +3543,28 @@ impl eframe::App for KanyuApp {
             self.dispatch_panel_action(action);
         }
 
-        // 中央：视图页签条（文档页签范式）+ 当前视图内容。
-        // 主视图「地图」恒在首位（不可关闭/弹出，启动即有地图框）；
-        // 布局页签与地图页签同机制（布局不可浮动）。
+        // 中央：视图页签条（文档页签范式）+ 当前页签内容。
+        // 页签 = 打开且吸附的地图框 + 打开的布局；主框「地图」可关闭、不可弹出
+        // （唯一特权：不可删除——见 delete_frame）；关闭 ≠ 删除（目录保留弱色行）。
         use crate::mapview::CentralTabKey;
         let mut docked_tabs: Vec<(CentralTabKey, String)> = self
-            .map_views
+            .frames
             .iter()
             .enumerate()
-            .filter(|(_, v)| v.docked)
-            .map(|(i, v)| (CentralTabKey::Map(i), v.title.clone()))
+            .filter(|(_, f)| f.open && f.docked)
+            .map(|(i, f)| (CentralTabKey::Map(i), f.title.clone()))
             .collect();
         docked_tabs.extend(
             self.layouts
                 .iter()
                 .enumerate()
+                .filter(|(_, l)| l.open)
                 .map(|(i, l)| (CentralTabKey::Layout(i), l.title.clone())),
         );
         let strip_active = if let Some(l) = self.active_layout {
             Some(CentralTabKey::Layout(l))
         } else {
-            self.active_view.map(CentralTabKey::Map)
+            self.active_frame.map(CentralTabKey::Map)
         };
         let strip_out =
             ui.scope(|ui| crate::mapview::view_tab_strip(ui, &docked_tabs, strip_active));
@@ -3272,143 +3572,142 @@ impl eframe::App for KanyuApp {
         let act = strip_out.inner;
         if let Some(sel) = act.activated {
             match sel {
-                None => {
-                    self.active_view = None;
-                    self.active_layout = None;
-                }
-                Some(CentralTabKey::Map(i)) => {
-                    self.active_view = Some(i);
-                    self.active_layout = None;
-                }
-                Some(CentralTabKey::Layout(i)) => {
+                CentralTabKey::Map(i) => self.activate_frame(i),
+                CentralTabKey::Layout(i) => {
                     self.active_layout = Some(i);
-                    self.active_view = None;
                 }
             }
             self.mark_state_dirty();
         }
         if let Some(i) = act.floated {
-            if let Some(v) = self.map_views.get_mut(i) {
-                v.docked = false;
-                if self.active_view == Some(i) {
-                    self.active_view = None;
+            if i < self.frames.len() {
+                self.frames[i].docked = false;
+                if self.active_frame == Some(i) {
+                    // 浮动即让出中央：休眠本框，回落主框（主框已关则中央空态）。
+                    self.park_frame(i);
+                    self.active_frame = None;
+                    if self.frames[0].open {
+                        self.activate_frame(0);
+                    }
                 }
                 self.mark_state_dirty();
             }
         }
         if let Some(key) = act.closed {
             match key {
-                CentralTabKey::Map(i) if i < self.map_views.len() => {
-                    let title = self.map_views[i].title.clone();
-                    self.map_views.remove(i);
-                    match self.active_view {
-                        Some(a) if a == i => self.active_view = None,
-                        Some(a) if a > i => self.active_view = Some(a - 1),
-                        _ => {}
-                    }
-                    self.console.info(format!("视图「{title}」已关闭"));
-                }
+                CentralTabKey::Map(i) => self.close_frame(i),
                 CentralTabKey::Layout(i) if i < self.layouts.len() => {
-                    let title = self.layouts[i].title.clone();
-                    self.layouts.remove(i);
-                    match self.active_layout {
-                        Some(a) if a == i => self.active_layout = None,
-                        Some(a) if a > i => self.active_layout = Some(a - 1),
-                        _ => {}
+                    self.layouts[i].open = false;
+                    if self.active_layout == Some(i) {
+                        self.active_layout = None;
                     }
-                    self.console.info(format!("布局「{title}」已关闭"));
+                    let title = self.layouts[i].title.clone();
+                    self.console
+                        .info(format!("已关闭布局「{title}」（目录中保留，双击行重开）"));
+                    self.mark_state_dirty();
                 }
                 _ => {}
             }
-            self.mark_state_dirty();
         }
-        if act.new_view {
-            self.dispatch(RibbonAction::NewMapView, &ctx);
-            self.mark_state_dirty();
+        if act.new_view_2d {
+            self.dispatch(RibbonAction::NewFrame2D, &ctx);
+        }
+        if act.new_view_3d {
+            self.dispatch(RibbonAction::NewFrame3D, &ctx);
         }
 
-        // 当前页签内容：布局 > 吸附地图视图 > 主视图。
+        // 当前页签内容：布局 > 激活地图框 > 空态引导。
         if let Some(li) = self.active_layout {
             if li < self.layouts.len() {
                 self.layout_view_content(ui, li, &ctx);
             } else {
                 self.active_layout = None;
             }
-        } else {
-            match self.active_view {
-                Some(i) if i < self.map_views.len() && self.map_views[i].docked => {
-                    let mut v = self.map_views.remove(i);
-                    let vinput = crate::mapview::ViewInput {
-                        layers: &build_layer_slices(&self.render_cache),
-                        theme: self.effective_map_theme(),
-                        data_extent: self.data_extent,
-                        crs: &self.project_crs,
-                    };
-                    crate::mapview::content_ui(ui, &mut v, &vinput, false);
-                    self.map_views.insert(i, v);
-                }
-                Some(_) => self.active_view = None, // 目标已浮动/关闭 → 回落主视图
-                None => {
-                    // 主视图「地图」（地图色彩由 map_theme_mode 决定，与界面主题解耦）。
-                    // 编辑会话中：手势走编辑工具（平移让位），顶点句柄叠加。
-                    let edit_view = self.edit_session.as_ref().map(|s| crate::canvas::EditView {
-                        tool: s.tool,
-                        target: s.target.as_str(),
-                        selected: s.selected,
-                        drawing: s.drawing.as_ref(),
-                    });
-                    let out = self.canvas.ui(
-                        ui,
-                        CanvasInput {
-                            layers: &build_layer_slices(&self.render_cache),
-                            theme: self.effective_map_theme(),
-                            view_bbox: self.view_bbox,
-                            needs_fit: self.needs_fit,
-                            data_extent: self.fit_extent.or(self.data_extent),
-                            empty_hint: "◇ 堪舆\n\n拖入数据文件，或经「主页 → 打开数据…」\n支持 shp / geojson / fgb / parquet / dxf / dwg / kml / kmz / csv / tsv / xlsx",
-                            edit: edit_view,
-                        },
-                    );
-                    self.view_bbox = out.view_bbox;
-                    self.mouse_data = out.mouse_data;
-                    if out.fit_consumed {
-                        self.needs_fit = false;
-                        self.fit_extent = None;
-                    }
-                    if let Some(e) = out.render_error {
-                        self.status = e;
-                    }
-                    if let Some(action) = out.edit_action {
-                        self.apply_edit_action(action);
-                    }
-                }
-            }
-        } // end else（布局页签未激活时的地图视图分支）
-
-        // 浮动视图窗口（docked=false 的视图；关闭即从清单移除）。
-        {
-            let mut views = std::mem::take(&mut self.map_views);
-            let vinput = crate::mapview::ViewInput {
-                layers: &build_layer_slices(&self.render_cache),
-                theme: self.effective_map_theme(),
-                data_extent: self.data_extent,
-                crs: &self.project_crs,
+        } else if let Some(fi) = self.active_frame {
+            // 激活地图框：二维/三维工具条 + 画布（主框与后续框同一渲染路径——
+            // 功能性一致）；编辑会话仅作用激活框二维态。
+            let edit_view = if self.frame_dim == crate::mapview::ViewDim::TwoD {
+                self.edit_session.as_ref().map(|s| crate::canvas::EditView {
+                    tool: s.tool,
+                    target: s.target.as_str(),
+                    selected: s.selected,
+                    drawing: s.drawing.as_ref(),
+                })
+            } else {
+                None
             };
-            for v in &mut views {
-                if !v.docked {
-                    crate::mapview::window_ui(&ctx, v, &vinput);
+            let slices = build_layer_slices(&self.render_cache);
+            // 空框给拖入引导（启动 onboarding），非空给通用提示。
+            let empty_hint = if self.layers.is_empty() {
+                "◇ 堪舆\n\n拖入数据文件，或经「主页 → 打开数据…」\n支持 shp / geojson / fgb / parquet / dxf / dwg / kml / kmz / csv / tsv / xlsx"
+            } else {
+                "（本地图框无可见图层）"
+            };
+            let vinput = crate::mapview::ViewInput {
+                layers: &slices,
+                theme: self.effective_map_theme(),
+                data_extent: self.fit_extent.or(self.data_extent),
+                edit: edit_view,
+                empty_hint,
+            };
+            let out = crate::mapview::content_ui(
+                ui,
+                crate::mapview::FrameState {
+                    dim: &mut self.frame_dim,
+                    view_bbox: &mut self.view_bbox,
+                    needs_fit: &mut self.needs_fit,
+                    canvas: &mut self.canvas,
+                    scene: &mut self.scene,
+                    docked: &mut self.frames[fi].docked,
+                },
+                vinput,
+                false,
+            );
+            self.mouse_data = out.mouse_data;
+            if out.fit_consumed {
+                self.fit_extent = None;
+            }
+            if let Some(e) = out.render_error {
+                self.status = e;
+            }
+            if let Some(action) = out.edit_action {
+                self.apply_edit_action(action);
+            }
+        } else {
+            // 全部地图框已关闭：中央空态引导（铺底纯白与画布一致——无暗底透出）。
+            let rect = ui.available_rect_before_wrap();
+            ui.painter()
+                .rect_filled(rect, egui::CornerRadius::ZERO, egui::Color32::WHITE);
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "◇ 堪舆\n\n无打开的地图框——目录「地图框」双击行重开，或 ＋ 新建",
+                egui::FontId::proportional(16.0),
+                crate::theme::palette(kanyu_render::Theme::Light).text_weak,
+            );
+        }
+
+        // 浮动地图框窗口（open && !docked；× 关闭 = open=false，目录保留）。
+        // 浮动框恒为休眠框：图层切片读自身 site（window_ui 内构建）。
+        {
+            let theme = self.effective_map_theme();
+            let crs = self.project_crs.clone();
+            let mut frames = std::mem::take(&mut self.frames);
+            for f in &mut frames {
+                if f.open && !f.docked {
+                    crate::mapview::window_ui(&ctx, f, theme, &crs);
                 }
             }
-            views.retain(|v| v.docked || v.open);
-            self.map_views = views;
+            self.frames = frames;
         }
 
         // 浮动视图拖到中央页签条 → 吸附（标题条拖拽判定同 dock 浮动窗）。
         if self.dragging_view.is_none() && ctx.input(|i| i.pointer.is_decidedly_dragging()) {
             if let Some(origin) = ctx.input(|i| i.pointer.press_origin()) {
-                if let Some(idx) = self.map_views.iter().position(|v| {
-                    !v.docked
-                        && v.win_rect.is_some_and(|r| {
+                if let Some(idx) = self.frames.iter().position(|f| {
+                    !f.docked
+                        && f.open
+                        && f.win_rect.is_some_and(|r| {
                             egui::Rect::from_min_max(r.min, egui::pos2(r.max.x, r.min.y + 28.0))
                                 .contains(origin)
                         })
@@ -3425,12 +3724,10 @@ impl eframe::App for KanyuApp {
             } else {
                 self.dragging_view = None;
                 if let (Some(pos), Some(strip)) = (ctx.pointer_latest_pos(), self.view_strip_rect) {
-                    if strip.contains(pos) && idx < self.map_views.len() {
-                        self.map_views[idx].docked = true;
-                        self.active_view = Some(idx);
-                        self.console
-                            .info(format!("视图「{}」已吸附到中央", self.map_views[idx].title));
-                        self.mark_state_dirty();
+                    if strip.contains(pos) && idx < self.frames.len() {
+                        let title = self.frames[idx].title.clone();
+                        self.activate_frame(idx); // 吸附即激活（含 docked/open 置位）
+                        self.console.info(format!("地图框「{title}」已吸附到中央"));
                     }
                 }
             }
@@ -3600,7 +3897,6 @@ impl eframe::App for KanyuApp {
                             dlg.to_spec(),
                         ));
                         self.active_layout = Some(self.layouts.len() - 1);
-                        self.active_view = None;
                         self.console.info(format!("已新建布局「{title}」"));
                         self.mark_state_dirty();
                     }
@@ -3611,6 +3907,28 @@ impl eframe::App for KanyuApp {
                 },
                 crate::ui_kit::DialogAction::Cancel => {} // 取消：丢弃
                 crate::ui_kit::DialogAction::None => self.layout_dlg = Some(dlg), // 继续显示
+            }
+        }
+        // 重命名地图框对话框。
+        if let Some((i, mut title)) = self.rename_frame_dlg.take() {
+            let action = crate::ui_kit::dialog_shell(&ctx, "重命名地图框", |ui| {
+                crate::ui_kit::text_input(ui, "标题", &mut title, "如 示范区三维", true);
+            });
+            match action {
+                crate::ui_kit::DialogAction::Ok => {
+                    let t = title.trim();
+                    if t.is_empty() {
+                        self.toast_err("地图框标题不能为空");
+                        self.rename_frame_dlg = Some((i, title)); // 保留输入
+                    } else if i < self.frames.len() {
+                        let old = std::mem::replace(&mut self.frames[i].title, t.to_string());
+                        self.console
+                            .info(format!("地图框「{old}」已重命名为「{t}」"));
+                        self.mark_state_dirty();
+                    }
+                }
+                crate::ui_kit::DialogAction::Cancel => {} // 取消：丢弃
+                crate::ui_kit::DialogAction::None => self.rename_frame_dlg = Some((i, title)),
             }
         }
         // 新建服务链接对话框。

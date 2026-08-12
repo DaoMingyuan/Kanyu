@@ -79,6 +79,12 @@ pub struct ShellArgs {
     pub edit_demo: bool,
     /// 隐藏验证参数：编辑会话「添加面」绘制中态（预置 3 顶点 + 橡皮筋，截图验证）。
     pub draw_demo: bool,
+    /// 隐藏验证参数：双地图框各自图层集（load[0]→主框，load[1]→新建三维场景框，截图验证切换联动）。
+    pub frames_demo: bool,
+    /// 隐藏验证参数：同 frames-demo 但场景框关闭（目录保留弱色行，截图验证关闭≠删除）。
+    pub frames_demo2: bool,
+    /// 隐藏验证参数：同 frames-demo 但场景框激活（三维场景 + 自有图层集，截图验证三维独立建立）。
+    pub frames_demo3: bool,
     /// 隐藏验证参数：目录「服务链接」预置一条演示连接并展开分类（截图验证）。
     pub service_demo: bool,
     /// 隐藏验证参数：同 service_demo，另打开「新建服务链接」对话框（截图验证）。
@@ -105,6 +111,9 @@ impl Default for ShellArgs {
             layout_demo: false,
             edit_demo: false,
             draw_demo: false,
+            frames_demo: false,
+            frames_demo2: false,
+            frames_demo3: false,
             service_demo: false,
             service_dlg_demo: false,
         }
@@ -169,6 +178,9 @@ fn parse_args() -> ShellArgs {
             "--layout-demo" => args.layout_demo = true,
             "--edit-demo" => args.edit_demo = true,
             "--draw-demo" => args.draw_demo = true,
+            "--frames-demo" => args.frames_demo = true,
+            "--frames-demo2" => args.frames_demo2 = true,
+            "--frames-demo3" => args.frames_demo3 = true,
             "--service-demo" => args.service_demo = true,
             "--service-dlg-demo" => args.service_dlg_demo = true,
             "--zoom" => {

@@ -33,6 +33,13 @@ pub struct ViewStateJson {
     pub bbox: Option<[f64; 4]>,
     /// 吸附中央页签 / 浮动窗。
     pub docked: bool,
+    /// 打开状态（关闭≠删除；老状态文件缺省视为打开）。
+    #[serde(default = "default_open")]
+    pub open: bool,
+}
+
+fn default_open() -> bool {
+    true
 }
 
 /// 持久化 UI 状态（全字段可缺省；Default 即 v1 基线：缩放 1.0）。
@@ -169,6 +176,7 @@ mod tests {
             dim: "3d".into(),
             bbox: Some([0.0, 0.0, 1.0, 1.0]),
             docked: false,
+            open: true,
         }];
         s.active_view = Some(0);
         s.services = vec![crate::services::WfsConnection {

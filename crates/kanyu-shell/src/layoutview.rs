@@ -15,6 +15,8 @@ pub struct LayoutView {
     pub title: String,
     /// 排版规格。
     pub spec: LayoutSpec,
+    /// 打开状态（关闭 ≠ 删除：目录清单保留，双击行重开）。
+    pub open: bool,
     /// 地图 PNG 缓存（内容纪元变化重合成）。
     pub map_png: Option<Vec<u8>>,
     /// 已合成内容纪元。
@@ -32,6 +34,7 @@ impl LayoutView {
             id,
             title,
             spec,
+            open: true,
             map_png: None,
             epoch: 0,
             tex: None,

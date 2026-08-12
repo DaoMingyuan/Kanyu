@@ -153,13 +153,15 @@ pub fn ui(
         *needs_fit = false;
     }
     let Some(bbox) = *view_bbox else {
-        // 无数据：引导提示。
+        // 无数据：铺底纯白（地图框背景纯白约束，与界面主题解耦）+ 引导提示。
+        ui.painter().rect_filled(rect, 0.0, Color32::WHITE);
         ui.painter().text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             "（实验性 3D：无可见图层）",
             egui::FontId::proportional(text::SIZE_BODY),
-            p.text_weak,
+            // 白底上用晨山弱色（夜观星弱色在白底对比不足）。
+            crate::theme::palette(kanyu_render::Theme::Light).text_weak,
         );
         return;
     };

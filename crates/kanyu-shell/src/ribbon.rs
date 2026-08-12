@@ -120,8 +120,10 @@ pub enum RibbonAction {
     ZoomToFit,
     /// 复位视图。
     ResetView,
-    /// 新建地图视图（浮动窗，独立视口，可切实验性三维）。
-    NewMapView,
+    /// 新建二维地图框（绑定自有图层集）。
+    NewFrame2D,
+    /// 新建三维场景（二维/三维分开建立）。
+    NewFrame3D,
     /// 面板开关（目录/图层/终端/AI 对话；关闭后可经此重开）。
     TogglePanel(crate::dock::PanelId),
     /// 打开设置对话框（坐标系 / 渲染）。
@@ -214,7 +216,7 @@ fn layout_of(tab: RibbonTab) -> &'static [GroupLayout] {
         RibbonTab::View => &[
             GroupLayout {
                 name: "相机",
-                commands: &["zoom_fit", "reset_view", "new_map_view"],
+                commands: &["zoom_fit", "reset_view", "new_frame_2d", "new_frame_3d"],
             },
             GroupLayout {
                 name: "面板",
