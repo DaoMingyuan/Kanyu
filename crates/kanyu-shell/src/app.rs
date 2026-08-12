@@ -1851,12 +1851,28 @@ impl KanyuApp {
                 path,
                 old,
                 new,
-            } => Some(Box::new(kanyu_edit::MoveVertex {
-                index: feature,
-                path,
-                old_pos: old,
-                new_pos: new,
-            })),
+            } => {
+                if session.topo {
+                    // 拓扑编辑：共享顶点联动（当前图层，Delta 通道一次撤销）。
+                    match kanyu_edit::move_shared_vertex(&coll, [old[0], old[1]], [new[0], new[1]])
+                    {
+                        Ok(ds) => Some(Box::new(ds) as Box<dyn kanyu_edit::EditCommand>),
+                        Err(e) => {
+                            self.console
+                                .push(crate::console::LineKind::Err, e.to_string());
+                            self.edit_session = Some(session);
+                            return;
+                        }
+                    }
+                } else {
+                    Some(Box::new(kanyu_edit::MoveVertex {
+                        index: feature,
+                        path,
+                        old_pos: old,
+                        new_pos: new,
+                    }))
+                }
+            }
             EditAction::MoveFeature { feature, dx, dy } => {
                 Some(Box::new(kanyu_edit::MoveFeature {
                     index: feature,
@@ -2216,6 +2232,12 @@ impl KanyuApp {
                 if let Some(s) = &mut self.edit_session {
                     s.snap = !s.snap;
                     self.status = format!("顶点捕捉 → {}", if s.snap { "开" } else { "关" });
+                }
+            }
+            RibbonAction::ToggleEditTopo => {
+                if let Some(s) = &mut self.edit_session {
+                    s.topo = !s.topo;
+                    self.status = format!("拓扑编辑 → {}", if s.topo { "开" } else { "关" });
                 }
             }
             RibbonAction::Undo => self.edit_undo(false),
@@ -3777,11 +3799,12 @@ impl eframe::App for KanyuApp {
                     None => s.tool.label().to_string(),
                 };
                 format!(
-                    "编辑中: {}（{} 步可撤销，工具: {}，捕捉: {}） | {}",
+                    "编辑中: {}（{} 步可撤销，工具: {}，捕捉: {}，拓扑: {}） | {}",
                     s.target_name,
                     s.history.len(),
                     tool,
                     if s.snap { "开" } else { "关" },
+                    if s.topo { "开" } else { "关" },
                     self.status
                 )
             }

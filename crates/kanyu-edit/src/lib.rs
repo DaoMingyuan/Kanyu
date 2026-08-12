@@ -23,6 +23,7 @@ pub mod dcel;
 pub mod delta;
 pub mod history;
 pub mod ops;
+pub mod topoedit;
 
 pub use dcel::{Dcel, FaceKind, MergeResult, SplitResult, OUTER_FACE};
 pub use delta::{DeltaSet, FeatureDelta, DELTA_RECOMMEND_THRESHOLD};
@@ -30,4 +31,7 @@ pub use history::{EditCommand, History, Transaction};
 pub use ops::{
     validate_hole, AddHole, DeleteFeatures, GeomPath, InsertFeature, MoveFeature, MoveVertex,
     UpdateProperties,
+};
+pub use topoedit::{
+    move_shared_vertex, move_shared_vertex_across, shared_vertex_index, SharedVertexIndex,
 };

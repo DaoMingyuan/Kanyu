@@ -189,6 +189,9 @@ pub struct EditSession {
     pub drawing: Option<DrawState>,
     /// 顶点捕捉开关（默认开；光标 ≤10px 既有顶点时吸附）。
     pub snap: bool,
+    /// 拓扑编辑开关（默认关；开时顶点拖拽走共享顶点联动语义——
+    /// 当前图层范围，kanyu_edit::topoedit，Delta 通道一次撤销）。
+    pub topo: bool,
 }
 
 impl EditSession {
@@ -202,6 +205,7 @@ impl EditSession {
             selected: None,
             drawing: None,
             snap: true,
+            topo: false,
         }
     }
 }

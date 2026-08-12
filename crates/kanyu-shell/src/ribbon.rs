@@ -97,6 +97,8 @@ pub enum RibbonAction {
     SetEditTool(crate::edit::EditTool),
     /// 顶点捕捉开关（编辑会话内）。
     ToggleEditSnap,
+    /// 拓扑编辑开关（编辑会话内；开时顶点拖拽联动共享顶点）。
+    ToggleEditTopo,
     /// 撤销一步。
     Undo,
     /// 重做一步。

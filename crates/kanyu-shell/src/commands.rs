@@ -540,6 +540,15 @@ pub const COMMANDS: &[CommandDef] = &[
         editing,
     ),
     cmd(
+        "edit_topo",
+        "拓扑编辑",
+        Icon::Link,
+        "拓扑编辑开关",
+        "开时顶点拖拽联动全部共享该顶点的要素（当前图层范围，一次撤销；默认关）",
+        RibbonAction::ToggleEditTopo,
+        editing,
+    ),
+    cmd(
         "edit_delete",
         "删除要素",
         Icon::Close,
