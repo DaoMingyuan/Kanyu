@@ -811,6 +811,14 @@ impl KanyuApp {
                 });
             }
         }
+        // --ai-demo：AI 对话预置演示记录（意图面回复态截图验证）。
+        if args.ai_demo {
+            app.ai_chat.demo_conversation();
+            app.dock
+                .dock_to(crate::dock::PanelId::AiChat, crate::dock::DockZone::Right);
+            app.dock
+                .set_active(crate::dock::DockZone::Right, crate::dock::PanelId::AiChat);
+        }
         app
     }
 
@@ -1635,6 +1643,62 @@ impl KanyuApp {
     }
 
     // ===== 内核操作（对话框/终端共用） =====
+
+    /// 工具后台执行（工具箱对话框/AI 意图面共用链路）：校验 → 图层数据克隆入包 →
+    /// 后台线程 run_tool → 进度模态轮询（完成经 apply_tool_outcome 应用）。
+    fn start_tool_run(
+        &mut self,
+        tool_id: &'static str,
+        values: Vec<String>,
+    ) -> Result<String, String> {
+        let def =
+            kanyu_core::tooldef::find(tool_id).ok_or_else(|| format!("未知工具: {tool_id}"))?;
+        // 校验（AI 路径参数可能不全——错误级阻断并中文回报）。
+        let errs: Vec<String> = kanyu_core::toolrun::validate_msgs(def, &values)
+            .into_iter()
+            .filter(|m| m.level == kanyu_core::toolrun::MsgLevel::Error)
+            .map(|m| m.text)
+            .collect();
+        if !errs.is_empty() {
+            return Err(errs.join("；"));
+        }
+        // 图层数据克隆入包（内核函数只读消费）。
+        let mut data: std::collections::HashMap<String, FeatureCollection> =
+            std::collections::HashMap::new();
+        for (p, v) in def.params.iter().zip(values.iter()) {
+            match p.kind {
+                kanyu_core::tooldef::ParamKind::Layer => {
+                    if let Some(e) = self.layers.iter().find(|e| e.layer.id() == *v) {
+                        data.insert(v.clone(), e.layer.collection());
+                    }
+                }
+                kanyu_core::tooldef::ParamKind::MultiLayers => {
+                    for id in kanyu_core::toolrun::parse_multi_layers(v) {
+                        if let Some(e) = self.layers.iter().find(|e| e.layer.id() == id) {
+                            data.insert(id, e.layer.collection());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        // 参数摘要先算（values 随后移入后台闭包）。
+        let summary = values.join("；");
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let r = crate::toolbox::run_tool(tool_id, &values, |id| data.get(id).cloned());
+            let _ = tx.send(r);
+        });
+        self.tool_progress = Some(crate::toolbox::ToolProgress {
+            tool_id,
+            tool_name: def.name.to_string(),
+            rx,
+        });
+        // 日志（AddMessage 对应）：工具名 + 参数摘要。
+        self.console
+            .info(format!("运行工具「{}」（{}）", def.name, summary));
+        Ok(format!("已派发「{}」后台执行", def.name))
+    }
 
     fn op_query(&mut self, id: &str, expr: &str) -> Result<String, String> {
         let idx = self.find_layer(id)?;
@@ -4366,47 +4430,12 @@ impl eframe::App for KanyuApp {
                 crate::toolbox::DialogOutcome::Open => self.tool_run = Some(st),
                 crate::toolbox::DialogOutcome::Cancel => {}
                 crate::toolbox::DialogOutcome::Run => {
-                    // 后台线程执行（进度模态轮询，UI 不卡死）；图层数据先克隆入包。
-                    let tool_id = st.tool.id;
-                    let tool_name = st.tool.name.to_string();
+                    // 后台线程执行（进度模态轮询，UI 不卡死）。
                     let values = st.values.clone();
-                    let mut data: std::collections::HashMap<String, FeatureCollection> =
-                        std::collections::HashMap::new();
-                    for (p, v) in st.tool.params.iter().zip(values.iter()) {
-                        match p.kind {
-                            kanyu_core::tooldef::ParamKind::Layer => {
-                                if let Some(e) = self.layers.iter().find(|e| e.layer.id() == *v) {
-                                    data.insert(v.clone(), e.layer.collection());
-                                }
-                            }
-                            kanyu_core::tooldef::ParamKind::MultiLayers => {
-                                for id in kanyu_core::toolrun::parse_multi_layers(v) {
-                                    if let Some(e) = self.layers.iter().find(|e| e.layer.id() == id)
-                                    {
-                                        data.insert(id, e.layer.collection());
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
+                    if let Err(e) = self.start_tool_run(st.tool.id, values) {
+                        self.toast_err(&e);
+                        self.console.push(crate::console::LineKind::Err, e);
                     }
-                    let (tx, rx) = std::sync::mpsc::channel();
-                    std::thread::spawn(move || {
-                        let r =
-                            crate::toolbox::run_tool(tool_id, &values, |id| data.get(id).cloned());
-                        let _ = tx.send(r);
-                    });
-                    self.tool_progress = Some(crate::toolbox::ToolProgress {
-                        tool_id,
-                        tool_name: tool_name.clone(),
-                        rx,
-                    });
-                    // 日志（AddMessage 对应）：工具名 + 参数摘要。
-                    self.console.info(format!(
-                        "运行工具「{}」（{}）",
-                        tool_name,
-                        st.values.join("；")
-                    ));
                 }
             }
         }
@@ -4879,6 +4908,24 @@ impl ConsoleHost for KanyuApp {
         // 终端路径无 ctx：标记待应用，下一帧 ui() 开头统一 apply_theme。
         self.theme_dirty = true;
         self.canvas.dirty = true;
+    }
+
+    /// AI 意图面：运行工具箱工具（复用对话框同一后台链路）。
+    fn host_run_tool(&mut self, id: &str, values: &[String]) -> Result<String, String> {
+        // 注册表查得 &'static id（find 返回静态引用）。
+        let static_id = kanyu_core::tooldef::find(id)
+            .map(|d| d.id)
+            .ok_or_else(|| format!("未知工具: {id}"))?;
+        self.start_tool_run(static_id, values.to_vec())
+    }
+
+    /// AI 意图面：图层字段清单（字段参数提取用）。
+    fn host_layer_fields(&self, id: &str) -> Vec<String> {
+        self.layers
+            .iter()
+            .find(|e| e.layer.id() == id)
+            .map(|e| e.summary.fields.clone())
+            .unwrap_or_default()
     }
 }
 

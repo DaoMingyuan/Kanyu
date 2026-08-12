@@ -86,6 +86,8 @@ pub struct ShellArgs {
     pub wgpu_demo: bool,
     /// 隐藏验证参数：双三维框同开 wgpu（多视口分键截图验证）。
     pub wgpu_demo2: bool,
+    /// 隐藏验证参数：AI 对话预置演示记录（意图面回复态截图验证）。
+    pub ai_demo: bool,
     /// 隐藏验证参数：双地图框各自图层集（load[0]→主框，load[1]→新建三维场景框，截图验证切换联动）。
     pub frames_demo: bool,
     /// 隐藏验证参数：同 frames-demo 但场景框关闭（目录保留弱色行，截图验证关闭≠删除）。
@@ -125,6 +127,7 @@ impl Default for ShellArgs {
             snap_demo: false,
             wgpu_demo: false,
             wgpu_demo2: false,
+            ai_demo: false,
             frames_demo: false,
             frames_demo2: false,
             frames_demo3: false,
@@ -197,6 +200,7 @@ fn parse_args() -> ShellArgs {
             "--snap-demo" => args.snap_demo = true,
             "--wgpu-demo" => args.wgpu_demo = true,
             "--wgpu-demo2" => args.wgpu_demo2 = true,
+            "--ai-demo" => args.ai_demo = true,
             "--frames-demo" => args.frames_demo = true,
             "--frames-demo2" => args.frames_demo2 = true,
             "--frames-demo3" => args.frames_demo3 = true,

@@ -52,8 +52,9 @@ fn vs_prism(v: Vin) -> Vout {
 @fragment
 fn fs_prism(v: Vout) -> @location(0) vec4<f32> {
     let l = normalize(u.light.xyz);
-    // 两侧同光（abs）：线/点与侧壁不区分内外朝向，保证全部可读。
-    let d = abs(dot(normalize(v.nrm), l));
+    // 单侧 Lambert：背剔开启后可见面恒朝相机，max 截断给自然明暗
+    //（点标记双面发射已保证恒有朝光面）。
+    let d = max(dot(normalize(v.nrm), l), 0.0);
     let shade = 0.35 + 0.65 * d;
     return vec4<f32>(v.col.rgb * shade, v.col.a);
 }

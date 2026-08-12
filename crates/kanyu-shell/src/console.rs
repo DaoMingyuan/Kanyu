@@ -191,6 +191,16 @@ pub trait ConsoleHost {
     fn host_fit(&mut self);
     /// 切换主题。
     fn host_toggle_theme(&mut self);
+    /// 运行工具箱工具（后台线程 + 进度模态；values 与参数表对齐，
+    /// 可选参数缺省补默认值）。默认：宿主不支持（FakeHost/测试不被迫实现）。
+    fn host_run_tool(&mut self, id: &str, values: &[String]) -> Result<String, String> {
+        let _ = (id, values);
+        Err("当前宿主不支持工具运行".to_string())
+    }
+    /// 图层字段清单（AI 意图解析的字段参数提取用）。
+    fn host_layer_fields(&self, _id: &str) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// 命令速查（help 输出，也是 docs 的单一事实来源）。

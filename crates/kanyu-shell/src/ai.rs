@@ -91,18 +91,401 @@ pub trait AiDriver {
 ///
 /// 映射规则（顺序匹配，命中即执行并回复）：
 /// - 缓冲：「缓冲 <图层> <距离>」「给 X 做 N 缓冲/缓冲区」
-/// - 打开：「打开 <路径>」「加载 <路径>」
-/// - 图层：「图层/有哪些图层/查看图层」
-/// - 概要：「概要/info <图层>」
-/// - 查询：「查询 <图层> <表达式>」
-/// - 度量：「量长度/量面积 <图层>」
-/// - 导出：「导出 <图层> <路径>」
-/// - 帮助：「帮助/能做什么」
+/// - 工具箱意图面（38 工具注册表）：工具中文名精确/前缀/包含匹配
+///   并按参数表提参（图层/数值/字段/枚举……），缺参给用法引导，
+///   多候选给歧义清单（[`match_tool_exact`]/[`extract_tool_values`] 纯函数）。
+/// - 打开：「打开 <路径>」「加载 <路径>」；图层/概要/查询/度量/导出/帮助。
 pub struct LocalDriver;
+
+/// 工具名匹配结果。
+#[derive(Debug)]
+pub enum ToolMatch {
+    /// 唯一命中。
+    One(&'static kanyu_core::tooldef::ToolDef),
+    /// 歧义候选（工具中文名清单）。
+    Ambiguous(Vec<&'static str>),
+    /// 未命中。
+    None,
+}
+
+/// 工具名完全包含匹配（输入含完整工具名；多名命中取最长——
+/// 「按字段缓冲区 X」中的「缓冲区」不会误截；同长多名 → 歧义）。
+pub fn match_tool_exact(text: &str) -> ToolMatch {
+    use kanyu_core::tooldef::TOOLS;
+    let mut hits: Vec<_> = TOOLS.iter().filter(|d| text.contains(d.name)).collect();
+    if hits.is_empty() {
+        return ToolMatch::None;
+    }
+    let max_len = hits
+        .iter()
+        .map(|d| d.name.chars().count())
+        .max()
+        .unwrap_or(0);
+    hits.retain(|d| d.name.chars().count() == max_len);
+    if hits.len() == 1 {
+        ToolMatch::One(hits[0])
+    } else {
+        ToolMatch::Ambiguous(hits.iter().map(|d| d.name).collect())
+    }
+}
+
+/// 工具名前缀/子串猜测（首分词 ≥2 字符且被工具名包含；如「缓冲」→ 三候选）。
+pub fn match_tool_prefix(text: &str) -> ToolMatch {
+    use kanyu_core::tooldef::TOOLS;
+    let first = text
+        .split(|c: char| c.is_whitespace() || "，。、；：,.;:".contains(c))
+        .next()
+        .unwrap_or("")
+        .trim();
+    if first.chars().count() < 2 {
+        return ToolMatch::None;
+    }
+    let cands: Vec<_> = TOOLS.iter().filter(|d| d.name.contains(first)).collect();
+    match cands.len() {
+        0 => ToolMatch::None,
+        1 => ToolMatch::One(cands[0]),
+        _ => ToolMatch::Ambiguous(cands.iter().map(|d| d.name).collect()),
+    }
+}
+
+/// 用法引导文本（缺参/歧义回复用；示例按参数类型生成，图层取现场首个）。
+pub fn usage_of(def: &kanyu_core::tooldef::ToolDef, layers: &[String]) -> String {
+    use kanyu_core::tooldef::ParamKind;
+    let params: Vec<String> = def
+        .params
+        .iter()
+        .map(|p| {
+            format!(
+                "{}{}",
+                p.label,
+                if p.required {
+                    "（必填）"
+                } else {
+                    "（可选）"
+                }
+            )
+        })
+        .collect();
+    let example: Vec<String> = def
+        .params
+        .iter()
+        .map(|p| match &p.kind {
+            ParamKind::Layer => layers
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "图层名".to_string()),
+            ParamKind::Number | ParamKind::Long => "0.1".to_string(),
+            ParamKind::NumberList => "100,200".to_string(),
+            ParamKind::LinearUnit => "0.1 度".to_string(),
+            ParamKind::Field(_) => "字段名".to_string(),
+            ParamKind::Enum(opts) => opts
+                .first()
+                .map(|(_, zh)| zh.to_string())
+                .unwrap_or_default(),
+            ParamKind::Boolean => "是".to_string(),
+            ParamKind::Expression => "height > 50".to_string(),
+            ParamKind::Crs => "EPSG:4490".to_string(),
+            ParamKind::OutFile => "输出路径.geojson".to_string(),
+            _ => p.hint.to_string(),
+        })
+        .collect();
+    format!(
+        "「{}」参数：{}。示例：{} {}",
+        def.name,
+        params.join("、"),
+        def.name,
+        example.join(" ")
+    )
+}
+
+/// 从文本提取工具参数值（按参数表顺序；纯函数）。
+/// 返回与参数表等长的值（缺失可选补默认值）；缺必填 → Err(用法引导)。
+pub fn extract_tool_values(
+    def: &kanyu_core::tooldef::ToolDef,
+    text: &str,
+    layers: &[String],
+    fields_of: &dyn Fn(&str) -> Vec<String>,
+) -> Result<Vec<String>, String> {
+    // 去掉工具名（首个出现处）后分词：空白 + 中英文标点（不含 '.'——小数点/扩展名不可分割）。
+    let rest = text.replacen(def.name, "", 1);
+    let tokens: Vec<String> = rest
+        .split(|c: char| c.is_whitespace() || "，。、；：,;（）()「」".contains(c))
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect();
+    let mut used = vec![false; tokens.len()];
+    let mut chosen_layer: Option<String> = None;
+    let mut values: Vec<String> = Vec::new();
+    let mut missing: Vec<&str> = Vec::new();
+    for p in def.params {
+        let got = extract_param(p, &tokens, &mut used, layers, &mut chosen_layer, fields_of);
+        match got {
+            Some(v) => values.push(v),
+            None => {
+                // 必填且无默认值才算缺参（有默认值的按对话框语义取默认）。
+                if p.required && p.default.is_empty() {
+                    missing.push(p.label);
+                }
+                values.push(p.default.to_string());
+            }
+        }
+    }
+    if !missing.is_empty() {
+        return Err(format!(
+            "「{}」还缺 {}：{}",
+            def.name,
+            missing.join("、"),
+            usage_of(def, layers)
+        ));
+    }
+    Ok(values)
+}
+
+/// 单参数提取（按类型从分词中取值；取中即消耗）。
+fn extract_param(
+    p: &kanyu_core::tooldef::ToolParam,
+    tokens: &[String],
+    used: &mut [bool],
+    layers: &[String],
+    chosen_layer: &mut Option<String>,
+    fields_of: &dyn Fn(&str) -> Vec<String>,
+) -> Option<String> {
+    use kanyu_core::tooldef::ParamKind;
+    /// 记号里的数值（允许「距离0.1」这类标签前缀粘连）。
+    fn number_in(t: &str) -> Option<String> {
+        let start = t.find(|c: char| c.is_ascii_digit() || c == '-' || c == '.')?;
+        let v: String = t[start..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
+            .collect();
+        v.parse::<f64>().ok().map(|_| v)
+    }
+    match &p.kind {
+        ParamKind::Layer => {
+            // 精确或包含匹配图层 id（最长 id 优先防子串误中）。
+            let mut cand: Option<(usize, String)> = None;
+            for l in layers {
+                for (i, t) in tokens.iter().enumerate() {
+                    if used[i] || !(t == l || t.contains(l.as_str())) {
+                        continue;
+                    }
+                    if cand.as_ref().is_none_or(|(_, cl)| l.len() > cl.len()) {
+                        cand = Some((i, l.clone()));
+                    }
+                }
+            }
+            cand.map(|(i, l)| {
+                used[i] = true;
+                *chosen_layer = Some(l.clone());
+                l
+            })
+        }
+        ParamKind::MultiLayers => {
+            let ids: Vec<String> = layers
+                .iter()
+                .filter(|l| {
+                    tokens
+                        .iter()
+                        .enumerate()
+                        .any(|(i, t)| !used[i] && t.contains(l.as_str()))
+                })
+                .cloned()
+                .collect();
+            if ids.is_empty() {
+                None
+            } else {
+                for (i, t) in tokens.iter().enumerate() {
+                    if ids.iter().any(|l| t.contains(l.as_str())) {
+                        used[i] = true;
+                    }
+                }
+                Some(ids.join("\n"))
+            }
+        }
+        ParamKind::Field(_) => {
+            let fields: Vec<String> = chosen_layer.as_deref().map(fields_of).unwrap_or_default();
+            for (i, t) in tokens.iter().enumerate() {
+                if used[i] {
+                    continue;
+                }
+                let clean = t
+                    .trim_start_matches("按字段")
+                    .trim_start_matches("字段")
+                    .trim_start_matches("按");
+                if fields.iter().any(|f| f == clean) {
+                    used[i] = true;
+                    return Some(clean.to_string());
+                }
+            }
+            // 兜底：首个非数值、非图层的未用记号当字段名（内核校验中文报错兜底）。
+            for (i, t) in tokens.iter().enumerate() {
+                if used[i]
+                    || number_in(t).is_some()
+                    || layers.iter().any(|l| t.contains(l.as_str()))
+                {
+                    continue;
+                }
+                used[i] = true;
+                return Some(t.clone());
+            }
+            None
+        }
+        ParamKind::Number | ParamKind::Long => tokens
+            .iter()
+            .enumerate()
+            .find(|(i, t)| !used[*i] && number_in(t).is_some())
+            .map(|(i, t)| {
+                used[i] = true;
+                number_in(t).expect("已判定含数值")
+            }),
+        ParamKind::NumberList => {
+            let hits: Vec<(usize, String)> = tokens
+                .iter()
+                .enumerate()
+                .filter(|(i, t)| !used[*i] && number_in(t).is_some())
+                .map(|(i, t)| (i, number_in(t).expect("已判定含数值")))
+                .collect();
+            if hits.is_empty() {
+                None
+            } else {
+                let mut out = Vec::new();
+                for (i, v) in hits {
+                    used[i] = true;
+                    out.push(v);
+                }
+                Some(out.join(","))
+            }
+        }
+        ParamKind::LinearUnit => {
+            // 数值 + 可选单位词（米/千米/公里/度）；裸数值按 CRS 单位直通（"度"）。
+            for (i, t) in tokens.iter().enumerate() {
+                if used[i] {
+                    continue;
+                }
+                if let Some(v) = number_in(t) {
+                    used[i] = true;
+                    let unit = if t.contains("千米") || t.contains("公里") {
+                        "千米"
+                    } else if t.contains('米') {
+                        "米"
+                    } else if t.contains('度') {
+                        "度"
+                    } else if let Some((j, u)) = tokens.iter().enumerate().find(|(j, u)| {
+                        !used[*j] && matches!(u.as_str(), "米" | "千米" | "公里" | "度")
+                    }) {
+                        used[j] = true; // 消耗单位记号
+                        match u.as_str() {
+                            "米" => "米",
+                            "度" => "度",
+                            _ => "千米",
+                        }
+                    } else {
+                        "度" // 裸数值：CRS 单位直通（经纬度即度）
+                    };
+                    return Some(format!("{v}|{unit}"));
+                }
+            }
+            None
+        }
+        ParamKind::Enum(opts) => tokens.iter().enumerate().find_map(|(i, t)| {
+            if used[i] {
+                return None;
+            }
+            opts.iter()
+                .find(|(val, zh)| t == val || t == zh || t.contains(zh))
+                .map(|(val, _)| {
+                    used[i] = true;
+                    val.to_string()
+                })
+        }),
+        ParamKind::Boolean => tokens.iter().enumerate().find_map(|(i, t)| {
+            if used[i] {
+                return None;
+            }
+            let hit = match t.as_str() {
+                "是" | "开" | "开启" | "true" => Some("true"),
+                "否" | "关" | "关闭" | "false" => Some("false"),
+                _ => None,
+            };
+            hit.map(|h| {
+                used[i] = true;
+                h.to_string()
+            })
+        }),
+        ParamKind::Expression => tokens.iter().enumerate().find_map(|(i, t)| {
+            if used[i] || !(t.contains('>') || t.contains('<') || t.contains('=')) {
+                return None;
+            }
+            used[i] = true;
+            Some(t.clone())
+        }),
+        ParamKind::Crs => tokens.iter().enumerate().find_map(|(i, t)| {
+            if used[i] || !t.to_ascii_uppercase().starts_with("EPSG") {
+                return None;
+            }
+            used[i] = true;
+            Some(t.clone())
+        }),
+        ParamKind::Extent => {
+            let hits: Vec<(usize, String)> = tokens
+                .iter()
+                .enumerate()
+                .filter(|(i, t)| !used[*i] && number_in(t).is_some())
+                .take(4)
+                .map(|(i, t)| (i, number_in(t).expect("已判定含数值")))
+                .collect();
+            if hits.len() == 4 {
+                let mut out = Vec::new();
+                for (i, v) in hits {
+                    used[i] = true;
+                    out.push(v);
+                }
+                Some(out.join(","))
+            } else {
+                None
+            }
+        }
+        ParamKind::OutFile => tokens.iter().enumerate().find_map(|(i, t)| {
+            if used[i] || !t.contains('.') {
+                return None;
+            }
+            used[i] = true;
+            Some(t.clone())
+        }),
+        ParamKind::Text => tokens.iter().enumerate().find_map(|(i, t)| {
+            if used[i] {
+                return None;
+            }
+            used[i] = true;
+            Some(t.clone())
+        }),
+    }
+}
+
+/// 帮助回复（工具分类面 + 示例；注册表单一事实来源投影）。
+pub fn tools_help() -> String {
+    use kanyu_core::tooldef::{ToolCategory, TOOLS};
+    let mut out = String::from("我能直接驱动工具箱全部工具——说「工具中文名 + 参数」即可：\n");
+    for cat in ToolCategory::ALL {
+        let names: Vec<&str> = TOOLS
+            .iter()
+            .filter(|t| t.category == cat)
+            .map(|t| t.name)
+            .collect();
+        out.push_str(&format!("· {}：{}\n", cat.label(), names.join("、")));
+    }
+    out.push_str("示例：「缓冲区 buildings 0.1」「质心 buildings」「融合 buildings 按字段 zone」");
+    out
+}
 
 impl LocalDriver {
     /// 意图解析（纯函数，可单测）：返回解析后的意图。
-    pub fn parse(input: &str, layers: &[String]) -> ParsedIntent {
+    /// `fields_of`：图层 id → 字段清单（字段参数提取用）。
+    pub fn parse(
+        input: &str,
+        layers: &[String],
+        fields_of: &dyn Fn(&str) -> Vec<String>,
+    ) -> ParsedIntent {
         let text = input.trim();
         // 找图层引用：输入中出现的已知图层 id（最长匹配优先）。
         let layer_hit = layers
@@ -111,7 +494,7 @@ impl LocalDriver {
             .max_by_key(|id| id.len())
             .cloned();
 
-        // 缓冲。
+        // 缓冲（遗留专用意图：唯一图层自动补全/缺图层引导）。
         if let Some(d) = extract_number_after(text, &["缓冲", "缓冲区", "buffer"]) {
             if let Some(layer) = layer_hit {
                 return ParsedIntent::Buffer { layer, distance: d };
@@ -125,6 +508,21 @@ impl LocalDriver {
             return ParsedIntent::Advice(
                 "想给谁做缓冲？请带上图层名，如：缓冲 buildings 500".to_string(),
             );
+        }
+        // 工具箱意图面：工具名完全包含（最长名优先；buffer 已被上面覆盖）。
+        match match_tool_exact(text) {
+            ToolMatch::One(def) => {
+                return match extract_tool_values(def, text, layers, fields_of) {
+                    Ok(values) => ParsedIntent::RunTool {
+                        id: def.id,
+                        name: def.name,
+                        values,
+                    },
+                    Err(usage) => ParsedIntent::Advice(usage),
+                };
+            }
+            ToolMatch::Ambiguous(names) => return ParsedIntent::AmbiguousTools(names),
+            ToolMatch::None => {}
         }
         // 打开/加载。
         for kw in ["打开", "加载", "open", "load"] {
@@ -178,6 +576,21 @@ impl LocalDriver {
         {
             return ParsedIntent::Help;
         }
+        // 工具名前缀/子串猜测（「缓冲」→ 三候选歧义；「质心」→ 唯一命中缺参引导）。
+        match match_tool_prefix(text) {
+            ToolMatch::One(def) => {
+                return match extract_tool_values(def, text, layers, fields_of) {
+                    Ok(values) => ParsedIntent::RunTool {
+                        id: def.id,
+                        name: def.name,
+                        values,
+                    },
+                    Err(usage) => ParsedIntent::Advice(usage),
+                };
+            }
+            ToolMatch::Ambiguous(names) => return ParsedIntent::AmbiguousTools(names),
+            ToolMatch::None => {}
+        }
         ParsedIntent::Fallback
     }
 }
@@ -199,6 +612,14 @@ pub enum ParsedIntent {
     Help,
     /// 可执行但缺参数的建议。
     Advice(String),
+    /// 工具箱工具调用（id + 与参数表对齐的值）。
+    RunTool {
+        id: &'static str,
+        name: &'static str,
+        values: Vec<String>,
+    },
+    /// 工具名歧义（候选中文名清单）。
+    AmbiguousTools(Vec<&'static str>),
     /// 未识别。
     Fallback,
 }
@@ -339,6 +760,40 @@ impl Default for AiChatPanel {
 }
 
 impl AiChatPanel {
+    /// 演示对话（截图验证：工具缺参引导 + 派发确认回复态）。
+    pub fn demo_conversation(&mut self) {
+        let fbuf = kanyu_core::tooldef::TOOLS
+            .iter()
+            .find(|t| t.name == "按字段缓冲区")
+            .expect("注册表有按字段缓冲区");
+        let layers = vec!["buildings".to_string()];
+        self.history = vec![
+            ChatMsg {
+                role: "assistant".to_string(),
+                content: "你好，我是堪舆灵。说「工具中文名 + 参数」即可驱动工具箱，如「缓冲区 buildings 0.1」；「帮助」看全部可用工具。".to_string(),
+            },
+            ChatMsg {
+                role: "user".to_string(),
+                content: "按字段缓冲区".to_string(),
+            },
+            ChatMsg {
+                role: "assistant".to_string(),
+                content: format!(
+                    "「按字段缓冲区」还缺 输入图层、距离字段：{}",
+                    usage_of(fbuf, &layers)
+                ),
+            },
+            ChatMsg {
+                role: "user".to_string(),
+                content: "质心 buildings".to_string(),
+            },
+            ChatMsg {
+                role: "assistant".to_string(),
+                content: "已派发「质心」后台执行：「质心」（buildings）。\n完成后新图层/报告见图层面板与终端。".to_string(),
+            },
+        ];
+    }
+
     /// 面板 UI。host 为命令宿主（与终端同一通道），layers 为当前图层 id 清单。
     pub fn ui(&mut self, ui: &mut egui::Ui, host: &mut dyn ConsoleHost) {
         let layers: Vec<String> = host
@@ -513,8 +968,22 @@ impl AiChatPanel {
         }
 
         // 本地：意图分派到命令通道。
-        let intent = LocalDriver::parse(text_in, layers);
+        let intent = {
+            let fields_of = |id: &str| host.host_layer_fields(id);
+            LocalDriver::parse(text_in, layers, &fields_of)
+        };
         let reply = match intent {
+            ParsedIntent::RunTool { id, name, values } => match host.host_run_tool(id, &values) {
+                Ok(msg) => format!(
+                    "{msg}：「{name}」（{}）。\n完成后新图层/报告见图层面板与终端。",
+                    values.join(" ")
+                ),
+                Err(e) => format!("「{name}」未执行: {e}"),
+            },
+            ParsedIntent::AmbiguousTools(names) => format!(
+                "你是指哪个工具？{}\n请说全名（可带参数，如「多环缓冲区 buildings 100,200」）。",
+                names.join("、")
+            ),
             ParsedIntent::Buffer { layer, distance } => match host.host_buffer(&layer, distance) {
                 Ok(msg) => format!("已执行：buffer {layer} {distance}。{msg}"),
                 Err(e) => format!("缓冲失败: {e}"),
@@ -546,9 +1015,10 @@ impl AiChatPanel {
                     Err(e) => format!("导出失败: {e}"),
                 }
             }
-            ParsedIntent::Help => {
-                "我目前能直接驱动：\n· 缓冲：缓冲 <图层> <距离>\n· 打开：打开 <路径>\n· 图层：有哪些图层\n· 度量：量长度/量面积 <图层>\n· 导出：导出 <图层> <路径>\n更多命令请切到「终端」页签输入 help。".to_string()
-            }
+            ParsedIntent::Help => format!(
+                "{}\n\n快捷命令：「打开 <路径>」「有哪些图层」「量长度/量面积 <图层>」「导出 <图层> <路径>」；更多命令见「终端」页签 help。",
+                tools_help()
+            ),
             ParsedIntent::Advice(msg) => msg,
             ParsedIntent::Fallback => {
                 if layers.is_empty() {
@@ -620,16 +1090,24 @@ mod tests {
         vec!["buildings".to_string(), "roads".to_string()]
     }
 
+    /// 字段提取桩（buildings 带 height/name/zone）。
+    fn fields_of(id: &str) -> Vec<String> {
+        match id {
+            "buildings" => vec!["height".into(), "name".into(), "zone".into()],
+            _ => Vec::new(),
+        }
+    }
+
     #[test]
     fn parse_buffer_with_layer_and_distance() {
-        match LocalDriver::parse("缓冲 buildings 500", &layers()) {
+        match LocalDriver::parse("缓冲 buildings 500", &layers(), &fields_of) {
             ParsedIntent::Buffer { layer, distance } => {
                 assert_eq!(layer, "buildings");
                 assert_eq!(distance, 500.0);
             }
             other => panic!("应为 Buffer: {other:?}"),
         }
-        match LocalDriver::parse("给 roads 做 200 米缓冲区", &layers()) {
+        match LocalDriver::parse("给 roads 做 200 米缓冲区", &layers(), &fields_of) {
             ParsedIntent::Buffer { layer, distance } => {
                 assert_eq!(layer, "roads");
                 assert_eq!(distance, 200.0);
@@ -640,15 +1118,15 @@ mod tests {
 
     #[test]
     fn parse_load_and_layers_and_measure() {
-        match LocalDriver::parse("打开 examples/buildings.geojson", &layers()) {
+        match LocalDriver::parse("打开 examples/buildings.geojson", &layers(), &fields_of) {
             ParsedIntent::Load(p) => assert_eq!(p, "examples/buildings.geojson"),
             other => panic!("应为 Load: {other:?}"),
         }
         assert!(matches!(
-            LocalDriver::parse("有哪些图层", &layers()),
+            LocalDriver::parse("有哪些图层", &layers(), &fields_of),
             ParsedIntent::Layers
         ));
-        match LocalDriver::parse("量面积 buildings", &layers()) {
+        match LocalDriver::parse("量面积 buildings", &layers(), &fields_of) {
             ParsedIntent::Measure { kind, .. } => assert_eq!(kind, "area"),
             other => panic!("应为 Measure: {other:?}"),
         }
@@ -657,12 +1135,12 @@ mod tests {
     #[test]
     fn parse_fallback_and_buffer_without_layer() {
         assert!(matches!(
-            LocalDriver::parse("今天天气如何", &layers()),
+            LocalDriver::parse("今天天气如何", &layers(), &fields_of),
             ParsedIntent::Fallback
         ));
         // 无图层名但只有一个图层时自动补全。
         let one = vec!["solo".to_string()];
-        match LocalDriver::parse("缓冲 300", &one) {
+        match LocalDriver::parse("缓冲 300", &one, &fields_of) {
             ParsedIntent::Buffer { layer, distance } => {
                 assert_eq!(layer, "solo");
                 assert_eq!(distance, 300.0);
@@ -671,9 +1149,90 @@ mod tests {
         }
         // 多图层缺名 → Advice。
         assert!(matches!(
-            LocalDriver::parse("缓冲 300", &layers()),
+            LocalDriver::parse("缓冲 300", &layers(), &fields_of),
             ParsedIntent::Advice(_)
         ));
+    }
+
+    #[test]
+    fn tool_match_exact_longest_name_wins() {
+        // 「缓冲区」精确命中 buffer。
+        match match_tool_exact("缓冲区 buildings 0.1") {
+            ToolMatch::One(def) => assert_eq!(def.id, "buffer"),
+            other => panic!("应为 One(buffer): {other:?}"),
+        }
+        // 「按字段缓冲区 buildings zone」：最长名胜出（不误截为「缓冲区」）。
+        match match_tool_exact("按字段缓冲区 buildings zone") {
+            ToolMatch::One(def) => assert_eq!(def.name, "按字段缓冲区"),
+            other => panic!("应为 One(按字段缓冲区): {other:?}"),
+        }
+        assert!(matches!(match_tool_exact("今天天气"), ToolMatch::None));
+    }
+
+    #[test]
+    fn tool_match_prefix_ambiguity_and_unique() {
+        // 「缓冲」前缀 → 缓冲区/多环缓冲区/按字段缓冲区 三候选歧义。
+        match match_tool_prefix("缓冲") {
+            ToolMatch::Ambiguous(names) => {
+                assert!(names.contains(&"缓冲区"));
+                assert!(names.contains(&"多环缓冲区"));
+                assert!(names.contains(&"按字段缓冲区"));
+            }
+            other => panic!("应为歧义三候选: {other:?}"),
+        }
+        // 「质心」唯一命中。
+        match match_tool_prefix("质心") {
+            ToolMatch::One(def) => assert_eq!(def.name, "质心"),
+            other => panic!("应为 One(质心): {other:?}"),
+        }
+    }
+
+    #[test]
+    fn extract_values_buffer_and_field_buffer() {
+        let buf = kanyu_core::tooldef::find("buffer").unwrap();
+        // 图层 + 线性单位（裸数值 → 度直通）。
+        let v = extract_tool_values(buf, "缓冲区 buildings 0.1", &layers(), &fields_of).unwrap();
+        assert_eq!(v, vec!["buildings".to_string(), "0.1|度".to_string()]);
+        // 带单位词。
+        let v2 =
+            extract_tool_values(buf, "缓冲区 buildings 500 米", &layers(), &fields_of).unwrap();
+        assert_eq!(v2[1], "500|米");
+        // 缺图层 → Err 用法引导（含参数表与示例）。
+        let e = extract_tool_values(buf, "缓冲区 0.1", &layers(), &fields_of).unwrap_err();
+        assert!(e.contains("输入图层"), "{e}");
+        assert!(e.contains("示例"), "{e}");
+        // 按字段缓冲区：图层 + 字段（fields_of 命中）+ 可选整数取默认。
+        let fbuf = kanyu_core::tooldef::TOOLS
+            .iter()
+            .find(|t| t.name == "按字段缓冲区")
+            .unwrap();
+        let v3 = extract_tool_values(fbuf, "按字段缓冲区 buildings zone", &layers(), &fields_of)
+            .unwrap();
+        assert_eq!(v3[0], "buildings");
+        assert_eq!(v3[1], "zone");
+        assert_eq!(v3[2], "16", "可选 segments 取默认值");
+    }
+
+    #[test]
+    fn parse_tool_intent_end_to_end() {
+        // 质心（单图层参数）：直接可执行。
+        match LocalDriver::parse("质心 buildings", &layers(), &fields_of) {
+            ParsedIntent::RunTool { id, values, .. } => {
+                assert_eq!(id, "centroid");
+                assert_eq!(values, vec!["buildings".to_string()]);
+            }
+            other => panic!("应为 RunTool(centroid): {other:?}"),
+        }
+        // 缺参工具 → Advice 带用法。
+        match LocalDriver::parse("按字段缓冲区", &layers(), &fields_of) {
+            ParsedIntent::Advice(msg) => assert!(msg.contains("输入图层"), "{msg}"),
+            other => panic!("应为 Advice: {other:?}"),
+        }
+        // 「缓冲」裸词 → 歧义候选。
+        match LocalDriver::parse("缓冲", &layers(), &fields_of) {
+            ParsedIntent::AmbiguousTools(names) => assert!(names.len() >= 3),
+            other => panic!("应为 AmbiguousTools: {other:?}"),
+        }
     }
 
     #[test]
