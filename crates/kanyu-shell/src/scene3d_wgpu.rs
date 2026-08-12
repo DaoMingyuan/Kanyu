@@ -285,9 +285,54 @@ pub fn earcut(outer: &[[f64; 2]], holes: &[Vec<[f64; 2]>]) -> Vec<u32> {
 
 // ===== 网格构建（纯函数）=====
 
+/// 几何法线（叉积，未归一化；背剔绕向断言与网格定向共用）。
+pub fn face_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
+    let (u, v) = (
+        [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+        [c[0] - a[0], c[1] - a[1], c[2] - a[2]],
+    );
+    [
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0],
+    ]
+}
+
+/// 按期望法线定向后输出三角（几何叉积与期望法线点积为负则交换绕向——
+/// 背剔开启后绕向即正误，顶面/外壁/内壁统一在本函数收口）。
+fn push_face(
+    out: &mut Vec<PrismVertex>,
+    a: [f32; 3],
+    b: [f32; 3],
+    c: [f32; 3],
+    nrm: [f32; 3],
+    col: [f32; 4],
+) {
+    let n = face_normal(a, b, c);
+    let dot = n[0] * nrm[0] + n[1] * nrm[1] + n[2] * nrm[2];
+    let (b, c) = if dot < 0.0 { (c, b) } else { (b, c) };
+    for p in [a, b, c] {
+        out.push(PrismVertex { pos: p, nrm, col });
+    }
+}
+
+/// 侧壁 quad（两个三角；`nrm` 为期望朝向——外环朝外、洞环朝洞心）。
+#[allow(clippy::too_many_arguments)]
+fn push_wall(
+    out: &mut Vec<PrismVertex>,
+    wa0: [f32; 3],
+    wb0: [f32; 3],
+    wa1: [f32; 3],
+    wb1: [f32; 3],
+    nrm: [f32; 3],
+    col: [f32; 4],
+) {
+    push_face(out, wa0, wb0, wb1, nrm, col);
+    push_face(out, wa0, wb1, wa1, nrm, col);
+}
+
 /// 棱柱网格顶点（非索引三角面片）。
-/// 顶面耳切三角化（含洞桥接）；侧壁仅外环（洞壁不拉伸——取舍注释：
-/// 洞壁拉伸为后续小项，视觉影响极小）。
+/// 顶面耳切三角化（含洞桥接）；侧壁外环朝外、**洞内环拉伸为内壁（法线朝洞心）**。
 /// `center`/`scale`：数据坐标归一化到世界系（数据范围跨度 → 约 2 世界单位，
 /// 与视口解耦——平移缩放只动 MVP，见 [`orbit_mvp_at`]）。
 pub fn build_prism_mesh(
@@ -311,8 +356,8 @@ pub fn build_prism_mesh(
                 ((center.1 - p[1]) * scale) as f32, // 数据 y 翻转（北向上）
             ]
         };
-        // 顶面（耳切；法线 +y）。点表与 earcut 内部归一化一致
-        //（外 CCW / 洞 CW 后拼接——返回下标相对该序列）。
+        // 顶面（耳切；绕向经 push_face 统一为 +y）。点表与 earcut 内部
+        // 归一化一致（外 CCW / 洞 CW 后拼接——返回下标相对该序列）。
         let mut pts: Vec<[f64; 2]> = part.outer.clone();
         if signed_area2(&pts) < 0.0 {
             pts.reverse();
@@ -325,24 +370,55 @@ pub fn build_prism_mesh(
             pts.extend(h);
         }
         for tri in earcut(&part.outer, &part.holes).chunks_exact(3) {
-            for &idx in tri {
-                out.push(PrismVertex {
-                    pos: w(pts[idx as usize], top),
-                    nrm: [0.0, 1.0, 0.0],
-                    col,
-                });
-            }
+            push_face(
+                &mut out,
+                w(pts[tri[0] as usize], top),
+                w(pts[tri[1] as usize], top),
+                w(pts[tri[2] as usize], top),
+                [0.0, 1.0, 0.0],
+                col,
+            );
         }
-        // 侧壁（外环每边两个三角；水平外法线）。
+        // 外环侧壁（外法线）。
         for i in 0..n {
             let (a, b) = (part.outer[i], part.outer[(i + 1) % n]);
             let (wa0, wb0) = (w(a, 0.0), w(b, 0.0));
             let (wa1, wb1) = (w(a, top), w(b, top));
             let (dx, dz) = (wb0[0] - wa0[0], wb0[2] - wa0[2]);
             let len = (dx * dx + dz * dz).sqrt().max(1e-9);
-            let nrm = [dz / len, 0.0, -dx / len];
-            for p in [wa0, wb0, wb1, wa0, wb1, wa1] {
-                out.push(PrismVertex { pos: p, nrm, col });
+            push_wall(
+                &mut out,
+                wa0,
+                wb0,
+                wa1,
+                wb1,
+                [dz / len, 0.0, -dx / len],
+                col,
+            );
+        }
+        // 洞内环内壁（法线朝洞心：边中点→洞心方向与基法线取同号）。
+        for hole in &part.holes {
+            let m = hole.len();
+            if m < 3 {
+                continue;
+            }
+            // 洞心（世界系水平质心）。
+            let (ccx, ccz) = hole.iter().fold((0.0, 0.0), |(ax, az), p| {
+                let wp = w(*p, 0.0);
+                (ax + wp[0] / m as f32, az + wp[2] / m as f32)
+            });
+            for i in 0..m {
+                let (a, b) = (hole[i], hole[(i + 1) % m]);
+                let (wa0, wb0) = (w(a, 0.0), w(b, 0.0));
+                let (wa1, wb1) = (w(a, top), w(b, top));
+                let (dx, dz) = (wb0[0] - wa0[0], wb0[2] - wa0[2]);
+                let len = (dx * dx + dz * dz).sqrt().max(1e-9);
+                let mut nrm = [dz / len, 0.0, -dx / len];
+                let (mx, mz) = ((wa0[0] + wb0[0]) * 0.5, (wa0[2] + wb0[2]) * 0.5);
+                if nrm[0] * (ccx - mx) + nrm[2] * (ccz - mz) < 0.0 {
+                    nrm = [-nrm[0], 0.0, -nrm[2]]; // 翻向洞心
+                }
+                push_wall(&mut out, wa0, wb0, wa1, wb1, nrm, col);
             }
         }
     }
@@ -393,7 +469,8 @@ pub fn build_linework_mesh(
             }
         }
     }
-    // 点：十字交叉双 quad（任意方位角可读的体标记）。
+    // 点：十字交叉双 quad（任意方位角可读；背剔开启后正反绕向各发一份——
+    // 双份几何换恒可见，点要素量级小可承受）。
     for (pt, col) in points {
         let c = w(*pt, 0.0);
         let (sx, sy2) = (line_w * 1.5, line_w * 6.0); // 半宽/高
@@ -404,12 +481,15 @@ pub fn build_linework_mesh(
                 [c[0] + dx, sy2, c[2] + dz],
                 [c[0] - dx, sy2, c[2] - dz],
             ];
-            for p in [q[0], q[1], q[2], q[0], q[2], q[3]] {
-                out.push(PrismVertex {
-                    pos: p,
-                    nrm: [0.0, 0.0, 1.0],
-                    col: *col,
-                });
+            for (nrm, rev) in [([0.0, 0.0, 1.0], false), ([0.0, 0.0, -1.0], true)] {
+                let quad = if rev { [q[0], q[3], q[2], q[1]] } else { q };
+                for p in [quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]] {
+                    out.push(PrismVertex {
+                        pos: p,
+                        nrm,
+                        col: *col,
+                    });
+                }
             }
         }
     }
@@ -575,7 +655,10 @@ pub fn init(render_state: &egui_wgpu::RenderState) -> bool {
         }),
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
-            cull_mode: None, // 两侧同光不剔背（法线朝向外内均可读）
+            // 背面剔除：全部面片经 push_face 按期望法线统一绕向（顶 +y、
+            // 外壁朝外、洞内壁朝洞心）——世界系 CCW 顶视，front 恒 CCW。
+            cull_mode: Some(wgpu::Face::Back),
+            front_face: wgpu::FrontFace::Ccw,
             ..Default::default()
         },
         depth_stencil: Some(wgpu::DepthStencilState {
@@ -977,7 +1060,8 @@ mod tests {
         let side = &mesh[6];
         assert_eq!(side.nrm[1], 0.0);
         assert_eq!(side.pos[1], 0.0);
-        // 带洞部件：顶面三角数 = 外 4 + 洞 4 + 2 桥 - 2 = 8 三角（24 顶点）+ 侧壁 24。
+        // 带洞部件：顶面三角数 = 外 4 + 洞 4 + 2 桥 - 2 = 8 三角（24 顶点）+ 外侧壁 24
+        // + 洞内壁 24（洞环 4 壁 × 2 三角，背剔开启后内壁朝洞心）。
         let holed = PrismPart {
             outer: square(),
             holes: vec![vec![[0.25, 0.25], [0.5, 0.25], [0.5, 0.5], [0.25, 0.5]]],
@@ -985,12 +1069,13 @@ mod tests {
             color: [1.0; 4],
         };
         let mesh2 = build_prism_mesh(&[holed], (0.5, 0.5), 1.0, 1.0);
-        assert_eq!(mesh2.len(), 24 + 24);
+        assert_eq!(mesh2.len(), 24 + 24 + 24);
     }
 
     #[test]
     fn linework_mesh_lines_and_points() {
-        // 一段线 = 6 顶点（窄带）；一个点 = 12 顶点（十字双 quad）。
+        // 一段线 = 6 顶点（窄带）；一个点 = 十字双 quad × 正反两绕向（背剔后恒可见）
+        // = 24 顶点；合计 30。
         let mesh = build_linework_mesh(
             &[(vec![[0.0, 0.0], [1.0, 1.0]], [1.0, 0.0, 0.0, 1.0])],
             &[([0.5, 0.5], [0.0, 0.0, 1.0, 1.0])],
@@ -999,7 +1084,7 @@ mod tests {
             0.01,
             0.002,
         );
-        assert_eq!(mesh.len(), 18);
+        assert_eq!(mesh.len(), 30);
         // 线顶点抬离地面（防与棱柱底 z-fight）。
         assert!(mesh[0].pos[1] > 0.0);
     }
