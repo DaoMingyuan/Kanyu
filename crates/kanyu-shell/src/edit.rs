@@ -6,6 +6,10 @@
 //! - 命中检测（[`hit_vertex`]/[`hit_feature`]）：屏幕坐标 + 容差像素（统一
 //!   在屏幕空间度量，跨缩放级别手感一致）；点=最近点、线=点到折线距离、
 //!   面=射线法包含；纯函数配单测。
+//! - 线/面绘制（[`DrawState`]）：单击加顶点 → 双击/Enter 完成（面自动闭合）、
+//!   Backspace 撤最近顶点、Esc 放弃；状态机纯函数配单测。
+//! - 工具/图层几何匹配（[`tool_geometry_match`]）：点/线/面添加工具仅可用于
+//!   同型图层（空图层放行——首要素定型），不匹配给中文错误。
 
 use geojson::{FeatureCollection, Value as GeoValue};
 use kanyu_edit::{GeomPath, History};
@@ -25,8 +29,12 @@ pub enum EditTool {
     Vertex,
     /// 移动要素（整体拖动）。
     Move,
-    /// 添加点要素（点击插入；面/线添加属后续增量）。
+    /// 添加点（点击插入）。
     AddPoint,
+    /// 添加线（单击加顶点，双击/Enter 完成）。
+    AddLine,
+    /// 添加面（单击加顶点，双击/Enter 完成并自动闭合）。
+    AddPolygon,
     /// 删除要素（点击选中后删除）。
     Delete,
 }
@@ -38,10 +46,125 @@ impl EditTool {
             EditTool::Select => "选择",
             EditTool::Vertex => "顶点编辑",
             EditTool::Move => "移动要素",
-            EditTool::AddPoint => "添加点要素",
+            EditTool::AddPoint => "添加点",
+            EditTool::AddLine => "添加线",
+            EditTool::AddPolygon => "添加面",
             EditTool::Delete => "删除要素",
         }
     }
+}
+
+/// 绘制种类（线/面）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DrawKind {
+    /// 线（≥2 顶点）。
+    Line,
+    /// 面（≥3 顶点，完成时自动闭合）。
+    Polygon,
+}
+
+impl DrawKind {
+    /// 最少顶点数。
+    pub fn min_verts(self) -> usize {
+        match self {
+            DrawKind::Line => 2,
+            DrawKind::Polygon => 3,
+        }
+    }
+
+    /// 中文名。
+    pub fn label(self) -> &'static str {
+        match self {
+            DrawKind::Line => "线",
+            DrawKind::Polygon => "面",
+        }
+    }
+}
+
+/// 线/面绘制中状态（编辑会话持有；方法为纯数据操作，配单测）。
+#[derive(Debug, Clone)]
+pub struct DrawState {
+    /// 绘制种类。
+    pub kind: DrawKind,
+    /// 已定顶点（数据坐标 [x, y]，按加点顺序）。
+    pub verts: Vec<[f64; 2]>,
+}
+
+impl DrawState {
+    /// 开始一次绘制。
+    pub fn new(kind: DrawKind) -> Self {
+        Self {
+            kind,
+            verts: Vec::new(),
+        }
+    }
+
+    /// 加一个顶点。
+    pub fn add(&mut self, pt: (f64, f64)) {
+        self.verts.push([pt.0, pt.1]);
+    }
+
+    /// 撤最近顶点（无顶点可撤返回 false）。
+    pub fn undo(&mut self) -> bool {
+        self.verts.pop().is_some()
+    }
+
+    /// 完成构造几何：线 ≥2 点 / 面 ≥3 点且自动闭合；点数不足给中文错误。
+    pub fn finish(&self) -> Result<GeoValue, String> {
+        let n = self.verts.len();
+        let min = self.kind.min_verts();
+        if n < min {
+            return Err(format!(
+                "{}要素至少需要 {min} 个顶点（当前 {n} 个）",
+                self.kind.label()
+            ));
+        }
+        let pts: Vec<Vec<f64>> = self.verts.iter().map(|p| p.to_vec()).collect();
+        Ok(match self.kind {
+            DrawKind::Line => GeoValue::LineString(pts),
+            DrawKind::Polygon => {
+                let mut ring = pts;
+                if ring.first() != ring.last() {
+                    if let Some(first) = ring.first().cloned() {
+                        ring.push(first);
+                    }
+                }
+                GeoValue::Polygon(vec![ring])
+            }
+        })
+    }
+}
+
+/// 绘制工具 → 种类（非绘制工具为 None）。
+pub fn draw_kind_of(tool: EditTool) -> Option<DrawKind> {
+    match tool {
+        EditTool::AddLine => Some(DrawKind::Line),
+        EditTool::AddPolygon => Some(DrawKind::Polygon),
+        _ => None,
+    }
+}
+
+/// 工具与图层几何类型匹配判定（类型名取图层 summary.geometry_types 的 WKB 名）。
+/// 空图层（无类型记录）放行——首要素定型；不匹配给中文错误。
+pub fn tool_geometry_match(tool: EditTool, geometry_types: &[String]) -> Result<(), String> {
+    let (expected, zh) = match tool {
+        EditTool::AddPoint => (&["Point", "MultiPoint"][..], "点"),
+        EditTool::AddLine => (&["LineString", "MultiLineString"][..], "线"),
+        EditTool::AddPolygon => (&["Polygon", "MultiPolygon"][..], "面"),
+        _ => return Ok(()),
+    };
+    if geometry_types.is_empty()
+        || geometry_types
+            .iter()
+            .any(|t| expected.contains(&t.as_str()))
+    {
+        return Ok(());
+    }
+    Err(format!(
+        "「{}」工具仅适用于{zh}图层（当前图层几何类型：{}）",
+        tool.label(),
+        geometry_types.join("/")
+    ))
 }
 
 /// 编辑会话（app 持有；`target` = 目标图层 id）。
@@ -56,6 +179,8 @@ pub struct EditSession {
     pub tool: EditTool,
     /// 选中要素（Select/Delete 用）。
     pub selected: Option<usize>,
+    /// 线/面绘制中状态（绘制工具激活且已加点时 Some）。
+    pub drawing: Option<DrawState>,
 }
 
 impl EditSession {
@@ -67,6 +192,7 @@ impl EditSession {
             history: History::default(),
             tool: EditTool::Select,
             selected: None,
+            drawing: None,
         }
     }
 }
@@ -89,6 +215,14 @@ pub enum EditAction {
     Select(Option<usize>),
     /// 请求删除选中要素。
     DeleteSelected,
+    /// 绘制：加一个顶点（数据坐标）。
+    DrawAddVertex { pos: (f64, f64) },
+    /// 绘制：撤最近顶点。
+    DrawUndoVertex,
+    /// 绘制：放弃本次绘制。
+    DrawCancel,
+    /// 绘制：完成（构造几何 → 插入要素；点数不足由 app 给中文提示并保留现场）。
+    DrawFinish,
 }
 
 // ===== 命中检测（纯函数）=====
@@ -444,5 +578,82 @@ mod tests {
         assert!(!s.history.can_undo());
         s.tool = EditTool::Vertex;
         assert_eq!(s.tool.label(), "顶点编辑");
+        assert!(s.drawing.is_none());
+    }
+
+    #[test]
+    fn draw_state_machine_line() {
+        let mut d = DrawState::new(DrawKind::Line);
+        // 点数不足：完成给中文错误（当前 0/1 个）。
+        assert!(d.finish().unwrap_err().contains("至少需要 2 个顶点"));
+        d.add((0.0, 0.0));
+        assert!(d.finish().is_err());
+        d.add((1.0, 1.0));
+        d.add((2.0, 0.0));
+        // 撤最近顶点。
+        assert!(d.undo());
+        assert_eq!(d.verts.len(), 2);
+        // 完成 → LineString（不闭合）。
+        match d.finish().unwrap() {
+            GeoValue::LineString(line) => {
+                assert_eq!(line.len(), 2);
+                assert_eq!(line[0], vec![0.0, 0.0]);
+            }
+            other => panic!("应为 LineString: {other:?}"),
+        }
+        // 撤空后 false。
+        assert!(d.undo());
+        assert!(d.undo());
+        assert!(!d.undo());
+    }
+
+    #[test]
+    fn draw_state_machine_polygon_auto_close() {
+        let mut d = DrawState::new(DrawKind::Polygon);
+        d.add((0.0, 0.0));
+        d.add((4.0, 0.0));
+        assert!(d.finish().unwrap_err().contains("至少需要 3 个顶点"));
+        d.add((4.0, 4.0));
+        match d.finish().unwrap() {
+            GeoValue::Polygon(rings) => {
+                assert_eq!(rings.len(), 1);
+                assert_eq!(rings[0].len(), 4, "自动闭合");
+                assert_eq!(rings[0].first(), rings[0].last());
+            }
+            other => panic!("应为 Polygon: {other:?}"),
+        }
+        // 已闭合（首==尾）不重复补点。
+        let mut d2 = DrawState::new(DrawKind::Polygon);
+        d2.add((0.0, 0.0));
+        d2.add((4.0, 0.0));
+        d2.add((0.0, 0.0));
+        match d2.finish().unwrap() {
+            GeoValue::Polygon(rings) => assert_eq!(rings[0].len(), 3),
+            other => panic!("应为 Polygon: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn draw_kind_mapping_and_tool_match() {
+        assert_eq!(draw_kind_of(EditTool::AddLine), Some(DrawKind::Line));
+        assert_eq!(draw_kind_of(EditTool::AddPolygon), Some(DrawKind::Polygon));
+        assert_eq!(draw_kind_of(EditTool::AddPoint), None);
+        assert_eq!(draw_kind_of(EditTool::Select), None);
+        // 空图层放行（首要素定型）。
+        assert!(tool_geometry_match(EditTool::AddPoint, &[]).is_ok());
+        // 同型（含多部件）放行。
+        let pts = vec!["Point".to_string()];
+        assert!(tool_geometry_match(EditTool::AddPoint, &pts).is_ok());
+        let polys = vec!["MultiPolygon".to_string()];
+        assert!(tool_geometry_match(EditTool::AddPolygon, &polys).is_ok());
+        // 异型阻止 + 中文提示。
+        let e = tool_geometry_match(EditTool::AddPoint, &polys).unwrap_err();
+        assert!(e.contains("仅适用于点图层"), "{e}");
+        assert!(e.contains("MultiPolygon"), "{e}");
+        let lines = vec!["LineString".to_string()];
+        assert!(tool_geometry_match(EditTool::AddPolygon, &lines).is_err());
+        assert!(tool_geometry_match(EditTool::AddLine, &lines).is_ok());
+        // 非添加工具恒放行。
+        assert!(tool_geometry_match(EditTool::Vertex, &polys).is_ok());
     }
 }

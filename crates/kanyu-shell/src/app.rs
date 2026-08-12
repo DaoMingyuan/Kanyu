@@ -308,6 +308,17 @@ struct ServiceFetch {
     rx: std::sync::mpsc::Receiver<Result<FeatureCollection, String>>,
 }
 
+/// 裸几何 → 无属性要素（编辑插入用）。
+fn bare_feature(value: geojson::Value) -> geojson::Feature {
+    geojson::Feature {
+        bbox: None,
+        geometry: Some(geojson::Geometry::new(value)),
+        id: None,
+        properties: None,
+        foreign_members: None,
+    }
+}
+
 /// 渲染缓存 → 画布切片（目录树自下而上序；与 rebuild_merged 同一顺序约定）。
 /// 自由函数以便与 &mut canvas 共存（只借用 render_cache 字段）。
 fn build_layer_slices(
@@ -545,6 +556,29 @@ impl KanyuApp {
                 let name = first.file_name.clone();
                 let mut s = crate::edit::EditSession::new(id, name);
                 s.tool = crate::edit::EditTool::Vertex;
+                app.edit_session = Some(s);
+            }
+        }
+        // --draw-demo：添加面绘制中态（预置 3 顶点 + 演示光标橡皮筋，截图验证）。
+        if args.draw_demo {
+            if let Some(first) = app.layers.first() {
+                let id = first.layer.id().to_string();
+                let name = first.file_name.clone();
+                let mut s = crate::edit::EditSession::new(id, name);
+                s.tool = crate::edit::EditTool::AddPolygon;
+                if let Some(ext) = app.data_extent {
+                    let cx = f64::midpoint(ext[0], ext[2]);
+                    let cy = f64::midpoint(ext[1], ext[3]);
+                    let sx = (ext[2] - ext[0]).max(1e-9);
+                    let sy = (ext[3] - ext[1]).max(1e-9);
+                    let mut d = crate::edit::DrawState::new(crate::edit::DrawKind::Polygon);
+                    d.add((cx - 0.15 * sx, cy - 0.10 * sy));
+                    d.add((cx + 0.05 * sx, cy - 0.20 * sy));
+                    d.add((cx + 0.15 * sx, cy + 0.05 * sy));
+                    s.drawing = Some(d);
+                    // 演示光标（截图无真实悬停时的橡皮筋终点）。
+                    app.canvas.demo_sketch_cursor = Some((cx - 0.02 * sx, cy + 0.18 * sy));
+                }
                 app.edit_session = Some(s);
             }
         }
@@ -1259,15 +1293,7 @@ impl KanyuApp {
                 }))
             }
             EditAction::InsertPoint { pos } => {
-                let feature = geojson::Feature {
-                    bbox: None,
-                    geometry: Some(geojson::Geometry::new(geojson::Value::Point(vec![
-                        pos.0, pos.1,
-                    ]))),
-                    id: None,
-                    properties: None,
-                    foreign_members: None,
-                };
+                let feature = bare_feature(geojson::Value::Point(vec![pos.0, pos.1]));
                 Some(Box::new(kanyu_edit::InsertFeature {
                     feature,
                     index: coll.features.len(),
@@ -1291,6 +1317,55 @@ impl KanyuApp {
                     None
                 }
             },
+            // —— 线/面绘制（状态留在会话，不进 History；完成才转 InsertFeature）——
+            EditAction::DrawAddVertex { pos } => {
+                if let Some(kind) = crate::edit::draw_kind_of(session.tool) {
+                    let d = session
+                        .drawing
+                        .get_or_insert_with(|| crate::edit::DrawState::new(kind));
+                    d.add(pos);
+                    self.status = format!(
+                        "绘制中：{} 个顶点（双击/Enter 完成，Backspace 撤点，Esc 放弃）",
+                        d.verts.len()
+                    );
+                }
+                self.edit_session = Some(session);
+                return;
+            }
+            EditAction::DrawUndoVertex => {
+                if let Some(d) = &mut session.drawing {
+                    d.undo();
+                    self.status = format!("绘制中：{} 个顶点", d.verts.len());
+                }
+                self.edit_session = Some(session);
+                return;
+            }
+            EditAction::DrawCancel => {
+                if session.drawing.take().is_some() {
+                    self.status = "已放弃本次绘制".to_string();
+                }
+                self.edit_session = Some(session);
+                return;
+            }
+            EditAction::DrawFinish => {
+                let Some(d) = session.drawing.take() else {
+                    self.edit_session = Some(session);
+                    return;
+                };
+                match d.finish() {
+                    Ok(value) => Some(Box::new(kanyu_edit::InsertFeature {
+                        feature: bare_feature(value),
+                        index: coll.features.len(),
+                    })),
+                    Err(e) => {
+                        // 点数不足：中文提示并保留绘制现场（可继续加点）。
+                        self.toast_err(&e);
+                        session.drawing = Some(d);
+                        self.edit_session = Some(session);
+                        return;
+                    }
+                }
+            }
         };
         if let Some(cmd) = cmd {
             let desc = cmd.describe();
@@ -1511,8 +1586,22 @@ impl KanyuApp {
                 }
             }
             RibbonAction::SetEditTool(tool) => {
+                let Some(target) = self.edit_session.as_ref().map(|s| s.target.clone()) else {
+                    return;
+                };
+                // 点/线/面添加工具与目标图层几何类型匹配判定（不匹配阻止并中文提示）。
+                let types = self
+                    .layer_index(&target)
+                    .map(|i| self.layers[i].summary.geometry_types.clone())
+                    .unwrap_or_default();
+                if let Err(e) = crate::edit::tool_geometry_match(tool, &types) {
+                    self.toast_err(&e);
+                    self.console.push(crate::console::LineKind::Err, e);
+                    return;
+                }
                 if let Some(s) = &mut self.edit_session {
                     s.tool = tool;
+                    s.drawing = None; // 切换工具放弃未完成绘制
                     self.status = format!("编辑工具 → {}", tool.label());
                 }
             }
@@ -2951,13 +3040,19 @@ impl eframe::App for KanyuApp {
         let span = self.view_bbox.map(|b| b[2] - b[0]);
         // 编辑会话指示（ArcGIS 状态栏语义）。
         let status = match &self.edit_session {
-            Some(s) => format!(
-                "编辑中: {}（{} 步可撤销，工具: {}） | {}",
-                s.target_name,
-                s.history.len(),
-                s.tool.label(),
-                self.status
-            ),
+            Some(s) => {
+                let tool = match &s.drawing {
+                    Some(d) => format!("{}（绘制中 {} 点）", s.tool.label(), d.verts.len()),
+                    None => s.tool.label().to_string(),
+                };
+                format!(
+                    "编辑中: {}（{} 步可撤销，工具: {}） | {}",
+                    s.target_name,
+                    s.history.len(),
+                    tool,
+                    self.status
+                )
+            }
             None => self.status.clone(),
         };
         let count = self.visible_feature_count();
@@ -3260,6 +3355,7 @@ impl eframe::App for KanyuApp {
                         tool: s.tool,
                         target: s.target.as_str(),
                         selected: s.selected,
+                        drawing: s.drawing.as_ref(),
                     });
                     let out = self.canvas.ui(
                         ui,

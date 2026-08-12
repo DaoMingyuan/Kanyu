@@ -187,6 +187,8 @@ fn layout_of(tab: RibbonTab) -> &'static [GroupLayout] {
                     "edit_vertex",
                     "edit_move",
                     "edit_add_point",
+                    "edit_add_line",
+                    "edit_add_polygon",
                     "edit_delete",
                 ],
             },

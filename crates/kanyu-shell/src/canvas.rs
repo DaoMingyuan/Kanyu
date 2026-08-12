@@ -27,6 +27,8 @@ pub struct MapCanvas {
     pub dirty: bool,
     /// 编辑按下捕获（编辑态手势暂存）。
     edit_press: Option<EditPress>,
+    /// 演示用草图光标（数据坐标；截图验证橡皮筋预览，真实悬停优先）。
+    pub demo_sketch_cursor: Option<(f64, f64)>,
 }
 
 /// 编辑按下捕获（顶点/要素/起点）。
@@ -56,6 +58,7 @@ impl Default for MapCanvas {
             textures: Vec::new(),
             dirty: true,
             edit_press: None,
+            demo_sketch_cursor: None,
         }
     }
 }
@@ -168,6 +171,18 @@ impl MapCanvas {
                     None
                 }
                 EditTool::AddPoint => Some(EditAction::InsertPoint { pos: cur }),
+                EditTool::AddLine | EditTool::AddPolygon => {
+                    // 双击 = 加最后顶点并完成（第一击已加点，第二击仅结算）。
+                    if response.double_clicked() {
+                        return Some(EditAction::DrawFinish);
+                    }
+                    // 单击（位移 ≤2px）加顶点；拖动不加点。
+                    if moved_px <= 2.0 {
+                        Some(EditAction::DrawAddVertex { pos: cur })
+                    } else {
+                        None
+                    }
+                }
                 EditTool::Select | EditTool::Delete => {
                     let sp = (pos.x - rect.min.x, pos.y - rect.min.y);
                     let hit = crate::edit::hit_feature(
@@ -188,6 +203,18 @@ impl MapCanvas {
                 && ui.input(|i| i.key_pressed(egui::Key::Delete))
             {
                 return Some(EditAction::DeleteSelected);
+            }
+            // 绘制中快捷键：Enter 完成 / Esc 放弃 / Backspace 撤点。
+            if response.hovered() && ev.drawing.is_some() {
+                if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    return Some(EditAction::DrawFinish);
+                }
+                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                    return Some(EditAction::DrawCancel);
+                }
+                if ui.input(|i| i.key_pressed(egui::Key::Backspace)) {
+                    return Some(EditAction::DrawUndoVertex);
+                }
             }
             None
         }
@@ -227,6 +254,81 @@ impl MapCanvas {
                 egui::StrokeKind::Middle,
             );
         }
+    }
+
+    /// 线/面绘制草图预览：已定点串（实线 + 顶点小方块）+ 到光标的橡皮筋
+    /// （accent 虚线）；面 ≥3 点时补首末虚线预示闭合。
+    #[allow(clippy::too_many_arguments)]
+    fn draw_sketch(
+        &self,
+        ui: &egui::Ui,
+        rect: Rect,
+        bbox: BBox,
+        w: f64,
+        h: f64,
+        drawing: &crate::edit::DrawState,
+        cursor: Option<Pos2>,
+    ) {
+        let p = crate::theme::palette(if ui.visuals().dark_mode {
+            kanyu_render::Theme::Dark
+        } else {
+            kanyu_render::Theme::Light
+        });
+        let painter = ui.painter();
+        let to_screen = |pt: &[f64; 2]| {
+            let (sx, sy) = crate::scene3d::data_to_canvas(pt[0], pt[1], bbox, w, h);
+            egui::pos2(rect.min.x + sx, rect.min.y + sy)
+        };
+        let pts: Vec<Pos2> = drawing.verts.iter().map(to_screen).collect();
+        // 已定点串（实线）。
+        if pts.len() >= 2 {
+            painter.add(egui::Shape::line(
+                pts.clone(),
+                egui::Stroke::new(1.5, p.accent),
+            ));
+        }
+        // 面：首末虚线预示闭合（≥3 点）。
+        if drawing.kind == crate::edit::DrawKind::Polygon && pts.len() >= 3 {
+            dashed_segment(
+                painter,
+                *pts.last().expect("len≥3"),
+                pts[0],
+                egui::Stroke::new(1.0, p.accent),
+            );
+        }
+        // 橡皮筋：末顶点 → 光标（虚线）。
+        if let (Some(last), Some(cur)) = (pts.last(), cursor) {
+            dashed_segment(painter, *last, cur, egui::Stroke::new(1.0, p.accent));
+        }
+        // 顶点小方块（与句柄同风格）。
+        for pt in &pts {
+            let r = egui::Rect::from_center_size(*pt, Vec2::splat(7.0));
+            painter.rect_filled(r, 1.0, Color32::WHITE);
+            painter.rect_stroke(
+                r,
+                1.0,
+                egui::Stroke::new(1.0, p.accent),
+                egui::StrokeKind::Middle,
+            );
+        }
+    }
+}
+
+/// 虚线段（dash 4px / gap 3px 手绘分段，避免依赖 egui 虚线 API 形状差异）。
+fn dashed_segment(painter: &egui::Painter, a: Pos2, b: Pos2, stroke: egui::Stroke) {
+    const DASH: f32 = 4.0;
+    const GAP: f32 = 3.0;
+    let v = b - a;
+    let len = v.length();
+    if len < 1e-3 {
+        return;
+    }
+    let dir = v / len;
+    let mut d = 0.0;
+    while d < len {
+        let e = (d + DASH).min(len);
+        painter.line_segment([a + dir * d, a + dir * e], stroke);
+        d += DASH + GAP;
     }
 }
 
@@ -268,6 +370,8 @@ pub struct EditView<'a> {
     pub target: &'a str,
     /// 选中要素（句柄高亮）。
     pub selected: Option<usize>,
+    /// 线/面绘制中状态（草图预览）。
+    pub drawing: Option<&'a crate::edit::DrawState>,
 }
 
 /// 逐图层渲染并合成单张 PNG（白底键控叠图；布局地图框/导出共用）。
@@ -499,6 +603,16 @@ impl MapCanvas {
         // 编辑态：顶点句柄叠加（纹理之上）。
         if let (Some(ev), Some(bbox)) = (&input.edit, output.view_bbox) {
             self.draw_edit_handles(ui, rect, bbox, w, h, input.layers, ev);
+            // 线/面绘制草图预览（真实悬停优先，演示光标兜底）。
+            if let Some(drawing) = ev.drawing {
+                let cursor = response.hover_pos().or_else(|| {
+                    self.demo_sketch_cursor.map(|d| {
+                        let (sx, sy) = crate::scene3d::data_to_canvas(d.0, d.1, bbox, w, h);
+                        egui::pos2(rect.min.x + sx, rect.min.y + sy)
+                    })
+                });
+                self.draw_sketch(ui, rect, bbox, w, h, drawing, cursor);
+            }
         }
         if input
             .layers
