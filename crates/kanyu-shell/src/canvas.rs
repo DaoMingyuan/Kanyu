@@ -324,6 +324,56 @@ impl MapCanvas {
         }
     }
 
+    /// 选中要素高亮（accent 加粗描边：点/多点=圆环、线=折线、面=各环闭合串；
+    /// Multi* 逐部件——几何提取走 edit::highlight_polylines 纯函数）。
+    #[allow(clippy::too_many_arguments)]
+    fn draw_feature_highlight(
+        &self,
+        ui: &egui::Ui,
+        rect: Rect,
+        bbox: BBox,
+        w: f64,
+        h: f64,
+        layers: &[LayerSlice<'_>],
+        ev: &EditView<'_>,
+    ) {
+        let Some(fi) = ev.selected else {
+            return;
+        };
+        let Some(slice) = layers.iter().find(|l| l.id == ev.target) else {
+            return;
+        };
+        let Some(geom) = slice
+            .collection
+            .features
+            .get(fi)
+            .and_then(|f| f.geometry.as_ref())
+        else {
+            return;
+        };
+        let p = crate::theme::palette(if ui.visuals().dark_mode {
+            kanyu_render::Theme::Dark
+        } else {
+            kanyu_render::Theme::Light
+        });
+        let stroke = egui::Stroke::new(2.5, p.accent);
+        let painter = ui.painter();
+        for line in crate::edit::highlight_polylines(&geom.value) {
+            let pts: Vec<Pos2> = line
+                .iter()
+                .map(|pt| {
+                    let (sx, sy) = crate::scene3d::data_to_canvas(pt[0], pt[1], bbox, w, h);
+                    egui::pos2(rect.min.x + sx, rect.min.y + sy)
+                })
+                .collect();
+            if pts.len() == 1 {
+                painter.circle_stroke(pts[0], 8.0, stroke);
+            } else {
+                painter.add(egui::Shape::line(pts, stroke));
+            }
+        }
+    }
+
     /// 线/面绘制草图预览：已定点串（实线 + 顶点小方块）+ 到光标的橡皮筋
     /// （accent 虚线）；面 ≥3 点时补首末虚线预示闭合。
     #[allow(clippy::too_many_arguments)]
@@ -686,8 +736,9 @@ impl MapCanvas {
                 Color32::WHITE,
             );
         }
-        // 编辑态：顶点句柄叠加（纹理之上）。
+        // 编辑态：选中要素高亮 + 顶点句柄叠加（纹理之上）。
         if let (Some(ev), Some(bbox)) = (&input.edit, output.view_bbox) {
+            self.draw_feature_highlight(ui, rect, bbox, w, h, input.layers, ev);
             self.draw_edit_handles(ui, rect, bbox, w, h, input.layers, ev);
             // 顶点捕捉：指示圆环（容差内最近既有顶点）+ 草图橡皮筋端点吸附。
             let snap_on = ev.snap

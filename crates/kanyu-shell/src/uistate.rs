@@ -36,6 +36,10 @@ pub struct ViewStateJson {
     /// 打开状态（关闭≠删除；老状态文件缺省视为打开）。
     #[serde(default = "default_open")]
     pub open: bool,
+    /// WMS 底图连接名（缺省 = 无底图；连接定义在同文件 wms 清单，
+    /// 恢复时按名匹配，失配忽略——见 app apply_ui_state）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wms_base: Option<String>,
 }
 
 fn default_open() -> bool {
@@ -180,6 +184,7 @@ mod tests {
             bbox: Some([0.0, 0.0, 1.0, 1.0]),
             docked: false,
             open: true,
+            wms_base: Some("示例 WMS".into()),
         }];
         s.active_view = Some(0);
         s.services = vec![crate::services::WfsConnection {
@@ -208,6 +213,7 @@ mod tests {
         assert_eq!(back.services[0].name, "示例 WFS");
         assert_eq!(back.wms.len(), 1);
         assert_eq!(back.wms[0].layer, "ne:countries");
+        assert_eq!(back.views[0].wms_base.as_deref(), Some("示例 WMS"));
     }
 
     #[test]

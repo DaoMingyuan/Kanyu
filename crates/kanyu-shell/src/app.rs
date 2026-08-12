@@ -636,13 +636,15 @@ impl KanyuApp {
                 }
             }
         }
-        // --edit-demo：编辑会话预设（顶点工具，截图验证句柄）。
+        // --edit-demo：编辑会话预设（顶点工具 + 选中要素 #1 高亮，截图验证句柄/高亮）。
         if args.edit_demo {
             if let Some(first) = app.layers.first() {
                 let id = first.layer.id().to_string();
                 let name = first.file_name.clone();
+                let n = first.layer.collection().features.len();
                 let mut s = crate::edit::EditSession::new(id, name);
                 s.tool = crate::edit::EditTool::Vertex;
+                s.selected = (n > 1).then_some(1); // 选中次要素（accent 描边高亮）
                 app.edit_session = Some(s);
             }
         }
@@ -806,6 +808,9 @@ impl KanyuApp {
         if !s.project_crs.is_empty() {
             self.project_crs = s.project_crs.clone();
         }
+        // 服务链接清单（先恢复——地图框的 wms_base 按名匹配本机清单）。
+        self.services = s.services.clone();
+        self.wms_services = s.wms.clone();
         // 地图框清单（不含主框——恒在；恢复为休眠框，图层集由 .kyu 工程恢复，
         // ui-state 只记壳层现场）。
         for v in &s.views {
@@ -820,6 +825,7 @@ impl KanyuApp {
             f.open = v.open;
             f.site.view_bbox = v.bbox;
             f.site.needs_fit = v.bbox.is_none();
+            f.wms_base = self.restore_wms_base(v.wms_base.as_deref(), &v.title);
             self.frames.push(f);
         }
         if let Some(a) = s.active_view {
@@ -829,9 +835,6 @@ impl KanyuApp {
                 self.activate_frame(i);
             }
         }
-        // 服务链接清单。
-        self.services = s.services.clone();
-        self.wms_services = s.wms.clone();
     }
 
     /// 采集当前 UI 状态（保存用快照）。
@@ -877,6 +880,7 @@ impl KanyuApp {
                     },
                     docked: f.docked,
                     open: f.open,
+                    wms_base: f.wms_base.clone(),
                 }
             })
             .collect();
@@ -3674,6 +3678,26 @@ impl eframe::App for KanyuApp {
             self.theme_dirty = false;
         }
         self.handle_dropped_files(&ctx);
+
+        // 全局快捷键（Ctrl+Z/Y/Shift+Z 撤销重做、Ctrl+S 保存工程）；
+        // 焦点在文本输入框时不拦截（text_edit_focused 守卫）。
+        if !ctx.text_edit_focused() {
+            let pressed = ctx.input(|i| {
+                let m = i.modifiers;
+                [egui::Key::Z, egui::Key::Y, egui::Key::S]
+                    .into_iter()
+                    .find(|k| i.key_pressed(*k))
+                    .and_then(|k| crate::commands::match_shortcut(k, m.command, m.shift))
+            });
+            match pressed {
+                Some(crate::commands::AppShortcut::Undo) => self.edit_undo(false),
+                Some(crate::commands::AppShortcut::Redo) => self.edit_undo(true),
+                Some(crate::commands::AppShortcut::SaveProject) => {
+                    self.dispatch(RibbonAction::SaveProject, &ctx)
+                }
+                None => {}
+            }
+        }
 
         // Ribbon 功能区（顶部，86px）。命令可用条件按快照求值（无图层/无选中置灰）。
         let snap = crate::commands::AppSnapshot {

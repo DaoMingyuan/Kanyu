@@ -12,6 +12,32 @@ use crate::dock::PanelId;
 use crate::ribbon::RibbonAction;
 use crate::ui_kit::Icon;
 
+/// 全局快捷键（纯函数判定；app ui() 顶层调用，`wants_keyboard_input` 守卫在调用方——
+/// 焦点在文本框时不拦截）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppShortcut {
+    /// Ctrl+Z（编辑会话撤销）。
+    Undo,
+    /// Ctrl+Y 或 Ctrl+Shift+Z（重做）。
+    Redo,
+    /// Ctrl+S（保存工程对话框）。
+    SaveProject,
+}
+
+/// 快捷键匹配（command = Ctrl/Cmd 修饰键；egui modifiers.command 跨平台）。
+pub fn match_shortcut(key: eframe::egui::Key, command: bool, shift: bool) -> Option<AppShortcut> {
+    if !command {
+        return None;
+    }
+    match key {
+        eframe::egui::Key::Z if shift => Some(AppShortcut::Redo),
+        eframe::egui::Key::Z => Some(AppShortcut::Undo),
+        eframe::egui::Key::Y => Some(AppShortcut::Redo),
+        eframe::egui::Key::S => Some(AppShortcut::SaveProject),
+        _ => None,
+    }
+}
+
 /// 应用快照（命令可用条件求值输入；app 每帧构造）。
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AppSnapshot {
@@ -129,7 +155,7 @@ pub const COMMANDS: &[CommandDef] = &[
         "保存工程",
         Icon::Info,
         "保存堪舆工程 (.kyu)",
-        "把当前图层、可见性、视口、地图色彩保存为 .kyu 工程文件",
+        "把当前图层、可见性、视口、地图色彩保存为 .kyu 工程文件（快捷键 Ctrl+S）",
         RibbonAction::SaveProject,
         always,
     ),
@@ -527,7 +553,7 @@ pub const COMMANDS: &[CommandDef] = &[
         "撤销",
         Icon::Reset,
         "撤销",
-        "撤销一步编辑（编辑会话历史）",
+        "撤销一步编辑（编辑会话历史；快捷键 Ctrl+Z）",
         RibbonAction::Undo,
         can_undo,
     ),
@@ -536,7 +562,7 @@ pub const COMMANDS: &[CommandDef] = &[
         "重做",
         Icon::Play,
         "重做",
-        "重做一步编辑",
+        "重做一步编辑（快捷键 Ctrl+Y / Ctrl+Shift+Z）",
         RibbonAction::Redo,
         can_redo,
     ),
@@ -571,6 +597,21 @@ mod tests {
     fn find_works() {
         assert_eq!(find("buffer").unwrap().action, RibbonAction::BufferDialog);
         assert!(find("nope").is_none());
+    }
+
+    #[test]
+    fn shortcut_matching() {
+        use eframe::egui::Key;
+        assert_eq!(match_shortcut(Key::Z, true, false), Some(AppShortcut::Undo));
+        assert_eq!(match_shortcut(Key::Z, true, true), Some(AppShortcut::Redo));
+        assert_eq!(match_shortcut(Key::Y, true, false), Some(AppShortcut::Redo));
+        assert_eq!(
+            match_shortcut(Key::S, true, false),
+            Some(AppShortcut::SaveProject)
+        );
+        // 无修饰键/未登记键不命中。
+        assert_eq!(match_shortcut(Key::Z, false, false), None);
+        assert_eq!(match_shortcut(Key::A, true, false), None);
     }
 
     #[test]

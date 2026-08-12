@@ -544,6 +544,25 @@ pub fn polygon_part_at(collection: &FeatureCollection, pt: (f64, f64)) -> Option
     None
 }
 
+/// 选中要素高亮的几何提取（纯函数）：折线串清单（数据坐标）。
+/// 点/多点 = 单点串（画布画圆环）；线 = 折线；面 = 各环闭合串；Multi* 逐部件展开。
+pub fn highlight_polylines(v: &GeoValue) -> Vec<Vec<[f64; 2]>> {
+    let pt = |p: &[f64]| [p[0], p[1]];
+    let line = |l: &[Vec<f64>]| l.iter().map(|p| pt(p)).collect::<Vec<_>>();
+    match v {
+        GeoValue::Point(p) => vec![vec![pt(p)]],
+        GeoValue::MultiPoint(ps) => ps.iter().map(|p| vec![pt(p)]).collect(),
+        GeoValue::LineString(l) => vec![line(l)],
+        GeoValue::MultiLineString(ls) => ls.iter().map(|l| line(l)).collect(),
+        GeoValue::Polygon(rings) => rings.iter().map(|r| line(r)).collect(),
+        GeoValue::MultiPolygon(polys) => polys
+            .iter()
+            .flat_map(|rings| rings.iter().map(|r| line(r)))
+            .collect(),
+        GeoValue::GeometryCollection(_) => Vec::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -783,5 +802,49 @@ mod tests {
         assert_eq!(polygon_part_at(&c, (4.5, 4.5)), None);
         let cp = coll(vec![GeoValue::Point(vec![1.0, 1.0])]);
         assert_eq!(polygon_part_at(&cp, (1.0, 1.0)), None);
+    }
+
+    #[test]
+    fn highlight_polylines_by_geometry_kind() {
+        // 点 → 单点串。
+        assert_eq!(
+            highlight_polylines(&GeoValue::Point(vec![1.0, 2.0])),
+            vec![vec![[1.0, 2.0]]]
+        );
+        // 多点 → 每点一串。
+        assert_eq!(
+            highlight_polylines(&GeoValue::MultiPoint(vec![vec![0.0, 0.0], vec![1.0, 1.0]])).len(),
+            2
+        );
+        // 线/多线。
+        assert_eq!(
+            highlight_polylines(&GeoValue::LineString(vec![vec![0.0, 0.0], vec![1.0, 1.0]]))[0]
+                .len(),
+            2
+        );
+        assert_eq!(
+            highlight_polylines(&GeoValue::MultiLineString(vec![
+                vec![vec![0.0, 0.0], vec![1.0, 1.0]],
+                vec![vec![2.0, 2.0], vec![3.0, 3.0]],
+            ]))
+            .len(),
+            2
+        );
+        // 面：外环+内环各一串；MultiPolygon 逐部件展开。
+        let poly = GeoValue::Polygon(vec![
+            vec![
+                vec![0.0, 0.0],
+                vec![4.0, 0.0],
+                vec![4.0, 4.0],
+                vec![0.0, 0.0],
+            ],
+            vec![vec![1.0, 1.0], vec![2.0, 1.0], vec![1.0, 1.0]],
+        ]);
+        assert_eq!(highlight_polylines(&poly).len(), 2);
+        let mp = GeoValue::MultiPolygon(vec![
+            vec![vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![0.0, 0.0]]],
+            vec![vec![vec![2.0, 2.0], vec![3.0, 2.0], vec![2.0, 2.0]]],
+        ]);
+        assert_eq!(highlight_polylines(&mp).len(), 2);
     }
 }
