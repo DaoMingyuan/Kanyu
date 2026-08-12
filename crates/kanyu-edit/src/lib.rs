@@ -14,15 +14,18 @@
 //!   为留接口路线（见 delta 模块头）；
 //! - [`dcel`]（v3）：DCEL 增量拓扑内核（三表五指针、孔洞虚面约定、欧拉自检、
 //!   面对角线分裂；v2 续篇：外面/孔虚面 stub 环遍历（顶点角度序转向）、
-//!   merge_faces 单边合并逆操作（墓碑式删除保下标稳定））。
+//!   merge_faces 单边合并逆操作（墓碑式删除保下标稳定））；
+//! - [`topoedit`]：拓扑共享顶点编辑（Map Topology 语义，Delta 通道一次撤销）；
+//! - [`split`]：分割要素（面切割线分割 / 线按点打断，均产 DeltaSet）。
 //!
 //! 后续增量（路线图，rustdoc 即契约）：
-//! - v4：DCEL 与壳层编辑模式接线 + 增量操作扩展（顶点移动联动等）。
+//! - v4：DCEL 与壳层编辑模式接线深化 + 增量操作扩展。
 
 pub mod dcel;
 pub mod delta;
 pub mod history;
 pub mod ops;
+pub mod split;
 pub mod topoedit;
 
 pub use dcel::{Dcel, FaceKind, MergeResult, SplitResult, OUTER_FACE};
@@ -32,6 +35,7 @@ pub use ops::{
     validate_hole, AddHole, DeleteFeatures, GeomPath, InsertFeature, MoveFeature, MoveVertex,
     UpdateProperties,
 };
+pub use split::{split_line_at_point, split_polygon_by_line};
 pub use topoedit::{
     move_shared_vertex, move_shared_vertex_across, shared_vertex_index, SharedVertexIndex,
 };

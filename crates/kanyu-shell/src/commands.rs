@@ -531,6 +531,15 @@ pub const COMMANDS: &[CommandDef] = &[
         editing,
     ),
     cmd(
+        "edit_split",
+        "分割要素",
+        Icon::Grid,
+        "分割要素工具",
+        "绘制切割线（双击完成）切分面要素；单击线要素在点击处打断为两段（一次撤销）",
+        RibbonAction::SetEditTool(crate::edit::EditTool::Split),
+        editing,
+    ),
+    cmd(
         "edit_snap",
         "捕捉",
         Icon::Topology,

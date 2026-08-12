@@ -42,6 +42,8 @@ pub enum EditTool {
     AddHole,
     /// 删除要素（点击选中后删除）。
     Delete,
+    /// 分割要素（绘制切割线切分面；单击线要素在点击处打断）。
+    Split,
 }
 
 impl EditTool {
@@ -56,6 +58,7 @@ impl EditTool {
             EditTool::AddPolygon => "添加面",
             EditTool::AddHole => "添加洞",
             EditTool::Delete => "删除要素",
+            EditTool::Split => "分割要素",
         }
     }
 }
@@ -141,10 +144,11 @@ impl DrawState {
     }
 }
 
-/// 绘制工具 → 种类（非绘制工具为 None；添加洞复用面草图——闭合环）。
+/// 绘制工具 → 种类（非绘制工具为 None；添加洞复用面草图——闭合环；
+/// 分割要素复用线草图——切割线）。
 pub fn draw_kind_of(tool: EditTool) -> Option<DrawKind> {
     match tool {
-        EditTool::AddLine => Some(DrawKind::Line),
+        EditTool::AddLine | EditTool::Split => Some(DrawKind::Line),
         EditTool::AddPolygon | EditTool::AddHole => Some(DrawKind::Polygon),
         _ => None,
     }
@@ -236,6 +240,8 @@ pub enum EditAction {
     DrawCancel,
     /// 绘制：完成（构造几何 → 插入要素；点数不足由 app 给中文提示并保留现场）。
     DrawFinish,
+    /// 分割要素工具：线要素在点击处打断（单击命中线时产出）。
+    SplitLineAtPoint { feature: usize, pos: (f64, f64) },
 }
 
 // ===== 命中检测（纯函数）=====

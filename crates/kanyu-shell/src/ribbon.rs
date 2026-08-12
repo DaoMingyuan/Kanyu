@@ -196,8 +196,10 @@ fn layout_of(tab: RibbonTab) -> &'static [GroupLayout] {
                     "edit_add_line",
                     "edit_add_polygon",
                     "edit_add_hole",
+                    "edit_split",
                     "edit_delete",
                     "edit_snap",
+                    "edit_topo",
                 ],
             },
             GroupLayout {

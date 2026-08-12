@@ -752,6 +752,29 @@ impl KanyuApp {
                 app.edit_session = Some(s);
             }
         }
+        // --split-demo：编辑会话「分割要素」切割线绘制中态（预置 2 顶点竖向切割线
+        // + 演示光标橡皮筋，截图验证切割线预览）。
+        if args.split_demo {
+            if let Some(first) = app.layers.first() {
+                let id = first.layer.id().to_string();
+                let name = first.file_name.clone();
+                let mut s = crate::edit::EditSession::new(id, name);
+                s.tool = crate::edit::EditTool::Split;
+                if let Some(ext) = app.data_extent {
+                    let cx = f64::midpoint(ext[0], ext[2]);
+                    let cy = f64::midpoint(ext[1], ext[3]);
+                    let sx = (ext[2] - ext[0]).max(1e-9);
+                    let sy = (ext[3] - ext[1]).max(1e-9);
+                    let mut d = crate::edit::DrawState::new(crate::edit::DrawKind::Line);
+                    // 竖向切割线横穿数据中部。
+                    d.add((cx, cy - 0.30 * sy));
+                    d.add((cx, cy + 0.10 * sy));
+                    s.drawing = Some(d);
+                    app.canvas.demo_sketch_cursor = Some((cx + 0.06 * sx, cy + 0.28 * sy));
+                }
+                app.edit_session = Some(s);
+            }
+        }
         // --service-demo：目录「服务链接」预置 WFS+WMS 演示连接各一并展开分类（截图验证）；
         // --service-dlg-demo 另打开新建对话框（预填图层清单，图层发现截图验证）；
         // --service-edit-demo 打开编辑对话框（WFS 连接回填态截图验证）。
@@ -1999,6 +2022,16 @@ impl KanyuApp {
                 self.edit_session = Some(session);
                 return;
             }
+            EditAction::SplitLineAtPoint { feature, pos } => {
+                // 线要素点击处打断（分割要素工具）。
+                match kanyu_edit::split_line_at_point(&coll, feature, [pos.0, pos.1]) {
+                    Ok(ds) => Some(Box::new(ds)),
+                    Err(e) => {
+                        self.toast_err(e.to_string());
+                        None
+                    }
+                }
+            }
             EditAction::DrawFinish => {
                 let Some(d) = session.drawing.take() else {
                     self.edit_session = Some(session);
@@ -2006,7 +2039,52 @@ impl KanyuApp {
                 };
                 match d.finish() {
                     Ok(value) => {
-                        if session.tool == crate::edit::EditTool::AddHole {
+                        if session.tool == crate::edit::EditTool::Split {
+                            // 分割要素：切割线（线草图）切分面——选中面要素优先，
+                            // 否则切割线首点命中面定位；失败保留绘制现场。
+                            let geojson::Value::LineString(line) = value else {
+                                unreachable!("分割切割线草图恒为线");
+                            };
+                            let target = session
+                                .selected
+                                .filter(|&fi| {
+                                    coll.features
+                                        .get(fi)
+                                        .and_then(|f| f.geometry.as_ref())
+                                        .is_some_and(|g| {
+                                            matches!(
+                                                g.value,
+                                                geojson::Value::Polygon(_)
+                                                    | geojson::Value::MultiPolygon(_)
+                                            )
+                                        })
+                                })
+                                .or_else(|| {
+                                    line.first().and_then(|p| {
+                                        crate::edit::polygon_part_at(&coll, (p[0], p[1]))
+                                            .map(|(fi, _)| fi)
+                                    })
+                                });
+                            match target {
+                                Some(fi) => {
+                                    match kanyu_edit::split_polygon_by_line(&coll, fi, &line) {
+                                        Ok(ds) => Some(Box::new(ds)),
+                                        Err(e) => {
+                                            self.toast_err(e.to_string());
+                                            session.drawing = Some(d);
+                                            self.edit_session = Some(session);
+                                            return;
+                                        }
+                                    }
+                                }
+                                None => {
+                                    self.toast_err("未命中面要素（切割线须横穿目标面）");
+                                    session.drawing = Some(d);
+                                    self.edit_session = Some(session);
+                                    return;
+                                }
+                            }
+                        } else if session.tool == crate::edit::EditTool::AddHole {
                             // 挖洞：环首顶点定位目标面（MultiPolygon part 定位），
                             // 内核校验「环完全在面内」（失败保留绘制现场）。
                             let geojson::Value::Polygon(rings) = value else {

@@ -198,6 +198,7 @@ impl MapCanvas {
                         | EditTool::AddLine
                         | EditTool::AddPolygon
                         | EditTool::AddHole
+                        | EditTool::Split
                 )
             {
                 let cols: Vec<&geojson::FeatureCollection> =
@@ -246,6 +247,44 @@ impl MapCanvas {
                     }
                     // 单击（位移 ≤2px）加顶点；拖动不加点。
                     if moved_px <= 2.0 {
+                        Some(EditAction::DrawAddVertex { pos: cur })
+                    } else {
+                        None
+                    }
+                }
+                EditTool::Split => {
+                    // 双击完成切割线（面分割）。
+                    if response.double_clicked() {
+                        return Some(EditAction::DrawFinish);
+                    }
+                    if moved_px <= 2.0 {
+                        // 单击命中线要素 → 在点击处打断；否则加切割线顶点。
+                        let sp = (pos.x - rect.min.x, pos.y - rect.min.y);
+                        if let Some(fi) = crate::edit::hit_feature(
+                            slice.collection,
+                            bbox,
+                            w,
+                            h,
+                            sp,
+                            crate::edit::HIT_TOL_PX,
+                        ) {
+                            let is_line = slice.collection.features[fi]
+                                .geometry
+                                .as_ref()
+                                .is_some_and(|g| {
+                                    matches!(
+                                        g.value,
+                                        geojson::Value::LineString(_)
+                                            | geojson::Value::MultiLineString(_)
+                                    )
+                                });
+                            if is_line {
+                                return Some(EditAction::SplitLineAtPoint {
+                                    feature: fi,
+                                    pos: cur,
+                                });
+                            }
+                        }
                         Some(EditAction::DrawAddVertex { pos: cur })
                     } else {
                         None
