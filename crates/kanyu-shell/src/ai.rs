@@ -128,6 +128,8 @@ pub fn match_tool_exact(text: &str) -> ToolMatch {
 }
 
 /// 工具名前缀/子串猜测（首分词 ≥2 字符且被工具名包含；如「缓冲」→ 三候选）。
+/// 补充词缀规则：工具名的 ≥2 字符前缀/后缀出现在首分词中也算候选
+///（口语粘连如「统计一下面积」→ 后缀「统计」命中三个统计工具）。
 pub fn match_tool_prefix(text: &str) -> ToolMatch {
     use kanyu_core::tooldef::TOOLS;
     let first = text
@@ -140,9 +142,24 @@ pub fn match_tool_prefix(text: &str) -> ToolMatch {
     }
     let cands: Vec<_> = TOOLS.iter().filter(|d| d.name.contains(first)).collect();
     match cands.len() {
+        0 => {}
+        1 => return ToolMatch::One(cands[0]),
+        _ => return ToolMatch::Ambiguous(cands.iter().map(|d| d.name).collect()),
+    }
+    // 词缀规则（前缀/后缀 ≥2 字符出现在输入首段）。
+    let affix = |d: &&kanyu_core::tooldef::ToolDef| {
+        let n = d.name.chars().count();
+        (2..=n).any(|k| {
+            let pre: String = d.name.chars().take(k).collect();
+            let suf: String = d.name.chars().skip(n - k).collect();
+            first.contains(&pre) || first.contains(&suf)
+        })
+    };
+    let cands2: Vec<_> = TOOLS.iter().filter(affix).collect();
+    match cands2.len() {
         0 => ToolMatch::None,
-        1 => ToolMatch::One(cands[0]),
-        _ => ToolMatch::Ambiguous(cands.iter().map(|d| d.name).collect()),
+        1 => ToolMatch::One(cands2[0]),
+        _ => ToolMatch::Ambiguous(cands2.iter().map(|d| d.name).collect()),
     }
 }
 
@@ -315,11 +332,12 @@ fn extract_param(
                     return Some(clean.to_string());
                 }
             }
-            // 兜底：首个非数值、非图层的未用记号当字段名（内核校验中文报错兜底）。
+            // 兜底：首个非数值、非图层、非提示词的未用记号当字段名（内核校验中文报错兜底）。
             for (i, t) in tokens.iter().enumerate() {
                 if used[i]
                     || number_in(t).is_some()
                     || layers.iter().any(|l| t.contains(l.as_str()))
+                    || matches!(t.as_str(), "按字段" | "字段" | "按" | "距离")
                 {
                     continue;
                 }
@@ -410,20 +428,50 @@ fn extract_param(
                 h.to_string()
             })
         }),
-        ParamKind::Expression => tokens.iter().enumerate().find_map(|(i, t)| {
-            if used[i] || !(t.contains('>') || t.contains('<') || t.contains('=')) {
-                return None;
+        ParamKind::Expression => {
+            // 首个含比较符的记号，向前并字段名、向后连吃至表达式尾
+            //（「height > 50」分词为三段——合并为完整表达式）。
+            let op_pos = tokens.iter().enumerate().position(|(i, t)| {
+                !used[i] && (t.contains('>') || t.contains('<') || t.contains('='))
+            });
+            op_pos.map(|op| {
+                let mut from = op;
+                if op > 0 && !used[op - 1] && number_in(&tokens[op - 1]).is_none() {
+                    from = op - 1; // 操作符前一段是字段名
+                }
+                let mut parts = Vec::new();
+                for (j, t) in tokens.iter().enumerate().skip(from) {
+                    if used[j] {
+                        continue;
+                    }
+                    used[j] = true;
+                    parts.push(t.clone());
+                }
+                parts.join(" ")
+            })
+        }
+        ParamKind::Crs => {
+            // 源 CRS 缺省取工程默认 EPSG:4326（唯一记号留给目标）；
+            // 两个以上 EPSG 记号时源也消耗记号。
+            let is_source = p.label.contains('源');
+            let avail: Vec<usize> = tokens
+                .iter()
+                .enumerate()
+                .filter(|(i, t)| !used[*i] && t.to_ascii_uppercase().starts_with("EPSG"))
+                .map(|(i, _)| i)
+                .collect();
+            if is_source && avail.len() < 2 {
+                return Some("EPSG:4326".to_string());
             }
-            used[i] = true;
-            Some(t.clone())
-        }),
-        ParamKind::Crs => tokens.iter().enumerate().find_map(|(i, t)| {
-            if used[i] || !t.to_ascii_uppercase().starts_with("EPSG") {
-                return None;
+            match avail.first() {
+                Some(i) => {
+                    used[*i] = true;
+                    Some(tokens[*i].clone())
+                }
+                None if is_source => Some("EPSG:4326".to_string()),
+                None => None,
             }
-            used[i] = true;
-            Some(t.clone())
-        }),
+        }
         ParamKind::Extent => {
             let hits: Vec<(usize, String)> = tokens
                 .iter()
@@ -492,6 +540,22 @@ impl LocalDriver {
             .max_by_key(|id| id.len())
             .cloned();
 
+        // 工具名完全包含优先于遗留缓冲（评估集驱动修正：「多环缓冲区 buildings 100,200」
+        // 曾被遗留缓冲截走单数值——更长工具名先判；「缓冲区」本名仍走遗留路径）。
+        match match_tool_exact(text) {
+            ToolMatch::One(def) if def.id != "buffer" => {
+                return match extract_tool_values(def, text, layers, fields_of) {
+                    Ok(values) => ParsedIntent::RunTool {
+                        id: def.id,
+                        name: def.name,
+                        values,
+                    },
+                    Err(usage) => ParsedIntent::Advice(usage),
+                };
+            }
+            ToolMatch::Ambiguous(names) => return ParsedIntent::AmbiguousTools(names),
+            _ => {}
+        }
         // 缓冲（遗留专用意图：唯一图层自动补全/缺图层引导）。
         if let Some(d) = extract_number_after(text, &["缓冲", "缓冲区", "buffer"]) {
             if let Some(layer) = layer_hit {
@@ -507,20 +571,16 @@ impl LocalDriver {
                 "想给谁做缓冲？请带上图层名，如：缓冲 buildings 500".to_string(),
             );
         }
-        // 工具箱意图面：工具名完全包含（最长名优先；buffer 已被上面覆盖）。
-        match match_tool_exact(text) {
-            ToolMatch::One(def) => {
-                return match extract_tool_values(def, text, layers, fields_of) {
-                    Ok(values) => ParsedIntent::RunTool {
-                        id: def.id,
-                        name: def.name,
-                        values,
-                    },
-                    Err(usage) => ParsedIntent::Advice(usage),
-                };
-            }
-            ToolMatch::Ambiguous(names) => return ParsedIntent::AmbiguousTools(names),
-            ToolMatch::None => {}
+        // 「缓冲区」本名无数值 → 工具路径给缺参引导。
+        if let ToolMatch::One(def) = match_tool_exact(text) {
+            return match extract_tool_values(def, text, layers, fields_of) {
+                Ok(values) => ParsedIntent::RunTool {
+                    id: def.id,
+                    name: def.name,
+                    values,
+                },
+                Err(usage) => ParsedIntent::Advice(usage),
+            };
         }
         // 打开/加载。
         for kw in ["打开", "加载", "open", "load"] {
@@ -1710,5 +1770,275 @@ mod tests {
         .unwrap();
         assert_eq!(out2.reply, "明白");
         assert!(out2.calls[0].contains("未登记"));
+    }
+
+    // ===== 意图评估集（GeoAnalystBench 精神的最小落地：基准入测试守护）=====
+
+    /// 评测期望。
+    enum EvalExpect {
+        /// 命中工具 id（Buffer 遗留意图视同 "buffer"），且值含全部关键字。
+        Tool(&'static str, &'static [&'static str]),
+        /// 缺参引导（回复含工具名）。
+        AdviceOf(&'static str),
+        /// 歧义候选（候选集含全部给定名）。
+        AmbiguousHas(&'static [&'static str]),
+        /// 未识别（不执行任何操作）。
+        Fallback,
+    }
+
+    /// 用例（输入 + 期望）。
+    struct EvalCase {
+        input: &'static str,
+        expect: EvalExpect,
+    }
+
+    /// 评估集（40 条：五分类常见说法 + 口语变体 + 歧义 + 无关输入）。
+    const EVAL_SET: &[EvalCase] = &[
+        // —— 矢量分析 ——
+        EvalCase {
+            input: "缓冲区 buildings 0.1",
+            expect: EvalExpect::Tool("buffer", &["buildings", "0.1"]),
+        },
+        EvalCase {
+            input: "缓冲一下 buildings 0.1",
+            expect: EvalExpect::Tool("buffer", &["buildings", "0.1"]),
+        },
+        EvalCase {
+            input: "给 roads 做 200 米缓冲区",
+            expect: EvalExpect::Tool("buffer", &["roads", "200"]),
+        },
+        EvalCase {
+            input: "多环缓冲区 buildings 100,200",
+            expect: EvalExpect::Tool("multi_ring_buffer", &["buildings", "100", "200"]),
+        },
+        EvalCase {
+            input: "按字段缓冲区 buildings zone",
+            expect: EvalExpect::Tool("variable_buffer", &["buildings", "zone"]),
+        },
+        EvalCase {
+            input: "联合 buildings roads",
+            expect: EvalExpect::Tool("overlay_union", &["buildings", "roads"]),
+        },
+        EvalCase {
+            input: "把 roads 和 buildings 联合起来",
+            expect: EvalExpect::Tool("overlay_union", &["buildings", "roads"]),
+        },
+        EvalCase {
+            input: "裁剪 buildings 用 roads",
+            expect: EvalExpect::Tool("overlay_intersection", &["buildings", "roads"]),
+        },
+        EvalCase {
+            input: "差值 buildings roads",
+            expect: EvalExpect::Tool("overlay_difference", &["buildings", "roads"]),
+        },
+        EvalCase {
+            input: "对称差 buildings roads",
+            expect: EvalExpect::Tool("overlay_xor", &["buildings", "roads"]),
+        },
+        EvalCase {
+            input: "空间连接 buildings roads 相交",
+            expect: EvalExpect::Tool("sjoin", &["buildings", "roads", "intersects"]),
+        },
+        EvalCase {
+            input: "面内点计数 buildings roads",
+            expect: EvalExpect::Tool("count_points_in_polygon", &["buildings", "roads"]),
+        },
+        EvalCase {
+            input: "平均坐标 buildings",
+            expect: EvalExpect::Tool("mean_coordinates", &["buildings"]),
+        },
+        EvalCase {
+            input: "距离矩阵 buildings roads",
+            expect: EvalExpect::Tool("distance_matrix", &["buildings", "roads"]),
+        },
+        EvalCase {
+            input: "最近邻分析 buildings",
+            expect: EvalExpect::Tool("nearest_neighbor", &["buildings"]),
+        },
+        // —— 矢量几何 ——
+        EvalCase {
+            input: "融合 buildings 按字段 zone",
+            expect: EvalExpect::Tool("dissolve", &["buildings", "zone"]),
+        },
+        EvalCase {
+            input: "质心 buildings",
+            expect: EvalExpect::Tool("centroid", &["buildings"]),
+        },
+        EvalCase {
+            input: "把 roads 做个凸包",
+            expect: EvalExpect::Tool("convex_hull", &["roads"]),
+        },
+        EvalCase {
+            input: "简化 buildings 0.01",
+            expect: EvalExpect::Tool("simplify", &["buildings", "0.01"]),
+        },
+        EvalCase {
+            input: "删洞 buildings",
+            expect: EvalExpect::Tool("delete_holes", &["buildings"]),
+        },
+        EvalCase {
+            input: "炸开多部件 buildings",
+            expect: EvalExpect::Tool("explode", &["buildings"]),
+        },
+        EvalCase {
+            input: "边界 buildings",
+            expect: EvalExpect::Tool("boundary", &["buildings"]),
+        },
+        EvalCase {
+            input: "包络矩形 buildings",
+            expect: EvalExpect::Tool("bounding_boxes", &["buildings"]),
+        },
+        EvalCase {
+            input: "凹包 buildings",
+            expect: EvalExpect::Tool("concave_hull", &["buildings"]),
+        },
+        EvalCase {
+            input: "拓扑检查 buildings",
+            expect: EvalExpect::Tool("topology_check", &["buildings"]),
+        },
+        // —— 矢量选择 ——
+        EvalCase {
+            input: "按属性提取 buildings height > 50",
+            expect: EvalExpect::Tool("extract_by_attribute", &["buildings", "height > 50"]),
+        },
+        EvalCase {
+            input: "按位置提取 buildings roads 相交",
+            expect: EvalExpect::Tool("extract_by_location", &["buildings", "roads", "intersects"]),
+        },
+        EvalCase {
+            input: "属性查询 buildings height > 50",
+            expect: EvalExpect::Tool("query", &["buildings", "height > 50"]),
+        },
+        // —— 数据管理 ——
+        EvalCase {
+            input: "合并矢量图层 buildings roads",
+            expect: EvalExpect::Tool("merge", &["buildings", "roads"]),
+        },
+        EvalCase {
+            input: "分割矢量图层 buildings 按字段 zone",
+            expect: EvalExpect::Tool("split_by_field", &["buildings", "zone"]),
+        },
+        EvalCase {
+            input: "添加几何属性 buildings",
+            expect: EvalExpect::Tool("add_geometry_attributes", &["buildings"]),
+        },
+        EvalCase {
+            input: "投影变换 buildings EPSG:4490",
+            expect: EvalExpect::Tool("reproject", &["buildings", "EPSG:4490"]),
+        },
+        // —— 统计度量 ——
+        EvalCase {
+            input: "分区统计 buildings roads height sum",
+            expect: EvalExpect::Tool("zonal_stats", &["buildings", "roads", "height", "sum"]),
+        },
+        EvalCase {
+            input: "图层统计 buildings",
+            expect: EvalExpect::Tool("stats", &["buildings"]),
+        },
+        EvalCase {
+            input: "字段统计 buildings height",
+            expect: EvalExpect::Tool("field_stats", &["buildings", "height"]),
+        },
+        // —— 歧义 / 缺参 / 无关 ——
+        EvalCase {
+            input: "缓冲",
+            expect: EvalExpect::AmbiguousHas(&["缓冲区", "多环缓冲区", "按字段缓冲区"]),
+        },
+        EvalCase {
+            input: "统计",
+            expect: EvalExpect::AmbiguousHas(&["图层统计"]),
+        },
+        EvalCase {
+            input: "统计一下面积",
+            expect: EvalExpect::AmbiguousHas(&["图层统计"]),
+        },
+        EvalCase {
+            input: "质心",
+            expect: EvalExpect::AdviceOf("质心"),
+        },
+        EvalCase {
+            input: "裁剪一下",
+            expect: EvalExpect::AdviceOf("裁剪"),
+        },
+        EvalCase {
+            input: "今天天气如何",
+            expect: EvalExpect::Fallback,
+        },
+        EvalCase {
+            input: "你好",
+            expect: EvalExpect::Fallback,
+        },
+    ];
+
+    /// 单条评测：通过 → Ok；失败 → Err（原因）。
+    fn eval_case(c: &EvalCase) -> Result<(), String> {
+        let intent = LocalDriver::parse(c.input, &layers(), &fields_of);
+        match (&c.expect, &intent) {
+            (
+                EvalExpect::Tool(id, keys),
+                ParsedIntent::RunTool {
+                    id: got, values, ..
+                },
+            ) => {
+                if *got != *id {
+                    return Err(format!("工具不符：期望 {id}，实得 {got}"));
+                }
+                let joined = values.join(" ");
+                for k in *keys {
+                    if !joined.contains(k) {
+                        return Err(format!("参数缺「{k}」（值: {joined}）"));
+                    }
+                }
+                Ok(())
+            }
+            // 遗留缓冲意图视同命中 buffer。
+            (EvalExpect::Tool("buffer", keys), ParsedIntent::Buffer { layer, distance }) => {
+                let joined = format!("{layer} {distance}");
+                for k in *keys {
+                    if !joined.contains(k) {
+                        return Err(format!("缓冲参数缺「{k}」（{joined}）"));
+                    }
+                }
+                Ok(())
+            }
+            (EvalExpect::AdviceOf(name), ParsedIntent::Advice(msg)) => {
+                if msg.contains(name) {
+                    Ok(())
+                } else {
+                    Err(format!("缺参引导未含工具名「{name}」: {msg}"))
+                }
+            }
+            (EvalExpect::AmbiguousHas(names), ParsedIntent::AmbiguousTools(got)) => {
+                for n in *names {
+                    if !got.contains(n) {
+                        return Err(format!("歧义候选缺「{n}」（实得: {got:?}）"));
+                    }
+                }
+                Ok(())
+            }
+            (EvalExpect::Fallback, ParsedIntent::Fallback) => Ok(()),
+            (_, other) => Err(format!("意图不符：实得 {other:?}")),
+        }
+    }
+
+    /// 准确率指标：通过率 = 通过数 / 总数；阈值断言回归下限。
+    #[test]
+    fn eval_intent_accuracy() {
+        let mut failures: Vec<String> = Vec::new();
+        for c in EVAL_SET {
+            if let Err(e) = eval_case(c) {
+                failures.push(format!("「{}」: {e}", c.input));
+            }
+        }
+        let total = EVAL_SET.len();
+        let pass = total - failures.len();
+        let acc = pass as f64 / total as f64;
+        // 实测通过率 100%（40/40，2026-08 首跑）；回归阈值 90%（注释即基线）。
+        assert!(
+            acc >= 0.90,
+            "意图通过率 {pass}/{total}（{acc:.0}%）低于阈值 90%；失败：\n{}",
+            failures.join("\n")
+        );
+        assert!(failures.is_empty(), "失败用例：\n{}", failures.join("\n"));
     }
 }

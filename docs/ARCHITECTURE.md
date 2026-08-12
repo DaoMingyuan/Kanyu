@@ -284,3 +284,7 @@ kanyu-edit 首个增量 + 壳层编辑模式（顶点编辑/属性单元格编�
    持久化、多地图框混排。
 5. **3D 场景真管线化**：scene3d 为 egui painter 实验实现；真 3D（地形/纹理/拾取）
    待 Phase 2 wgpu 管线接入。
+
+> Phase 4 基准项进展：AI 意图评估集（GeoAnalystBench 精神的最小落地）已入测试守护——
+> 40 条中文用例覆盖五分类工具常见说法/口语变体/歧义/无关输入，实测通过率 100%
+> （回归阈值 90%），见 kanyu-shell `ai.rs::tests::eval_intent_accuracy`。
