@@ -83,8 +83,6 @@ pub struct ChatMsg {
 pub trait AiDriver {
     /// 驱动名。
     fn name(&self) -> &str;
-    /// 发送对话（历史 + 数据现场提示），返回助手回复。
-    fn chat(&mut self, history: &[ChatMsg], context: &str) -> Result<String, String>;
 }
 
 /// 本地规则驱动：自然语言 → 堪舆命令（离线默认）。
@@ -671,13 +669,6 @@ impl AiDriver for LocalDriver {
     fn name(&self) -> &str {
         "本地规则（离线）"
     }
-
-    fn chat(&mut self, history: &[ChatMsg], _context: &str) -> Result<String, String> {
-        let _ = history;
-        // LocalDriver 的执行由面板直接分派（需要 ConsoleHost 与图层清单），
-        // 本方法仅兜底：面板应先走 parse() 分派。
-        Ok("（本地规则：请通过面板的意图分派执行）".to_string())
-    }
 }
 
 /// OpenAI 兼容驱动（ureq，纯 Rust）。
@@ -686,28 +677,298 @@ pub struct OpenAiDriver {
     pub base_url: String,
     /// 密钥。
     pub api_key: String,
-    /// 模型。
-    pub model: String,
 }
 
-impl AiDriver for OpenAiDriver {
-    fn name(&self) -> &str {
-        "OpenAI 兼容端点"
-    }
+// ===== 工具调用（function calling）=====
 
-    fn chat(&mut self, history: &[ChatMsg], context: &str) -> Result<String, String> {
+/// 单轮对话响应（内容 + 工具调用清单）。
+#[derive(Debug, Default)]
+pub struct ChatResponse {
+    /// 文本内容（可有可空）。
+    pub content: Option<String>,
+    /// 工具调用（id / 工具名 / 参数 JSON）。
+    pub tool_calls: Vec<ToolCall>,
+}
+
+/// 一次工具调用。
+#[derive(Debug)]
+pub struct ToolCall {
+    /// 调用 id（回传 tool 结果用）。
+    pub id: String,
+    /// 工具 id（注册表 id）。
+    pub name: String,
+    /// 参数（JSON 对象）。
+    pub args: serde_json::Value,
+}
+
+/// 单轮对话接口（OpenAiDriver 实现；测试用脚本化假实现注入——离线可测循环）。
+pub trait ChatOnce {
+    /// 发送一轮（body 由调用方完整构造：model/messages/tools）。
+    fn chat_once(&mut self, body: &serde_json::Value) -> Result<ChatResponse, String>;
+}
+
+/// TOOLS → OpenAI tools JSON（投影纯函数；与 MCP 无 execute_code 同一安全叙事——
+/// 只暴露注册表工具，模型无法触达任意代码执行）。
+pub fn tools_schema(layers: &[String]) -> serde_json::Value {
+    use kanyu_core::tooldef::TOOLS;
+    let tools: Vec<serde_json::Value> = TOOLS
+        .iter()
+        .map(|def| {
+            let mut props = serde_json::Map::new();
+            let mut required = Vec::new();
+            for p in def.params {
+                props.insert(p.key.to_string(), param_schema(p, layers));
+                // 必填且无默认值 → 模型必须提供（有默认值的省略即可）。
+                if p.required && p.default.is_empty() {
+                    required.push(serde_json::Value::from(p.key));
+                }
+            }
+            serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": def.id,
+                    "description": format!("{}——{}", def.name, def.desc),
+                    "parameters": {
+                        "type": "object",
+                        "properties": serde_json::Value::Object(props),
+                        "required": required,
+                    },
+                }
+            })
+        })
+        .collect();
+    serde_json::Value::Array(tools)
+}
+
+/// 单参数 → JSON Schema（图层/字段在 description 内嵌现场提示）。
+fn param_schema(p: &kanyu_core::tooldef::ToolParam, layers: &[String]) -> serde_json::Value {
+    use kanyu_core::tooldef::ParamKind;
+    let layer_hint = format!("可用图层：{}", layers.join(", "));
+    match &p.kind {
+        ParamKind::Layer => serde_json::json!({
+            "type": "string", "description": format!("{}（图层 id；{layer_hint}）", p.label) }),
+        ParamKind::MultiLayers => serde_json::json!({
+            "type": "array", "items": {"type": "string"},
+            "description": format!("{}（图层 id 数组；{layer_hint}）", p.label) }),
+        ParamKind::Field(_) => serde_json::json!({
+            "type": "string", "description": format!("{}（字段名，取自输入图层）", p.label) }),
+        ParamKind::Number => serde_json::json!({
+            "type": "number", "description": p.label }),
+        ParamKind::Long => serde_json::json!({
+            "type": "integer", "description": p.label }),
+        ParamKind::NumberList => serde_json::json!({
+            "type": "string", "description": format!("{}（逗号分隔数值，如 100,200）", p.label) }),
+        ParamKind::Boolean => serde_json::json!({
+            "type": "boolean", "description": p.label }),
+        ParamKind::Enum(opts) => {
+            let labels: Vec<&str> = opts.iter().map(|(_, zh)| *zh).collect();
+            let mapping: Vec<String> = opts.iter().map(|(v, zh)| format!("{zh}={v}")).collect();
+            serde_json::json!({
+                "type": "string",
+                "enum": labels,
+                "description": format!("{}（中文标签；内核映射：{}）", p.label, mapping.join("，")),
+            })
+        }
+        ParamKind::LinearUnit => serde_json::json!({
+            "type": "string",
+            "description": format!("{}（格式「数值|单位」，单位：米/千米/度；经纬度米制请先投影）", p.label) }),
+        ParamKind::Extent => serde_json::json!({
+            "type": "string", "description": format!("{}（minx,miny,maxx,maxy）", p.label) }),
+        ParamKind::Crs => serde_json::json!({
+            "type": "string", "description": format!("{}（如 EPSG:4490）", p.label) }),
+        ParamKind::Expression => serde_json::json!({
+            "type": "string", "description": format!("{}（如 height > 50）", p.label) }),
+        _ => serde_json::json!({ "type": "string", "description": p.label }),
+    }
+}
+
+/// 工具参数 JSON → 值数组（与参数表对齐；枚举中文标签折算内核值；
+/// 缺失补默认值——与 extract_tool_values 同语义）。
+pub fn args_to_values(def: &kanyu_core::tooldef::ToolDef, args: &serde_json::Value) -> Vec<String> {
+    use kanyu_core::tooldef::ParamKind;
+    def.params
+        .iter()
+        .map(|p| {
+            let v = &args[p.key];
+            let missing = v.is_null();
+            let got: Option<String> = match &p.kind {
+                ParamKind::MultiLayers => v.as_array().map(|arr| {
+                    arr.iter()
+                        .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                }),
+                ParamKind::Number | ParamKind::Long => v
+                    .as_f64()
+                    .map(|f| format!("{f}"))
+                    .or_else(|| v.as_str().map(|s| s.to_string())),
+                ParamKind::NumberList => v
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|x| x.as_f64())
+                            .map(|f| format!("{f}"))
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    })
+                    .or_else(|| v.as_str().map(|s| s.to_string())),
+                ParamKind::Boolean => v
+                    .as_bool()
+                    .map(|b| b.to_string())
+                    .or_else(|| v.as_str().map(|s| s.to_string())),
+                // 枚举：中文标签 → 内核值（模型按 schema enum 给标签）。
+                ParamKind::Enum(opts) => v.as_str().map(|s| {
+                    opts.iter()
+                        .find(|(_, zh)| *zh == s)
+                        .map(|(val, _)| val.to_string())
+                        .unwrap_or_else(|| s.to_string())
+                }),
+                // 线性单位：数值 → 度直通（CRS 单位）。
+                ParamKind::LinearUnit => v
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .or_else(|| v.as_f64().map(|f| format!("{f}|度"))),
+                _ => v.as_str().map(|s| s.to_string()),
+            };
+            match got {
+                Some(s) if !missing && !s.is_empty() => s,
+                _ => p.default.to_string(),
+            }
+        })
+        .collect()
+}
+
+/// 响应 JSON → ChatResponse（纯函数；离线 fixture 可测）。
+pub fn parse_response(text: &str) -> Result<ChatResponse, String> {
+    let json: serde_json::Value =
+        serde_json::from_str(text).map_err(|e| format!("响应非合法 JSON: {e}"))?;
+    let msg = &json["choices"][0]["message"];
+    if msg.is_null() {
+        return Err(format!("响应缺少 choices[0].message: {text:.200}"));
+    }
+    let content = msg["content"].as_str().map(|s| s.to_string());
+    let mut tool_calls = Vec::new();
+    if let Some(arr) = msg["tool_calls"].as_array() {
+        for tc in arr {
+            let name = tc["function"]["name"].as_str().unwrap_or("").to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let args = tc["function"]["arguments"]
+                .as_str()
+                .and_then(|s| serde_json::from_str(s).ok())
+                .unwrap_or_else(|| serde_json::json!({}));
+            tool_calls.push(ToolCall {
+                id: tc["id"].as_str().unwrap_or("").to_string(),
+                name,
+                args,
+            });
+        }
+    }
+    Ok(ChatResponse {
+        content,
+        tool_calls,
+    })
+}
+
+/// 工具调用轮次上限（防模型循环调工具烧额度；注释即契约）。
+pub const MAX_TOOL_ROUNDS: usize = 4;
+
+/// 工具调用循环产出（最终回复 + 过程行）。
+pub struct ToolLoopOutcome {
+    /// 最终文本回复。
+    pub reply: String,
+    /// 工具调用过程行（「调用工具：name（参数摘要）」，面板弱色小字展示）。
+    pub calls: Vec<String>,
+}
+
+/// 工具调用对话循环（≤ MAX_TOOL_ROUNDS 轮）：
+/// 请求带 tools → 模型回 tool_calls → 逐个经 `run` 执行（结果/错误均以
+/// role=tool 回传让模型自纠）→ 再请求，直到无 tool_calls 或触上限。
+pub fn run_tool_call_loop(
+    driver: &mut dyn ChatOnce,
+    model: &str,
+    history: &[ChatMsg],
+    context: &str,
+    layers: &[String],
+    mut run: impl FnMut(&str, Vec<String>) -> Result<String, String>,
+) -> Result<ToolLoopOutcome, String> {
+    let tools = tools_schema(layers);
+    let mut messages = vec![serde_json::json!({"role": "system", "content": context})];
+    for m in history.iter().rev().take(20).rev() {
+        messages.push(serde_json::json!({"role": m.role, "content": m.content}));
+    }
+    let mut calls = Vec::new();
+    for _round in 0..MAX_TOOL_ROUNDS {
+        let body = serde_json::json!({
+            "model": model,
+            "messages": messages,
+            "tools": tools,
+            "temperature": 0.2,
+        });
+        let resp = driver.chat_once(&body)?;
+        if resp.tool_calls.is_empty() {
+            let reply = resp.content.unwrap_or_else(|| "（空回复）".to_string());
+            return Ok(ToolLoopOutcome { reply, calls });
+        }
+        // assistant 消息（含 tool_calls）先入列，再逐调用回传 tool 结果。
+        let tc_json: Vec<serde_json::Value> = resp
+            .tool_calls
+            .iter()
+            .map(|tc| {
+                serde_json::json!({
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.name,
+                        "arguments": tc.args.to_string(),
+                    },
+                })
+            })
+            .collect();
+        messages.push(serde_json::json!({
+            "role": "assistant",
+            "content": resp.content,
+            "tool_calls": tc_json,
+        }));
+        for tc in &resp.tool_calls {
+            let values = match kanyu_core::tooldef::find(&tc.name) {
+                Some(def) => args_to_values(def, &tc.args),
+                None => {
+                    calls.push(format!("调用工具：{}（未登记，已回传错误）", tc.name));
+                    messages.push(serde_json::json!({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": format!("错误：工具 {} 未登记", tc.name),
+                    }));
+                    continue;
+                }
+            };
+            calls.push(format!("调用工具：{}（{}）", tc.name, values.join(" ")));
+            let result = match run(&tc.name, values) {
+                Ok(msg) => msg,
+                Err(e) => format!("执行失败: {e}"),
+            };
+            messages.push(serde_json::json!({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": result,
+            }));
+        }
+    }
+    Ok(ToolLoopOutcome {
+        reply: format!(
+            "（已达工具调用轮次上限 {MAX_TOOL_ROUNDS} 轮——为避免循环调用已停止；可换个说法再问）"
+        ),
+        calls,
+    })
+}
+
+impl ChatOnce for OpenAiDriver {
+    fn chat_once(&mut self, body: &serde_json::Value) -> Result<ChatResponse, String> {
         if self.api_key.trim().is_empty() {
             return Err("未配置 API Key（点右上角齿轮进入 AI 设置）".to_string());
         }
-        let mut messages = vec![serde_json::json!({"role": "system", "content": context})];
-        for m in history.iter().rev().take(20).rev() {
-            messages.push(serde_json::json!({"role": m.role, "content": m.content}));
-        }
-        let body = serde_json::json!({
-            "model": self.model,
-            "messages": messages,
-            "temperature": 0.2,
-        });
         let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
         let mut resp = ureq::post(&url)
             .header("Authorization", &format!("Bearer {}", self.api_key))
@@ -718,12 +979,14 @@ impl AiDriver for OpenAiDriver {
             .body_mut()
             .read_to_string()
             .map_err(|e| format!("读取响应失败: {e}"))?;
-        let json: serde_json::Value =
-            serde_json::from_str(&text).map_err(|e| format!("响应非合法 JSON: {e}"))?;
-        json["choices"][0]["message"]["content"]
-            .as_str()
-            .map(|s| s.to_string())
-            .ok_or_else(|| format!("响应缺少 choices[0].message.content: {text:.200}"))
+        parse_response(&text)
+    }
+}
+
+impl OpenAiDriver {
+    /// 驱动名（面板顶行指示）。
+    pub fn label(&self) -> &'static str {
+        "OpenAI 兼容端点"
     }
 }
 
@@ -788,6 +1051,10 @@ impl AiChatPanel {
                 content: "质心 buildings".to_string(),
             },
             ChatMsg {
+                role: "tool".to_string(),
+                content: "调用工具：centroid（buildings）".to_string(),
+            },
+            ChatMsg {
                 role: "assistant".to_string(),
                 content: "已派发「质心」后台执行：「质心」（buildings）。\n完成后新图层/报告见图层面板与终端。".to_string(),
             },
@@ -802,15 +1069,14 @@ impl AiChatPanel {
             .map(|(id, _, _)| id)
             .collect();
 
-        // 顶行：驱动指示（经 trait 取驱动名）+ 设置齿轮。
+        // 顶行：驱动指示 + 设置齿轮。
         ui.horizontal(|ui| {
             let driver_label = if self.settings.driver == "openai" {
                 let d = OpenAiDriver {
                     base_url: self.settings.base_url.clone(),
                     api_key: self.settings.api_key.clone(),
-                    model: self.settings.model.clone(),
                 };
-                format!("驱动: {}（{}）", d.name(), self.settings.model)
+                format!("驱动: {}（{}）", d.label(), self.settings.model)
             } else {
                 format!("驱动: {}", LocalDriver.name())
             };
@@ -943,22 +1209,38 @@ impl AiChatPanel {
         });
 
         if self.settings.driver == "openai" {
-            // 远程：注入数据现场，走 OpenAI 兼容端点。
+            // 远程：工具调用循环（tools 投影注册表；执行经 host_run_tool 既有链路）。
             let context = build_context(host);
             let mut driver = OpenAiDriver {
                 base_url: self.settings.base_url.clone(),
                 api_key: self.settings.api_key.clone(),
-                model: self.settings.model.clone(),
             };
             self.busy = true;
             let history_snapshot = self.history.clone();
-            let result = driver.chat(&history_snapshot, &context);
+            let layers_owned = layers.to_vec();
+            let result = run_tool_call_loop(
+                &mut driver,
+                &self.settings.model.clone(),
+                &history_snapshot,
+                &context,
+                &layers_owned,
+                |id, values| host.host_run_tool(id, &values),
+            );
             self.busy = false;
             match result {
-                Ok(reply) => self.history.push(ChatMsg {
-                    role: "assistant".to_string(),
-                    content: reply,
-                }),
+                Ok(out) => {
+                    // 工具调用过程行（弱色小字）先于最终回复入列。
+                    for c in out.calls {
+                        self.history.push(ChatMsg {
+                            role: "tool".to_string(),
+                            content: c,
+                        });
+                    }
+                    self.history.push(ChatMsg {
+                        role: "assistant".to_string(),
+                        content: out.reply,
+                    });
+                }
                 Err(e) => self.history.push(ChatMsg {
                     role: "assistant".to_string(),
                     content: format!("远程驱动失败: {e}（可切回 local 驱动）"),
@@ -1050,14 +1332,23 @@ fn build_context(host: &mut dyn ConsoleHost) -> String {
     };
     format!(
         "你是堪舆（Kanyu）GIS 系统的 AI 助手\"堪舆灵\"。当前数据现场图层: {layer_desc}。\
-         用户可让你执行空间操作；你只能建议使用这些命令（不要假装已执行）：\
-         buffer/overlay/topology/sjoin/zonal_stats/measure/reproject/export。\
-         用简洁中文回答，涉及命令时给出确切的命令文本。"
+         用户可让你执行空间操作——经提供的工具函数直接调用（function calling），\
+         工具结果会以 tool 消息回传；全部完成后用简洁中文总结结果。\
+         不要假装已执行未调用的操作。"
     )
 }
 
-/// 对话气泡（用户右/AI 左）。
+/// 对话气泡（用户右/AI 左；工具调用过程行 = 弱色小字无气泡）。
 fn chat_bubble(ui: &mut egui::Ui, msg: &ChatMsg) {
+    if msg.role == "tool" {
+        // 工具调用过程行（function calling 轨迹，弱色小字）。
+        ui.horizontal(|ui| {
+            ui.add_space(10.0);
+            hint_caption(ui, &format!("⚙ {}", msg.content));
+        });
+        ui.add_space(2.0);
+        return;
+    }
     let is_user = msg.role == "user";
     let p = crate::theme::palette(if ui.visuals().dark_mode {
         kanyu_render::Theme::Dark
@@ -1247,5 +1538,177 @@ mod tests {
         let back: AiSettings = serde_json::from_str(&text).unwrap();
         assert_eq!(back.model, "test-model");
         assert_eq!(back.driver, "openai");
+    }
+
+    #[test]
+    fn tools_schema_projection() {
+        let schema = tools_schema(&layers());
+        let arr = schema.as_array().unwrap();
+        assert_eq!(arr.len(), kanyu_core::tooldef::TOOLS.len());
+        let buffer = arr
+            .iter()
+            .find(|t| t["function"]["name"] == "buffer")
+            .unwrap();
+        assert!(buffer["function"]["description"]
+            .as_str()
+            .unwrap()
+            .contains("缓冲区"));
+        let props = &buffer["function"]["parameters"]["properties"];
+        // 图层参数：string + 现场图层清单提示。
+        let layer = props["layer"].as_object().unwrap();
+        assert_eq!(layer["type"], "string");
+        assert!(layer["description"].as_str().unwrap().contains("buildings"));
+        // 线性单位：string 带格式说明。
+        assert_eq!(props["distance"]["type"], "string");
+        // 必填（无默认值）入 required。
+        let required = buffer["function"]["parameters"]["required"]
+            .as_array()
+            .unwrap();
+        assert!(required.contains(&serde_json::json!("layer")));
+        // 枚举工具（空间连接谓词）：enum 中文标签。
+        let sjoin = arr
+            .iter()
+            .find(|t| t["function"]["name"] == "sjoin")
+            .expect("注册表有 sjoin");
+        let pred = &sjoin["function"]["parameters"]["properties"]["predicate"];
+        assert!(pred["enum"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("相交")));
+    }
+
+    #[test]
+    fn parse_response_with_tool_calls() {
+        // OpenAI tool_calls 响应 fixture。
+        let text = r#"{"choices":[{"message":{"role":"assistant","content":null,
+            "tool_calls":[{"id":"call_1","type":"function",
+                "function":{"name":"centroid","arguments":"{\"layer\":\"buildings\"}"}}]}}]}"#;
+        let resp = parse_response(text).unwrap();
+        assert_eq!(resp.tool_calls.len(), 1);
+        assert_eq!(resp.tool_calls[0].name, "centroid");
+        assert_eq!(resp.tool_calls[0].args["layer"], "buildings");
+        // 纯文本响应（无 tool_calls）。
+        let text2 = r#"{"choices":[{"message":{"content":"好的"}}]}"#;
+        let resp2 = parse_response(text2).unwrap();
+        assert!(resp2.tool_calls.is_empty());
+        assert_eq!(resp2.content.as_deref(), Some("好的"));
+    }
+
+    #[test]
+    fn args_to_values_enum_and_defaults() {
+        // 枚举中文标签折算内核值；缺失参数取默认。
+        let sjoin = kanyu_core::tooldef::find("sjoin").unwrap();
+        let values = args_to_values(
+            sjoin,
+            &serde_json::json!({"target": "buildings", "join": "roads", "predicate": "相交"}),
+        );
+        let pred_idx = sjoin
+            .params
+            .iter()
+            .position(|p| p.key == "predicate")
+            .unwrap();
+        assert_eq!(values[pred_idx], "intersects");
+        // buffer：distance 数值 → 度直通。
+        let buf = kanyu_core::tooldef::find("buffer").unwrap();
+        let v2 = args_to_values(
+            buf,
+            &serde_json::json!({"layer": "buildings", "distance": 0.1}),
+        );
+        assert_eq!(v2[1], "0.1|度");
+    }
+
+    /// 脚本化假模型（离线测对话循环）。
+    struct FakeModel {
+        script: std::collections::VecDeque<ChatResponse>,
+        /// 记录收到的 messages 数（验证 tool 结果回传）。
+        seen: Vec<usize>,
+    }
+
+    impl ChatOnce for FakeModel {
+        fn chat_once(&mut self, body: &serde_json::Value) -> Result<ChatResponse, String> {
+            self.seen.push(body["messages"].as_array().unwrap().len());
+            Ok(self.script.pop_front().expect("脚本耗尽"))
+        }
+    }
+
+    fn tc(id: &str) -> ChatResponse {
+        ChatResponse {
+            content: None,
+            tool_calls: vec![ToolCall {
+                id: "call_1".into(),
+                name: id.into(),
+                args: serde_json::json!({"layer": "buildings"}),
+            }],
+        }
+    }
+
+    #[test]
+    fn tool_loop_executes_and_terminates() {
+        let mut fake = FakeModel {
+            script: vec![
+                tc("centroid"),
+                ChatResponse {
+                    content: Some("质心已生成".into()),
+                    tool_calls: vec![],
+                },
+            ]
+            .into(),
+            seen: Vec::new(),
+        };
+        let mut ran: Vec<String> = Vec::new();
+        let out = run_tool_call_loop(
+            &mut fake,
+            "m",
+            &[ChatMsg {
+                role: "user".into(),
+                content: "算质心".into(),
+            }],
+            "ctx",
+            &layers(),
+            |id, _values| {
+                ran.push(id.to_string());
+                Ok("新图层 centroid_buildings（3 要素）".to_string())
+            },
+        )
+        .unwrap();
+        assert_eq!(out.reply, "质心已生成");
+        assert_eq!(ran, vec!["centroid"]);
+        assert_eq!(out.calls.len(), 1);
+        assert!(out.calls[0].contains("centroid"));
+        // 第二轮请求的 messages 含 tool 结果回传。
+        assert!(fake.seen[1] > fake.seen[0]);
+    }
+
+    #[test]
+    fn tool_loop_round_cap() {
+        // 模型每次都要求调工具 → 触上限停止。
+        let mut fake = FakeModel {
+            script: (0..6).map(|_| tc("centroid")).collect(),
+            seen: Vec::new(),
+        };
+        let out = run_tool_call_loop(&mut fake, "m", &[], "ctx", &layers(), |_, _| {
+            Ok("ok".to_string())
+        })
+        .unwrap();
+        assert!(out.reply.contains("轮次上限"));
+        assert_eq!(out.calls.len(), MAX_TOOL_ROUNDS);
+        // 未登记工具：错误回传不中断循环。
+        let mut fake2 = FakeModel {
+            script: vec![
+                tc("不存在的工具"),
+                ChatResponse {
+                    content: Some("明白".into()),
+                    tool_calls: vec![],
+                },
+            ]
+            .into(),
+            seen: Vec::new(),
+        };
+        let out2 = run_tool_call_loop(&mut fake2, "m", &[], "ctx", &layers(), |_, _| {
+            panic!("未登记工具不应执行")
+        })
+        .unwrap();
+        assert_eq!(out2.reply, "明白");
+        assert!(out2.calls[0].contains("未登记"));
     }
 }

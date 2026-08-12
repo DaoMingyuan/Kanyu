@@ -82,6 +82,8 @@ pub struct ShellArgs {
     pub draw_demo: bool,
     /// 隐藏验证参数：顶点捕捉指示态（绘制中 + 演示光标贴近既有顶点，截图验证吸附圆环）。
     pub snap_demo: bool,
+    /// 隐藏验证参数：编辑会话「分割要素」切割线绘制中态（预置 2 顶点切割线 + 橡皮筋，截图验证）。
+    pub split_demo: bool,
     /// 隐藏验证参数：主框三维 + wgpu 后端（真管线截图验证）。
     pub wgpu_demo: bool,
     /// 隐藏验证参数：双三维框同开 wgpu（多视口分键截图验证）。
@@ -125,6 +127,7 @@ impl Default for ShellArgs {
             edit_demo: false,
             draw_demo: false,
             snap_demo: false,
+            split_demo: false,
             wgpu_demo: false,
             wgpu_demo2: false,
             ai_demo: false,
@@ -198,6 +201,7 @@ fn parse_args() -> ShellArgs {
             "--edit-demo" => args.edit_demo = true,
             "--draw-demo" => args.draw_demo = true,
             "--snap-demo" => args.snap_demo = true,
+            "--split-demo" => args.split_demo = true,
             "--wgpu-demo" => args.wgpu_demo = true,
             "--wgpu-demo2" => args.wgpu_demo2 = true,
             "--ai-demo" => args.ai_demo = true,
