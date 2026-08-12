@@ -31,6 +31,15 @@ pub struct WfsConnection {
     pub url: String,
 }
 
+/// 服务连接编辑目标（对话框 editing 字段；None = 新建）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServiceEditTarget {
+    /// 类型（WFS/WMS 清单）。
+    pub kind: ServiceKind,
+    /// 清单下标。
+    pub index: usize,
+}
+
 /// 新建服务链接对话框状态（app 持有；Ok/Cancel 后清空）。
 #[derive(Debug, Default)]
 pub struct ServiceDialogState {
@@ -48,6 +57,8 @@ pub struct ServiceDialogState {
     pub caps_note: Option<String>,
     /// 清单后台拉取通道（Some = 拉取中）。
     pub caps_rx: Option<std::sync::mpsc::Receiver<Result<Vec<WfsLayerInfo>, String>>>,
+    /// 编辑目标（Some = 编辑既有连接；None = 新建）。
+    pub editing: Option<ServiceEditTarget>,
 }
 
 /// 服务类型。
@@ -185,6 +196,22 @@ pub fn build_getfeature_url(base: &str, type_name: &str) -> String {
         join_query(base),
         type_name.trim()
     )
+}
+
+/// 拆解完整 GetFeature 地址（编辑回填用，best-effort）：(基址, typeNames)。
+/// 无 '?' 时整体作基址、图层空串；无 typeNames 参数时图层空串。
+pub fn split_getfeature_url(url: &str) -> (String, String) {
+    let Some((base, query)) = url.split_once('?') else {
+        return (url.trim().to_string(), String::new());
+    };
+    for pair in query.split('&') {
+        if let Some((k, v)) = pair.split_once('=') {
+            if k.eq_ignore_ascii_case("typenames") || k.eq_ignore_ascii_case("typename") {
+                return (base.to_string(), v.to_string());
+            }
+        }
+    }
+    (base.to_string(), String::new())
 }
 
 /// 构造 WMS GetMap 请求地址（1.3.0 + CRS=EPSG:4326；bbox = [minx,miny,maxx,maxy]
@@ -397,6 +424,28 @@ mod tests {
         );
         let u3 = build_getfeature_url("https://svc/wfs?", "ns:lyr");
         assert!(u3.starts_with("https://svc/wfs?service=WFS"), "{u3}");
+    }
+
+    #[test]
+    fn split_getfeature_url_roundtrip_and_fallbacks() {
+        // 构造→拆解往返。
+        let u = build_getfeature_url("https://svc/geoserver/wfs", "demo:blocks");
+        let (base, layer) = split_getfeature_url(&u);
+        assert_eq!(base, "https://svc/geoserver/wfs");
+        assert_eq!(layer, "demo:blocks");
+        // 单数 typename 也识别（WFS 1.x 风格参数名）。
+        let (_, l2) = split_getfeature_url("https://a/wfs?service=WFS&typeName=topp:states");
+        assert_eq!(l2, "topp:states");
+        // 无查询串/无 typeNames 的兜底。
+        assert_eq!(split_getfeature_url("https://a/wfs").1, "");
+        assert_eq!(
+            split_getfeature_url("https://a/wfs?request=GetFeature").1,
+            ""
+        );
+        assert_eq!(
+            split_getfeature_url("https://a/wfs?request=GetFeature").0,
+            "https://a/wfs"
+        );
     }
 
     #[test]

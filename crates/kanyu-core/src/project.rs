@@ -106,6 +106,11 @@ pub struct ProjectFrame {
     /// 吸附中央页签（false = 浮动窗）。
     #[serde(default = "default_true")]
     pub docked: bool,
+    /// WMS 底图连接名（None/缺省 = 无底图）。连接定义属本机 ui-state 不入工程
+    /// （取舍：工程跨机共享时连接清单各不相同，恢复方按名匹配本机清单，
+    /// 失配即忽略并中文提示——见 shell open_project）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wms_base: Option<String>,
 }
 
 /// 工程中的一个图层引用。
@@ -310,6 +315,11 @@ mod tests {
         let p = KanyuProject::from_json(text).unwrap();
         assert!(p.frames.is_empty());
         assert_eq!(p.layers[0].map, None);
+        // 老工程的 frames 项无 wms_base 键 → 默认 None（向后兼容）。
+        let legacy_frames = r#"{"kanyu_project":1,"name":"x",
+            "frames":[{"title":"地图","dim":"2d","open":true,"docked":true}]}"#;
+        let p2 = KanyuProject::from_json(legacy_frames).unwrap();
+        assert_eq!(p2.frames[0].wms_base, None);
     }
 
     /// 地图框清单 + 图层 map 归属往返；空 frames 不写键（保持文件干净）。
@@ -323,6 +333,7 @@ mod tests {
                 viewport: Some([0.0, 0.0, 1.0, 1.0]),
                 open: true,
                 docked: true,
+                wms_base: None,
             },
             ProjectFrame {
                 title: "场景 2".to_string(),
@@ -330,6 +341,7 @@ mod tests {
                 viewport: None,
                 open: false,
                 docked: false,
+                wms_base: Some("osm 底图".to_string()),
             },
         ];
         p.layers.push(ProjectLayer {
@@ -345,6 +357,8 @@ mod tests {
         assert_eq!(back.frames.len(), 2);
         assert_eq!(back.frames[1].dim, "3d");
         assert!(!back.frames[1].open);
+        assert_eq!(back.frames[0].wms_base, None);
+        assert_eq!(back.frames[1].wms_base.as_deref(), Some("osm 底图"));
         assert!(!back.frames[1].docked);
         assert_eq!(back.frames[0].viewport, Some([0.0, 0.0, 1.0, 1.0]));
         assert_eq!(back.layers[0].map.as_deref(), Some("场景 2"));

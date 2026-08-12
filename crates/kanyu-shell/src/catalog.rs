@@ -35,10 +35,14 @@ pub enum CatalogAction {
     NewService,
     /// 删除服务链接（services 下标）。
     DeleteService(usize),
+    /// 编辑服务链接（services 下标；回填对话框）。
+    EditService(usize),
     /// 连接服务并加载为图层（services 下标）。
     ConnectService(usize),
     /// 删除 WMS 连接（wms 清单下标）。
     DeleteWms(usize),
+    /// 编辑 WMS 连接（wms 清单下标；回填对话框）。
+    EditWms(usize),
     /// WMS 设为当前框底图（wms 清单下标）。
     WmsBaseOn(usize),
     /// 取消当前框底图。
@@ -511,6 +515,10 @@ impl CatalogPanel {
                                         actions.push(CatalogAction::ConnectService(i));
                                         ui.close();
                                     }
+                                    if ui.button("编辑…").clicked() {
+                                        actions.push(CatalogAction::EditService(i));
+                                        ui.close();
+                                    }
                                     if ui.button("删除").clicked() {
                                         actions.push(CatalogAction::DeleteService(i));
                                         ui.close();
@@ -541,6 +549,10 @@ impl CatalogPanel {
                                     }
                                     if ui.button("取消底图").clicked() {
                                         actions.push(CatalogAction::WmsBaseOff);
+                                        ui.close();
+                                    }
+                                    if ui.button("编辑…").clicked() {
+                                        actions.push(CatalogAction::EditWms(i));
                                         ui.close();
                                     }
                                     if ui.button("删除").clicked() {

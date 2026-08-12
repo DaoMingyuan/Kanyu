@@ -707,8 +707,9 @@ impl KanyuApp {
             }
         }
         // --service-demo：目录「服务链接」预置 WFS+WMS 演示连接各一并展开分类（截图验证）；
-        // --service-dlg-demo 另打开新建对话框（预填图层清单，图层发现截图验证）。
-        if args.service_demo || args.service_dlg_demo {
+        // --service-dlg-demo 另打开新建对话框（预填图层清单，图层发现截图验证）；
+        // --service-edit-demo 打开编辑对话框（WFS 连接回填态截图验证）。
+        if args.service_demo || args.service_dlg_demo || args.service_edit_demo {
             // 覆盖式预置（非追加）：持久化恢复后重复演示不累积重复行。
             app.services = vec![crate::services::WfsConnection {
                 name: "示例 WFS（演示）".to_string(),
@@ -745,6 +746,21 @@ impl KanyuApp {
                         },
                     ],
                     caps_note: Some("已发现 2 个图层".to_string()),
+                    ..Default::default()
+                });
+            }
+            if args.service_edit_demo {
+                // 编辑回填态（WFS 连接：完整 URL 拆解为基址 + 图层）。
+                let (base, layer) = crate::services::split_getfeature_url(&app.services[0].url);
+                app.service_dlg = Some(crate::services::ServiceDialogState {
+                    kind: crate::services::ServiceKind::Wfs,
+                    name: app.services[0].name.clone(),
+                    url: base,
+                    layer,
+                    editing: Some(crate::services::ServiceEditTarget {
+                        kind: crate::services::ServiceKind::Wfs,
+                        index: 0,
+                    }),
                     ..Default::default()
                 });
             }
@@ -1031,6 +1047,20 @@ impl KanyuApp {
             f.title
         ));
         self.mark_state_dirty();
+    }
+
+    /// WMS 底图恢复（.kyu 只存连接名，定义在本机 ui-state——跨机取舍见 project.rs）：
+    /// 名在本机 wms 清单中才生效，失配中文提示并忽略。
+    fn restore_wms_base(&mut self, name: Option<&str>, frame_title: &str) -> Option<String> {
+        let name = name?;
+        if self.wms_services.iter().any(|c| c.name == name) {
+            Some(name.to_string())
+        } else {
+            self.console.info(format!(
+                "地图框「{frame_title}」的底图连接「{name}」不在本机 WMS 清单——已忽略"
+            ));
+            None
+        }
     }
 
     /// 新建地图框（二维/三维分开建立，创建即激活）。
@@ -1343,6 +1373,7 @@ impl KanyuApp {
                     },
                     open: f.open,
                     docked: f.docked,
+                    wms_base: f.wms_base.clone(),
                 }
             })
             .collect();
@@ -1451,6 +1482,7 @@ impl KanyuApp {
             self.frames[0].open = pf0.open;
             self.frames[0].docked = pf0.docked;
             self.view_bbox = pf0.viewport.or(project.viewport);
+            self.frames[0].wms_base = self.restore_wms_base(pf0.wms_base.as_deref(), &pf0.title);
         } else {
             self.view_bbox = project.viewport;
         }
@@ -1466,6 +1498,7 @@ impl KanyuApp {
             f.docked = pf.docked;
             f.site.view_bbox = pf.viewport;
             f.site.needs_fit = pf.viewport.is_none();
+            f.wms_base = self.restore_wms_base(pf.wms_base.as_deref(), &pf.title);
             self.frames.push(f);
         }
         let mut failed = 0;
@@ -3884,6 +3917,37 @@ impl eframe::App for KanyuApp {
                         self.start_service_fetch(conn);
                     }
                 }
+                crate::catalog::CatalogAction::EditService(i) => {
+                    if let Some(conn) = self.services.get(i) {
+                        let (base, layer) = crate::services::split_getfeature_url(&conn.url);
+                        self.service_dlg = Some(crate::services::ServiceDialogState {
+                            kind: crate::services::ServiceKind::Wfs,
+                            name: conn.name.clone(),
+                            url: base,
+                            layer,
+                            editing: Some(crate::services::ServiceEditTarget {
+                                kind: crate::services::ServiceKind::Wfs,
+                                index: i,
+                            }),
+                            ..Default::default()
+                        });
+                    }
+                }
+                crate::catalog::CatalogAction::EditWms(i) => {
+                    if let Some(conn) = self.wms_services.get(i) {
+                        self.service_dlg = Some(crate::services::ServiceDialogState {
+                            kind: crate::services::ServiceKind::Wms,
+                            name: conn.name.clone(),
+                            url: conn.url.clone(),
+                            layer: conn.layer.clone(),
+                            editing: Some(crate::services::ServiceEditTarget {
+                                kind: crate::services::ServiceKind::Wms,
+                                index: i,
+                            }),
+                            ..Default::default()
+                        });
+                    }
+                }
                 crate::catalog::CatalogAction::DeleteWms(i) => {
                     if i < self.wms_services.len() {
                         let conn = self.wms_services.remove(i);
@@ -4375,7 +4439,12 @@ impl eframe::App for KanyuApp {
                 }
             }
             let mut fetch_caps = false;
-            let action = crate::ui_kit::dialog_shell(&ctx, "新建服务链接", |ui| {
+            let dlg_title = if dlg.editing.is_some() {
+                "编辑服务链接"
+            } else {
+                "新建服务链接"
+            };
+            let action = crate::ui_kit::dialog_shell(&ctx, dlg_title, |ui| {
                 // 类型切换（切型清空图层选择——WFS/WMS 图层语义不同）。
                 let kind_label = dlg.kind.label().to_string();
                 let mut choice_kind = kind_label.clone();
@@ -4510,29 +4579,72 @@ impl eframe::App for KanyuApp {
                         match result {
                             Ok(()) => {
                                 let name = dlg.name.trim().to_string();
-                                match dlg.kind {
-                                    crate::services::ServiceKind::Wfs => {
-                                        let url = crate::services::build_getfeature_url(
-                                            &dlg.url, &dlg.layer,
-                                        );
-                                        self.console.info(format!(
-                                            "已新建服务链接「{name}」（WFS 图层 {}）",
-                                            dlg.layer.trim()
-                                        ));
-                                        self.services
-                                            .push(crate::services::WfsConnection { name, url });
-                                    }
-                                    crate::services::ServiceKind::Wms => {
-                                        self.console.info(format!(
-                                            "已新建 WMS 连接「{name}」（图层 {}）",
-                                            dlg.layer.trim()
-                                        ));
-                                        self.wms_services.push(crate::services::WmsConnection {
-                                            name,
-                                            url: dlg.url.trim().to_string(),
-                                            layer: dlg.layer.trim().to_string(),
-                                        });
-                                    }
+                                match dlg.editing {
+                                    // 编辑既有连接（更新入 ui-state 清单）。
+                                    Some(t) => match t.kind {
+                                        crate::services::ServiceKind::Wfs
+                                            if t.index < self.services.len() =>
+                                        {
+                                            let url = crate::services::build_getfeature_url(
+                                                &dlg.url, &dlg.layer,
+                                            );
+                                            let c = &mut self.services[t.index];
+                                            c.name = name.clone();
+                                            c.url = url;
+                                            self.console.info(format!(
+                                                "已更新服务链接「{name}」（WFS 图层 {}）",
+                                                dlg.layer.trim()
+                                            ));
+                                        }
+                                        crate::services::ServiceKind::Wms
+                                            if t.index < self.wms_services.len() =>
+                                        {
+                                            let c = &mut self.wms_services[t.index];
+                                            let old = std::mem::replace(&mut c.name, name.clone());
+                                            c.url = dlg.url.trim().to_string();
+                                            c.layer = dlg.layer.trim().to_string();
+                                            // 改名同步各框底图引用。
+                                            if old != name {
+                                                for f in &mut self.frames {
+                                                    if f.wms_base.as_deref() == Some(old.as_str()) {
+                                                        f.wms_base = Some(name.clone());
+                                                    }
+                                                }
+                                            }
+                                            self.console.info(format!(
+                                                "已更新 WMS 连接「{name}」（图层 {}）",
+                                                dlg.layer.trim()
+                                            ));
+                                        }
+                                        _ => {} // 下标漂移（防御）：丢弃
+                                    },
+                                    // 新建。
+                                    None => match dlg.kind {
+                                        crate::services::ServiceKind::Wfs => {
+                                            let url = crate::services::build_getfeature_url(
+                                                &dlg.url, &dlg.layer,
+                                            );
+                                            self.console.info(format!(
+                                                "已新建服务链接「{name}」（WFS 图层 {}）",
+                                                dlg.layer.trim()
+                                            ));
+                                            self.services
+                                                .push(crate::services::WfsConnection { name, url });
+                                        }
+                                        crate::services::ServiceKind::Wms => {
+                                            self.console.info(format!(
+                                                "已新建 WMS 连接「{name}」（图层 {}）",
+                                                dlg.layer.trim()
+                                            ));
+                                            self.wms_services.push(
+                                                crate::services::WmsConnection {
+                                                    name,
+                                                    url: dlg.url.trim().to_string(),
+                                                    layer: dlg.layer.trim().to_string(),
+                                                },
+                                            );
+                                        }
+                                    },
                                 }
                                 self.mark_state_dirty();
                             }
