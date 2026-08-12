@@ -216,6 +216,8 @@ pub struct ViewInput<'a> {
     pub edit: Option<crate::canvas::EditView<'a>>,
     /// 空态提示（无可见图层时；激活空框给拖入引导）。
     pub empty_hint: &'a str,
+    /// wgpu 3D 真管线可用（三维态工具条呈现 软件/wgpu 开关）。
+    pub wgpu3d: bool,
 }
 
 /// 视图帧输出（编辑动作/鼠标坐标/渲染错误回传 app）。
@@ -271,6 +273,20 @@ pub fn content_ui(
                 *state.docked = true;
             }
         }
+        // 三维态 + wgpu 可用：渲染后端开关（软件/wgpu 真管线）。
+        if matches!(*state.dim, ViewDim::ThreeD) && input.wgpu3d {
+            ui.separator();
+            ui.selectable_value(
+                &mut state.scene.backend,
+                crate::scene3d::SceneBackend::Software,
+                text::body("软件"),
+            );
+            ui.selectable_value(
+                &mut state.scene.backend,
+                crate::scene3d::SceneBackend::Wgpu,
+                text::body("wgpu"),
+            );
+        }
     });
     ui.separator();
     // 画布区。
@@ -311,6 +327,7 @@ pub fn content_ui(
                 state.needs_fit,
                 input.data_extent,
                 &p,
+                input.wgpu3d,
             );
         }
     }
@@ -318,7 +335,13 @@ pub fn content_ui(
 }
 
 /// 浮动视图窗口帧（仅休眠框：浮动即非激活——激活框恒吸附中央）。
-pub fn window_ui(ctx: &egui::Context, view: &mut MapFrame, theme: kanyu_render::Theme, crs: &str) {
+pub fn window_ui(
+    ctx: &egui::Context,
+    view: &mut MapFrame,
+    theme: kanyu_render::Theme,
+    crs: &str,
+    wgpu3d: bool,
+) {
     // 休眠框图层切片/数据范围读自身 site（与激活框互不干扰）。
     let slices = build_layer_slices(&view.site.render_cache);
     let input = ViewInput {
@@ -327,6 +350,7 @@ pub fn window_ui(ctx: &egui::Context, view: &mut MapFrame, theme: kanyu_render::
         data_extent: view.site.data_extent,
         edit: None,
         empty_hint: "（本地图框无可见图层——激活后加载数据即归属此框）",
+        wgpu3d,
     };
     let mut open = view.open;
     let resp = egui::Window::new(format!("{} · {}", view.title, crs))

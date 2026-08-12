@@ -30,6 +30,7 @@ mod mapview;
 mod panels;
 mod ribbon;
 mod scene3d;
+mod scene3d_wgpu;
 mod services;
 mod settings;
 mod symbology;
@@ -81,6 +82,8 @@ pub struct ShellArgs {
     pub draw_demo: bool,
     /// 隐藏验证参数：顶点捕捉指示态（绘制中 + 演示光标贴近既有顶点，截图验证吸附圆环）。
     pub snap_demo: bool,
+    /// 隐藏验证参数：主框三维 + wgpu 后端（真管线截图验证）。
+    pub wgpu_demo: bool,
     /// 隐藏验证参数：双地图框各自图层集（load[0]→主框，load[1]→新建三维场景框，截图验证切换联动）。
     pub frames_demo: bool,
     /// 隐藏验证参数：同 frames-demo 但场景框关闭（目录保留弱色行，截图验证关闭≠删除）。
@@ -118,6 +121,7 @@ impl Default for ShellArgs {
             edit_demo: false,
             draw_demo: false,
             snap_demo: false,
+            wgpu_demo: false,
             frames_demo: false,
             frames_demo2: false,
             frames_demo3: false,
@@ -188,6 +192,7 @@ fn parse_args() -> ShellArgs {
             "--edit-demo" => args.edit_demo = true,
             "--draw-demo" => args.draw_demo = true,
             "--snap-demo" => args.snap_demo = true,
+            "--wgpu-demo" => args.wgpu_demo = true,
             "--frames-demo" => args.frames_demo = true,
             "--frames-demo2" => args.frames_demo2 = true,
             "--frames-demo3" => args.frames_demo3 = true,

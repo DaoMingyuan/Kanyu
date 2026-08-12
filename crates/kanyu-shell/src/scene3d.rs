@@ -24,6 +24,18 @@ pub struct Scene3D {
     pub yaw: f32,
     /// 俯仰角（30°–45° 档位内拖调，弧度）。
     pub pitch: f32,
+    /// 渲染后端（软件 painter / wgpu 真管线；wgpu 不可用时 wgpu 选项不呈现）。
+    pub backend: SceneBackend,
+}
+
+/// 3D 渲染后端。
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum SceneBackend {
+    /// 软件（egui painter 斜投影棱柱——稳定默认）。
+    #[default]
+    Software,
+    /// wgpu 真管线（PaintCallback 离屏深度 + blit；Phase 2 探针）。
+    Wgpu,
 }
 
 impl Default for Scene3D {
@@ -31,6 +43,7 @@ impl Default for Scene3D {
         Self {
             yaw: -0.5,
             pitch: 35f32.to_radians(),
+            backend: SceneBackend::Software,
         }
     }
 }
@@ -130,6 +143,7 @@ struct Prism {
 // ===== 场景 UI =====
 
 /// 3D 场景帧（实验性）。逐图层按符号化主色绘制（返回是否有视口变化）。
+#[allow(clippy::too_many_arguments)]
 pub fn ui(
     ui: &mut egui::Ui,
     scene: &mut Scene3D,
@@ -138,6 +152,7 @@ pub fn ui(
     needs_fit: &mut bool,
     data_extent: Option<BBox>,
     p: &Palette,
+    wgpu_available: bool,
 ) {
     let rect = ui.available_rect_before_wrap();
     let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
@@ -213,6 +228,83 @@ pub fn ui(
     // 背景：恒纯白（地图框背景纯白约束，与界面主题解耦）。
     let painter = ui.painter().clone();
     painter.rect_filled(rect, 0.0, Color32::WHITE);
+
+    // wgpu 真管线路径（探针；面棱柱 + 真深度缓冲，线/点 spike 不画）。
+    if matches!(scene.backend, SceneBackend::Wgpu) && wgpu_available {
+        let mut parts: Vec<crate::scene3d_wgpu::PrismPart> = Vec::new();
+        for slice in layers {
+            let c = slice.color;
+            let col = [
+                f32::from(c.r()) / 255.0,
+                f32::from(c.g()) / 255.0,
+                f32::from(c.b()) / 255.0,
+                1.0,
+            ];
+            for feature in &slice.collection.features {
+                let Some(geom) = &feature.geometry else {
+                    continue;
+                };
+                let hgt = height_of(feature) as f32;
+                // 外环提取（去闭合重复点；洞内环 spike 不画）。
+                fn prism_part(
+                    rings: &[Vec<Vec<f64>>],
+                    hgt: f32,
+                    col: [f32; 4],
+                    parts: &mut Vec<crate::scene3d_wgpu::PrismPart>,
+                ) {
+                    if let Some(outer) = rings.first() {
+                        let mut ring: Vec<[f64; 2]> = outer.iter().map(|p| [p[0], p[1]]).collect();
+                        if ring.first() == ring.last() {
+                            ring.pop(); // 去掉闭合重复点
+                        }
+                        if ring.len() >= 3 {
+                            parts.push((ring, hgt, col));
+                        }
+                    }
+                }
+                match &geom.value {
+                    GeoValue::Polygon(rings) => prism_part(rings, hgt, col, &mut parts),
+                    GeoValue::MultiPolygon(polys) => {
+                        for rings in polys {
+                            prism_part(rings, hgt, col, &mut parts);
+                        }
+                    }
+                    _ => {} // 线/点：wgpu spike 暂不画（软件路径可见）
+                }
+            }
+        }
+        let span = (bbox[2] - bbox[0])
+            .abs()
+            .max((bbox[3] - bbox[1]).abs())
+            .max(1e-9);
+        let hscale = if max_h > 0.0 { 0.5 / max_h } else { 0.0 } as f32;
+        crate::scene3d_wgpu::paint_scene(
+            &painter,
+            rect,
+            ui.ctx().pixels_per_point(),
+            &parts,
+            (
+                f64::midpoint(bbox[0], bbox[2]),
+                f64::midpoint(bbox[1], bbox[3]),
+            ),
+            2.0 / span,
+            hscale,
+            scene.yaw,
+            scene.pitch,
+        );
+        // 状态角标（wgpu 后端标识）。
+        painter.text(
+            egui::pos2(rect.min.x + 8.0, rect.max.y - 8.0),
+            egui::Align2::LEFT_BOTTOM,
+            format!(
+                "wgpu 3D · 方位角 {:.0}° · 左键旋转 / 右键平移 / 滚轮缩放",
+                scene.yaw.to_degrees()
+            ),
+            egui::FontId::proportional(text::SIZE_CAPTION),
+            p.text_weak,
+        );
+        return;
+    }
 
     // 收集棱柱（视口裁剪在环级做：全部顶点出界才跳过）。
     let mut prisms: Vec<Prism> = Vec::new();

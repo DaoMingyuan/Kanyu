@@ -47,6 +47,9 @@ flatgeobuf = { version = "6", default-features = false }
 # 与 flatgeobuf 内部依赖同版本锁定；仅为其开启 with-geojson 特性
 #（flatgeobuf 自身以 default-features=false 引入 geozero，不含 geojson 模块）。
 geozero = { version = "0.15.1", default-features = false, features = ["with-geojson"] }
+# wgpu 3D 真管线（Phase 2 探针；版本由 egui-wgpu 0.35 锁定 29 系）。
+egui-wgpu = "0.35"
+bytemuck = { version = "1", features = ["derive"] }
 # 离屏 PNG 光栅化（纯 Rust CPU，CI 无 GPU 依赖）。
 tiny-skia = "0.12"
 # 布局 PNG 文字光栅（纯 Rust；系统字体运行时读取，ttc 取首个 face）。

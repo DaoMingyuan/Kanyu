@@ -32,3 +32,6 @@ rfd = "0.17"
 geojson.workspace = true
 # 截图落盘与渲染 PNG 解码复用 render 已锁定的 tiny-skia（不引入 image crate）。
 tiny-skia.workspace = true
+# wgpu 3D 真管线探针（PaintCallback 自绘；egui-wgpu 随 eframe 同版本）。
+egui-wgpu.workspace = true
+bytemuck.workspace = true

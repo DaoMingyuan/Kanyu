@@ -3170,7 +3170,9 @@ dependencies = [
 name = "kanyu-shell"
 version = "0.21.0"
 dependencies = [
+ "bytemuck",
  "eframe",
+ "egui-wgpu",
  "geojson",
  "kanyu-core",
  "kanyu-edit",

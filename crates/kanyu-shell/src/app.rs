@@ -250,6 +250,8 @@ pub struct KanyuApp {
     frame_dim: crate::mapview::ViewDim,
     /// 激活框三维场景态（休眠框的场景态驻留 site.scene）。
     scene: crate::scene3d::Scene3D,
+    /// wgpu 3D 真管线可用（启动初始化成功；false = 三维保持软件路径）。
+    wgpu3d_available: bool,
     /// 重命名地图框对话框状态（frames 下标 + 新标题输入）。
     rename_frame_dlg: Option<(usize, String)>,
     /// 当前布局页签（Some 时优先于 active_frame；layouts 下标）。
@@ -347,6 +349,12 @@ impl KanyuApp {
             delay: Duration::from_secs_f64(args.delay_secs.max(0.0)),
             requested: false,
         });
+        // wgpu 3D 真管线探针：可用即初始化管线（挂入 renderer callback_resources）；
+        // 不可用（无 GPU/远程桌面）保持软件路径，终端提示一次。
+        let wgpu3d_available = cc
+            .wgpu_render_state
+            .as_ref()
+            .is_some_and(crate::scene3d_wgpu::init);
         let mut app = Self {
             layers: Vec::new(),
             toc: Vec::new(),
@@ -390,6 +398,7 @@ impl KanyuApp {
             active_frame: Some(0),
             frame_dim: crate::mapview::ViewDim::TwoD,
             scene: crate::scene3d::Scene3D::default(),
+            wgpu3d_available,
             rename_frame_dlg: None,
             active_layout: None,
             layouts: Vec::new(),
@@ -425,6 +434,12 @@ impl KanyuApp {
         {
             let s = crate::uistate::UiState::load(&app.state_path);
             app.apply_ui_state(&s, &cc.egui_ctx);
+        }
+        if wgpu3d_available {
+            app.console
+                .info("wgpu 3D 真管线就绪（三维场景工具条可切换 软件/wgpu）");
+        } else {
+            app.console.info("wgpu 不可用——3D 场景保持软件渲染");
         }
         // --dock-demo（隐藏验证参数）：预设「右区停靠 + 浮动窗 + 已关闭」布局。
         if args.dock_demo {
@@ -670,6 +685,11 @@ impl KanyuApp {
                 }
                 app.edit_session = Some(s);
             }
+        }
+        // --wgpu-demo：主框三维 + wgpu 后端（真管线截图验证；不可用自动软件路径）。
+        if args.wgpu_demo {
+            app.frame_dim = crate::mapview::ViewDim::ThreeD;
+            app.scene.backend = crate::scene3d::SceneBackend::Wgpu;
         }
         // --snap-demo：顶点捕捉指示态（绘制中 + 演示光标贴近既有顶点 → 吸附圆环）。
         if args.snap_demo {
@@ -4126,6 +4146,7 @@ impl eframe::App for KanyuApp {
                 data_extent: self.fit_extent.or(self.data_extent),
                 edit: edit_view,
                 empty_hint,
+                wgpu3d: self.wgpu3d_available,
             };
             let out = crate::mapview::content_ui(
                 ui,
@@ -4169,10 +4190,11 @@ impl eframe::App for KanyuApp {
         {
             let theme = self.effective_map_theme();
             let crs = self.project_crs.clone();
+            let wgpu3d = self.wgpu3d_available;
             let mut frames = std::mem::take(&mut self.frames);
             for f in &mut frames {
                 if f.open && !f.docked {
-                    crate::mapview::window_ui(&ctx, f, theme, &crs);
+                    crate::mapview::window_ui(&ctx, f, theme, &crs, wgpu3d);
                 }
             }
             self.frames = frames;
