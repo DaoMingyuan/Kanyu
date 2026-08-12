@@ -6,6 +6,17 @@
 
 ### 新增
 
+- **线/面要素绘制**（编辑深化）：编辑工具组扩为选择/顶点/移动/添加点/添加线/添加面/
+  删除七件；单击加点、双击或 Enter 完成（面自动闭合）、Esc 放弃、Backspace 撤点；
+  橡皮筋虚线预览 + 顶点方块；工具与图层几何类型门禁（不匹配中文提示拦截）。
+
+## [0.20.0] - 2026-08-11
+
+**长期规划推进捆版：kanyu-edit + 壳层编辑模式 + 打印布局 + 性能基准 + MCP 收敛 +
+UI 状态持久化 + 服务链接。**
+
+### 新增
+
 - **编辑内核 kanyu-edit 首个增量**（Phase 3 落地第一步）：Undo/Redo 框架
   （`EditCommand` apply/revert + 容量栈，命令逆操作语义）+ 基础编辑命令
   （MoveVertex/MoveFeature/DeleteFeatures/InsertFeature/UpdateProperties，
@@ -641,7 +652,8 @@ QGIS 式工具箱面板 + geoprocess 第二批算法移植。**
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.20.0
 [0.19.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.19.0
 [0.18.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.18.0
 [0.17.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.17.0
