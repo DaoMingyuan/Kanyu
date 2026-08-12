@@ -691,6 +691,30 @@ impl KanyuApp {
             app.frame_dim = crate::mapview::ViewDim::ThreeD;
             app.scene.backend = crate::scene3d::SceneBackend::Wgpu;
         }
+        // --wgpu-demo2：双三维框同开 wgpu（主框 + 浮动场景框，多视口分键截图验证）。
+        if args.wgpu_demo2 {
+            // 演示确定性（同 frames-demo 归一化：平铺现场含 load[0]，划归主框）。
+            app.frames.truncate(1);
+            app.active_frame = Some(0);
+            app.frame_dim = crate::mapview::ViewDim::ThreeD;
+            app.scene = crate::scene3d::Scene3D::default();
+            app.scene.backend = crate::scene3d::SceneBackend::Wgpu;
+            app.next_frame_id = 1;
+            if let Some(second) = args
+                .load
+                .get(1)
+                .cloned()
+                .or_else(|| args.load.first().cloned())
+            {
+                app.new_frame(crate::mapview::ViewDim::ThreeD);
+                app.open_file(Path::new(&second));
+                app.activate_frame(0);
+                // 休眠框（浮动）场景后端：activate 后再设（park/unpark 交换语义）。
+                let i = app.frames.len() - 1;
+                app.frames[i].docked = false;
+                app.frames[i].site.scene.backend = crate::scene3d::SceneBackend::Wgpu;
+            }
+        }
         // --snap-demo：顶点捕捉指示态（绘制中 + 演示光标贴近既有顶点 → 吸附圆环）。
         if args.snap_demo {
             if let Some(first) = app.layers.first() {
@@ -4147,6 +4171,8 @@ impl eframe::App for KanyuApp {
                 edit: edit_view,
                 empty_hint,
                 wgpu3d: self.wgpu3d_available,
+                view_id: self.frames[fi].id,
+                epoch: self.render_epoch,
             };
             let out = crate::mapview::content_ui(
                 ui,
@@ -4191,10 +4217,11 @@ impl eframe::App for KanyuApp {
             let theme = self.effective_map_theme();
             let crs = self.project_crs.clone();
             let wgpu3d = self.wgpu3d_available;
+            let epoch = self.render_epoch;
             let mut frames = std::mem::take(&mut self.frames);
             for f in &mut frames {
                 if f.open && !f.docked {
-                    crate::mapview::window_ui(&ctx, f, theme, &crs, wgpu3d);
+                    crate::mapview::window_ui(&ctx, f, theme, &crs, wgpu3d, epoch);
                 }
             }
             self.frames = frames;

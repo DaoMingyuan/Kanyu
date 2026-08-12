@@ -218,6 +218,10 @@ pub struct ViewInput<'a> {
     pub empty_hint: &'a str,
     /// wgpu 3D 真管线可用（三维态工具条呈现 软件/wgpu 开关）。
     pub wgpu3d: bool,
+    /// 视图 id（wgpu 离屏纹理/顶点缓冲分键）。
+    pub view_id: usize,
+    /// 内容纪元（wgpu 网格缓存键）。
+    pub epoch: u64,
 }
 
 /// 视图帧输出（编辑动作/鼠标坐标/渲染错误回传 app）。
@@ -328,6 +332,8 @@ pub fn content_ui(
                 input.data_extent,
                 &p,
                 input.wgpu3d,
+                input.view_id,
+                input.epoch,
             );
         }
     }
@@ -341,6 +347,7 @@ pub fn window_ui(
     theme: kanyu_render::Theme,
     crs: &str,
     wgpu3d: bool,
+    epoch: u64,
 ) {
     // 休眠框图层切片/数据范围读自身 site（与激活框互不干扰）。
     let slices = build_layer_slices(&view.site.render_cache);
@@ -351,6 +358,8 @@ pub fn window_ui(
         edit: None,
         empty_hint: "（本地图框无可见图层——激活后加载数据即归属此框）",
         wgpu3d,
+        view_id: view.id,
+        epoch,
     };
     let mut open = view.open;
     let resp = egui::Window::new(format!("{} · {}", view.title, crs))

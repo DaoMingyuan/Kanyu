@@ -26,6 +26,9 @@ pub struct Scene3D {
     pub pitch: f32,
     /// 渲染后端（软件 painter / wgpu 真管线；wgpu 不可用时 wgpu 选项不呈现）。
     pub backend: SceneBackend,
+    /// wgpu 网格缓存（内容纪元 + 网格；数据范围归一化空间——与视口解耦，
+    /// 平移缩放只动 MVP 不重建；休眠框驻留 site.scene 随之保活）。
+    pub mesh: Option<(u64, std::sync::Arc<Vec<crate::scene3d_wgpu::PrismVertex>>)>,
 }
 
 /// 3D 渲染后端。
@@ -44,6 +47,7 @@ impl Default for Scene3D {
             yaw: -0.5,
             pitch: 35f32.to_radians(),
             backend: SceneBackend::Software,
+            mesh: None,
         }
     }
 }
@@ -153,6 +157,8 @@ pub fn ui(
     data_extent: Option<BBox>,
     p: &Palette,
     wgpu_available: bool,
+    view_id: usize,
+    epoch: u64,
 ) {
     let rect = ui.available_rect_before_wrap();
     let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
@@ -229,68 +235,48 @@ pub fn ui(
     let painter = ui.painter().clone();
     painter.rect_filled(rect, 0.0, Color32::WHITE);
 
-    // wgpu 真管线路径（探针；面棱柱 + 真深度缓冲，线/点 spike 不画）。
+    // wgpu 真管线路径（棱柱耳切顶面含洞 + 线窄带 + 点十字标记；真深度缓冲）。
     if matches!(scene.backend, SceneBackend::Wgpu) && wgpu_available {
-        let mut parts: Vec<crate::scene3d_wgpu::PrismPart> = Vec::new();
-        for slice in layers {
-            let c = slice.color;
-            let col = [
-                f32::from(c.r()) / 255.0,
-                f32::from(c.g()) / 255.0,
-                f32::from(c.b()) / 255.0,
-                1.0,
-            ];
-            for feature in &slice.collection.features {
-                let Some(geom) = &feature.geometry else {
-                    continue;
-                };
-                let hgt = height_of(feature) as f32;
-                // 外环提取（去闭合重复点；洞内环 spike 不画）。
-                fn prism_part(
-                    rings: &[Vec<Vec<f64>>],
-                    hgt: f32,
-                    col: [f32; 4],
-                    parts: &mut Vec<crate::scene3d_wgpu::PrismPart>,
-                ) {
-                    if let Some(outer) = rings.first() {
-                        let mut ring: Vec<[f64; 2]> = outer.iter().map(|p| [p[0], p[1]]).collect();
-                        if ring.first() == ring.last() {
-                            ring.pop(); // 去掉闭合重复点
-                        }
-                        if ring.len() >= 3 {
-                            parts.push((ring, hgt, col));
-                        }
-                    }
-                }
-                match &geom.value {
-                    GeoValue::Polygon(rings) => prism_part(rings, hgt, col, &mut parts),
-                    GeoValue::MultiPolygon(polys) => {
-                        for rings in polys {
-                            prism_part(rings, hgt, col, &mut parts);
-                        }
-                    }
-                    _ => {} // 线/点：wgpu spike 暂不画（软件路径可见）
-                }
+        // 网格缓存：内容纪元失配才重建（休眠框内容冻结——激活框编辑会让
+        // 全局纪元递增，浮动 3D 窗随之重建一次，语义注释即契约）。
+        let mesh = match &scene.mesh {
+            Some((e, m)) if *e == epoch => m.clone(),
+            _ => {
+                let m = std::sync::Arc::new(build_scene_mesh(layers, data_extent));
+                scene.mesh = Some((epoch, m.clone()));
+                m
             }
-        }
-        let span = (bbox[2] - bbox[0])
+        };
+        // 视口 → 相机（extent 归一化系：网格恒定，平移缩放只动 MVP）。
+        let ext = data_extent.unwrap_or(bbox);
+        let span_ext = (ext[2] - ext[0])
+            .abs()
+            .max((ext[3] - ext[1]).abs())
+            .max(1e-9);
+        let span_view = (bbox[2] - bbox[0])
             .abs()
             .max((bbox[3] - bbox[1]).abs())
             .max(1e-9);
-        let hscale = if max_h > 0.0 { 0.5 / max_h } else { 0.0 } as f32;
+        let scale0 = 2.0 / span_ext; // 数据 → 世界（与 mesh 构建同约定）
+        let cam = (
+            (f64::midpoint(bbox[0], bbox[2]) - f64::midpoint(ext[0], ext[2])) * scale0,
+            (f64::midpoint(ext[3], ext[1]) - f64::midpoint(bbox[1], bbox[3])) * scale0,
+        );
+        let mvp = crate::scene3d_wgpu::orbit_mvp_at(
+            scene.yaw,
+            scene.pitch,
+            (span_view / span_ext) as f32,
+            rect.width() / rect.height().max(1.0),
+            (cam.0 as f32, cam.1 as f32),
+        );
         crate::scene3d_wgpu::paint_scene(
             &painter,
             rect,
             ui.ctx().pixels_per_point(),
-            &parts,
-            (
-                f64::midpoint(bbox[0], bbox[2]),
-                f64::midpoint(bbox[1], bbox[3]),
-            ),
-            2.0 / span,
-            hscale,
-            scene.yaw,
-            scene.pitch,
+            view_id,
+            epoch,
+            mesh,
+            mvp,
         );
         // 状态角标（wgpu 后端标识）。
         painter.text(
@@ -431,6 +417,113 @@ pub fn ui(
         egui::FontId::proportional(text::SIZE_CAPTION),
         p.text_weak,
     );
+}
+
+/// 环清洗（去闭合重复点 → [f64;2] 序列）。
+fn clean_ring(r: &[Vec<f64>]) -> Vec<[f64; 2]> {
+    let mut v: Vec<[f64; 2]> = r.iter().map(|p| [p[0], p[1]]).collect();
+    if v.first() == v.last() {
+        v.pop();
+    }
+    v
+}
+
+/// wgpu 场景网格构建（棱柱含洞 + 线窄带 + 点标记；extent 归一化空间——
+/// 与视口解耦，内容纪元缓存的构建产物）。
+fn build_scene_mesh(
+    layers: &[crate::canvas::LayerSlice<'_>],
+    data_extent: Option<BBox>,
+) -> Vec<crate::scene3d_wgpu::PrismVertex> {
+    use crate::scene3d_wgpu as sw;
+    let Some(ext) = data_extent else {
+        return Vec::new();
+    };
+    let center = (f64::midpoint(ext[0], ext[2]), f64::midpoint(ext[1], ext[3]));
+    let scale = 2.0
+        / (ext[2] - ext[0])
+            .abs()
+            .max((ext[3] - ext[1]).abs())
+            .max(1e-9);
+    let hf = layers.iter().find_map(|l| height_field(l.collection));
+    let height_of = |f: &geojson::Feature| -> f64 {
+        hf.as_ref()
+            .and_then(|k| f.properties.as_ref()?.get(k)?.as_f64())
+            .unwrap_or(10.0)
+    };
+    let max_h = layers
+        .iter()
+        .flat_map(|l| l.collection.features.iter())
+        .map(&height_of)
+        .fold(0.0_f64, f64::max);
+    let hscale = if max_h > 0.0 { 0.5 / max_h } else { 0.0 } as f32;
+    let mut prisms: Vec<sw::PrismPart> = Vec::new();
+    let mut lines: Vec<sw::LinePart> = Vec::new();
+    let mut points: Vec<sw::PointPart> = Vec::new();
+    for slice in layers {
+        let c = slice.color;
+        let col = [
+            f32::from(c.r()) / 255.0,
+            f32::from(c.g()) / 255.0,
+            f32::from(c.b()) / 255.0,
+            1.0,
+        ];
+        for feature in &slice.collection.features {
+            let Some(geom) = &feature.geometry else {
+                continue;
+            };
+            let mut push_prism = |rings: &[Vec<Vec<f64>>]| {
+                let outer = rings.first().map(|r| clean_ring(r)).unwrap_or_default();
+                if outer.len() >= 3 {
+                    let holes = rings[1..]
+                        .iter()
+                        .map(|r| clean_ring(r))
+                        .filter(|h| h.len() >= 3)
+                        .collect();
+                    prisms.push(sw::PrismPart {
+                        outer,
+                        holes,
+                        height: height_of(feature) as f32,
+                        color: col,
+                    });
+                }
+            };
+            match &geom.value {
+                GeoValue::Polygon(rings) => push_prism(rings),
+                GeoValue::MultiPolygon(polys) => {
+                    for rings in polys {
+                        push_prism(rings);
+                    }
+                }
+                GeoValue::LineString(l) => {
+                    let v = clean_ring(l);
+                    if v.len() >= 2 {
+                        lines.push((v, col));
+                    }
+                }
+                GeoValue::MultiLineString(ls) => {
+                    for l in ls {
+                        let v = clean_ring(l);
+                        if v.len() >= 2 {
+                            lines.push((v, col));
+                        }
+                    }
+                }
+                GeoValue::Point(p) => points.push(([p[0], p[1]], col)),
+                GeoValue::MultiPoint(ps) => {
+                    for p in ps {
+                        points.push(([p[0], p[1]], col));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut mesh = sw::build_prism_mesh(&prisms, center, scale, hscale);
+    // 线宽/抬升（世界单位，extent 跨度约 2）。
+    mesh.extend(sw::build_linework_mesh(
+        &lines, &points, center, scale, 0.005, 0.002,
+    ));
+    mesh
 }
 
 /// 单个面要素 → 棱柱（仅外环；视口外跳过）。颜色 = 图层符号化主色。
