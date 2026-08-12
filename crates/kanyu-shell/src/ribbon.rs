@@ -95,6 +95,8 @@ pub enum RibbonAction {
     DiscardEdit,
     /// 切换编辑工具。
     SetEditTool(crate::edit::EditTool),
+    /// 顶点捕捉开关（编辑会话内）。
+    ToggleEditSnap,
     /// 撤销一步。
     Undo,
     /// 重做一步。
@@ -191,7 +193,9 @@ fn layout_of(tab: RibbonTab) -> &'static [GroupLayout] {
                     "edit_add_point",
                     "edit_add_line",
                     "edit_add_polygon",
+                    "edit_add_hole",
                     "edit_delete",
+                    "edit_snap",
                 ],
             },
             GroupLayout {

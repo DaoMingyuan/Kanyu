@@ -669,6 +669,43 @@ impl KanyuApp {
                 app.edit_session = Some(s);
             }
         }
+        // --snap-demo：顶点捕捉指示态（绘制中 + 演示光标贴近既有顶点 → 吸附圆环）。
+        if args.snap_demo {
+            if let Some(first) = app.layers.first() {
+                let id = first.layer.id().to_string();
+                let name = first.file_name.clone();
+                // 首要素首个顶点（数据坐标；演示光标贴到它附近触发捕捉）。
+                let first_vertex = first
+                    .layer
+                    .collection()
+                    .features
+                    .first()
+                    .and_then(|f| f.geometry.as_ref())
+                    .and_then(|g| match &g.value {
+                        geojson::Value::Polygon(rings) => {
+                            rings.first().and_then(|r| r.first()).cloned()
+                        }
+                        geojson::Value::LineString(l) => l.first().cloned(),
+                        geojson::Value::Point(p) => Some(p.clone()),
+                        _ => None,
+                    });
+                let mut s = crate::edit::EditSession::new(id, name);
+                s.tool = crate::edit::EditTool::AddPolygon;
+                if let (Some(ext), Some(v0)) = (app.data_extent, first_vertex) {
+                    let cx = f64::midpoint(ext[0], ext[2]);
+                    let cy = f64::midpoint(ext[1], ext[3]);
+                    let sx = (ext[2] - ext[0]).max(1e-9);
+                    let sy = (ext[3] - ext[1]).max(1e-9);
+                    let mut d = crate::edit::DrawState::new(crate::edit::DrawKind::Polygon);
+                    d.add((cx - 0.10 * sx, cy + 0.05 * sy));
+                    d.add((cx + 0.02 * sx, cy + 0.12 * sy));
+                    s.drawing = Some(d);
+                    // 演示光标：既有顶点旁 ~0.4% 跨度（1000px 画布 ≈4px，容差内）。
+                    app.canvas.demo_sketch_cursor = Some((v0[0] + 0.004 * sx, v0[1] + 0.004 * sy));
+                }
+                app.edit_session = Some(s);
+            }
+        }
         // --service-demo：目录「服务链接」预置 WFS+WMS 演示连接各一并展开分类（截图验证）；
         // --service-dlg-demo 另打开新建对话框（预填图层清单，图层发现截图验证）。
         if args.service_demo || args.service_dlg_demo {
@@ -1807,10 +1844,45 @@ impl KanyuApp {
                     return;
                 };
                 match d.finish() {
-                    Ok(value) => Some(Box::new(kanyu_edit::InsertFeature {
-                        feature: bare_feature(value),
-                        index: coll.features.len(),
-                    })),
+                    Ok(value) => {
+                        if session.tool == crate::edit::EditTool::AddHole {
+                            // 挖洞：环首顶点定位目标面（MultiPolygon part 定位），
+                            // 内核校验「环完全在面内」（失败保留绘制现场）。
+                            let geojson::Value::Polygon(rings) = value else {
+                                unreachable!("添加洞草图恒为面");
+                            };
+                            let ring = rings.into_iter().next().expect("面草图有外环");
+                            let pt = (ring[0][0], ring[0][1]);
+                            match crate::edit::polygon_part_at(&coll, pt) {
+                                Some((fi, part)) => {
+                                    match kanyu_edit::validate_hole(&coll, fi, part, &ring) {
+                                        Ok(()) => Some(Box::new(kanyu_edit::AddHole {
+                                            index: fi,
+                                            part,
+                                            ring,
+                                        })),
+                                        Err(e) => {
+                                            self.toast_err(e.to_string());
+                                            session.drawing = Some(d);
+                                            self.edit_session = Some(session);
+                                            return;
+                                        }
+                                    }
+                                }
+                                None => {
+                                    self.toast_err("洞环须画在目标面内（未命中任何面要素）");
+                                    session.drawing = Some(d);
+                                    self.edit_session = Some(session);
+                                    return;
+                                }
+                            }
+                        } else {
+                            Some(Box::new(kanyu_edit::InsertFeature {
+                                feature: bare_feature(value),
+                                index: coll.features.len(),
+                            }))
+                        }
+                    }
                     Err(e) => {
                         // 点数不足：中文提示并保留绘制现场（可继续加点）。
                         self.toast_err(&e);
@@ -2057,6 +2129,12 @@ impl KanyuApp {
                     s.tool = tool;
                     s.drawing = None; // 切换工具放弃未完成绘制
                     self.status = format!("编辑工具 → {}", tool.label());
+                }
+            }
+            RibbonAction::ToggleEditSnap => {
+                if let Some(s) = &mut self.edit_session {
+                    s.snap = !s.snap;
+                    self.status = format!("顶点捕捉 → {}", if s.snap { "开" } else { "关" });
                 }
             }
             RibbonAction::Undo => self.edit_undo(false),
@@ -3598,10 +3676,11 @@ impl eframe::App for KanyuApp {
                     None => s.tool.label().to_string(),
                 };
                 format!(
-                    "编辑中: {}（{} 步可撤销，工具: {}） | {}",
+                    "编辑中: {}（{} 步可撤销，工具: {}，捕捉: {}） | {}",
                     s.target_name,
                     s.history.len(),
                     tool,
+                    if s.snap { "开" } else { "关" },
                     self.status
                 )
             }
@@ -3941,6 +4020,7 @@ impl eframe::App for KanyuApp {
                     target: s.target.as_str(),
                     selected: s.selected,
                     drawing: s.drawing.as_ref(),
+                    snap: s.snap,
                 })
             } else {
                 None

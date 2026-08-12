@@ -20,6 +20,9 @@ use crate::view::BBox;
 /// 命中容差（屏幕像素）。
 pub const HIT_TOL_PX: f32 = 8.0;
 
+/// 顶点捕捉容差（屏幕像素；ArcGIS 默认顶点捕捉语义）。
+pub const SNAP_TOL_PX: f32 = 10.0;
+
 /// 编辑工具。
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EditTool {
@@ -35,6 +38,8 @@ pub enum EditTool {
     AddLine,
     /// 添加面（单击加顶点，双击/Enter 完成并自动闭合）。
     AddPolygon,
+    /// 添加洞（面图层：绘制闭合环，完成校验在面内后追加内环）。
+    AddHole,
     /// 删除要素（点击选中后删除）。
     Delete,
 }
@@ -49,6 +54,7 @@ impl EditTool {
             EditTool::AddPoint => "添加点",
             EditTool::AddLine => "添加线",
             EditTool::AddPolygon => "添加面",
+            EditTool::AddHole => "添加洞",
             EditTool::Delete => "删除要素",
         }
     }
@@ -135,11 +141,11 @@ impl DrawState {
     }
 }
 
-/// 绘制工具 → 种类（非绘制工具为 None）。
+/// 绘制工具 → 种类（非绘制工具为 None；添加洞复用面草图——闭合环）。
 pub fn draw_kind_of(tool: EditTool) -> Option<DrawKind> {
     match tool {
         EditTool::AddLine => Some(DrawKind::Line),
-        EditTool::AddPolygon => Some(DrawKind::Polygon),
+        EditTool::AddPolygon | EditTool::AddHole => Some(DrawKind::Polygon),
         _ => None,
     }
 }
@@ -150,7 +156,7 @@ pub fn tool_geometry_match(tool: EditTool, geometry_types: &[String]) -> Result<
     let (expected, zh) = match tool {
         EditTool::AddPoint => (&["Point", "MultiPoint"][..], "点"),
         EditTool::AddLine => (&["LineString", "MultiLineString"][..], "线"),
-        EditTool::AddPolygon => (&["Polygon", "MultiPolygon"][..], "面"),
+        EditTool::AddPolygon | EditTool::AddHole => (&["Polygon", "MultiPolygon"][..], "面"),
         _ => return Ok(()),
     };
     if geometry_types.is_empty()
@@ -181,6 +187,8 @@ pub struct EditSession {
     pub selected: Option<usize>,
     /// 线/面绘制中状态（绘制工具激活且已加点时 Some）。
     pub drawing: Option<DrawState>,
+    /// 顶点捕捉开关（默认开；光标 ≤10px 既有顶点时吸附）。
+    pub snap: bool,
 }
 
 impl EditSession {
@@ -193,6 +201,7 @@ impl EditSession {
             tool: EditTool::Select,
             selected: None,
             drawing: None,
+            snap: true,
         }
     }
 }
@@ -476,6 +485,65 @@ pub fn vertex_positions(
     out
 }
 
+/// 顶点捕捉：光标容差内最近的既有顶点（当前框全部有效可见图层，屏幕空间度量）。
+/// 候选先经视口 bbox 粗筛（界外顶点跳过距离计算）——万级要素全扫可接受，
+/// 大图层（十万级顶点）R 树索引化为后续项。返回（数据坐标, 屏幕坐标）。
+pub fn snap_vertex(
+    collections: &[&FeatureCollection],
+    bbox: BBox,
+    w: f64,
+    h: f64,
+    pos: (f32, f32),
+    tol_px: f32,
+) -> Option<((f64, f64), (f32, f32))> {
+    // 捕捉候选暂存（距离, 数据坐标, 屏幕坐标）。
+    type SnapBest = Option<(f32, (f64, f64), (f32, f32))>;
+    // 容差换算数据坐标扩边余量（粗筛用；x/y 取大者保守）。
+    let kx = (bbox[2] - bbox[0]).abs() / w.max(1.0);
+    let ky = (bbox[3] - bbox[1]).abs() / h.max(1.0);
+    let m = f64::from(tol_px) * kx.max(ky);
+    let mut best: SnapBest = None;
+    for c in collections {
+        walk_vertices(c, bbox, w, h, |_fi, _path, screen, data| {
+            let (dx, dy) = (data[0], data[1]);
+            if dx < bbox[0] - m || dx > bbox[2] + m || dy < bbox[1] - m || dy > bbox[3] + m {
+                return; // 视口粗筛
+            }
+            let d = dist(screen, pos);
+            if d <= tol_px && best.as_ref().is_none_or(|(bd, _, _)| d < *bd) {
+                best = Some((d, (dx, dy), screen));
+            }
+        });
+    }
+    best.map(|(_, data, screen)| (data, screen))
+}
+
+/// 数据坐标命中面的子面（挖洞目标定位；MultiPolygon part 定位，Polygon 恒 0；
+/// 非面/未命中 None）。纯函数。
+pub fn polygon_part_at(collection: &FeatureCollection, pt: (f64, f64)) -> Option<(usize, usize)> {
+    for (fi, feature) in collection.features.iter().enumerate() {
+        let Some(geom) = &feature.geometry else {
+            continue;
+        };
+        match &geom.value {
+            GeoValue::Polygon(rings) => {
+                if in_rings(rings, pt) {
+                    return Some((fi, 0));
+                }
+            }
+            GeoValue::MultiPolygon(polys) => {
+                for (pi, rings) in polys.iter().enumerate() {
+                    if in_rings(rings, pt) {
+                        return Some((fi, pi));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -637,6 +705,7 @@ mod tests {
     fn draw_kind_mapping_and_tool_match() {
         assert_eq!(draw_kind_of(EditTool::AddLine), Some(DrawKind::Line));
         assert_eq!(draw_kind_of(EditTool::AddPolygon), Some(DrawKind::Polygon));
+        assert_eq!(draw_kind_of(EditTool::AddHole), Some(DrawKind::Polygon));
         assert_eq!(draw_kind_of(EditTool::AddPoint), None);
         assert_eq!(draw_kind_of(EditTool::Select), None);
         // 空图层放行（首要素定型）。
@@ -655,5 +724,64 @@ mod tests {
         assert!(tool_geometry_match(EditTool::AddLine, &lines).is_ok());
         // 非添加工具恒放行。
         assert!(tool_geometry_match(EditTool::Vertex, &polys).is_ok());
+        // 添加洞：仅面图层。
+        assert!(tool_geometry_match(EditTool::AddHole, &polys).is_ok());
+        assert!(tool_geometry_match(EditTool::AddHole, &lines).is_err());
+    }
+
+    #[test]
+    fn snap_vertex_nearest_and_tolerance() {
+        // 两个顶点：屏幕 (50,50) 与 (10,10)（y 翻转：数据 (5,5)/(1,9)）。
+        let c = coll(vec![GeoValue::MultiPoint(vec![
+            vec![5.0, 5.0],
+            vec![1.0, 9.0],
+        ])]);
+        let cols: Vec<&FeatureCollection> = vec![&c];
+        // 光标 (53,48) 距 (50,50) ≈3.6px → 吸附数据 (5,5)。
+        let (data, _screen) = snap_vertex(&cols, BBOX, 100.0, 100.0, (53.0, 48.0), SNAP_TOL_PX)
+            .expect("容差内应吸附");
+        assert_eq!(data, (5.0, 5.0));
+        // 超出容差（(80,80) 距最近顶点 30px+）→ None。
+        assert!(snap_vertex(&cols, BBOX, 100.0, 100.0, (80.0, 80.0), SNAP_TOL_PX).is_none());
+        // 跨图层取最近：第二集合更近者胜出。
+        let c2 = coll(vec![GeoValue::Point(vec![5.4, 5.0])]); // 屏幕 (54,50)
+        let cols2: Vec<&FeatureCollection> = vec![&c, &c2];
+        let (data2, _) =
+            snap_vertex(&cols2, BBOX, 100.0, 100.0, (53.0, 50.0), SNAP_TOL_PX).unwrap();
+        assert_eq!(data2, (5.4, 5.0));
+    }
+
+    #[test]
+    fn polygon_part_at_single_and_multi() {
+        let c = coll(vec![
+            GeoValue::Polygon(vec![vec![
+                vec![0.0, 0.0],
+                vec![4.0, 0.0],
+                vec![4.0, 4.0],
+                vec![0.0, 0.0],
+            ]]),
+            GeoValue::MultiPolygon(vec![
+                vec![vec![
+                    vec![5.0, 5.0],
+                    vec![7.0, 5.0],
+                    vec![7.0, 7.0],
+                    vec![5.0, 5.0],
+                ]],
+                vec![vec![
+                    vec![8.0, 8.0],
+                    vec![9.5, 8.0],
+                    vec![9.5, 9.5],
+                    vec![8.0, 8.0],
+                ]],
+            ]),
+        ]);
+        assert_eq!(polygon_part_at(&c, (1.0, 1.0)), Some((0, 0)));
+        // MultiPolygon：part 定位到子面。
+        assert_eq!(polygon_part_at(&c, (6.0, 6.0)), Some((1, 0)));
+        assert_eq!(polygon_part_at(&c, (9.0, 8.5)), Some((1, 1)));
+        // 未命中/点几何。
+        assert_eq!(polygon_part_at(&c, (4.5, 4.5)), None);
+        let cp = coll(vec![GeoValue::Point(vec![1.0, 1.0])]);
+        assert_eq!(polygon_part_at(&cp, (1.0, 1.0)), None);
     }
 }

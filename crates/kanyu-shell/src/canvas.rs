@@ -188,7 +188,27 @@ impl MapCanvas {
         if response.drag_stopped_by(egui::PointerButton::Primary) {
             let press = self.edit_press.take()?;
             let pos = response.interact_pointer_pos()?;
-            let cur = to_data(pos);
+            let mut cur = to_data(pos);
+            // 顶点捕捉：绘制/顶点编辑类工具，容差内吸附到既有顶点。
+            if ev.snap
+                && matches!(
+                    ev.tool,
+                    EditTool::Vertex
+                        | EditTool::AddPoint
+                        | EditTool::AddLine
+                        | EditTool::AddPolygon
+                        | EditTool::AddHole
+                )
+            {
+                let cols: Vec<&geojson::FeatureCollection> =
+                    layers.iter().map(|l| l.collection).collect();
+                let sp = (pos.x - rect.min.x, pos.y - rect.min.y);
+                if let Some((data, _)) =
+                    crate::edit::snap_vertex(&cols, bbox, w, h, sp, crate::edit::SNAP_TOL_PX)
+                {
+                    cur = data;
+                }
+            }
             let moved_px = response.drag_delta().length();
             match ev.tool {
                 EditTool::Vertex => {
@@ -219,7 +239,7 @@ impl MapCanvas {
                     None
                 }
                 EditTool::AddPoint => Some(EditAction::InsertPoint { pos: cur }),
-                EditTool::AddLine | EditTool::AddPolygon => {
+                EditTool::AddLine | EditTool::AddPolygon | EditTool::AddHole => {
                     // 双击 = 加最后顶点并完成（第一击已加点，第二击仅结算）。
                     if response.double_clicked() {
                         return Some(EditAction::DrawFinish);
@@ -420,6 +440,8 @@ pub struct EditView<'a> {
     pub selected: Option<usize>,
     /// 线/面绘制中状态（草图预览）。
     pub drawing: Option<&'a crate::edit::DrawState>,
+    /// 顶点捕捉开关（指示圆环 + 手势吸附）。
+    pub snap: bool,
 }
 
 /// 逐图层渲染并合成单张 PNG（白底键控叠图；布局地图框/导出共用）。
@@ -667,15 +689,51 @@ impl MapCanvas {
         // 编辑态：顶点句柄叠加（纹理之上）。
         if let (Some(ev), Some(bbox)) = (&input.edit, output.view_bbox) {
             self.draw_edit_handles(ui, rect, bbox, w, h, input.layers, ev);
-            // 线/面绘制草图预览（真实悬停优先，演示光标兜底）。
+            // 顶点捕捉：指示圆环（容差内最近既有顶点）+ 草图橡皮筋端点吸附。
+            let snap_on = ev.snap
+                && matches!(
+                    ev.tool,
+                    crate::edit::EditTool::Vertex
+                        | crate::edit::EditTool::AddPoint
+                        | crate::edit::EditTool::AddLine
+                        | crate::edit::EditTool::AddPolygon
+                        | crate::edit::EditTool::AddHole
+                );
+            let cursor_raw = response.hover_pos().or_else(|| {
+                self.demo_sketch_cursor.map(|d| {
+                    let (sx, sy) = crate::scene3d::data_to_canvas(d.0, d.1, bbox, w, h);
+                    egui::pos2(rect.min.x + sx, rect.min.y + sy)
+                })
+            });
+            let snap_screen = if snap_on {
+                cursor_raw.and_then(|pos| {
+                    let cols: Vec<&FeatureCollection> =
+                        input.layers.iter().map(|l| l.collection).collect();
+                    crate::edit::snap_vertex(
+                        &cols,
+                        bbox,
+                        w,
+                        h,
+                        (pos.x - rect.min.x, pos.y - rect.min.y),
+                        crate::edit::SNAP_TOL_PX,
+                    )
+                    .map(|(_d, sp)| egui::pos2(rect.min.x + sp.0, rect.min.y + sp.1))
+                })
+            } else {
+                None
+            };
+            // 线/面绘制草图预览（吸附点 > 真实悬停 > 演示光标）。
             if let Some(drawing) = ev.drawing {
-                let cursor = response.hover_pos().or_else(|| {
-                    self.demo_sketch_cursor.map(|d| {
-                        let (sx, sy) = crate::scene3d::data_to_canvas(d.0, d.1, bbox, w, h);
-                        egui::pos2(rect.min.x + sx, rect.min.y + sy)
-                    })
+                self.draw_sketch(ui, rect, bbox, w, h, drawing, snap_screen.or(cursor_raw));
+            }
+            if let Some(c) = snap_screen {
+                let p = crate::theme::palette(if ui.visuals().dark_mode {
+                    kanyu_render::Theme::Dark
+                } else {
+                    kanyu_render::Theme::Light
                 });
-                self.draw_sketch(ui, rect, bbox, w, h, drawing, cursor);
+                ui.painter()
+                    .circle_stroke(c, 6.0, egui::Stroke::new(1.5, p.accent));
             }
         }
         if input

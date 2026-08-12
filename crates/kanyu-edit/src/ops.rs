@@ -309,6 +309,132 @@ impl EditCommand for UpdateProperties {
     }
 }
 
+/// 环组（外环 + 既有内环）→ geo 多边形（geojson→geo_types 手工转换：
+/// 坐标对直映，无需经 core——kanyu-edit 自持，避免 core 新增导出）。
+fn geo_polygon(rings: &[Vec<Vec<f64>>]) -> Option<geo::Polygon<f64>> {
+    let (outer, holes) = rings.split_first()?;
+    let to_ls = |r: &[Vec<f64>]| {
+        geo::LineString(r.iter().map(|p| geo::Coord { x: p[0], y: p[1] }).collect())
+    };
+    Some(geo::Polygon::new(
+        to_ls(outer),
+        holes.iter().map(|r| to_ls(r)).collect(),
+    ))
+}
+
+/// 校验环可作为指定面 part 的洞（纯函数）：目标为面几何、part 在界内、
+/// 环自动闭合后**完全位于面内**（geo Contains——越出外环或落入既有洞均判负）。
+pub fn validate_hole(
+    c: &FeatureCollection,
+    index: usize,
+    part: usize,
+    ring: &[Vec<f64>],
+) -> Result<(), KanyuError> {
+    let f = c
+        .features
+        .get(index)
+        .ok_or_else(|| err(format!("要素下标越界: {index}")))?;
+    let geom = f
+        .geometry
+        .as_ref()
+        .ok_or_else(|| err(format!("要素 #{index} 无几何")))?;
+    let rings = match &geom.value {
+        GeoValue::Polygon(rings) if part == 0 => rings,
+        GeoValue::MultiPolygon(polys) => polys
+            .get(part)
+            .ok_or_else(|| err(format!("子面下标越界: part {part}")))?,
+        GeoValue::Polygon(_) => return Err(err(format!("子面下标越界: part {part}（单面恒 0）"))),
+        _ => {
+            return Err(err(
+                "目标要素不是面几何——洞只能加在 Polygon/MultiPolygon 上",
+            ))
+        }
+    };
+    if ring.len() < 4 {
+        return Err(err("洞环至少需要 3 个顶点（闭合后 4 点）"));
+    }
+    let Some(poly) = geo_polygon(rings) else {
+        return Err(err("目标面外环为空"));
+    };
+    let hole = geo::LineString(
+        ring.iter()
+            .map(|p| geo::Coord { x: p[0], y: p[1] })
+            .collect(),
+    );
+    if !geo::Contains::contains(&poly, &hole) {
+        return Err(err("洞环须完全位于面内（不越出外环、不与既有洞相交）"));
+    }
+    // 严格性补充：geo Contains 对边界重叠按 covers 语义放行——
+    // 洞与外环/既有洞边界相接会产生非法多边形，显式判负。
+    if geo::Intersects::intersects(poly.exterior(), &hole)
+        || poly
+            .interiors()
+            .iter()
+            .any(|r| geo::Intersects::intersects(r, &hole))
+    {
+        return Err(err("洞环不得与外环或既有洞的边界相接"));
+    }
+    Ok(())
+}
+
+/// 面内挖洞（追加内环；Polygon part 恒 0，MultiPolygon 为子面下标）。
+/// apply 先经 [`validate_hole`] 校验（越界中文错误，不改动集合）。
+#[derive(Debug, Clone)]
+pub struct AddHole {
+    /// 要素下标。
+    pub index: usize,
+    /// 子面下标（Polygon 恒 0）。
+    pub part: usize,
+    /// 洞环坐标（未闭合时 apply 自动闭合）。
+    pub ring: Vec<Vec<f64>>,
+}
+
+impl EditCommand for AddHole {
+    fn apply(&self, c: &mut FeatureCollection) -> Result<(), KanyuError> {
+        let mut ring = self.ring.clone();
+        if ring.first() != ring.last() {
+            if let Some(first) = ring.first().cloned() {
+                ring.push(first); // 自动闭合（壳层绘制状态机已闭合，此处兜底）
+            }
+        }
+        validate_hole(c, self.index, self.part, &ring)?;
+        let f = c
+            .features
+            .get_mut(self.index)
+            .ok_or_else(|| err(format!("要素下标越界: {}", self.index)))?;
+        match geometry_mut(f, self.index)? {
+            GeoValue::Polygon(rings) => rings.push(ring),
+            GeoValue::MultiPolygon(polys) => polys
+                .get_mut(self.part)
+                .ok_or_else(|| err(format!("子面下标越界: part {}", self.part)))?
+                .push(ring),
+            _ => return Err(err("目标要素不是面几何")),
+        }
+        Ok(())
+    }
+    fn revert(&self, c: &mut FeatureCollection) -> Result<(), KanyuError> {
+        let f = c
+            .features
+            .get_mut(self.index)
+            .ok_or_else(|| err(format!("要素下标越界: {}", self.index)))?;
+        let rings = match geometry_mut(f, self.index)? {
+            GeoValue::Polygon(rings) => rings,
+            GeoValue::MultiPolygon(polys) => polys
+                .get_mut(self.part)
+                .ok_or_else(|| err(format!("子面下标越界: part {}", self.part)))?,
+            _ => return Err(err("目标要素不是面几何")),
+        };
+        if rings.len() < 2 {
+            return Err(err("面无内环，无法逆回挖洞"));
+        }
+        rings.pop(); // apply 追加在尾部，逆回即弹出末环
+        Ok(())
+    }
+    fn describe(&self) -> String {
+        format!("面内挖洞（要素 #{}）", self.index)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,6 +591,135 @@ mod tests {
         );
         cmd.revert(&mut c).unwrap();
         assert!(c.features[0].properties.is_none());
+    }
+
+    fn square(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Vec<f64>> {
+        vec![
+            vec![x0, y0],
+            vec![x1, y0],
+            vec![x1, y1],
+            vec![x0, y1],
+            vec![x0, y0],
+        ]
+    }
+
+    #[test]
+    fn add_hole_apply_revert_and_validation() {
+        // 单面（0..10 方块）。
+        let mut c = coll(vec![Feature {
+            bbox: None,
+            geometry: Some(Geometry::new(GeoValue::Polygon(vec![square(
+                0.0, 0.0, 10.0, 10.0,
+            )]))),
+            id: None,
+            properties: None,
+            foreign_members: None,
+        }]);
+        // 未闭合环自动闭合；apply 后多一条内环。
+        let mut ring = square(2.0, 2.0, 4.0, 4.0);
+        ring.pop();
+        let cmd = AddHole {
+            index: 0,
+            part: 0,
+            ring,
+        };
+        cmd.apply(&mut c).unwrap();
+        match &c.features[0].geometry.as_ref().unwrap().value {
+            GeoValue::Polygon(rings) => {
+                assert_eq!(rings.len(), 2);
+                assert_eq!(rings[1].first(), rings[1].last(), "自动闭合");
+            }
+            _ => panic!(),
+        }
+        cmd.revert(&mut c).unwrap();
+        match &c.features[0].geometry.as_ref().unwrap().value {
+            GeoValue::Polygon(rings) => assert_eq!(rings.len(), 1),
+            _ => panic!(),
+        }
+        // 越出外环 → 中文校验错误且不改动集合。
+        let e = AddHole {
+            index: 0,
+            part: 0,
+            ring: square(20.0, 20.0, 22.0, 22.0),
+        }
+        .apply(&mut c)
+        .unwrap_err();
+        assert!(e.to_string().contains("完全位于面内"), "{e}");
+        match &c.features[0].geometry.as_ref().unwrap().value {
+            GeoValue::Polygon(rings) => assert_eq!(rings.len(), 1, "校验失败不得改动"),
+            _ => panic!(),
+        }
+        // 压外环边界（非严格内含）也判负。
+        assert!(AddHole {
+            index: 0,
+            part: 0,
+            ring: square(0.0, 0.0, 5.0, 5.0),
+        }
+        .apply(&mut c)
+        .is_err());
+        // 非面目标。
+        let cp = coll(vec![point_feature(1.0, 1.0)]);
+        assert!(validate_hole(&cp, 0, 0, &square(0.0, 0.0, 1.0, 1.0)).is_err());
+        // 落入既有洞判负。
+        AddHole {
+            index: 0,
+            part: 0,
+            ring: square(2.0, 2.0, 4.0, 4.0),
+        }
+        .apply(&mut c)
+        .unwrap();
+        assert!(AddHole {
+            index: 0,
+            part: 0,
+            ring: square(2.5, 2.5, 3.5, 3.5), // 全在既有洞内
+        }
+        .apply(&mut c)
+        .is_err());
+    }
+
+    #[test]
+    fn add_hole_multipolygon_part() {
+        let mp = GeoValue::MultiPolygon(vec![
+            vec![square(0.0, 0.0, 10.0, 10.0)],
+            vec![square(100.0, 100.0, 110.0, 110.0)],
+        ]);
+        let mut c = coll(vec![Feature {
+            bbox: None,
+            geometry: Some(Geometry::new(mp)),
+            id: None,
+            properties: None,
+            foreign_members: None,
+        }]);
+        // part 1 挖洞成功；part 9 越界中文错误。
+        AddHole {
+            index: 0,
+            part: 1,
+            ring: square(102.0, 102.0, 104.0, 104.0),
+        }
+        .apply(&mut c)
+        .unwrap();
+        match &c.features[0].geometry.as_ref().unwrap().value {
+            GeoValue::MultiPolygon(polys) => {
+                assert_eq!(polys[0].len(), 1);
+                assert_eq!(polys[1].len(), 2);
+            }
+            _ => panic!(),
+        }
+        assert!(AddHole {
+            index: 0,
+            part: 9,
+            ring: square(0.0, 0.0, 1.0, 1.0),
+        }
+        .apply(&mut c)
+        .is_err());
+        // part 0 的环投到 part 1 坐标域判负（环不在该子面内）。
+        assert!(AddHole {
+            index: 0,
+            part: 1,
+            ring: square(1.0, 1.0, 2.0, 2.0),
+        }
+        .apply(&mut c)
+        .is_err());
     }
 
     #[test]

@@ -16,4 +16,7 @@ pub mod history;
 pub mod ops;
 
 pub use history::{EditCommand, History};
-pub use ops::{DeleteFeatures, GeomPath, InsertFeature, MoveFeature, MoveVertex, UpdateProperties};
+pub use ops::{
+    validate_hole, AddHole, DeleteFeatures, GeomPath, InsertFeature, MoveFeature, MoveVertex,
+    UpdateProperties,
+};
