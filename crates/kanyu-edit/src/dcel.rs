@@ -75,6 +75,8 @@ pub struct HalfEdgeRec {
     pub left_face: usize,
     /// 是否占位边（数据集边界/孔环对侧；不参与绕面遍历）。
     pub stub: bool,
+    /// 是否已删除（merge 墓碑——保持下标稳定，计数/遍历时跳过）。
+    pub deleted: bool,
 }
 
 /// 面记录。
@@ -89,6 +91,8 @@ pub struct FaceRec {
     pub holes: Vec<usize>,
     /// 属主多边形面（Hole 面持有）。
     pub polygon: Option<usize>,
+    /// 是否已删除（merge 墓碑——保持下标稳定，计数/遍历时跳过）。
+    pub deleted: bool,
 }
 
 /// DCEL 结构（纯值表，Clone 即可整体快照）。
@@ -111,6 +115,15 @@ pub struct SplitResult {
     pub edge_ab: usize,
     /// 新半边 v_b → v_a（左侧面为原面）。
     pub edge_ba: usize,
+}
+
+/// 面合并结果（[`Dcel::merge_faces`] 返回）。
+#[derive(Debug, Clone, Copy)]
+pub struct MergeResult {
+    /// 保留面（twin 左侧面）。
+    pub survivor: usize,
+    /// 被吸收面（edge 左侧面，已墓碑化）。
+    pub absorbed: usize,
 }
 
 /// 多边形环组（外环 + 内环清单）。
@@ -153,6 +166,7 @@ impl Dcel {
             kind: FaceKind::Outer,
             holes: Vec::new(),
             polygon: None,
+            deleted: false,
         });
         let mut vmap: HashMap<(u64, u64), usize> = HashMap::new();
         let mut emap: HashMap<(usize, usize), usize> = HashMap::new();
@@ -204,6 +218,7 @@ impl Dcel {
                 kind: FaceKind::Polygon,
                 holes: Vec::new(),
                 polygon: None,
+                deleted: false,
             });
             let boundary_edge = wire_ring(
                 &mut dcel,
@@ -221,6 +236,7 @@ impl Dcel {
                     kind: FaceKind::Hole,
                     holes: Vec::new(),
                     polygon: Some(p_face),
+                    deleted: false,
                 });
                 let edge = wire_ring(&mut dcel, &mut emap, &mut vertex_of, hole, p_face, h_face)?;
                 dcel.faces[h_face].boundary = Some(edge);
@@ -294,12 +310,14 @@ impl Dcel {
         out
     }
 
-    /// 欧拉示性数 V−E+F（F 含外面与孔虚面；E = 半边数/2）。
+    /// 欧拉示性数 V−E+F（E/F 仅计未删除项；F 含外面与孔虚面）。
     pub fn euler_characteristic(&self) -> i64 {
-        self.vertices.len() as i64 - (self.half_edges.len() / 2) as i64 + self.faces.len() as i64
+        let e = self.half_edges.iter().filter(|h| !h.deleted).count() / 2;
+        let f = self.faces.iter().filter(|f| !f.deleted).count();
+        self.vertices.len() as i64 - e as i64 + f as i64
     }
 
-    /// 连通分量数（并查集，按无向边合并顶点）。
+    /// 连通分量数（并查集，按未删除无向边合并顶点）。
     pub fn components(&self) -> usize {
         let mut parent: Vec<usize> = (0..self.vertices.len()).collect();
         fn find(parent: &mut Vec<usize>, x: usize) -> usize {
@@ -309,6 +327,9 @@ impl Dcel {
             parent[x]
         }
         for he in &self.half_edges {
+            if he.deleted {
+                continue;
+            }
             let a = he.origin;
             let b = self.half_edges[he.twin].origin;
             let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
@@ -322,9 +343,12 @@ impl Dcel {
     }
 
     /// 结构自检（twin 对合、next/prev 互逆、left_face 合法、面边界环闭合
-    /// 且环边 left_face 回指本面）；任一违例报中文错误。
+    /// 且环边 left_face 回指本面）；任一违例报中文错误。墓碑项跳过。
     pub fn check_invariants(&self) -> Result<(), KanyuError> {
         for (i, he) in self.half_edges.iter().enumerate() {
+            if he.deleted {
+                continue;
+            }
             let tw = &self.half_edges[he.twin];
             if tw.twin != i {
                 return Err(err(format!("半边 {i} 的 twin 不对合")));
@@ -340,7 +364,7 @@ impl Dcel {
             }
         }
         for (fi, f) in self.faces.iter().enumerate() {
-            if f.kind == FaceKind::Outer {
+            if f.kind == FaceKind::Outer || f.deleted {
                 continue;
             }
             for e in self.face_boundary(fi) {
@@ -406,6 +430,7 @@ impl Dcel {
             prev: a_in,
             left_face: usize::MAX, // 随即改指新面
             stub: false,
+            deleted: false,
         });
         self.half_edges.push(HalfEdgeRec {
             origin: v_b,
@@ -414,6 +439,7 @@ impl Dcel {
             prev: b_in,
             left_face: face,
             stub: false,
+            deleted: false,
         });
         // 接线：cycle1 + ba 留原面；cycle2 + ab 成新面。
         self.half_edges[a_in].next = ab;
@@ -428,6 +454,7 @@ impl Dcel {
             kind: FaceKind::Polygon,
             holes: Vec::new(),
             polygon: None,
+            deleted: false,
         });
         self.half_edges[ab].left_face = new_face;
         // cycle2 全体边改指新面。
@@ -474,6 +501,159 @@ impl Dcel {
             .iter()
             .map(|&e| self.vertices[self.half_edges[e].origin].coord)
             .collect()
+    }
+
+    // ===== v2：外面/虚面遍历与 merge =====
+
+    /// 沿 stub 边走一圈（外面/孔虚面边界遍历）。
+    ///
+    /// 算法（角度序转向规则）：stub 的 next=prev=自身（v1 约定未接线），
+    /// 绕行靠顶点出边角度序——到达当前边 e 的终点 v 后，取 twin(e)（v 的
+    /// 出边之一）在 v 的 CCW 出边序中的**上一条**（即顺时针方向的续边）
+    /// 作为续边。该规则等价于「保持左侧面不变的几何面行走」（对真实环边
+    /// 它与环接线 next 一致，故对 stub 环同样成立）。`start` 须为 stub 边。
+    pub fn stub_cycle(&self, start: usize) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut e = start;
+        loop {
+            out.push(e);
+            let twin = self.half_edges[e].twin;
+            let v = self.half_edges[twin].origin; // e 的终点
+            let outs = self.outgoing_edges_ccw(v);
+            let pos = outs
+                .iter()
+                .position(|&x| x == twin)
+                .expect("twin 必为终点出边");
+            e = outs[(pos + outs.len() - 1) % outs.len()];
+            if e == start || out.len() > self.half_edges.len() {
+                break;
+            }
+        }
+        out
+    }
+
+    /// 全部连通分量的外边界（每条为 stub 环，left_face 恒为外面）。
+    pub fn outer_boundaries(&self) -> Vec<Vec<usize>> {
+        let mut visited = vec![false; self.half_edges.len()];
+        let mut out = Vec::new();
+        for i in 0..self.half_edges.len() {
+            let he = &self.half_edges[i];
+            if !he.stub || he.deleted || he.left_face != OUTER_FACE || visited[i] {
+                continue;
+            }
+            let cycle = self.stub_cycle(i);
+            for &e in &cycle {
+                visited[e] = true;
+            }
+            out.push(cycle);
+        }
+        out
+    }
+
+    /// 孔虚面内侧边界（left_face 为该孔面的 stub 环）。
+    pub fn hole_interior_boundary(&self, hole_face: usize) -> Vec<usize> {
+        let start = self
+            .half_edges
+            .iter()
+            .position(|h| h.stub && !h.deleted && h.left_face == hole_face);
+        start.map(|s| self.stub_cycle(s)).unwrap_or_default()
+    }
+
+    /// 合并两面（[`Dcel::split_face_by_diagonal`] 的逆操作，v2）：删除共享
+    /// 半边对 `edge`/twin，被吸收面（`edge` 左侧面）并入保留面（twin 左侧面）。
+    /// 半边与面均**墓碑化**（`deleted=true`，下标保持稳定），欧拉示性数
+    /// 随之恢复（E−1、F−1，χ 不变）。被吸收面的孔洞虚面改属保留面
+    /// （含孔环边 left_face 归属校验改写）。
+    ///
+    /// 约束（全中文错误）：边须存在且未删除、非 stub；两侧面均须为
+    /// Polygon 且不同；两面共享边**仅允许此一条**（多条共享边的合并
+    /// 会改变孔的连通性，超出 v1 分裂语义，拒绝）。
+    pub fn merge_faces(&mut self, edge: usize) -> Result<MergeResult, KanyuError> {
+        let he = self
+            .half_edges
+            .get(edge)
+            .ok_or_else(|| err(format!("半边 {edge} 不存在")))?;
+        if he.deleted {
+            return Err(err(format!("半边 {edge} 已删除")));
+        }
+        if he.stub {
+            return Err(err(format!("半边 {edge} 为占位边（stub），不能合并")));
+        }
+        let twin = he.twin;
+        let f_absorbed = he.left_face;
+        let f_keep = self.half_edges[twin].left_face;
+        if f_absorbed == f_keep {
+            return Err(err(format!("半边 {edge} 两侧同面（{f_keep}），不能合并")));
+        }
+        for (f, tag) in [(f_absorbed, "被吸收面"), (f_keep, "保留面")] {
+            if self.faces[f].deleted || self.faces[f].kind != FaceKind::Polygon {
+                return Err(err(format!("{tag} {f} 非多边形面，不能合并")));
+            }
+        }
+        // 共享边计数：被吸收面边界上 twin 左侧为保留面的边须仅此一条。
+        let shared: Vec<usize> = self
+            .face_boundary(f_absorbed)
+            .into_iter()
+            .filter(|&e| {
+                let t = &self.half_edges[self.half_edges[e].twin];
+                !t.deleted && t.left_face == f_keep
+            })
+            .collect();
+        if shared != [edge] {
+            return Err(err(format!(
+                "两面共享边不止一条（{} 条），超出 v2 单边合并语义",
+                shared.len()
+            )));
+        }
+        // 重接：e（v_a→v_b，被吸收面）与 twin（v_b→v_a，保留面）摘除，
+        // 两环合为保留面单环。
+        let e_next = self.half_edges[edge].next;
+        let e_prev = self.half_edges[edge].prev;
+        let t_next = self.half_edges[twin].next;
+        let t_prev = self.half_edges[twin].prev;
+        self.half_edges[t_prev].next = e_next;
+        self.half_edges[e_next].prev = t_prev;
+        self.half_edges[e_prev].next = t_next;
+        self.half_edges[t_next].prev = e_prev;
+        // 被吸收面环全体边 left_face 归并（e/twin 除外——随即墓碑化）。
+        let mut cur = e_next;
+        loop {
+            self.half_edges[cur].left_face = f_keep;
+            cur = self.half_edges[cur].next;
+            if cur == t_next {
+                break;
+            }
+        }
+        self.faces[f_keep].boundary = Some(t_next);
+        // 孔洞虚面改属（校验孔环边 left_face 当前确为被吸收面后改写）。
+        let holes = std::mem::take(&mut self.faces[f_absorbed].holes);
+        for h in holes {
+            for he_id in self.face_boundary(h) {
+                if self.half_edges[he_id].left_face != f_absorbed {
+                    return Err(err(format!(
+                        "孔洞虚面 {h} 环边 {he_id} 归属异常（非被吸收面）"
+                    )));
+                }
+                self.half_edges[he_id].left_face = f_keep;
+            }
+            self.faces[h].polygon = Some(f_keep);
+            self.faces[f_keep].holes.push(h);
+        }
+        // 墓碑化：半边对出顶点出边清单，面清空边界。
+        self.vertices[self.half_edges[edge].origin]
+            .outgoing
+            .retain(|&x| x != edge);
+        self.vertices[self.half_edges[twin].origin]
+            .outgoing
+            .retain(|&x| x != twin);
+        self.half_edges[edge].deleted = true;
+        self.half_edges[twin].deleted = true;
+        self.faces[f_absorbed].deleted = true;
+        self.faces[f_absorbed].boundary = None;
+        Ok(MergeResult {
+            survivor: f_keep,
+            absorbed: f_absorbed,
+        })
     }
 }
 
@@ -536,6 +716,7 @@ fn wire_ring(
                     prev: usize::MAX,
                     left_face: left,
                     stub: false,
+                    deleted: false,
                 });
                 dcel.half_edges.push(HalfEdgeRec {
                     origin: b,
@@ -544,6 +725,7 @@ fn wire_ring(
                     prev: s,
                     left_face: other,
                     stub: true,
+                    deleted: false,
                 });
                 emap.insert((a, b), e);
                 emap.insert((b, a), s);
@@ -743,5 +925,147 @@ mod tests {
         // 非多边形面（外面）。
         let e = d.split_face_by_diagonal(OUTER_FACE, 0, 2).unwrap_err();
         assert!(e.to_string().contains("非多边形面"), "{e}");
+    }
+}
+
+#[cfg(test)]
+mod tests_v2 {
+    use super::*;
+
+    fn collection_of(polys: Vec<Vec<Vec<Vec<f64>>>>) -> FeatureCollection {
+        let features = polys
+            .into_iter()
+            .map(|rings| geojson::Feature {
+                bbox: None,
+                geometry: Some(geojson::Geometry::new(GeoValue::Polygon(rings))),
+                id: None,
+                properties: None,
+                foreign_members: None,
+            })
+            .collect();
+        FeatureCollection {
+            bbox: None,
+            features,
+            foreign_members: None,
+        }
+    }
+
+    fn ring(pts: &[[f64; 2]]) -> Vec<Vec<f64>> {
+        let mut v: Vec<Vec<f64>> = pts.iter().map(|p| vec![p[0], p[1]]).collect();
+        v.push(vec![pts[0][0], pts[0][1]]);
+        v
+    }
+
+    const SQ: [[f64; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+
+    #[test]
+    fn outer_boundary_of_two_adjacent_squares_is_hexagon() {
+        let sq2: [[f64; 2]; 4] = [[1.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0]];
+        let d = Dcel::build(&collection_of(vec![vec![ring(&SQ)], vec![ring(&sq2)]])).unwrap();
+        let outers = d.outer_boundaries();
+        assert_eq!(outers.len(), 1, "连通分量外边界应唯一");
+        assert_eq!(outers[0].len(), 6, "2×1 矩形外边界为 6 边环");
+        for &e in &outers[0] {
+            assert!(d.half_edges[e].stub && d.half_edges[e].left_face == OUTER_FACE);
+        }
+        // 绕环闭合性：逐边经 stub_cycle 规则应回到起点（长度一致即证）。
+        let again = d.stub_cycle(outers[0][0]);
+        assert_eq!(again, outers[0], "重走应得同一环");
+    }
+
+    #[test]
+    fn outer_and_hole_interior_cycles_of_holed_square() {
+        let hole: [[f64; 2]; 4] = [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.4]];
+        let d = Dcel::build(&collection_of(vec![vec![ring(&SQ), ring(&hole)]])).unwrap();
+        // 外边界 4 边环（左侧面恒为外面）。
+        let outers = d.outer_boundaries();
+        assert_eq!(outers.len(), 1);
+        assert_eq!(outers[0].len(), 4);
+        // 孔虚面内侧 stub 环 4 边。
+        let inner = d.hole_interior_boundary(2);
+        assert_eq!(inner.len(), 4);
+        for &e in &inner {
+            assert!(d.half_edges[e].stub && d.half_edges[e].left_face == 2);
+        }
+    }
+
+    #[test]
+    fn split_then_merge_restores_structure() {
+        let mut d = Dcel::build(&collection_of(vec![vec![ring(&SQ)]])).unwrap();
+        let res = d.split_face_by_diagonal(1, 0, 2).unwrap();
+        assert_eq!(d.faces.len(), 3);
+        let m = d.merge_faces(res.edge_ab).unwrap();
+        assert_eq!(m.survivor, 1, "twin 左侧原面保留");
+        assert_eq!(m.absorbed, res.new_face);
+        // 拓扑量复原（墓碑不计数）。
+        assert_eq!(d.euler_characteristic(), 2);
+        assert_eq!(d.components(), 1);
+        assert_eq!(d.face_boundary(1).len(), 4, "合并后回到正方环");
+        assert!(d.faces[res.new_face].deleted);
+        assert!(d.half_edges[res.edge_ab].deleted && d.half_edges[res.edge_ba].deleted);
+        d.check_invariants().unwrap();
+        // 合并后可再分裂（墓碑不影响新操作）。
+        let res2 = d.split_face_by_diagonal(1, 0, 2).unwrap();
+        d.check_invariants().unwrap();
+        assert_eq!(d.face_boundary(res2.new_face).len(), 3);
+    }
+
+    #[test]
+    fn merge_reassigns_holes_back() {
+        let hole: [[f64; 2]; 4] = [[0.1, 0.6], [0.3, 0.6], [0.3, 0.8], [0.1, 0.8]];
+        let mut d = Dcel::build(&collection_of(vec![vec![ring(&SQ), ring(&hole)]])).unwrap();
+        let res = d.split_face_by_diagonal(1, 0, 2).unwrap();
+        let m = d.merge_faces(res.edge_ab).unwrap();
+        d.check_invariants().unwrap();
+        assert_eq!(d.euler_characteristic(), 3, "孔面仍在（V−E+F 恢复）");
+        // 孔虚面回到保留面。
+        assert_eq!(d.faces[2].polygon, Some(1));
+        assert_eq!(d.faces[1].holes, vec![2]);
+        for &e in &d.face_boundary(2) {
+            assert_eq!(d.half_edges[e].left_face, m.survivor);
+        }
+    }
+
+    #[test]
+    fn merge_error_branches() {
+        let mut d = Dcel::build(&collection_of(vec![vec![ring(&SQ)]])).unwrap();
+        // 边不存在。
+        assert!(d
+            .merge_faces(999)
+            .unwrap_err()
+            .to_string()
+            .contains("不存在"));
+        // stub 边（外面侧占位边）。
+        let stub = d.half_edges.iter().position(|h| h.stub).expect("必有 stub");
+        assert!(d
+            .merge_faces(stub)
+            .unwrap_err()
+            .to_string()
+            .contains("占位边"));
+        // 已删除边。
+        let res = d.split_face_by_diagonal(1, 0, 2).unwrap();
+        d.merge_faces(res.edge_ab).unwrap();
+        let e = d.merge_faces(res.edge_ab).unwrap_err();
+        assert!(e.to_string().contains("已删除"), "{e}");
+        // 多共享边拒绝：带孔方环 + 孔内方（共享 4 边）。
+        let hole: [[f64; 2]; 4] = [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.4]];
+        let inner: [[f64; 2]; 4] = [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.4]];
+        let mut d2 = Dcel::build(&collection_of(vec![
+            vec![ring(&SQ), ring(&hole)],
+            vec![ring(&inner)],
+        ]))
+        .unwrap();
+        // 找内方的一条外边界边（其 twin 左侧为带孔方环面 1）。
+        let shared_edge = (0..d2.half_edges.len())
+            .find(|&i| {
+                let h = &d2.half_edges[i];
+                !h.stub && h.left_face == 3 && {
+                    let t = &d2.half_edges[h.twin];
+                    !t.stub && t.left_face == 1
+                }
+            })
+            .expect("应有共享边");
+        let e = d2.merge_faces(shared_edge).unwrap_err();
+        assert!(e.to_string().contains("不止一条"), "{e}");
     }
 }

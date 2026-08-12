@@ -12,18 +12,19 @@
 //!   事务切片）——大批量编辑比逐命令逆操作更省内存与耗时（O(1) 集合级回放），
 //!   与命令通道并存、统一 undo/redo 语义；GeoArrow RecordBatch 级 Delta
 //!   为留接口路线（见 delta 模块头）；
-//! - [`dcel`]（v3）：DCEL 增量拓扑内核首个切片（三表五指针、孔洞虚面约定、
-//!   欧拉自检、面对角线分裂增量操作）。
+//! - [`dcel`]（v3）：DCEL 增量拓扑内核（三表五指针、孔洞虚面约定、欧拉自检、
+//!   面对角线分裂；v2 续篇：外面/孔虚面 stub 环遍历（顶点角度序转向）、
+//!   merge_faces 单边合并逆操作（墓碑式删除保下标稳定））。
 //!
 //! 后续增量（路线图，rustdoc 即契约）：
-//! - v4：DCEL 续篇（外面/孔面边界接线、merge_faces 增量逆操作）与壳层接线。
+//! - v4：DCEL 与壳层编辑模式接线 + 增量操作扩展（顶点移动联动等）。
 
 pub mod dcel;
 pub mod delta;
 pub mod history;
 pub mod ops;
 
-pub use dcel::{Dcel, FaceKind, SplitResult, OUTER_FACE};
+pub use dcel::{Dcel, FaceKind, MergeResult, SplitResult, OUTER_FACE};
 pub use delta::{DeltaSet, FeatureDelta, DELTA_RECOMMEND_THRESHOLD};
 pub use history::{EditCommand, History, Transaction};
 pub use ops::{
