@@ -77,6 +77,8 @@ proj4rs = { version = "0.1.10", features = ["crs-definitions"] }
 # EPSG 全库检索（7507 条目；proj4rs 经此查库，此处直接依赖以枚举全库
 # 与读取 WKT 名称——默认特性 proj4+wkt）。
 crs-definitions = "0.4"
+# R 树空间索引（纯 Rust；overlay/sjoin 候选裁剪，与 geo 内部版本统一）。
+rstar = "0.12"
 
 [profile.release]
 lto = "thin"

@@ -121,22 +121,48 @@ impl std::str::FromStr for OverlayOp {
 ///   每 target 至多一个结果要素。
 /// - 属性：target 要素属性 + overlay 要素属性（键冲突时 overlay 侧键加
 ///   `overlay_` 前缀）；Difference 结果仅带 target 属性（overlay 部分已被减去）。
+///
+/// **性能（rstar 裁剪，§8.1 复测路线项）**：要素对数 ≥ [`SPATIAL_INDEX_MIN_PAIRS`]
+/// 时启用空间索引/包矩形裁剪，**语义与朴素版完全一致**（裁剪而非近似，
+/// 对拍测试见 `tests::overlay_indexed_matches_naive`）：
+/// - Intersection/Difference：包矩形相交是产生影响（非空交集/差集被改变）的
+///   必要条件——overlay 侧建 R 树，只对候选对进精确布尔；
+/// - Union/Xor：不相交要素对同样产出（两者简单拼合），索引无法减少产出数，
+///   逐对包矩形判定：不相交走拼合直通（跳过布尔管线），相交才进精确布尔。
+///
+/// 低于阈值走朴素路径（建树开销不抵）。
 pub fn overlay(
     target: &geojson::FeatureCollection,
     overlay: &geojson::FeatureCollection,
     op: OverlayOp,
 ) -> Result<geojson::FeatureCollection> {
-    use geo::BooleanOps;
-
     let targets = collect_polygons(target, "target")?;
     let overlays = collect_polygons(overlay, "overlay")?;
+    let features = if targets.len() * overlays.len() < SPATIAL_INDEX_MIN_PAIRS {
+        overlay_naive(&targets, &overlays, op)
+    } else {
+        overlay_indexed(&targets, &overlays, op)
+    };
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
 
+/// 朴素笛卡尔积实现（小数据集路径 + 对拍基准；v0.4 原始语义）。
+fn overlay_naive(
+    targets: &[PolygonFeature],
+    overlays: &[PolygonFeature],
+    op: OverlayOp,
+) -> Vec<geojson::Feature> {
+    use geo::BooleanOps;
     let mut features = Vec::new();
     match op {
         OverlayOp::Difference => {
-            for t in &targets {
+            for t in targets {
                 let mut acc = t.geom.clone();
-                for o in &overlays {
+                for o in overlays {
                     acc = acc.difference(&o.geom);
                 }
                 if !acc.0.is_empty() {
@@ -145,8 +171,8 @@ pub fn overlay(
             }
         }
         _ => {
-            for t in &targets {
-                for o in &overlays {
+            for t in targets {
+                for o in overlays {
                     let result = match op {
                         OverlayOp::Union => t.geom.union(&o.geom),
                         OverlayOp::Intersection => t.geom.intersection(&o.geom),
@@ -163,12 +189,160 @@ pub fn overlay(
             }
         }
     }
+    features
+}
 
-    Ok(geojson::FeatureCollection {
-        bbox: None,
-        features,
-        foreign_members: None,
-    })
+/// 索引裁剪实现（语义与 [`overlay_naive`] 完全一致，见 overlay rustdoc）。
+fn overlay_indexed(
+    targets: &[PolygonFeature],
+    overlays: &[PolygonFeature],
+    op: OverlayOp,
+) -> Vec<geojson::Feature> {
+    use geo::{BooleanOps, BoundingRect};
+    let mut features = Vec::new();
+    match op {
+        OverlayOp::Difference => {
+            let tree = BboxTree::build(overlays.iter().map(|o| o.geom.bounding_rect()));
+            let mut candidates = Vec::new();
+            for t in targets {
+                let mut acc = t.geom.clone();
+                // 仅包矩形相交的 overlay 可能改变差集（其余差运算为恒等）。
+                tree.candidates_into(t.geom.bounding_rect(), &mut candidates);
+                for &o_idx in &candidates {
+                    acc = acc.difference(&overlays[o_idx].geom);
+                }
+                if !acc.0.is_empty() {
+                    features.push(with_geometry(t.feature, geojson::Value::from(&acc)));
+                }
+            }
+        }
+        OverlayOp::Intersection => {
+            let tree = BboxTree::build(overlays.iter().map(|o| o.geom.bounding_rect()));
+            let mut candidates = Vec::new();
+            for t in targets {
+                // 包矩形不相交 ⇒ 交集必空（朴素版同样跳过），只算候选对。
+                tree.candidates_into(t.geom.bounding_rect(), &mut candidates);
+                for &o_idx in &candidates {
+                    let o = &overlays[o_idx];
+                    let result = t.geom.intersection(&o.geom);
+                    if result.0.is_empty() {
+                        continue;
+                    }
+                    let mut feature = with_geometry(t.feature, geojson::Value::from(&result));
+                    merge_overlay_props(&mut feature, o.feature);
+                    features.push(feature);
+                }
+            }
+        }
+        OverlayOp::Union | OverlayOp::Xor => {
+            // 不相交对的并/对称差 = 两者简单拼合（集合恒等）：包矩形逐对判定，
+            // 不相交直通拼合，相交才进布尔管线。
+            for t in targets {
+                let tb = t.geom.bounding_rect();
+                for o in overlays {
+                    let ob = o.geom.bounding_rect();
+                    let result = match (tb, ob) {
+                        (Some(tb), Some(ob)) if !rects_intersect(&tb, &ob) => {
+                            disjoint_concat(&t.geom, &o.geom)
+                        }
+                        (Some(_), Some(_)) => match op {
+                            OverlayOp::Union => t.geom.union(&o.geom),
+                            OverlayOp::Xor => t.geom.xor(&o.geom),
+                            _ => unreachable!("仅 Union/Xor 进入本分支"),
+                        },
+                        // 一侧为空 MultiPolygon：并/对称差 = 另一侧原样。
+                        (Some(_), None) => t.geom.clone(),
+                        (None, _) => o.geom.clone(),
+                    };
+                    if result.0.is_empty() {
+                        continue;
+                    }
+                    let mut feature = with_geometry(t.feature, geojson::Value::from(&result));
+                    merge_overlay_props(&mut feature, o.feature);
+                    features.push(feature);
+                }
+            }
+        }
+    }
+    features
+}
+
+/// 包矩形相交（含边界接触；与 rstar 信封判定同口径）。
+fn rects_intersect(a: &geo_types::Rect<f64>, b: &geo_types::Rect<f64>) -> bool {
+    a.min().x <= b.max().x
+        && a.max().x >= b.min().x
+        && a.min().y <= b.max().y
+        && a.max().y >= b.min().y
+}
+
+/// 不相交 MultiPolygon 的简单拼合（Union/Xor 在包矩形不相交时的集合恒等式）。
+fn disjoint_concat(
+    a: &geo_types::MultiPolygon<f64>,
+    b: &geo_types::MultiPolygon<f64>,
+) -> geo_types::MultiPolygon<f64> {
+    let mut polys = Vec::with_capacity(a.0.len() + b.0.len());
+    polys.extend(a.0.iter().cloned());
+    polys.extend(b.0.iter().cloned());
+    geo_types::MultiPolygon(polys)
+}
+
+/// 空间索引阈值：要素对数低于此走朴素路径（建树开销不抵；语义两侧一致）。
+const SPATIAL_INDEX_MIN_PAIRS: usize = 1000;
+
+/// sjoin 索引路径的 join 侧最小规模：join 侧过小时谓词全扫比建树查询更便宜
+/// （实测依据见 sjoin rustdoc）。
+const SJOIN_INDEX_MIN_JOIN: usize = 64;
+
+/// rstar 索引项（要素序号 + 外包矩形信封）。
+struct BboxItem {
+    index: usize,
+    bbox: rstar::AABB<[f64; 2]>,
+}
+
+impl rstar::RTreeObject for BboxItem {
+    type Envelope = rstar::AABB<[f64; 2]>;
+
+    fn envelope(&self) -> Self::Envelope {
+        self.bbox
+    }
+}
+
+/// 单侧图层的包矩形 R 树（候选筛选：返回包矩形相交的要素序号，升序）。
+struct BboxTree(rstar::RTree<BboxItem>);
+
+impl BboxTree {
+    /// 以各要素外包矩形建树（无外包矩形的空几何不入门——其候选恒空，
+    /// 与朴素路径的谓词全不命中一致）。
+    fn build(rects: impl Iterator<Item = Option<geo_types::Rect<f64>>>) -> Self {
+        let items = rects
+            .enumerate()
+            .filter_map(|(index, r)| {
+                r.map(|r| BboxItem {
+                    index,
+                    bbox: rstar::AABB::from_corners([r.min().x, r.min().y], [r.max().x, r.max().y]),
+                })
+            })
+            .collect();
+        Self(rstar::RTree::bulk_load(items))
+    }
+
+    /// 查询候选（包矩形相交的要素序号，升序——保持朴素路径的输出序）。
+    /// 缓冲由调用方复用（避免逐 target 分配）。
+    fn candidates_into(&self, rect: Option<geo_types::Rect<f64>>, buf: &mut Vec<usize>) {
+        buf.clear();
+        let Some(r) = rect else {
+            return;
+        };
+        buf.extend(
+            self.0
+                .locate_in_envelope_intersecting(&rstar::AABB::from_corners(
+                    [r.min().x, r.min().y],
+                    [r.max().x, r.max().y],
+                ))
+                .map(|item| item.index),
+        );
+        buf.sort_unstable();
+    }
 }
 
 /// 面要素引用（要素 + geo MultiPolygon）。
@@ -368,21 +542,47 @@ impl std::str::FromStr for SpatialPredicate {
 /// 属性合并：target 属性 + join 属性（键冲突加 `join_` 前缀），另加
 /// `join_index`（join 要素序号，便于溯源；无匹配时缺省）。
 /// 无几何或类型不可转换的 target 要素按无匹配处理；join 侧同类要素对跳过
-/// （不产生脏数据）。O(n·m) 朴素实现——rstar 空间索引加速 📋
-/// （与 [`topology_check`] 同一待优化项）。
+/// （不产生脏数据）。
+///
+/// **性能（rstar 裁剪，§8.1 复测路线项）**：要素对数 ≥ [`SPATIAL_INDEX_MIN_PAIRS`]
+/// **且 join 侧 ≥ [`SJOIN_INDEX_MIN_JOIN`]** 时 join 侧建包矩形 R 树，target
+/// 逐要素查询候选——包矩形相交是 intersects/contains/within 的必要条件，
+/// 裁剪不改变结果集与输出序（候选按 join 序号升序，与朴素路径一致；
+/// 对拍测试见 `tests::sjoin_indexed_matches_naive`）。低于阈值或 join 侧
+/// 过小走朴素路径（实测 100 万 × 16 格场景索引反而慢约 10%：谓词本身
+/// 极廉价，建树与逐点查询开销不抵——索引收益取决于裁剪率）。
 pub fn sjoin(
     target: &geojson::FeatureCollection,
     join: &geojson::FeatureCollection,
     predicate: SpatialPredicate,
 ) -> Result<geojson::FeatureCollection> {
-    use geo::{Contains, Intersects};
-
     let join_side: Vec<Option<geo_types::Geometry<f64>>> = join
         .features
         .iter()
         .map(|f| f.geometry.as_ref().and_then(|g| to_geo(&g.value)))
         .collect();
+    let indexed = target.features.len() * join.features.len() >= SPATIAL_INDEX_MIN_PAIRS
+        && join.features.len() >= SJOIN_INDEX_MIN_JOIN;
+    let features = if indexed {
+        sjoin_indexed(target, join, &join_side, predicate)
+    } else {
+        sjoin_naive(target, join, &join_side, predicate)
+    };
+    Ok(geojson::FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    })
+}
 
+/// 朴素笛卡尔积实现（小数据集路径 + 对拍基准；v0.4 原始语义）。
+fn sjoin_naive(
+    target: &geojson::FeatureCollection,
+    join: &geojson::FeatureCollection,
+    join_side: &[Option<geo_types::Geometry<f64>>],
+    predicate: SpatialPredicate,
+) -> Vec<geojson::Feature> {
+    use geo::{Contains, Intersects};
     let mut features = Vec::new();
     for t in &target.features {
         let t_geom = t.geometry.as_ref().and_then(|g| to_geo(&g.value));
@@ -405,12 +605,47 @@ pub fn sjoin(
             features.push(sjoined_feature(t, None));
         }
     }
+    features
+}
 
-    Ok(geojson::FeatureCollection {
-        bbox: None,
-        features,
-        foreign_members: None,
-    })
+/// 索引裁剪实现（语义与 [`sjoin_naive`] 完全一致，见 sjoin rustdoc）。
+fn sjoin_indexed(
+    target: &geojson::FeatureCollection,
+    join: &geojson::FeatureCollection,
+    join_side: &[Option<geo_types::Geometry<f64>>],
+    predicate: SpatialPredicate,
+) -> Vec<geojson::Feature> {
+    use geo::{BoundingRect, Contains, Intersects};
+    let tree = BboxTree::build(
+        join_side
+            .iter()
+            .map(|g| g.as_ref().and_then(|g| g.bounding_rect())),
+    );
+    let mut candidates = Vec::new();
+    let mut features = Vec::new();
+    for t in &target.features {
+        let t_geom = t.geometry.as_ref().and_then(|g| to_geo(&g.value));
+        let mut matched = false;
+        if let Some(tg) = &t_geom {
+            tree.candidates_into(tg.bounding_rect(), &mut candidates);
+            for &j_idx in &candidates {
+                let jg = join_side[j_idx].as_ref().expect("索引项必有geometry");
+                let hit = match predicate {
+                    SpatialPredicate::Intersects => tg.intersects(jg),
+                    SpatialPredicate::Contains => tg.contains(jg),
+                    SpatialPredicate::Within => jg.contains(tg),
+                };
+                if hit {
+                    matched = true;
+                    features.push(sjoined_feature(t, Some((j_idx, &join.features[j_idx]))));
+                }
+            }
+        }
+        if !matched {
+            features.push(sjoined_feature(t, None));
+        }
+    }
+    features
 }
 
 /// 组装 sjoin 输出要素：target 几何与属性 + join 属性（冲突加 `join_` 前缀）
@@ -935,5 +1170,133 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("统计项"));
+    }
+
+    // ===== rstar 索引裁剪对拍（索引版 vs 朴素版，语义完全一致）=====
+
+    /// 一排互不相交的方格图层（边长 0.5，起点 (x0, y)，步长 1.0）。
+    fn squares_fc(n: usize, x0: f64, y: f64) -> geojson::FeatureCollection {
+        let mut fc = geojson::FeatureCollection {
+            bbox: None,
+            features: Vec::new(),
+            foreign_members: None,
+        };
+        for i in 0..n {
+            let x = x0 + i as f64;
+            fc.features.push(geojson::Feature {
+                bbox: None,
+                geometry: Some(geojson::Geometry::new(geojson::Value::Polygon(vec![vec![
+                    vec![x, y],
+                    vec![x + 0.5, y],
+                    vec![x + 0.5, y + 0.5],
+                    vec![x, y + 0.5],
+                    vec![x, y],
+                ]]))),
+                id: None,
+                properties: None,
+                foreign_members: None,
+            });
+        }
+        fc
+    }
+
+    /// 一排互不相交的点图层。
+    fn points_fc(n: usize, x0: f64, y: f64) -> geojson::FeatureCollection {
+        let mut fc = geojson::FeatureCollection {
+            bbox: None,
+            features: Vec::new(),
+            foreign_members: None,
+        };
+        for i in 0..n {
+            fc.features.push(geojson::Feature {
+                bbox: None,
+                geometry: Some(geojson::Geometry::new(geojson::Value::Point(vec![
+                    x0 + i as f64,
+                    y,
+                ]))),
+                id: None,
+                properties: None,
+                foreign_members: None,
+            });
+        }
+        fc
+    }
+
+    /// 逐要素比对：属性逐字节一致 + 几何集合相等（对称差面积 < 1e-4；
+    /// 布尔核对不相交对亦有 ~1e-9 坐标扰动，故不做逐坐标比对——
+    /// 对称差面积是集合相等的度量，容差远高于核扰动、远低于场景尺度）。
+    fn assert_same_features(fast: &[geojson::Feature], slow: &[geojson::Feature]) {
+        use geo::{Area, BooleanOps};
+        assert_eq!(fast.len(), slow.len(), "要素数不一致");
+        for (i, (f, s)) in fast.iter().zip(slow).enumerate() {
+            assert_eq!(f.properties, s.properties, "要素 {i} 属性不一致");
+            let fg = f.geometry.as_ref().and_then(|g| to_geo(&g.value));
+            let sg = s.geometry.as_ref().and_then(|g| to_geo(&g.value));
+            match (&fg, &sg) {
+                (
+                    Some(geo_types::Geometry::MultiPolygon(fmp)),
+                    Some(geo_types::Geometry::MultiPolygon(smp)),
+                ) => {
+                    let sym = fmp.xor(smp).unsigned_area();
+                    assert!(sym < 1e-4, "要素 {i} 对称差面积 {sym} 超容差");
+                }
+                (Some(_), Some(_)) => panic!("要素 {i} 应为 MultiPolygon"),
+                _ => panic!("要素 {i} 几何缺失"),
+            }
+        }
+    }
+
+    #[test]
+    fn overlay_indexed_matches_naive() {
+        let ops = [
+            OverlayOp::Union,
+            OverlayOp::Intersection,
+            OverlayOp::Xor,
+            OverlayOp::Difference,
+        ];
+        // 场景一：错半格重叠方格对（40×30=1200 对 > 阈值 → 索引路径）。
+        let (a, _) = crate::bench::overlay_pair(40, 1);
+        let (_, b) = crate::bench::overlay_pair(30, 2);
+        // 场景二：全不相交（Union/Xor 拼合直通路径；40×30=1200 对）。
+        let far_a = squares_fc(40, 0.0, 0.0);
+        let far_b = squares_fc(30, 1000.0, 1000.0);
+        // 场景三：空图层边界（0 对 → 朴素路径亦应一致）。
+        let (empty, _) = crate::bench::overlay_pair(0, 1);
+        for (ta, tb) in [(&a, &b), (&far_a, &far_b), (&empty, &b)] {
+            let t = collect_polygons(ta, "t").unwrap();
+            let o = collect_polygons(tb, "o").unwrap();
+            for op in ops {
+                let fast = overlay(ta, tb, op).unwrap();
+                let slow = overlay_naive(&t, &o, op);
+                assert_same_features(&fast.features, &slow);
+            }
+        }
+    }
+
+    #[test]
+    fn sjoin_indexed_matches_naive() {
+        let preds = [
+            SpatialPredicate::Intersects,
+            SpatialPredicate::Contains,
+            SpatialPredicate::Within,
+        ];
+        // 重叠场景：600 混合要素 × 100 格（60000 对 > 阈值、join 侧 100 ≥ 64
+        // → 索引路径）；几何原样随行，索引版与朴素版应逐字节一致。
+        let target = crate::bench::mixed(600, 9);
+        let (join, _) = crate::bench::overlay_pair(100, 3);
+        // 无相交边界：600 远点 × 100 格（全部无匹配，走左连接缺省行）。
+        let far = points_fc(600, 5000.0, 5000.0);
+        for (t, j) in [(&target, &join), (&far, &join)] {
+            let side: Vec<_> = j
+                .features
+                .iter()
+                .map(|f| f.geometry.as_ref().and_then(|g| to_geo(&g.value)))
+                .collect();
+            for pred in preds {
+                let fast = sjoin(t, j, pred).unwrap();
+                let slow = sjoin_naive(t, j, &side, pred);
+                assert_eq!(fast.features, slow, "{pred:?} 索引版与朴素版应一致");
+            }
+        }
     }
 }

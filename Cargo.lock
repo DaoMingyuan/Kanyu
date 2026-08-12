@@ -3083,6 +3083,7 @@ dependencies = [
  "kml",
  "parquet",
  "proj4rs",
+ "rstar 0.12.2",
  "rust_xlsxwriter",
  "serde",
  "serde_json",

@@ -223,6 +223,33 @@ Windows 11 专业工作站版，release 构建（thin LTO）。
 - **GeoJSON 文本解析为加载瓶颈**（100 万 ≈4.5s）；FGB/GeoParquet 二进制
   直通（Phase 1 进行中）预期量级改善，下轮实测补二进制格式对照行。
 
+### 8.2 rstar 裁剪复测（2026-08-11，同机）
+
+overlay/sjoin 接入 rstar 包矩形候选裁剪（**裁剪非近似，语义与朴素版完全一致**，
+对拍测试 `overlay_indexed_matches_naive` / `sjoin_indexed_matches_naive`）：
+
+- Intersection/Difference：overlay 侧建 R 树，仅包矩形相交对进精确布尔；
+- Union/Xor：不相交对同样产出（集合恒等 = 简单拼合），逐对包矩形判定直通
+  拼合、相交才进布尔管线（索引无法减少 n·m 产出数）；
+- sjoin：pairs ≥ 1000 **且 join 侧 ≥ 64** 才建索引（见下方实测教训）。
+
+| 项目 | 档位 | 首轮（朴素） | 复测（rstar） | 提速 |
+|---|---|---|---|---|
+| overlay_union | 10 万（316²对） | 277.5 ms | 173.5–181.7 ms | **1.5–1.6x** |
+| overlay_union | 100 万（1000²对） | 3289.4 ms | 1866–2266 ms（多轮中位 ≈2144） | **≈1.5x** |
+| sjoin（join=16 格） | 10 万 / 100 万 | 155.9 / 1820.4 ms | 175.9 / 1870.2 ms（朴素路径） | 持平（设计如此） |
+| sjoin（join=2000 格，探针） | 2 万 × 2000 | 263.1 ms | 28.9 ms | **9.1x** |
+
+实测教训（一句话级）：
+
+- **union 类产出数被语义锁定为 n·m**，裁剪只省布尔管线，产出物化
+  （geojson 转换+属性合并）成为新瓶颈——故 1.5x 而非量级提升；Intersection/
+  Difference 类（产出随重叠数）才是索引的最大受益者（sjoin 大 join 侧探针 9.1x 为证）。
+- **小 join 侧索引倒贴**：100 万 × 16 格场景索引路径实测反而慢约 10%
+  （谓词极廉价，建树+逐点查询开销不抵）——故 sjoin 加 `SJOIN_INDEX_MIN_JOIN=64`
+  门槛，join 侧过小保持朴素全扫（阈值与依据见 `analysis::sjoin` rustdoc）。
+- 同机多轮方差 ±10%（共享构建机），倍数按区间报告。
+
 ## 9. 演进路线
 
 | 阶段 | 目标 | 状态 |
