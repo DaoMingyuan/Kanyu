@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-11 · v0.21.0 · 319 测试全绿**。
+> 每次收工回记时更新。截至 **2026-08-11 · v0.21.0+ · 328 测试全绿**。
 
 ### 1.1 已完成实现
 
@@ -97,6 +97,11 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-11 kimi-code(main) — kanyu-edit v2 Delta 快照/事务 + WMS 入 .kyu
+- 提交：见本次 commit 组；测试：328 全绿（edit 18）+ clippy 零警告 + fmt 净
+- 内容：delta.rs（三态统一/阈值 256/GeoArrow 路线留档）+ 事务原子提交；ProjectFrame.wms_base 持久化（连接属本机取舍注明）+ 服务连接编辑回填
+- 后续：DCEL、3D 真管线、MCP resources/prompts
 
 ### [收工] 2026-08-11 kimi-code(main) — v0.21.0：布局 v2 + 服务链接 v2 + 线面绘制 + 地图框深化/rstar 捆版
 - 提交：见本次 commit 组；测试：319 全绿（shell 115/render 23/core 138/edit 10）+ clippy 零警告 + fmt 净
