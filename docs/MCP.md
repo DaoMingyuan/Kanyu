@@ -80,7 +80,8 @@ mcp-session-id: 39cd01a2-c69c-410a-9ab2-85107970dc78
 data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26",
       "capabilities":{"tools":{}},"serverInfo":{"name":"kanyu-mcp","version":"0.6.0"},…}}
 # 后续请求带 Mcp-Session-Id 头；notifications/initialized → 202；
-# tools/list 返回全部 12 个工具；tools/call 正常返回结构化结果。
+# tools/list 返回全部 19 个工具；tools/call 正常返回结构化结果；
+# capabilities 另含 resources 与 prompts（§4A/§4B）。
 ```
 
 initialize 握手（实测）：
@@ -513,6 +514,33 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | —（toolbox 组，tooldef 注册表投影） | `kanyu_toolbox_list` / `kanyu_toolbox_run` | ✅ |
 
 即：点号映射为下划线，分组（data/analysis/render/system/agents）保留。
+
+## 4A. Resources（只读资源，✅）
+
+`resources/list` 返回静态资源，`resources/templates/list` 返回 URI 模板，
+`resources/read` 读取（内容均为 `application/json` 文本）：
+
+| URI | 内容 |
+|---|---|
+| `kanyu://formats` | 格式注册表能力矩阵（FormatRegistry::builtin，读写/符号化/驱动列） |
+| `kanyu://tools` | MCP 工具清单（introspect 单一事实来源，名称/分组/状态） |
+| `kanyu://crs/{code}`（模板） | EPSG 条目：`{"code","name","kind","unit","proj4"}`（名称/类型/单位/proj4 定义） |
+
+错误均为中文 `invalid_params`：未知 URI / 代码非数值 / 代码不在内置库
+（7507 条）。`kanyu://layer/{path}` **暂缓**：文件路径入 URI 需要百分号
+编码与路径穿越约束（授权根外拒绝），其安全权衡待与资源订阅一并裁决；
+图层数据当前经工具参数（path）通道已完备。
+
+## 4B. Prompts（中文分析流模板，✅）
+
+`prompts/list` 返回模板清单，`prompts/get` 以 arguments 做 `{参数}` 占位
+替换（缺必填参数返回中文 `invalid_params`），消息引用真实工具名：
+
+| name | 参数（必填） | 编排 |
+|---|---|---|
+| `data_health_check` | `path` | 数据体检：`kanyu_data_load` → `kanyu_analysis_topology` → `kanyu_analysis_stats`（TXT 再 `kanyu_data_validate`） |
+| `buffer_analysis` | `path`、`distance` | 缓冲区分析流：概要 → 经纬度先 `kanyu_data_reproject` → `kanyu_analysis_buffer` → `kanyu_data_export` |
+| `crs_transform` | `path`、`from`、`to` | 坐标系转换流：读 `kanyu://crs/{to}` → `kanyu_data_reproject` → 重载核对坐标量级 |
 
 ## 5. 设计原则
 

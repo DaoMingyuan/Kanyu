@@ -68,6 +68,13 @@ pub fn crs_info(code: u32) -> Option<CrsInfo> {
     Some(info_from_def(&def))
 }
 
+/// 按代码取 EPSG 条目的 proj4 定义串（MCP `kanyu://crs/{code}` 资源等需要
+/// 原始定义的消费方）；库中不存在返回 None。
+pub fn crs_proj4_def(code: u32) -> Option<&'static str> {
+    let def = crs_definitions::from_code(u16::try_from(code).ok()?)?;
+    Some(def.proj4)
+}
+
 /// EPSG 全库检索（crs-definitions 0.4.0，7507 条，代码域 2000..=32766）：
 /// 按代码子串或名称（大小写不敏感）匹配，按代码升序返回，至多 `limit` 条；
 /// 空查询返回常用精选（见 [`COMMON_CRS`]）。

@@ -929,15 +929,91 @@ impl ServerHandler for KanyuServer {
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_tasks()
+                .enable_resources()
+                .enable_prompts()
                 .build(),
         )
         .with_instructions(
-            "堪舆 (Kanyu) GIS 内核：data/agents/analysis/render/system 五组工具 + SEP-2663 长任务。\
+            "堪舆 (Kanyu) GIS 内核：data/agents/analysis/render/system/toolbox 工具组 + SEP-2663 长任务；\
+                 只读资源（kanyu://formats、kanyu://tools、kanyu://crs/{code}）与中文分析流 prompts。\
                  所有结果为结构化 JSON 并携带 CRS/单位元数据；不提供任意代码执行。",
         );
         info.server_info.name = "kanyu-mcp".to_string();
         info.server_info.version = env!("CARGO_PKG_VERSION").to_string();
         info
+    }
+
+    /// MCP resources 清单（静态资源；crs 走模板，见 list_resource_templates）。
+    fn list_resources(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<ListResourcesResult, McpError>> + MaybeSendFuture + '_
+    {
+        let _ = (request, context);
+        std::future::ready(Ok(ListResourcesResult {
+            resources: vec![
+                Resource::new("kanyu://formats", "kanyu_formats")
+                    .with_description("格式注册表能力矩阵（JSON）")
+                    .with_mime_type("application/json"),
+                Resource::new("kanyu://tools", "kanyu_tools")
+                    .with_description("MCP 工具清单（introspect 单一事实来源，JSON）")
+                    .with_mime_type("application/json"),
+            ],
+            ..Default::default()
+        }))
+    }
+
+    /// MCP resources 模板清单（kanyu://crs/{code}）。
+    fn list_resource_templates(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<ListResourceTemplatesResult, McpError>>
+           + MaybeSendFuture
+           + '_ {
+        let _ = (request, context);
+        std::future::ready(Ok(ListResourceTemplatesResult {
+            resource_templates: vec![ResourceTemplate::new("kanyu://crs/{code}", "kanyu_crs")
+                .with_description("EPSG 条目信息（代码/名称/类型/单位/proj4 定义，JSON）")
+                .with_mime_type("application/json")],
+            ..Default::default()
+        }))
+    }
+
+    /// MCP resources 读取。
+    fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<ReadResourceResponse, McpError>> + MaybeSendFuture + '_
+    {
+        let _ = context;
+        let result = read_resource_sync(&request.uri);
+        async move { result }
+    }
+
+    /// MCP prompts 清单（中文分析流模板）。
+    fn list_prompts(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<ListPromptsResult, McpError>> + MaybeSendFuture + '_
+    {
+        let _ = (request, context);
+        std::future::ready(Ok(list_prompts_sync()))
+    }
+
+    /// MCP prompts 获取（参数经 arguments 模板替换）。
+    fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<GetPromptResponse, McpError>> + MaybeSendFuture + '_
+    {
+        let _ = context;
+        let result = get_prompt_sync(&request.name, request.arguments.as_ref());
+        async move { result }
     }
 }
 
@@ -1279,6 +1355,172 @@ fn stem_of(path: &str) -> String {
         .to_string()
 }
 
+// ===== MCP resources（只读资源） =====
+//
+// URI 面：kanyu://formats（格式注册表）、kanyu://tools（工具清单）、
+// kanyu://crs/{code}（EPSG 条目，模板）。
+// `kanyu://layer/{path}` 本轮**暂缓**：文件路径入 URI 需要百分号编码与
+// 路径穿越约束（授权根外拒绝），其安全权衡待与资源订阅（subscribe）
+// 一并裁决；图层数据当前经工具参数（path）通道已完备。
+
+/// resources/read 同步实现（handler 薄壳与测试共享）。
+fn read_resource_sync(uri: &str) -> Result<ReadResourceResponse, McpError> {
+    let json_text = |v: serde_json::Value| -> ResourceContents {
+        ResourceContents::text(v.to_string(), uri).with_mime_type("application/json")
+    };
+    let unknown = || {
+        McpError::invalid_params(
+            format!("未知资源 URI: '{uri}'（支持 kanyu://formats、kanyu://tools、kanyu://crs/{{code}}）"),
+            None,
+        )
+    };
+    if uri == "kanyu://formats" {
+        let registry = FormatRegistry::builtin();
+        let value = serde_json::to_value(registry.all())
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        return Ok(ReadResourceResult::new(vec![json_text(value)]).into());
+    }
+    if uri == "kanyu://tools" {
+        let value = serde_json::to_value(introspect::tools())
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        return Ok(ReadResourceResult::new(vec![json_text(value)]).into());
+    }
+    if let Some(code) = uri.strip_prefix("kanyu://crs/") {
+        let code: u32 = code
+            .parse()
+            .map_err(|_| McpError::invalid_params(format!("CRS 代码须为数值: '{code}'"), None))?;
+        let info = kanyu_core::crs::crs_info(code).ok_or_else(|| {
+            McpError::invalid_params(format!("EPSG:{code} 不在内置库（7507 条）",), None)
+        })?;
+        let value = serde_json::json!({
+            "code": info.code,
+            "name": info.name,
+            "kind": info.kind,
+            "unit": info.unit,
+            "proj4": kanyu_core::crs::crs_proj4_def(code),
+        });
+        return Ok(ReadResourceResult::new(vec![json_text(value)]).into());
+    }
+    Err(unknown())
+}
+
+// ===== MCP prompts（中文分析流模板） =====
+
+/// prompt 声明（名称/描述/参数表/消息模板）。
+struct PromptDef {
+    name: &'static str,
+    description: &'static str,
+    /// (参数名, 描述, 是否必填)。
+    args: &'static [(&'static str, &'static str, bool)],
+    /// 消息模板（`{参数名}` 占位经 arguments 替换）。
+    template: &'static str,
+}
+
+/// 分析流模板注册表（单一事实来源；新增 prompt 在此加一行）。
+const PROMPTS: &[PromptDef] = &[
+    PromptDef {
+        name: "data_health_check",
+        description: "数据体检：加载 → 图层概要 → 拓扑检查 → 图层统计 的完整编排",
+        args: &[("path", "数据文件路径", true)],
+        template: "请对数据文件 {path} 做数据体检，按序调用：\n\
+                   1. kanyu_data_load（path={path}）——取图层概要（要素数/几何类型/字段）；\n\
+                   2. kanyu_analysis_topology（path={path}，rules=[\"no_overlap\"]）——面重叠违规检查；\n\
+                   3. kanyu_analysis_stats（path={path}）——测地线统计（长度/面积/亩/公顷）；\n\
+                   4. 若为宗地 TXT，再调 kanyu_data_validate 做格式质检。\n\
+                   汇总为中文体检报告（异常项优先列出）。",
+    },
+    PromptDef {
+        name: "buffer_analysis",
+        description: "缓冲区分析流：坐标系判断 →（经纬度先投影）→ 缓冲 → 导出",
+        args: &[("path", "数据文件路径", true), ("distance", "缓冲距离（米）", true)],
+        template: "请对 {path} 做 {distance} 米缓冲区分析，按序调用：\n\
+                   1. kanyu_data_load（path={path}）——确认几何类型与坐标系；\n\
+                   2. 若为经纬度（如 EPSG:4326/4490），先 kanyu_data_reproject 投影到米制 CRS\n\
+                      （如 EPSG:4526/4527 高斯克吕格带，可经 resources kanyu://crs/{{code}} 查带号）；\n\
+                   3. kanyu_analysis_buffer（distance={distance}，米制 CRS 下距离即米）；\n\
+                   4. kanyu_data_export 导出结果（geojson/fgb）。\n\
+                   注意：经纬度下直接以度为距离单位是常见错误，必须先投影。",
+    },
+    PromptDef {
+        name: "crs_transform",
+        description: "坐标系转换流：定义校验 → 投影变换 → 结果抽验",
+        args: &[
+            ("path", "数据文件路径", true),
+            ("from", "源 CRS（如 EPSG:4326）", true),
+            ("to", "目标 CRS（如 EPSG:4527）", true),
+        ],
+        template: "请把 {path} 从 {from} 转换到 {to}，按序调用：\n\
+                   1. 先经 resources 读取 kanyu://crs/{to} 确认目标定义（名称/单位/proj4）；\n\
+                   2. kanyu_data_reproject（path={path}，from={from}，to={to}，out 指定输出路径）；\n\
+                   3. kanyu_data_load（输出路径）核对要素数与坐标量级\n\
+                      （度→米转换后坐标应为米级大数，仍在 0–180 说明 from 声明有误）。\n\
+                   轴序约定：本内核一律 GIS 序（经度在前），4490 与 4326 同点转换差异 < 1mm。",
+    },
+];
+
+/// prompts/list 同步实现。
+fn list_prompts_sync() -> ListPromptsResult {
+    ListPromptsResult {
+        prompts: PROMPTS
+            .iter()
+            .map(|p| {
+                Prompt::new(
+                    p.name,
+                    Some(p.description),
+                    Some(
+                        p.args
+                            .iter()
+                            .map(|(name, desc, required)| {
+                                PromptArgument::new(*name)
+                                    .with_description(*desc)
+                                    .with_required(*required)
+                            })
+                            .collect(),
+                    ),
+                )
+            })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+/// prompts/get 同步实现：必填参数齐套模板（`{name}` 占位替换）。
+fn get_prompt_sync(
+    name: &str,
+    arguments: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> Result<GetPromptResponse, McpError> {
+    let Some(def) = PROMPTS.iter().find(|p| p.name == name) else {
+        return Err(McpError::invalid_params(
+            format!(
+                "未知 prompt: '{name}'（支持 {}）",
+                PROMPTS.iter().map(|p| p.name).collect::<Vec<_>>().join("/")
+            ),
+            None,
+        ));
+    };
+    let mut text = def.template.to_string();
+    for (arg, desc, required) in def.args {
+        let value = arguments
+            .and_then(|a| a.get(*arg))
+            .and_then(|v| v.as_str().map(str::to_string).or(Some(v.to_string())))
+            .filter(|s| !s.trim().is_empty());
+        match value {
+            Some(v) => text = text.replace(&format!("{{{arg}}}"), &v),
+            None if *required => {
+                return Err(McpError::invalid_params(
+                    format!("prompt '{name}' 缺少必填参数 '{arg}'（{desc}）"),
+                    None,
+                ))
+            }
+            None => {}
+        }
+    }
+    let message = PromptMessage::new_text(Role::User, text);
+    Ok(GetPromptResult::new(vec![message])
+        .with_description(def.description)
+        .into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1594,5 +1836,86 @@ mod tests {
         let out = call_analysis_sync("kanyu_toolbox_run", args).unwrap();
         assert_eq!(out["type"], "new_layer");
         assert!(out["layers"].as_object().unwrap().contains_key("cen_p"));
+    }
+
+    // ===== resources / prompts =====
+
+    /// 从 ReadResourceResponse 取首块文本内容。
+    fn resource_text(resp: &ReadResourceResponse) -> String {
+        let ReadResourceResponse::Complete(result) = resp else {
+            panic!("应为 Complete 响应")
+        };
+        match &result.contents[0] {
+            ResourceContents::TextResourceContents { text, .. } => text.clone(),
+            other => panic!("应为文本资源: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn read_resource_static_and_crs_template() {
+        // 静态资源：格式矩阵与工具清单。
+        let formats = read_resource_sync("kanyu://formats").unwrap();
+        let text = resource_text(&formats);
+        assert!(
+            text.contains("geojson"),
+            "格式矩阵应含 geojson: {text:.200}"
+        );
+        let tools = read_resource_sync("kanyu://tools").unwrap();
+        let text = resource_text(&tools);
+        assert!(
+            text.contains("kanyu_toolbox_run"),
+            "工具清单应含 toolbox 工具"
+        );
+        // crs 模板：4490 命中（名称/类型/单位/proj4 齐套）。
+        let crs = read_resource_sync("kanyu://crs/4490").unwrap();
+        let text = resource_text(&crs);
+        assert!(
+            text.contains("China Geodetic Coordinate System 2000"),
+            "{text}"
+        );
+        assert!(text.contains("Geographic"), "{text}");
+        assert!(text.contains("度"), "{text}");
+        assert!(text.contains("+proj=longlat"), "{text}");
+        // 中文错误：未知 URI / 非法代码 / 库中不存在。
+        let e = read_resource_sync("kanyu://bogus").unwrap_err();
+        assert!(e.message.contains("未知资源 URI"), "{e}");
+        let e = read_resource_sync("kanyu://crs/abc").unwrap_err();
+        assert!(e.message.contains("须为数值"), "{e}");
+        let e = read_resource_sync("kanyu://crs/9999").unwrap_err();
+        assert!(e.message.contains("不在内置库"), "{e}");
+    }
+
+    #[test]
+    fn prompts_list_and_get_with_argument_substitution() {
+        // list：三个模板，参数元数据齐套。
+        let list = list_prompts_sync();
+        assert_eq!(list.prompts.len(), 3);
+        let names: Vec<&str> = list.prompts.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["data_health_check", "buffer_analysis", "crs_transform"]
+        );
+        let health = &list.prompts[0];
+        let args = health.arguments.as_ref().unwrap();
+        assert_eq!(args[0].name, "path");
+        assert_eq!(args[0].required, Some(true));
+        // get：参数替换进模板，含真实工具名引用。
+        let mut arguments = serde_json::Map::new();
+        arguments.insert("path".to_string(), serde_json::Value::from("roads.geojson"));
+        arguments.insert("distance".to_string(), serde_json::Value::from("500"));
+        let resp = get_prompt_sync("buffer_analysis", Some(&arguments)).unwrap();
+        let GetPromptResponse::Complete(result) = resp else {
+            panic!("应为 Complete 响应")
+        };
+        let text = format!("{:?}", result.messages[0].content);
+        assert!(text.contains("roads.geojson"), "路径应替换: {text:.300}");
+        assert!(text.contains("500"), "距离应替换: {text:.300}");
+        assert!(!text.contains("{path}"), "占位符应全部替换: {text:.300}");
+        assert!(text.contains("kanyu_analysis_buffer"), "应引用真实工具名");
+        // 缺必填参数 / 未知 prompt：中文错误。
+        let e = get_prompt_sync("buffer_analysis", None).unwrap_err();
+        assert!(e.message.contains("缺少必填参数"), "{e}");
+        let e = get_prompt_sync("nope", None).unwrap_err();
+        assert!(e.message.contains("未知 prompt"), "{e}");
     }
 }

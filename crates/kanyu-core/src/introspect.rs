@@ -62,7 +62,7 @@ pub fn modules() -> Vec<ModuleInfo> {
         },
         ModuleInfo {
             name: "kanyu-mcp",
-            role: "神经接口：MCP Server，向 AI 暴露全部内核能力",
+            role: "神经接口：MCP Server，向 AI 暴露全部内核能力（工具 + SEP-2663 长任务 + resources/prompts）",
             status: "incubating",
         },
         ModuleInfo {
