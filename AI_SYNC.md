@@ -98,6 +98,12 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-11 kimi-code(main) — 地图框绑定图层 + 关闭≠删除 + 二维/三维分建 + rstar 裁剪
+- 提交：见本次 commit 组；测试：308 全绿（core 138/shell 109）+ clippy 零警告 + fmt 净
+- 内容：⑧ MapFrame 交换模型（park/unpark 现场冻结，切换框图层跟随；属性表/符号化/编辑/工具箱全指向激活框）；关闭≠删除（目录弱色行可重开，右键删除）；二维/三维分建；黑边三处修复；.kyu 加 map/frames（向后兼容）；⑨ rstar 索引裁剪 overlay/sjoin（对拍锁定集合相等；复测 overlay 1.5x、sjoin 大 join 侧 9.1x，§8.2 入档）
+- 偏差：无
+- 后续：§9.1 余——布局 v2（PNG 中文/入 .kyu）、服务链接 v2（GetCapabilities/WMS）、编辑 Delta 快照/DCEL、3D 真管线
+
 ### [收工] 2026-08-11 kimi-code(main) — v0.20.0：壳层编辑模式 + 服务链接 + 长期项捆版
 - 提交：见本次 commit 组；测试：298 全绿（shell 103/edit 8/mcp 9/render 21/core 136 等）+ clippy 零警告 + fmt 净
 - 内容：⑥ 壳层编辑模式（edit.rs 会话 + 画布顶点句柄拖拽/移动/插点/删选 + 属性表单元格编辑 + 「编辑」功能区页签与 QAT 撤销/重做接线，保存/放弃会话语义）；⑦ 服务链接 v1（services.rs WFS GetFeature：连接管理入 ui-state、后台线程+进度模态可取消、GeoJSON 解析登记图层，目录五分类全部兑现）；捆版 v0.20.0（含前四件长期项：kanyu-edit/布局/基准/MCP 收敛/状态持久化）
