@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-08-11
+
+**地图框图层绑定 + 布局 v2 + 服务链接 v2 + 编辑增强 + rstar 性能裁剪。**
+
 ### 新增
 
 - **地图框绑定自有图层**（ArcGIS Pro 多地图范式）：各地图框独立图层集/目录树/视口，
@@ -20,6 +24,9 @@
   布局入 `.kyu` 持久化；布局绑定地图框（绑定框内容渲染，不随激活切换）。
 - **服务链接 v2**：WFS GetCapabilities 图层发现（基址→图层下拉→一键 GetFeature）；
   WMS 底图叠加（按视口 GetMap、缓存去抖、框级绑定、失败不阻断矢量渲染）。
+- **编辑增强**：顶点捕捉（10px 屏幕容差、视口粗筛、可开关、吸附圆环指示）；
+  面挖洞（AddHole 命令入 History，geo Contains/Intersects 校验，MultiPolygon
+  part 定位到子面，越界保留绘制现场）；Multi* 部件级句柄/命中核查锁定。
 
 ### 性能
 
@@ -669,7 +676,8 @@ QGIS 式工具箱面板 + geoprocess 第二批算法移植。**
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.21.0
 [0.20.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.20.0
 [0.19.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.19.0
 [0.18.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.18.0
