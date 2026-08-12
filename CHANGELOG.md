@@ -728,7 +728,8 @@ QGIS 式工具箱面板 + geoprocess 第二批算法移植。**
 - 分析/渲染/编辑工具组（buffer/overlay/topology/render）为规划状态。
 - MCP 仅 stdio 传输；streamable HTTP 与 MCP tasks 长任务待 v0.2。
 
-[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/DaoMingyuan/Kanyu/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.22.0
 [0.21.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.21.0
 [0.20.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.20.0
 [0.19.0]: https://github.com/DaoMingyuan/Kanyu/releases/tag/v0.19.0

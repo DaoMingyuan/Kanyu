@@ -3064,7 +3064,7 @@ dependencies = [
 
 [[package]]
 name = "kanyu-cli"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -3082,7 +3082,7 @@ dependencies = [
 
 [[package]]
 name = "kanyu-core"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "acadrust",
  "arrow-array",
@@ -3115,7 +3115,7 @@ dependencies = [
 
 [[package]]
 name = "kanyu-edit"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "geo",
  "geojson",
@@ -3126,7 +3126,7 @@ dependencies = [
 
 [[package]]
 name = "kanyu-mcp"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "base64 0.22.1",
  "hyper",
@@ -3144,7 +3144,7 @@ dependencies = [
 
 [[package]]
 name = "kanyu-py"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "geojson",
  "kanyu-core",
@@ -3155,7 +3155,7 @@ dependencies = [
 
 [[package]]
 name = "kanyu-render"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "fontdue",
  "geojson",
@@ -3168,7 +3168,7 @@ dependencies = [
 
 [[package]]
 name = "kanyu-shell"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "bytemuck",
  "eframe",
@@ -3187,7 +3187,7 @@ dependencies = [
 
 [[package]]
 name = "kanyu-skill"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "geojson",
  "kanyu-core",
