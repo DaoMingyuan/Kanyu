@@ -72,7 +72,7 @@ pub fn modules() -> Vec<ModuleInfo> {
         },
         ModuleInfo {
             name: "kanyu-edit",
-            role: "手：编辑内核首个增量（Undo/Redo 框架 + 基础编辑命令：顶点移动/要素平移/删除/插入/属性更新）；DCEL 拓扑待后续",
+            role: "手：编辑内核（Undo/Redo：命令逆操作双栈 + Delta 快照 v2 双通道 + 事务原子提交；基础编辑命令：顶点移动/要素平移/删除/插入/属性更新）；DCEL 拓扑待后续",
             status: "incubating",
         },
         ModuleInfo {
