@@ -136,6 +136,8 @@ pub struct MapFrame {
     pub open: bool,
     /// 浮动窗上一帧矩形（拖到页签条吸附的判定用；运行态不持久化）。
     pub win_rect: Option<Rect>,
+    /// WMS 底图连接名（None = 无底图；框身份属性——激活/休眠不换出）。
+    pub wms_base: Option<String>,
     /// 状态位（休眠框的全部现场；激活框此处为交换余量，勿直读）。
     pub(crate) site: FrameSite,
 }
@@ -154,6 +156,7 @@ impl MapFrame {
             docked: true,
             open: true,
             win_rect: None,
+            wms_base: None,
             site,
         }
     }
@@ -166,6 +169,7 @@ impl MapFrame {
             docked: true,
             open: true,
             win_rect: None,
+            wms_base: None,
             site: FrameSite::default(),
         }
     }

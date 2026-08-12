@@ -37,6 +37,12 @@ pub enum CatalogAction {
     DeleteService(usize),
     /// 连接服务并加载为图层（services 下标）。
     ConnectService(usize),
+    /// 删除 WMS 连接（wms 清单下标）。
+    DeleteWms(usize),
+    /// WMS 设为当前框底图（wms 清单下标）。
+    WmsBaseOn(usize),
+    /// 取消当前框底图。
+    WmsBaseOff,
 }
 
 /// 地图框行（app 注入，地图框分类的数据源）。
@@ -298,7 +304,7 @@ impl CatalogPanel {
     }
 
     /// 面板 UI。`frames` = 地图框分类数据（全部已建框，含已关闭）、
-    /// `layouts` = 布局行清单、`services` = 服务链接清单（app 注入）。返回产生的动作。
+    /// `layouts` = 布局行清单、`services`/`wms` = 服务链接清单（app 注入）。返回产生的动作。
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -306,6 +312,7 @@ impl CatalogPanel {
         frames: &[FrameRow],
         layouts: &[LayoutRow],
         services: &[crate::services::WfsConnection],
+        wms: &[crate::services::WmsConnection],
     ) -> Vec<CatalogAction> {
         let mut actions = Vec::new();
         // 状态行。
@@ -317,7 +324,7 @@ impl CatalogPanel {
             frames.len(),
             layouts.len(),
             default_kdb.is_some(),
-            services.len(),
+            services.len() + wms.len(),
             self.roots.len(),
         );
         // 展开/加载/打开动作延后收集（避免借用冲突），迭代后统一应用。
@@ -472,8 +479,9 @@ impl CatalogPanel {
                             }
                         }
                         3 => {
-                            // 服务链接：连接清单（双击连接加载）+ 新建入口。
-                            if services.is_empty() {
+                            // 服务链接：WFS 连接清单（双击连接加载）+ WMS 底图清单
+                            //（双击/右键设为当前框底图；图标区分）+ 新建入口。
+                            if services.is_empty() && wms.is_empty() {
                                 if let Some(ph) = cat.placeholder {
                                     ui.horizontal(|ui| {
                                         ui.add_space(16.0);
@@ -494,8 +502,10 @@ impl CatalogPanel {
                                 if resp.double_clicked() {
                                     actions.push(CatalogAction::ConnectService(i));
                                 }
-                                let resp = resp
-                                    .on_hover_text(format!("{}\n双击连接并加载为图层", conn.url));
+                                let resp = resp.on_hover_text(format!(
+                                    "WFS：{}\n双击连接并加载为图层",
+                                    conn.url
+                                ));
                                 resp.context_menu(|ui| {
                                     if ui.button("连接").clicked() {
                                         actions.push(CatalogAction::ConnectService(i));
@@ -503,6 +513,38 @@ impl CatalogPanel {
                                     }
                                     if ui.button("删除").clicked() {
                                         actions.push(CatalogAction::DeleteService(i));
+                                        ui.close();
+                                    }
+                                });
+                            }
+                            for (i, conn) in wms.iter().enumerate() {
+                                let (resp, _) = tree_row(
+                                    ui,
+                                    cache,
+                                    1,
+                                    Some(Icon::Image),
+                                    &conn.name,
+                                    None,
+                                    |_ui| {},
+                                );
+                                if resp.double_clicked() {
+                                    actions.push(CatalogAction::WmsBaseOn(i));
+                                }
+                                let resp = resp.on_hover_text(format!(
+                                    "WMS 底图：{}\n双击设为当前框底图",
+                                    conn.layer
+                                ));
+                                resp.context_menu(|ui| {
+                                    if ui.button("设为当前框底图").clicked() {
+                                        actions.push(CatalogAction::WmsBaseOn(i));
+                                        ui.close();
+                                    }
+                                    if ui.button("取消底图").clicked() {
+                                        actions.push(CatalogAction::WmsBaseOff);
+                                        ui.close();
+                                    }
+                                    if ui.button("删除").clicked() {
+                                        actions.push(CatalogAction::DeleteWms(i));
                                         ui.close();
                                     }
                                 });

@@ -6,7 +6,7 @@
   <!-- 堪舆 Kanyu 桌面端 MSI 安装包（WiX v5 源文件） -->
   <Package Name="堪舆 Kanyu"
            Manufacturer="DaoMingyuan (道明远)"
-           Version="0.20.0"
+           Version="0.21.0"
            UpgradeCode="{7F3A9C21-4B6E-4D8A-9E51-2C0A1B3D5F47}"
            Scope="perUser">
 

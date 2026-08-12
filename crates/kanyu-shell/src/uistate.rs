@@ -59,6 +59,8 @@ pub struct UiState {
     pub active_view: Option<usize>,
     /// 服务链接清单（WFS GetFeature 连接；v1 起持久化）。
     pub services: Vec<crate::services::WfsConnection>,
+    /// WMS 底图连接清单（v2 起持久化；独立字段——老状态文件零迁移）。
+    pub wms: Vec<crate::services::WmsConnection>,
 }
 
 impl Default for UiState {
@@ -75,6 +77,7 @@ impl Default for UiState {
             views: Vec::new(),
             active_view: None,
             services: Vec::new(),
+            wms: Vec::new(),
         }
     }
 }
@@ -183,6 +186,11 @@ mod tests {
             name: "示例 WFS".into(),
             url: "https://example.com/wfs?request=GetFeature".into(),
         }];
+        s.wms = vec![crate::services::WmsConnection {
+            name: "示例 WMS".into(),
+            url: "https://example.com/wms".into(),
+            layer: "ne:countries".into(),
+        }];
         s
     }
 
@@ -198,6 +206,8 @@ mod tests {
         assert_eq!(back.active_view, Some(0));
         assert_eq!(back.services.len(), 1);
         assert_eq!(back.services[0].name, "示例 WFS");
+        assert_eq!(back.wms.len(), 1);
+        assert_eq!(back.wms[0].layer, "ne:countries");
     }
 
     #[test]
@@ -206,6 +216,7 @@ mod tests {
         let s = UiState::from_json(r#"{"version":1}"#).unwrap();
         assert!(s.panels.is_empty());
         assert!(s.services.is_empty()); // 老文件无 services 字段：默认空
+        assert!(s.wms.is_empty()); // 老文件无 wms 字段：默认空
         assert_eq!(s.ui_zoom, 1.0); // Default 基线 1.0
         let s2 = UiState::from_json(r#"{"version":1,"ui_zoom":1.5}"#).unwrap();
         assert_eq!(s2.ui_zoom, 1.5);

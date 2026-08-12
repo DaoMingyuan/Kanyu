@@ -262,6 +262,14 @@ pub struct KanyuApp {
     layout_dlg: Option<crate::layoutview::LayoutDialogState>,
     /// 服务链接清单（WFS；持久化入 ui-state.json）。
     services: Vec<crate::services::WfsConnection>,
+    /// WMS 底图连接清单（持久化入 ui-state.json 的独立 wms 字段）。
+    wms_services: Vec<crate::services::WmsConnection>,
+    /// WMS 底图拉取句柄（后台线程 + 每帧轮询）。
+    wms_fetch: Option<WmsFetch>,
+    /// WMS 请求去抖（同 bbox 1 秒内不重复请求）。
+    wms_last: Option<(Instant, [f64; 4])>,
+    /// WMS 失败键（失败后视口/尺寸变化才重试，防每帧死循环）。
+    wms_failed: Option<([f64; 4], u32, u32)>,
     /// 新建服务链接对话框状态。
     service_dlg: Option<crate::services::ServiceDialogState>,
     /// WFS 后台拉取句柄（进度模态 + 每帧轮询；复用工具运行模式）。
@@ -304,6 +312,14 @@ struct ServiceFetch {
     name: String,
     /// 结果通道。
     rx: std::sync::mpsc::Receiver<Result<FeatureCollection, String>>,
+}
+
+/// WMS 底图后台拉取句柄（每帧轮询；视口已变的过期结果直接丢弃）。
+struct WmsFetch {
+    /// 缓存键（请求时的视口 bbox + 物理像素尺寸）。
+    key: ([f64; 4], u32, u32),
+    /// 结果通道。
+    rx: std::sync::mpsc::Receiver<Result<Vec<u8>, String>>,
 }
 
 /// 裸几何 → 无属性要素（编辑插入用）。
@@ -380,6 +396,10 @@ impl KanyuApp {
             next_layout_id: 1,
             layout_dlg: None,
             services: Vec::new(),
+            wms_services: Vec::new(),
+            wms_fetch: None,
+            wms_last: None,
+            wms_failed: None,
             service_dlg: None,
             service_progress: None,
             render_epoch: 1,
@@ -649,8 +669,8 @@ impl KanyuApp {
                 app.edit_session = Some(s);
             }
         }
-        // --service-demo：目录「服务链接」预置一条演示连接并展开分类（截图验证）；
-        // --service-dlg-demo 另打开新建对话框。
+        // --service-demo：目录「服务链接」预置 WFS+WMS 演示连接各一并展开分类（截图验证）；
+        // --service-dlg-demo 另打开新建对话框（预填图层清单，图层发现截图验证）。
         if args.service_demo || args.service_dlg_demo {
             // 覆盖式预置（非追加）：持久化恢复后重复演示不累积重复行。
             app.services = vec![crate::services::WfsConnection {
@@ -658,6 +678,11 @@ impl KanyuApp {
                 url: "https://example.com/geoserver/wfs?service=WFS&request=GetFeature\
                       &typeNames=demo:blocks&outputFormat=application/json"
                     .to_string(),
+            }];
+            app.wms_services = vec![crate::services::WmsConnection {
+                name: "示例 WMS 底图（演示）".to_string(),
+                url: "https://example.com/geoserver/wms".to_string(),
+                layer: "ne:countries".to_string(),
             }];
             app.catalog.demo_expand_services();
             // 演示布局确定性：目录停靠左区并激活；关闭浮动终端避免遮挡。
@@ -668,7 +693,21 @@ impl KanyuApp {
             app.dock.close_panel(crate::dock::PanelId::Console);
             if args.service_dlg_demo {
                 app.service_dlg = Some(crate::services::ServiceDialogState {
-                    name: format!("WFS 服务 {}", app.services.len() + 1),
+                    name: "示范 WFS".to_string(),
+                    url: "https://example.com/geoserver/wfs".to_string(),
+                    layer: "demo:blocks".to_string(),
+                    // 预填图层清单（离线演示图层发现下拉）。
+                    caps: vec![
+                        crate::services::WfsLayerInfo {
+                            name: "demo:blocks".to_string(),
+                            title: Some("示范街区".to_string()),
+                        },
+                        crate::services::WfsLayerInfo {
+                            name: "demo:roads".to_string(),
+                            title: Some("示范道路".to_string()),
+                        },
+                    ],
+                    caps_note: Some("已发现 2 个图层".to_string()),
                     ..Default::default()
                 });
             }
@@ -739,6 +778,7 @@ impl KanyuApp {
         }
         // 服务链接清单。
         self.services = s.services.clone();
+        self.wms_services = s.wms.clone();
     }
 
     /// 采集当前 UI 状态（保存用快照）。
@@ -792,6 +832,7 @@ impl KanyuApp {
             _ => None,
         };
         s.services = self.services.clone();
+        s.wms = self.wms_services.clone();
         s
     }
 
@@ -3063,6 +3104,7 @@ impl KanyuApp {
                     &frame_rows,
                     &layout_rows,
                     &self.services,
+                    &self.wms_services,
                 ));
                 self.catalog = catalog;
             }
@@ -3353,6 +3395,81 @@ impl KanyuApp {
             self.console
                 .info(format!("已取消连接「{}」（后台结果将被丢弃）", prog.name));
         }
+    }
+
+    // ===== WMS 底图 =====
+
+    /// WMS 底图驱动（每帧：轮询在途结果 + 按需发起新请求）。
+    /// 仅作用激活框的二维画布；拉取失败 toast 中文错误，不阻断矢量渲染。
+    fn wms_drive(&mut self, ctx: &egui::Context) {
+        // 轮询在途结果。
+        if let Some(fetch) = &self.wms_fetch {
+            match fetch.rx.try_recv() {
+                Ok(Ok(png)) => {
+                    let key = fetch.key;
+                    self.wms_fetch = None;
+                    if let Err(e) = self.canvas.set_wms(key, &png, ctx) {
+                        self.toast_err(&e);
+                    }
+                }
+                Ok(Err(e)) => {
+                    let key = fetch.key;
+                    self.wms_fetch = None;
+                    self.wms_failed = Some(key); // 视口/尺寸变化才重试（防每帧死循环）
+                    self.toast_err(format!("WMS 底图加载失败: {e}"));
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.wms_fetch = None;
+                }
+            }
+        }
+        let Some(fi) = self.active_frame else {
+            return;
+        };
+        if self.frame_dim != crate::mapview::ViewDim::TwoD {
+            return; // 三维场景不铺底图
+        }
+        let Some(name) = self.frames[fi].wms_base.clone() else {
+            self.canvas.clear_wms(); // 未启用底图：清理残留纹理
+            return;
+        };
+        let Some(conn) = self.wms_services.iter().find(|c| c.name == name).cloned() else {
+            // 连接已删（删除时已清理引用，此处兜底）。
+            self.frames[fi].wms_base = None;
+            self.canvas.clear_wms();
+            return;
+        };
+        let (Some(bbox), [w, h]) = (self.view_bbox, self.canvas.phys_px()) else {
+            return;
+        };
+        if w == 0 || h == 0 {
+            return;
+        }
+        let key = (bbox, w, h);
+        if self.canvas.wms_key() == Some(key) {
+            return; // 缓存已是最新
+        }
+        if self.wms_failed == Some(key) {
+            return;
+        }
+        if self.wms_fetch.as_ref().is_some_and(|f| f.key == key) {
+            return; // 在途
+        }
+        if let Some((t, last_bbox)) = &self.wms_last {
+            if *last_bbox == bbox && t.elapsed() < Duration::from_secs(1) {
+                return; // 同视口 1 秒去抖
+            }
+        }
+        let url = crate::services::build_getmap_url(&conn.url, &conn.layer, bbox, w, h);
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(crate::services::fetch_wms_map(&url));
+        });
+        self.wms_fetch = Some(WmsFetch { key, rx });
+        self.wms_last = Some((Instant::now(), bbox));
+        self.wms_failed = None;
+        ctx.request_repaint(); // 轮询持续推进
     }
 
     // ===== 帧处理辅助 =====
@@ -3688,6 +3805,47 @@ impl eframe::App for KanyuApp {
                         self.start_service_fetch(conn);
                     }
                 }
+                crate::catalog::CatalogAction::DeleteWms(i) => {
+                    if i < self.wms_services.len() {
+                        let conn = self.wms_services.remove(i);
+                        // 清理各框底图引用（激活框画布纹理同步清）。
+                        for f in &mut self.frames {
+                            if f.wms_base.as_deref() == Some(conn.name.as_str()) {
+                                f.wms_base = None;
+                            }
+                        }
+                        self.canvas.clear_wms();
+                        self.console
+                            .info(format!("已删除 WMS 连接「{}」", conn.name));
+                        self.mark_state_dirty();
+                    }
+                }
+                crate::catalog::CatalogAction::WmsBaseOn(i) => {
+                    let Some(fi) = self.active_frame else {
+                        self.toast_err("无打开的地图框——请先激活一个地图框");
+                        continue;
+                    };
+                    if let Some(conn) = self.wms_services.get(i) {
+                        self.frames[fi].wms_base = Some(conn.name.clone());
+                        self.canvas.clear_wms(); // 强制按当前视口重新请求
+                        self.wms_failed = None;
+                        let msg =
+                            format!("地图框「{}」底图 → {}", self.frames[fi].title, conn.name);
+                        self.console.info(msg.clone());
+                        self.toast_ok(msg);
+                        self.mark_state_dirty();
+                    }
+                }
+                crate::catalog::CatalogAction::WmsBaseOff => {
+                    if let Some(fi) = self.active_frame {
+                        if self.frames[fi].wms_base.take().is_some() {
+                            self.canvas.clear_wms();
+                            self.console
+                                .info(format!("地图框「{}」已取消底图", self.frames[fi].title));
+                            self.mark_state_dirty();
+                        }
+                    }
+                }
             }
         }
         for action in dock_out.panel {
@@ -3883,6 +4041,9 @@ impl eframe::App for KanyuApp {
                 }
             }
         }
+
+        // WMS 底图驱动（轮询 + 按需请求；须在中央内容渲染之后——视口已更新）。
+        self.wms_drive(&ctx);
 
         // 4) 拖拽中的投放提示（Foreground 层：三边缘投放区 + 中央浮动提示）。
         if self.dock.dragging.is_some() {
@@ -4103,45 +4264,208 @@ impl eframe::App for KanyuApp {
                 crate::ui_kit::DialogAction::None => self.rename_frame_dlg = Some((i, title)),
             }
         }
-        // 新建服务链接对话框。
+        // 新建服务链接对话框（WFS：基址 + GetCapabilities 图层发现；WMS：基址 + 图层名）。
         if let Some(mut dlg) = self.service_dlg.take() {
+            // 清单后台拉取轮询（对话框常显期间每帧检查）。
+            let mut caps_done: Option<Result<Vec<crate::services::WfsLayerInfo>, String>> = None;
+            if let Some(rx) = &dlg.caps_rx {
+                match rx.try_recv() {
+                    Ok(r) => caps_done = Some(r),
+                    Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        dlg.caps_rx = None;
+                        dlg.caps_note = Some("清单拉取中断".to_string());
+                    }
+                }
+            }
+            if let Some(r) = caps_done {
+                dlg.caps_rx = None;
+                match r {
+                    Ok(list) => {
+                        dlg.caps_note = Some(format!("已发现 {} 个图层", list.len()));
+                        if let Some(first) = list.first() {
+                            dlg.layer = first.name.clone();
+                        }
+                        dlg.caps = list;
+                    }
+                    Err(e) => {
+                        dlg.caps_note = Some(e.clone());
+                        self.toast_err(&e);
+                    }
+                }
+            }
+            let mut fetch_caps = false;
             let action = crate::ui_kit::dialog_shell(&ctx, "新建服务链接", |ui| {
+                // 类型切换（切型清空图层选择——WFS/WMS 图层语义不同）。
+                let kind_label = dlg.kind.label().to_string();
+                let mut choice_kind = kind_label.clone();
+                crate::ui_kit::combo_static(
+                    ui,
+                    "类型",
+                    &mut choice_kind,
+                    &[
+                        crate::services::ServiceKind::Wfs.label(),
+                        crate::services::ServiceKind::Wms.label(),
+                    ],
+                    true,
+                );
+                if choice_kind != kind_label {
+                    dlg.kind = if choice_kind == crate::services::ServiceKind::Wms.label() {
+                        crate::services::ServiceKind::Wms
+                    } else {
+                        crate::services::ServiceKind::Wfs
+                    };
+                    dlg.layer.clear();
+                    dlg.caps.clear();
+                    dlg.caps_note = None;
+                }
                 crate::ui_kit::text_input(ui, "名称", &mut dlg.name, "如 全国区县 WFS", true);
                 crate::ui_kit::text_input(
                     ui,
-                    "地址",
+                    "基址",
                     &mut dlg.url,
-                    "https://…?service=WFS&request=GetFeature&typeNames=…",
+                    "https://…/geoserver/wfs（不含查询串）",
                     true,
                 );
-                crate::ui_kit::hint_caption(
-                    ui,
-                    "填写完整 WFS GetFeature 请求地址（含 service=WFS、request=GetFeature、\
-                     typeNames、outputFormat=application/json）；\n双击目录中的连接名即加载为图层。",
-                );
-            });
-            match action {
-                crate::ui_kit::DialogAction::Ok => {
-                    match crate::services::validate_connection(&dlg.name, &dlg.url) {
-                        Ok(()) => {
-                            let conn = crate::services::WfsConnection {
-                                name: dlg.name.trim().to_string(),
-                                url: dlg.url.trim().to_string(),
-                            };
-                            self.console
-                                .info(format!("已新建服务链接「{}」", conn.name));
-                            self.services.push(conn);
-                            self.mark_state_dirty();
+                match dlg.kind {
+                    crate::services::ServiceKind::Wfs => {
+                        ui.horizontal(|ui| {
+                            let busy = dlg.caps_rx.is_some();
+                            if busy {
+                                ui.add(egui::Spinner::new());
+                            }
+                            if crate::ui_kit::button(
+                                ui,
+                                "获取图层清单",
+                                crate::ui_kit::ButtonVariant::Secondary,
+                                !busy && !dlg.url.trim().is_empty(),
+                            )
+                            .clicked()
+                            {
+                                fetch_caps = true;
+                            }
+                        });
+                        if let Some(note) = &dlg.caps_note {
+                            crate::ui_kit::hint_caption(ui, note);
                         }
-                        Err(e) => {
-                            self.toast_err(&e);
-                            self.console.push(crate::console::LineKind::Err, e);
-                            self.service_dlg = Some(dlg); // 校验失败保留输入
+                        if !dlg.caps.is_empty() {
+                            let options: Vec<String> = dlg
+                                .caps
+                                .iter()
+                                .map(|c| match &c.title {
+                                    Some(t) => format!("{t}（{}）", c.name),
+                                    None => c.name.clone(),
+                                })
+                                .collect();
+                            let idx = dlg
+                                .caps
+                                .iter()
+                                .position(|c| c.name == dlg.layer)
+                                .unwrap_or(0);
+                            let mut choice = options[idx].clone();
+                            crate::ui_kit::combo(ui, "图层", &mut choice, &options, true);
+                            if let Some(i) = options.iter().position(|o| o == &choice) {
+                                dlg.layer = dlg.caps[i].name.clone();
+                            }
+                        } else {
+                            crate::ui_kit::text_input(
+                                ui,
+                                "图层",
+                                &mut dlg.layer,
+                                "typeNames，如 demo:blocks（可先获取清单选择）",
+                                true,
+                            );
                         }
+                        crate::ui_kit::hint_caption(
+                            ui,
+                            "确定后按 GetFeature（GeoJSON 输出）构造完整请求地址；\
+                             双击目录中的连接名即加载为图层。",
+                        );
+                    }
+                    crate::services::ServiceKind::Wms => {
+                        crate::ui_kit::text_input(
+                            ui,
+                            "图层",
+                            &mut dlg.layer,
+                            "layers，如 ne:countries",
+                            true,
+                        );
+                        crate::ui_kit::hint_caption(
+                            ui,
+                            "WMS 影像按当前视口 GetMap 拉取（EPSG:4326 / PNG）；\
+                             建好后在目录右键「设为当前框底图」。",
+                        );
                     }
                 }
-                crate::ui_kit::DialogAction::Cancel => {} // 取消：丢弃
-                crate::ui_kit::DialogAction::None => self.service_dlg = Some(dlg), // 继续显示
+            });
+            if fetch_caps {
+                let base = dlg.url.trim().to_string();
+                dlg.caps_note = Some("正在获取图层清单…".to_string());
+                let (tx, rx) = std::sync::mpsc::channel();
+                std::thread::spawn(move || {
+                    let _ = tx.send(crate::services::fetch_capabilities(&base));
+                });
+                dlg.caps_rx = Some(rx);
+                self.service_dlg = Some(dlg);
+            } else {
+                match action {
+                    crate::ui_kit::DialogAction::Ok => {
+                        let result: Result<(), String> = match dlg.kind {
+                            crate::services::ServiceKind::Wfs => {
+                                if let Err(e) =
+                                    crate::services::validate_connection(&dlg.name, &dlg.url)
+                                {
+                                    Err(e)
+                                } else if dlg.layer.trim().is_empty() {
+                                    Err("图层名不能为空（获取清单选择或手输 typeNames）"
+                                        .to_string())
+                                } else {
+                                    Ok(())
+                                }
+                            }
+                            crate::services::ServiceKind::Wms => {
+                                crate::services::validate_wms(&dlg.name, &dlg.url, &dlg.layer)
+                            }
+                        };
+                        match result {
+                            Ok(()) => {
+                                let name = dlg.name.trim().to_string();
+                                match dlg.kind {
+                                    crate::services::ServiceKind::Wfs => {
+                                        let url = crate::services::build_getfeature_url(
+                                            &dlg.url, &dlg.layer,
+                                        );
+                                        self.console.info(format!(
+                                            "已新建服务链接「{name}」（WFS 图层 {}）",
+                                            dlg.layer.trim()
+                                        ));
+                                        self.services
+                                            .push(crate::services::WfsConnection { name, url });
+                                    }
+                                    crate::services::ServiceKind::Wms => {
+                                        self.console.info(format!(
+                                            "已新建 WMS 连接「{name}」（图层 {}）",
+                                            dlg.layer.trim()
+                                        ));
+                                        self.wms_services.push(crate::services::WmsConnection {
+                                            name,
+                                            url: dlg.url.trim().to_string(),
+                                            layer: dlg.layer.trim().to_string(),
+                                        });
+                                    }
+                                }
+                                self.mark_state_dirty();
+                            }
+                            Err(e) => {
+                                self.toast_err(&e);
+                                self.console.push(crate::console::LineKind::Err, e);
+                                self.service_dlg = Some(dlg); // 校验失败保留输入
+                            }
+                        }
+                    }
+                    crate::ui_kit::DialogAction::Cancel => {} // 取消：丢弃
+                    crate::ui_kit::DialogAction::None => self.service_dlg = Some(dlg), // 继续显示
+                }
             }
         }
         // 工具后台执行：进度模态 + 完成轮询 + 可终止。

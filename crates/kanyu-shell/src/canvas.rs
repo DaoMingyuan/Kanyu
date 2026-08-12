@@ -29,6 +29,16 @@ pub struct MapCanvas {
     edit_press: Option<EditPress>,
     /// 演示用草图光标（数据坐标；截图验证橡皮筋预览，真实悬停优先）。
     pub demo_sketch_cursor: Option<(f64, f64)>,
+    /// WMS 底图纹理（按地理范围映射；与矢量纹理独立——每帧绘制，不进 dirty 链）。
+    wms: Option<WmsTex>,
+}
+
+/// WMS 底图纹理（缓存键 = 视口 bbox + 物理像素尺寸）。
+struct WmsTex {
+    /// 纹理。
+    tex: egui::TextureHandle,
+    /// 缓存键（请求时的视口 bbox 与尺寸）。
+    key: ([f64; 4], u32, u32),
 }
 
 /// 编辑按下捕获（顶点/要素/起点）。
@@ -59,6 +69,7 @@ impl Default for MapCanvas {
             dirty: true,
             edit_press: None,
             demo_sketch_cursor: None,
+            wms: None,
         }
     }
 }
@@ -70,6 +81,43 @@ impl MapCanvas {
             tex_name: name.into(),
             ..Default::default()
         }
+    }
+
+    /// 物理像素尺寸（WMS 请求 WIDTH/HEIGHT 用；未首渲为 [0,0]）。
+    pub fn phys_px(&self) -> [u32; 2] {
+        self.tex_px
+    }
+
+    /// WMS 底图当前缓存键（None = 无底图）。
+    pub fn wms_key(&self) -> Option<([f64; 4], u32, u32)> {
+        self.wms.as_ref().map(|w| w.key)
+    }
+
+    /// 设置 WMS 底图（PNG 字节 → 纹理；失败给中文错误，不影响矢量渲染）。
+    pub fn set_wms(
+        &mut self,
+        key: ([f64; 4], u32, u32),
+        png: &[u8],
+        ctx: &egui::Context,
+    ) -> Result<(), String> {
+        let pixmap =
+            tiny_skia::Pixmap::decode_png(png).map_err(|e| format!("WMS 影像解码失败: {e}"))?;
+        let image = egui::ColorImage::from_rgba_unmultiplied(
+            [pixmap.width() as usize, pixmap.height() as usize],
+            pixmap.data(),
+        );
+        let tex = ctx.load_texture(
+            format!("{}-wms", self.tex_name),
+            image,
+            egui::TextureOptions::LINEAR,
+        );
+        self.wms = Some(WmsTex { tex, key });
+        Ok(())
+    }
+
+    /// 清除 WMS 底图。
+    pub fn clear_wms(&mut self) {
+        self.wms = None;
     }
 
     /// 编辑手势（按下捕获 → 松开结算为 EditAction）。
@@ -592,6 +640,22 @@ impl MapCanvas {
         // （夜观星的弱色在白底上对比不足）。
         let painter = ui.painter();
         painter.rect_filled(rect, CornerRadius::ZERO, Color32::WHITE);
+        // WMS 底图（白底之上、矢量层之下）：按缓存图的地理范围映射到当前视口——
+        // 视口微动时旧图随范围平移缩放（不产生错位），新图到达后无缝替换。
+        if let (Some(wms), Some(bbox)) = (&self.wms, output.view_bbox) {
+            let tl = crate::scene3d::data_to_canvas(wms.key.0[0], wms.key.0[3], bbox, w, h);
+            let br = crate::scene3d::data_to_canvas(wms.key.0[2], wms.key.0[1], bbox, w, h);
+            let dest = Rect::from_min_max(
+                Pos2::new(rect.min.x + tl.0, rect.min.y + tl.1),
+                Pos2::new(rect.min.x + br.0, rect.min.y + br.1),
+            );
+            painter.with_clip_rect(rect).image(
+                wms.tex.id(),
+                dest,
+                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                Color32::WHITE,
+            );
+        }
         for tex in &self.textures {
             painter.image(
                 tex.id(),
