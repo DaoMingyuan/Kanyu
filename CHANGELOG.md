@@ -6,6 +6,15 @@
 
 ### 新增
 
+- **DCEL 增量拓扑内核 v1**（kanyu-edit：三表结构/孔洞虚面约定/键控合并/欧拉自检；
+  绕面绕点邻面查询；`split_face_by_diagonal` 增量分裂面）。
+- **wgpu 3D 真管线 spike**：PaintCallback 离屏渲染（真深度缓冲 + Lambert 光照棱柱）
+  接入三维场景，「软件|wgpu」开关，无 GPU 自动回退软件路径。
+- **编辑增强**：顶点捕捉（10px 可开关）与面挖洞（AddHole 入 History，MultiPolygon
+  part 定位）；Multi* 部件级句柄/命中锁定。
+
+### 新增
+
 - **MCP resources/prompts**：`kanyu://formats`、`kanyu://tools`、`kanyu://crs/{code}`
   只读资源；数据体检/缓冲区分析流/坐标系转换流三个中文 prompts 模板（参数占位替换）。
 - **快捷键**：Ctrl+Z/Y/Shift+Z（编辑撤销重做）与 Ctrl+S（保存工程）；编辑选中要素
