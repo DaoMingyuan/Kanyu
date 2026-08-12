@@ -22,3 +22,4 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tiny-skia.workspace = true
+fontdue.workspace = true

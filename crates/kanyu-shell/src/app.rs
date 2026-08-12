@@ -435,10 +435,11 @@ impl KanyuApp {
             }
         }
         // --load 可多次指定；.kyu 走工程恢复，其余走数据加载。
-        // frames-demo 系列：load[1] 起由演示预置接管（载入新建框，验证框绑图层）。
+        // frames/layout-bind 演示系列：load[1] 起由演示预置接管（载入新建框）。
         let frames_demo = args.frames_demo || args.frames_demo2 || args.frames_demo3;
+        let split_load = frames_demo || args.layout_bind_demo;
         for (i, path) in args.load.iter().enumerate() {
-            if frames_demo && i > 0 {
+            if split_load && i > 0 {
                 continue;
             }
             let p = Path::new(path);
@@ -526,6 +527,39 @@ impl KanyuApp {
         if args.frames_demo3 {
             app.dock
                 .set_active(crate::dock::DockZone::Left, crate::dock::PanelId::Layers);
+        }
+        // --layout-bind-demo：布局绑定场景框——主框 load[0]、场景框 load[1]，
+        // 布局「示范区总图」绑定场景框后激活主框（绑定不随激活切换的截图验证）。
+        if args.layout_bind_demo {
+            app.frames.truncate(1); // 演示确定性（同 frames-demo 归一化）
+            app.active_frame = Some(0);
+            app.frame_dim = crate::mapview::ViewDim::TwoD;
+            app.scene = crate::scene3d::Scene3D::default();
+            app.next_frame_id = 1;
+            if let Some(second) = args.load.get(1).cloned() {
+                app.new_frame(crate::mapview::ViewDim::ThreeD);
+                app.open_file(Path::new(&second));
+                app.activate_frame(0);
+                let scene_title = app.frames[1].title.clone();
+                let id = app.next_layout_id;
+                app.next_layout_id += 1;
+                let mut lv = crate::layoutview::LayoutView::new(
+                    id,
+                    "示范区总图".to_string(),
+                    kanyu_render::layout::LayoutSpec {
+                        title: "示范区总图".to_string(),
+                        ..Default::default()
+                    },
+                );
+                lv.map = scene_title;
+                app.layouts.push(lv);
+                app.active_layout = Some(app.layouts.len() - 1);
+                app.catalog.demo_expand_layouts();
+                app.dock
+                    .dock_to(crate::dock::PanelId::Catalog, crate::dock::DockZone::Left);
+                app.dock
+                    .set_active(crate::dock::DockZone::Left, crate::dock::PanelId::Catalog);
+            }
         }
         // --zoom：启动缩放档（截图验证等比缩放）。
         if let Some(z) = args.zoom {
@@ -940,6 +974,51 @@ impl KanyuApp {
         self.activate_frame(self.frames.len() - 1);
     }
 
+    /// 指定地图框的现场部件（图层集/渲染缓存/视口/数据范围；激活框读平铺字段，
+    /// 休眠框读自身 site——交换模型）。
+    #[allow(clippy::type_complexity)]
+    fn frame_parts(
+        &self,
+        idx: usize,
+    ) -> (
+        &[LayerEntry],
+        &[(String, FeatureCollection, crate::symbology::LayerSymbology)],
+        Option<BBox>,
+        Option<BBox>,
+    ) {
+        if self.active_frame == Some(idx) {
+            (
+                &self.layers,
+                &self.render_cache,
+                self.view_bbox,
+                self.data_extent,
+            )
+        } else {
+            let s = &self.frames[idx].site;
+            (&s.layers, &s.render_cache, s.view_bbox, s.data_extent)
+        }
+    }
+
+    /// 布局内容源（绑定框标题 → 框下标；空串/未匹配 = 跟随激活框）。
+    #[allow(clippy::type_complexity)]
+    fn layout_frame_parts(
+        &self,
+        map: &str,
+    ) -> (
+        &[LayerEntry],
+        &[(String, FeatureCollection, crate::symbology::LayerSymbology)],
+        Option<BBox>,
+        Option<BBox>,
+    ) {
+        let idx = if map.is_empty() {
+            None
+        } else {
+            self.frames.iter().position(|f| f.title == map)
+        };
+        let idx = idx.or(self.active_frame).unwrap_or(0);
+        self.frame_parts(idx)
+    }
+
     // ===== 图层与数据现场 =====
 
     /// 生成不重复图层 id。
@@ -1189,6 +1268,24 @@ impl KanyuApp {
                 }
             })
             .collect();
+        // 布局清单（含绑定地图框标题）。
+        project.layouts = self
+            .layouts
+            .iter()
+            .map(|lv| kanyu_core::project::ProjectLayout {
+                title: lv.title.clone(),
+                page: match lv.spec.page {
+                    kanyu_render::layout::PageSize::A4Landscape => "a4l",
+                    kanyu_render::layout::PageSize::A4Portrait => "a4p",
+                }
+                .to_string(),
+                dpi: lv.spec.dpi,
+                legend: lv.spec.show_legend,
+                scalebar: lv.spec.show_scalebar,
+                north: lv.spec.show_north,
+                map: (!lv.map.is_empty()).then(|| lv.map.clone()),
+            })
+            .collect();
         let mut skipped = 0;
         for i in 0..self.frames.len() {
             // 激活框图层读平铺字段，休眠框读自身 site（交换模型）。
@@ -1262,6 +1359,8 @@ impl KanyuApp {
         self.selected = None;
         self.selected_group = None;
         self.edit_session = None;
+        self.layouts.clear();
+        self.next_layout_id = 1;
         self.console.info(format!(
             "打开工程 {}（{} 个图层引用，{} 个地图框）",
             project.name,
@@ -1328,6 +1427,33 @@ impl KanyuApp {
         let first_open = self.frames.iter().position(|f| f.open).unwrap_or(0);
         if self.active_frame != Some(first_open) {
             self.activate_frame(first_open);
+        }
+        // 布局清单（绑定框标题失配 → 回退跟随激活框，容错旧引用）。
+        for pl in &project.layouts {
+            let id = self.next_layout_id;
+            self.next_layout_id += 1;
+            let spec = kanyu_render::layout::LayoutSpec {
+                page: if pl.page == "a4p" {
+                    kanyu_render::layout::PageSize::A4Portrait
+                } else {
+                    kanyu_render::layout::PageSize::A4Landscape
+                },
+                dpi: pl.dpi,
+                title: pl.title.clone(),
+                show_legend: pl.legend,
+                show_scalebar: pl.scalebar,
+                show_north: pl.north,
+            };
+            let mut lv = crate::layoutview::LayoutView::new(id, pl.title.clone(), spec);
+            lv.map = pl.map.clone().unwrap_or_default();
+            if !lv.map.is_empty() && !self.frames.iter().any(|f| f.title == lv.map) {
+                self.console.info(format!(
+                    "布局「{}」绑定的地图框「{}」已不存在——改为跟随当前地图框",
+                    lv.title, lv.map
+                ));
+                lv.map = String::new();
+            }
+            self.layouts.push(lv);
         }
         self.map_theme_mode = MapThemeMode::parse(&project.map_theme);
         self.project_crs = project.crs.clone();
@@ -2645,24 +2771,36 @@ impl KanyuApp {
         }
     }
 
-    /// 布局页签内容（排版视图 + 导出）。
+    /// 布局页签内容（排版视图 + 导出；内容取绑定地图框图层集——缺省跟随激活框）。
     fn layout_view_content(&mut self, ui: &mut egui::Ui, li: usize, ctx: &egui::Context) {
-        // 图例行：各可见图层符号化分类（层名前缀）。
-        let legend = self.layout_legend();
+        let map_bind = self.layouts[li].map.clone();
         let epoch = self.render_epoch;
-        let viewport = self.view_bbox.or(self.data_extent);
-        let span_m = viewport.map(|b| (b[2] - b[0]).abs() * 111320.0); // 赤道近似（注释：示意级）
+        let theme = self.effective_map_theme();
+        let need = self.layouts[li].epoch != epoch || self.layouts[li].map_png.is_none();
+        // 绑定框数据源（不可变借用段：图例 + 视口 + 按需合成地图 PNG）。
+        let (legend, span_m, composed) = {
+            let (layers, cache, vbbox, dext) = self.layout_frame_parts(&map_bind);
+            let legend = Self::layout_legend_of(layers, cache);
+            let viewport = vbbox.or(dext);
+            let span_m = viewport.map(|b| (b[2] - b[0]).abs() * 111320.0); // 赤道近似（示意级）
+            let composed = if need {
+                let f = kanyu_render::layout::LayoutFrame::compute(&self.layouts[li].spec);
+                crate::canvas::composite_layers_png(
+                    &build_layer_slices(cache),
+                    f.map[2].round().max(1.0) as u32,
+                    f.map[3].round().max(1.0) as u32,
+                    viewport,
+                    theme,
+                )
+                .ok()
+            } else {
+                None
+            };
+            (legend, span_m, composed)
+        };
         let mut lv = self.layouts.remove(li);
-        if lv.epoch != epoch || lv.map_png.is_none() {
-            let f = kanyu_render::layout::LayoutFrame::compute(&lv.spec);
-            lv.map_png = crate::canvas::composite_layers_png(
-                &build_layer_slices(&self.render_cache),
-                f.map[2].round().max(1.0) as u32,
-                f.map[3].round().max(1.0) as u32,
-                viewport,
-                self.effective_map_theme(),
-            )
-            .ok();
+        if let Some(png) = composed {
+            lv.map_png = Some(png);
             lv.epoch = epoch;
         }
         let map_png = lv.map_png.clone();
@@ -2676,18 +2814,19 @@ impl KanyuApp {
         let _ = ctx;
     }
 
-    /// 布局图例行（可见图层 × 符号化分类）。
-    fn layout_legend(&self) -> Vec<kanyu_render::layout::LegendRow> {
+    /// 布局图例行（指定图层集 × 渲染缓存的符号化分类；绑定框数据源）。
+    fn layout_legend_of(
+        layers: &[LayerEntry],
+        cache: &[(String, FeatureCollection, crate::symbology::LayerSymbology)],
+    ) -> Vec<kanyu_render::layout::LegendRow> {
         let mut rows = Vec::new();
-        for (id, _, sym) in &self.render_cache {
-            let name = self
-                .layers
+        for (id, _, sym) in cache {
+            let name = layers
                 .iter()
                 .find(|e| e.layer.id() == id)
                 .map(|e| e.file_name.clone())
                 .unwrap_or_else(|| id.clone());
-            let single_label = self
-                .layers
+            let single_label = layers
                 .iter()
                 .find(|e| e.layer.id() == id)
                 .map(|e| e.summary.geometry_types.join(", "))
@@ -2702,13 +2841,16 @@ impl KanyuApp {
         rows
     }
 
-    /// 布局导出（PNG/SVG 写盘 + toast）。
+    /// 布局导出（PNG/SVG 写盘 + toast；内容取绑定地图框图层集——缺省跟随激活框）。
     fn export_layout(&mut self, li: usize, fmt: &str) {
         if li >= self.layouts.len() {
             return;
         }
-        let lv = &self.layouts[li];
-        let (default_name, filter_name) = (format!("{}.{}", lv.title, fmt), fmt.to_uppercase());
+        let (spec, map_bind, lv_title) = {
+            let lv = &self.layouts[li];
+            (lv.spec.clone(), lv.map.clone(), lv.title.clone())
+        };
+        let (default_name, filter_name) = (format!("{lv_title}.{fmt}"), fmt.to_uppercase());
         let Some(path) = rfd::FileDialog::new()
             .add_filter(filter_name, &[fmt])
             .set_file_name(&default_name)
@@ -2716,22 +2858,24 @@ impl KanyuApp {
         else {
             return;
         };
-        let f = kanyu_render::layout::LayoutFrame::compute(&lv.spec);
-        let viewport = self.view_bbox.or(self.data_extent);
+        let f = kanyu_render::layout::LayoutFrame::compute(&spec);
+        let (layers, cache, vbbox, dext) = self.layout_frame_parts(&map_bind);
+        let viewport = vbbox.or(dext);
         let span_m = viewport.map(|b| (b[2] - b[0]).abs() * 111320.0);
         let scale = span_m.map(|s| {
-            let (label, bar_px, _) = kanyu_render::layout::nice_scale(s, f.map[2], lv.spec.dpi);
+            let (label, bar_px, _) = kanyu_render::layout::nice_scale(s, f.map[2], spec.dpi);
             (label, bar_px)
         });
-        let legend = self.layout_legend();
+        let legend = Self::layout_legend_of(layers, cache);
         // 地图 PNG（打印尺寸合成；SVG 内经 base64 data-URI 内嵌，保持按层符号化）。
         let map_png = crate::canvas::composite_layers_png(
-            &build_layer_slices(&self.render_cache),
+            &build_layer_slices(cache),
             f.map[2].round().max(1.0) as u32,
             f.map[3].round().max(1.0) as u32,
             viewport,
             self.effective_map_theme(),
         );
+        let lv_spec = &spec;
         let out_path = path.to_string_lossy().into_owned();
         let result: Result<(), String> = (|| {
             let map_png = map_png?;
@@ -2742,7 +2886,7 @@ impl KanyuApp {
                         f.map[2], f.map[3], base64_encode(&map_png)
                     );
                     kanyu_render::layout::render_layout_svg(
-                        &lv.spec,
+                        lv_spec,
                         &img,
                         &legend,
                         scale.as_ref().map(|(l, b)| (l.as_str(), *b)),
@@ -2750,7 +2894,7 @@ impl KanyuApp {
                     .into_bytes()
                 }
                 _ => kanyu_render::layout::render_layout_png(
-                    &lv.spec,
+                    lv_spec,
                     &map_png,
                     &legend,
                     scale.as_ref().map(|(l, b)| (l.as_str(), *b)),
@@ -2761,7 +2905,7 @@ impl KanyuApp {
         })();
         match result {
             Ok(()) => {
-                let msg = format!("布局「{}」已导出 → {out_path}", lv.title);
+                let msg = format!("布局「{lv_title}」已导出 → {out_path}");
                 self.console.info(msg.clone());
                 self.toast_ok(msg);
             }
@@ -2909,6 +3053,7 @@ impl KanyuApp {
                     .map(|l| crate::catalog::LayoutRow {
                         title: l.title.clone(),
                         open: l.open,
+                        map: (!l.map.is_empty()).then(|| l.map.clone()),
                     })
                     .collect();
                 let mut catalog = std::mem::take(&mut self.catalog);
@@ -3513,8 +3658,14 @@ impl eframe::App for KanyuApp {
                     }
                 }
                 crate::catalog::CatalogAction::NewLayout => {
+                    // 绑定地图框默认取当前激活框（可改「跟随当前地图框」）。
+                    let map = self
+                        .active_frame
+                        .map(|i| self.frames[i].title.clone())
+                        .unwrap_or_default();
                     self.layout_dlg = Some(crate::layoutview::LayoutDialogState {
                         title: format!("布局 {}", self.next_layout_id),
+                        map,
                         ..Default::default()
                     });
                 }
@@ -3862,6 +4013,10 @@ impl eframe::App for KanyuApp {
         self.layer_props_ui(&ctx);
         // 新建布局对话框。
         if let Some(mut dlg) = self.layout_dlg.take() {
+            // 绑定地图框下拉选项（首项 = 跟随当前激活框）。
+            let follow = "（跟随当前地图框）".to_string();
+            let mut map_options = vec![follow.clone()];
+            map_options.extend(self.frames.iter().map(|f| f.title.clone()));
             let action = crate::ui_kit::dialog_shell(&ctx, "新建布局框", |ui| {
                 crate::ui_kit::text_input(ui, "标题", &mut dlg.title, "如 示范区总图", true);
                 let mut ls = dlg.landscape;
@@ -3884,6 +4039,18 @@ impl eframe::App for KanyuApp {
                 crate::ui_kit::checkbox(ui, &mut dlg.legend, "图例");
                 crate::ui_kit::checkbox(ui, &mut dlg.scalebar, "比例尺");
                 crate::ui_kit::checkbox(ui, &mut dlg.north, "指北针");
+                // 地图框绑定（布局内容 = 该框图层集；不随激活框切换而变）。
+                let mut choice = if dlg.map.is_empty() {
+                    follow.clone()
+                } else {
+                    dlg.map.clone()
+                };
+                crate::ui_kit::combo(ui, "地图框", &mut choice, &map_options, true);
+                dlg.map = if choice == follow {
+                    String::new()
+                } else {
+                    choice
+                };
             });
             match action {
                 crate::ui_kit::DialogAction::Ok => match dlg.validate() {
@@ -3891,13 +4058,18 @@ impl eframe::App for KanyuApp {
                         let id = self.next_layout_id;
                         self.next_layout_id += 1;
                         let title = dlg.title.trim().to_string();
-                        self.layouts.push(crate::layoutview::LayoutView::new(
-                            id,
-                            title.clone(),
-                            dlg.to_spec(),
-                        ));
+                        let mut lv =
+                            crate::layoutview::LayoutView::new(id, title.clone(), dlg.to_spec());
+                        lv.map = dlg.map.clone();
+                        self.layouts.push(lv);
                         self.active_layout = Some(self.layouts.len() - 1);
-                        self.console.info(format!("已新建布局「{title}」"));
+                        let bind = if dlg.map.is_empty() {
+                            "跟随当前地图框".to_string()
+                        } else {
+                            format!("绑定「{}」", dlg.map)
+                        };
+                        self.console
+                            .info(format!("已新建布局「{title}」（{bind}）"));
                         self.mark_state_dirty();
                     }
                     Err(e) => {

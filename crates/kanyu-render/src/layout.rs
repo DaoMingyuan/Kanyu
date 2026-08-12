@@ -1,12 +1,12 @@
-//! 打印布局排版器（ArcGIS Pro Layout 对应物，v1）：SVG 组合输出 + tiny-skia PNG。
+//! 打印布局排版器（ArcGIS Pro Layout 对应物，v2）：SVG 组合输出 + tiny-skia PNG。
 //!
 //! 页面排版：页边距 + 标题（顶部居中）+ 地图框（主体，嵌入渲染产物）+
 //! 图例（右侧栏：色块+标注行）+ 比例尺（地图框下沿，1:xxxx 取整档标注 +
 //! 分段条）+ 指北针（右上角 N 箭头）。
 //!
 //! - **SVG**：完整排版（文字齐全；地图经嵌套 `<svg>` 内嵌）；
-//! - **PNG**：tiny-skia 光栅链复用；文字仅 ASCII 迷你点阵（比例尺数字与 N），
-//!   标题/图例文字在 PNG 省略（完整文字请导出 SVG——内嵌字体栈属后续项）。
+//! - **PNG**：tiny-skia 光栅链 + **fontdue 系统字体栈**（中文标题/图例/标注全量渲染；
+//!   运行时读系统字体、ttc 取首 face，读不到回退 ASCII 迷你点阵——比例尺数字与 N）。
 //!
 //! 页面换算与比例尺取整为纯函数（[`LayoutFrame::compute`]/[`nice_scale`]），配单测。
 
@@ -262,12 +262,23 @@ pub fn render_layout_svg(
 }
 
 /// 渲染布局为 PNG（tiny-skia 复用链；`map_png` 为 render_png 产物）。
-/// 文字仅 ASCII 迷你点阵（比例尺数字与 N；标题/图例文字 PNG 省略，见模块头）。
+/// 文字走 fontdue 系统字体栈（中文全量；读不到系统字体回退 ASCII 点阵，见模块头）。
 pub fn render_layout_png(
     spec: &LayoutSpec,
     map_png: &[u8],
     legend: &[LegendRow],
     scale: Option<(&str, f64)>,
+) -> Result<Vec<u8>, RenderError> {
+    render_layout_png_with(spec, map_png, legend, scale, &TextBackend::system())
+}
+
+/// 布局 PNG 排版（文本后端注入——测试可强制点阵回退分支）。
+pub fn render_layout_png_with(
+    spec: &LayoutSpec,
+    map_png: &[u8],
+    legend: &[LegendRow],
+    scale: Option<(&str, f64)>,
+    tb: &TextBackend,
 ) -> Result<Vec<u8>, RenderError> {
     use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PixmapPaint, Rect, Transform};
 
@@ -290,6 +301,23 @@ pub fn render_layout_png(
         Transform::from_scale(sx as f32, sy as f32),
         None,
     );
+    // 96dpi 基准缩放系数（字号/间距随 dpi 参数化）。
+    let k = (spec.dpi / 96.0) as f32;
+    let dark_color = Color::from_rgba8(0x1A, 0x1A, 0x1A, 255);
+    // 标题（顶部居中；宽度经 fontdue metrics 量算，居中/对齐正确）。
+    if f.title_h > 0.0 {
+        let px = (f.title_h * 0.5) as f32;
+        let tw = tb.measure(&spec.title, px);
+        let baseline = (f.margin + f.title_h * 0.62) as f32;
+        tb.draw(
+            &mut page,
+            &spec.title,
+            (f.page_w as f32 - tw) / 2.0,
+            baseline,
+            px,
+            dark_color,
+        );
+    }
     // 地图框描边。
     let stroke_paint = Paint {
         shader: tiny_skia::Shader::SolidColor(Color::from_rgba8(0xE0, 0xDD, 0xD8, 255)),
@@ -305,13 +333,13 @@ pub fn render_layout_png(
     };
     page.stroke_path(&path, &stroke_paint, &stroke, Transform::default(), None);
 
-    // 图例色块（文字 PNG 省略，见模块头）。
+    // 图例色块 + 标注（字体栈文字；尺寸随 dpi 缩放）。
     if spec.show_legend {
-        let lx = (mx + mw + 12.0) as f32;
-        let mut ly = (my + 8.0) as f32;
+        let lx = (mx + mw) as f32 + 12.0 * k;
+        let mut ly = my as f32 + 8.0 * k;
         for row in legend {
             let mut pb = PathBuilder::new();
-            pb.push_rect(Rect::from_xywh(lx, ly, 12.0, 12.0).unwrap());
+            pb.push_rect(Rect::from_xywh(lx, ly, 12.0 * k, 12.0 * k).unwrap());
             if let Some(path) = pb.finish() {
                 page.fill_path(
                     &path,
@@ -330,7 +358,15 @@ pub fn render_layout_png(
                     None,
                 );
             }
-            ly += 20.0;
+            tb.draw(
+                &mut page,
+                &row.label,
+                lx + 18.0 * k,
+                ly + 11.0 * k,
+                12.0 * k,
+                dark_color,
+            );
+            ly += 20.0 * k;
         }
     }
     // 比例尺分段条 + ASCII 数字。
@@ -358,13 +394,13 @@ pub fn render_layout_png(
         if let Some(path) = pb.finish() {
             page.stroke_path(&path, &dark, &stroke, Transform::default(), None);
         }
-        draw_ascii(
+        tb.draw(
             &mut page,
             label,
-            mx as f32 + bar_px as f32 + 8.0,
-            sy + 5.0,
-            2.0,
-            Color::from_rgba8(0x1A, 0x1A, 0x1A, 255),
+            mx as f32 + bar_px as f32 + 8.0 * k,
+            sy + 12.0 * k,
+            12.0 * k,
+            dark_color,
         );
     }
     // 指北针（N 箭头 + N）。
@@ -380,7 +416,7 @@ pub fn render_layout_png(
             page.fill_path(
                 &path,
                 &Paint {
-                    shader: tiny_skia::Shader::SolidColor(Color::from_rgba8(0x1A, 0x1A, 0x1A, 255)),
+                    shader: tiny_skia::Shader::SolidColor(dark_color),
                     anti_alias: true,
                     ..Default::default()
                 },
@@ -389,17 +425,155 @@ pub fn render_layout_png(
                 None,
             );
         }
-        draw_ascii(
+        let px = 11.0 * k;
+        let nw = tb.measure("N", px);
+        tb.draw(
             &mut page,
             "N",
-            (nx - 3.5) as f32,
-            (ny + 16.0) as f32,
-            2.0,
-            Color::from_rgba8(0x1A, 0x1A, 0x1A, 255),
+            nx as f32 - nw / 2.0,
+            (ny + 25.0) as f32 * k.max(0.5),
+            px,
+            dark_color,
         );
     }
     page.encode_png()
         .map_err(|e| RenderError::InvalidStyle(format!("布局 PNG 编码失败: {e}")))
+}
+
+// ===== PNG 文本后端（fontdue 系统字体栈 + ASCII 点阵回退）=====
+
+/// 系统 CJK 字体候选（与 shell theme 字体栈同策略：运行时读系统路径，不入库、
+/// 不再分发；ttc 经 fontdue collection_index=0 取首个 face）。
+#[cfg(windows)]
+const CJK_FONT_CANDIDATES: &[&str] = &[
+    r"C:\Windows\Fonts\msyh.ttc",
+    r"C:\Windows\Fonts\Noto Sans SC (TrueType).otf",
+    r"C:\Windows\Fonts\simhei.ttf",
+    r"C:\Windows\Fonts\simsun.ttc",
+];
+/// Linux/macOS 候选（Noto CJK / 文泉驿 / 苹方）。
+#[cfg(not(windows))]
+const CJK_FONT_CANDIDATES: &[&str] = &[
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf",
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    "/System/Library/Fonts/PingFang.ttc",
+];
+
+/// 文本后端：fontdue 真字体（Some）或 ASCII 迷你点阵回退（None = v1 行为）。
+pub struct TextBackend {
+    font: Option<fontdue::Font>,
+}
+
+impl TextBackend {
+    /// 系统字体栈探测（首个可读候选命中即止；全无 → 点阵回退）。
+    pub fn system() -> Self {
+        for p in CJK_FONT_CANDIDATES {
+            let b = Self::load(Some(std::path::Path::new(p)));
+            if b.font.is_some() {
+                return b;
+            }
+        }
+        Self { font: None }
+    }
+
+    /// 指定路径加载（测试注入不可能路径 → 强制点阵回退分支）。
+    pub fn load(path: Option<&std::path::Path>) -> Self {
+        let font = path.and_then(|p| std::fs::read(p).ok()).and_then(|bytes| {
+            fontdue::Font::from_bytes(bytes, fontdue::FontSettings::default()).ok()
+        });
+        Self { font }
+    }
+
+    /// 是否有真字体（false = 点阵回退）。
+    pub fn has_font(&self) -> bool {
+        self.font.is_some()
+    }
+
+    /// 文本像素宽（fontdue metrics 量算 / 点阵 6·scale 每字符）。
+    pub fn measure(&self, text: &str, px: f32) -> f32 {
+        match &self.font {
+            Some(font) => text
+                .chars()
+                .map(|ch| font.metrics(ch, px).advance_width)
+                .sum(),
+            None => text.chars().count() as f32 * 6.0 * (px / 7.0).max(1.0),
+        }
+    }
+
+    /// 绘制文本（origin = 基线左端；深色 coverage 手写 Alpha 混合——
+    /// fontdue 无内置合成器：逐像素 dst = src·cov + dst·(1−cov)，页面恒不透明）。
+    pub fn draw(
+        &self,
+        page: &mut tiny_skia::Pixmap,
+        text: &str,
+        x: f32,
+        baseline_y: f32,
+        px: f32,
+        color: tiny_skia::Color,
+    ) {
+        match &self.font {
+            Some(font) => {
+                let mut pen = x;
+                for ch in text.chars() {
+                    let (m, bitmap) = font.rasterize(ch, px);
+                    // fontdue 坐标 y 轴向上、origin 在基线左端：
+                    // 位图左上角屏幕坐标 = (pen + xmin, baseline_y − ymin − height)。
+                    let ox = (pen + m.xmin as f32).round() as i32;
+                    let oy = (baseline_y - m.ymin as f32 - m.height as f32).round() as i32;
+                    blend_coverage(page, &bitmap, m.width, m.height, ox, oy, color);
+                    pen += m.advance_width;
+                }
+            }
+            None => {
+                // 点阵回退：cap 高 7·scale ≈ px；y 换算为顶沿。
+                let scale = (px / 7.0).max(1.0);
+                draw_ascii(page, text, x, baseline_y - 7.0 * scale, scale, color);
+            }
+        }
+    }
+}
+
+/// fontdue coverage 位图合成进 pixmap（越界裁剪；页面不透明前提下的直通混合）。
+fn blend_coverage(
+    page: &mut tiny_skia::Pixmap,
+    cov: &[u8],
+    w: usize,
+    h: usize,
+    ox: i32,
+    oy: i32,
+    color: tiny_skia::Color,
+) {
+    let (pw, ph) = (page.width() as i32, page.height() as i32);
+    let (sr, sg, sb) = (
+        (color.red() * 255.0) as u32,
+        (color.green() * 255.0) as u32,
+        (color.blue() * 255.0) as u32,
+    );
+    let pixels = page.pixels_mut();
+    for row in 0..h {
+        for col in 0..w {
+            let c = u32::from(cov[row * w + col]);
+            if c == 0 {
+                continue;
+            }
+            let (x, y) = (ox + col as i32, oy + row as i32);
+            if x < 0 || y < 0 || x >= pw || y >= ph {
+                continue;
+            }
+            let idx = y as usize * pw as usize + x as usize;
+            let dst = pixels[idx];
+            let blend = |s: u32, d: u8| ((s * c + u32::from(d) * (255 - c)) / 255) as u8;
+            if let Some(px) = tiny_skia::PremultipliedColorU8::from_rgba(
+                blend(sr, dst.red()),
+                blend(sg, dst.green()),
+                blend(sb, dst.blue()),
+                255,
+            ) {
+                pixels[idx] = px;
+            }
+        }
+    }
 }
 
 /// ASCII 迷你点阵（5×7 字体子集：数字/冒号/点/N；比例尺与指北针用）。
@@ -584,5 +758,80 @@ mod tests {
             .pixels()
             .iter()
             .any(|p| p.red() > 200 && p.green() < 60 && p.blue() < 60));
+    }
+
+    /// 标题区（页面上沿）深色像素计数。
+    fn title_ink(png: &[u8], spec: &LayoutSpec) -> usize {
+        let f = LayoutFrame::compute(spec);
+        let pixmap = tiny_skia::Pixmap::decode_png(png).unwrap();
+        let (x0, y0) = (f.margin as u32, f.margin as u32);
+        let (x1, y1) = ((f.page_w - f.margin) as u32, (f.margin + f.title_h) as u32);
+        let mut n = 0;
+        for y in y0..y1.min(pixmap.height()) {
+            for x in x0..x1.min(pixmap.width()) {
+                let p = pixmap.pixel(x, y).unwrap();
+                if p.red() < 128 {
+                    n += 1;
+                }
+            }
+        }
+        n
+    }
+
+    #[test]
+    fn png_cjk_title_font_stack() {
+        let map = crate::render_png(
+            &geojson::FeatureCollection {
+                bbox: None,
+                features: Vec::new(),
+                foreign_members: None,
+            },
+            &crate::RenderOptions::default(),
+        )
+        .unwrap();
+        let spec = LayoutSpec {
+            title: "示范区总图".into(),
+            ..Default::default()
+        };
+        let legend = vec![LegendRow {
+            color: [0x2D, 0x6A, 0x5E],
+            label: "甲楼".into(),
+        }];
+        // 点阵回退分支（不可能路径强制）：中文标题无字形 → 标题区零墨迹（v1 行为）。
+        let fallback = TextBackend::load(Some(std::path::Path::new("/不可能存在/no.ttf")));
+        assert!(!fallback.has_font());
+        let png_fallback = render_layout_png_with(&spec, &map, &legend, None, &fallback).unwrap();
+        assert_eq!(
+            title_ink(&png_fallback, &spec),
+            0,
+            "点阵无中文字形，标题区应无墨迹"
+        );
+        // 系统字体栈（无 CJK 字体的环境直接放行——CI 容错）。
+        let tb = TextBackend::system();
+        if !tb.has_font() {
+            eprintln!("无系统 CJK 字体，跳过字体栈墨迹断言");
+            return;
+        }
+        let png = render_layout_png_with(&spec, &map, &legend, None, &tb).unwrap();
+        let ink = title_ink(&png, &spec);
+        assert!(ink > 200, "字体栈应渲染中文标题（墨迹像素 {ink}）");
+        // 验证图落盘（截图目检用）。
+        let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/layout_cjk_test.png");
+        std::fs::write(&out, &png).unwrap();
+    }
+
+    #[test]
+    fn text_backend_measure_consistency() {
+        let tb = TextBackend::system();
+        // 点阵回退量算：6·scale 每字符。
+        let fb = TextBackend::load(Some(std::path::Path::new("/不可能存在/no.ttf")));
+        assert!((fb.measure("ab", 14.0) - 2.0 * 6.0 * 2.0).abs() < 1e-3);
+        if tb.has_font() {
+            // 真字体：宽度为正且随字号线性增长（近似）。
+            let w1 = tb.measure("示范区", 20.0);
+            let w2 = tb.measure("示范区", 40.0);
+            assert!(w1 > 0.0 && w2 > w1);
+        }
     }
 }

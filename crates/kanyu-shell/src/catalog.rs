@@ -57,6 +57,8 @@ pub struct LayoutRow {
     pub title: String,
     /// 打开状态（false = 已关闭：弱色行）。
     pub open: bool,
+    /// 绑定地图框名（Some 时行标签显示「标题 · 框名」）。
+    pub map: Option<String>,
 }
 
 /// 分类元信息（计数徽标/空态提示）。
@@ -241,6 +243,11 @@ impl CatalogPanel {
         self.expanded = [true, false, false, false, false];
     }
 
+    /// 演示/验证（截图）：仅展开「布局框」分类。
+    pub fn demo_expand_layouts(&mut self) {
+        self.expanded = [false, true, false, false, false];
+    }
+
     /// 读取目录子节点（目录优先、名称排序；文件仅数据扩展名）。
     fn read_children(dir: &Path) -> Result<Vec<CatalogNode>, String> {
         let rd = std::fs::read_dir(dir).map_err(|e| format!("无法读取 {}: {e}", dir.display()))?;
@@ -419,10 +426,14 @@ impl CatalogPanel {
                             // 布局框：全部布局行（含已关闭，弱色；单击激活/重开；
                             // 右键删除）+ 新建入口。
                             for (i, l) in layouts.iter().enumerate() {
+                                let base = match &l.map {
+                                    Some(m) => format!("{} · {m}", l.title),
+                                    None => l.title.clone(),
+                                };
                                 let label = if l.open {
-                                    l.title.clone()
+                                    base
                                 } else {
-                                    format!("{}（已关闭）", l.title)
+                                    format!("{base}（已关闭）")
                                 };
                                 let (resp, _) = if l.open {
                                     tree_row(ui, cache, 1, Some(Icon::List), &label, None, |_ui| {})

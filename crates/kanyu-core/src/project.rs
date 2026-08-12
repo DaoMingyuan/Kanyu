@@ -59,6 +59,34 @@ pub struct KanyuProject {
     /// 旧版工程文件无此字段，serde default 向后兼容）。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub frames: Vec<ProjectFrame>,
+    /// 布局清单（打印布局 v2 起持久化；缺省 = 无布局——向后兼容）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layouts: Vec<ProjectLayout>,
+}
+
+/// 工程中的布局（打印布局排版规格 + 绑定地图框）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectLayout {
+    /// 布局标题。
+    pub title: String,
+    /// 纸张：a4l（A4 横）| a4p（A4 纵）。
+    #[serde(default = "default_a4l")]
+    pub page: String,
+    /// 分辨率（缺省 96）。
+    #[serde(default = "default_dpi")]
+    pub dpi: f64,
+    /// 图例开关。
+    #[serde(default = "default_true")]
+    pub legend: bool,
+    /// 比例尺开关。
+    #[serde(default = "default_true")]
+    pub scalebar: bool,
+    /// 指北针开关。
+    #[serde(default = "default_true")]
+    pub north: bool,
+    /// 绑定地图框标题（None/缺省 = 跟随当前激活框——v1 行为）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub map: Option<String>,
 }
 
 /// 工程中的地图框（标题即身份——[`ProjectLayer::map`] 以其引用）。
@@ -114,6 +142,12 @@ fn default_true() -> bool {
 fn default_2d() -> String {
     "2d".to_string()
 }
+fn default_a4l() -> String {
+    "a4l".to_string()
+}
+fn default_dpi() -> f64 {
+    96.0
+}
 
 impl KanyuProject {
     /// 新建空工程。
@@ -128,6 +162,7 @@ impl KanyuProject {
             map_theme: default_map_theme(),
             layers: Vec::new(),
             frames: Vec::new(),
+            layouts: Vec::new(),
         }
     }
 
@@ -317,6 +352,51 @@ mod tests {
         let empty = KanyuProject::new("空", "EPSG:4326").to_json().unwrap();
         let value: serde_json::Value = serde_json::from_str(&empty).unwrap();
         assert!(value.get("frames").is_none());
+    }
+
+    /// 布局清单往返（含绑定地图框）；空清单省略键。
+    #[test]
+    fn layouts_roundtrip() {
+        let mut p = KanyuProject::new("布局工程", "EPSG:4326");
+        p.layouts = vec![
+            ProjectLayout {
+                title: "示范区总图".to_string(),
+                page: "a4l".to_string(),
+                dpi: 150.0,
+                legend: true,
+                scalebar: false,
+                north: true,
+                map: Some("场景 2".to_string()),
+            },
+            ProjectLayout {
+                title: "附图".to_string(),
+                page: "a4p".to_string(),
+                dpi: 96.0,
+                legend: false,
+                scalebar: true,
+                north: false,
+                map: None, // 跟随激活框
+            },
+        ];
+        let text = p.to_json().unwrap();
+        let back = KanyuProject::from_json(&text).unwrap();
+        assert_eq!(back.layouts.len(), 2);
+        assert_eq!(back.layouts[0].page, "a4l");
+        assert_eq!(back.layouts[0].dpi, 150.0);
+        assert!(!back.layouts[0].scalebar);
+        assert_eq!(back.layouts[0].map.as_deref(), Some("场景 2"));
+        assert_eq!(back.layouts[1].map, None);
+        // 缺省字段（老文件只有 title/page）按默认补齐。
+        let legacy =
+            r#"{"kanyu_project":1,"name":"x","layouts":[{"title":"旧布局","page":"a4p"}]}"#;
+        let p2 = KanyuProject::from_json(legacy).unwrap();
+        assert_eq!(p2.layouts[0].dpi, 96.0);
+        assert!(p2.layouts[0].legend && p2.layouts[0].scalebar && p2.layouts[0].north);
+        assert_eq!(p2.layouts[0].map, None);
+        // 空清单省略键。
+        let empty = KanyuProject::new("空", "EPSG:4326").to_json().unwrap();
+        let value: serde_json::Value = serde_json::from_str(&empty).unwrap();
+        assert!(value.get("layouts").is_none());
     }
 
     #[test]

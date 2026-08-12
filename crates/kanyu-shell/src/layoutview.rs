@@ -15,6 +15,8 @@ pub struct LayoutView {
     pub title: String,
     /// 排版规格。
     pub spec: LayoutSpec,
+    /// 绑定地图框标题（空串 = 跟随当前激活框——v1 行为；绑定后内容恒为该框图层集）。
+    pub map: String,
     /// 打开状态（关闭 ≠ 删除：目录清单保留，双击行重开）。
     pub open: bool,
     /// 地图 PNG 缓存（内容纪元变化重合成）。
@@ -34,6 +36,7 @@ impl LayoutView {
             id,
             title,
             spec,
+            map: String::new(),
             open: true,
             map_png: None,
             epoch: 0,
@@ -270,6 +273,8 @@ pub struct LayoutDialogState {
     pub scalebar: bool,
     /// 指北针。
     pub north: bool,
+    /// 绑定地图框标题（空串 = 跟随当前激活框）。
+    pub map: String,
 }
 
 impl Default for LayoutDialogState {
@@ -280,6 +285,7 @@ impl Default for LayoutDialogState {
             legend: true,
             scalebar: true,
             north: true,
+            map: String::new(),
         }
     }
 }

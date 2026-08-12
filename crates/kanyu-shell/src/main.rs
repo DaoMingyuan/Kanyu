@@ -85,6 +85,8 @@ pub struct ShellArgs {
     pub frames_demo2: bool,
     /// 隐藏验证参数：同 frames-demo 但场景框激活（三维场景 + 自有图层集，截图验证三维独立建立）。
     pub frames_demo3: bool,
+    /// 隐藏验证参数：布局绑定场景框（激活主框后布局仍显示场景框内容，截图验证）。
+    pub layout_bind_demo: bool,
     /// 隐藏验证参数：目录「服务链接」预置一条演示连接并展开分类（截图验证）。
     pub service_demo: bool,
     /// 隐藏验证参数：同 service_demo，另打开「新建服务链接」对话框（截图验证）。
@@ -114,6 +116,7 @@ impl Default for ShellArgs {
             frames_demo: false,
             frames_demo2: false,
             frames_demo3: false,
+            layout_bind_demo: false,
             service_demo: false,
             service_dlg_demo: false,
         }
@@ -181,6 +184,7 @@ fn parse_args() -> ShellArgs {
             "--frames-demo" => args.frames_demo = true,
             "--frames-demo2" => args.frames_demo2 = true,
             "--frames-demo3" => args.frames_demo3 = true,
+            "--layout-bind-demo" => args.layout_bind_demo = true,
             "--service-demo" => args.service_demo = true,
             "--service-dlg-demo" => args.service_dlg_demo = true,
             "--zoom" => {

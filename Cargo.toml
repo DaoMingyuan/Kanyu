@@ -49,6 +49,8 @@ flatgeobuf = { version = "6", default-features = false }
 geozero = { version = "0.15.1", default-features = false, features = ["with-geojson"] }
 # 离屏 PNG 光栅化（纯 Rust CPU，CI 无 GPU 依赖）。
 tiny-skia = "0.12"
+# 布局 PNG 文字光栅（纯 Rust；系统字体运行时读取，ttc 取首个 face）。
+fontdue = "0.9"
 base64 = "0.22"
 # GeoParquet：geoparquet crate 负责 geo 元数据与 RecordBatch 编解码；
 # arrow/parquet 版本须与 geoparquet 内部依赖同系列（58），类型才能互通。
