@@ -354,12 +354,27 @@ pub enum AgentsCommand {
         /// 覆盖已存在的 AGENTS.md。
         #[arg(long)]
         force: bool,
+        /// 地理项目骨架（含「数据层语义表」章节）。
+        #[arg(long)]
+        geo: bool,
+        /// 软件工程仓库骨架（免数据层语义表，写入 `data-layer: 否`）。
+        #[arg(long)]
+        code_repo: bool,
     },
-    /// 校验 AGENTS.md 完整性（元数据/图层语义/业务规则）。
+    /// 校验 AGENTS.md 完整性（元数据/图层语义/业务规则）。零参自动裁决：
+    /// 由 `AgentsMd::resolve_data_layer` 按「`data-layer` 元数据行优先 → crs
+    /// 占位回退」判定语境，地理与代码两类仓库均可一次通过。
     Validate {
         /// AGENTS.md 路径（默认 ./AGENTS.md）。
         #[arg(long, default_value = "AGENTS.md")]
         path: String,
+        /// 钉死为软件工程/代码仓库语境（免检数据层语义表）——等价于该文件
+        /// 元数据 `data-layer: 否` 显式声明的 CLI 直连形态。
+        #[arg(long, visible_alias = "code-repo")]
+        check_code_repo: bool,
+        /// 钉死为地理项目语境（数据层语义表必填）。与 --check-code-repo 互斥。
+        #[arg(long)]
+        geo: bool,
     },
 }
 

@@ -670,7 +670,14 @@ pub fn agents_cmd(cmd: &AgentsCommand, json: bool) -> Result<()> {
             name,
             crs,
             force,
+            geo,
+            code_repo,
         } => {
+            // `--geo` 与 `--code-repo` 互斥；两者都缺时缺省按地理项目（true）。
+            if *geo && *code_repo {
+                bail!("--geo 与 --code-repo 不可同时指定");
+            }
+            let is_geo = if *code_repo { false } else { *geo };
             let dir = std::path::Path::new(project);
             let name = name.clone().unwrap_or_else(|| {
                 dir.file_name()
@@ -683,12 +690,33 @@ pub fn agents_cmd(cmd: &AgentsCommand, json: bool) -> Result<()> {
                 bail!("{} 已存在（使用 --force 覆盖）", path.display());
             }
             std::fs::create_dir_all(dir)?;
-            std::fs::write(&path, agents::template(&name, crs))?;
-            eprintln!("已生成 {}", path.display());
+            std::fs::write(&path, agents::template(&name, crs, is_geo))?;
+            eprintln!(
+                "已生成 {}（模板：{}）",
+                path.display(),
+                if is_geo { "geo" } else { "code-repo" }
+            );
         }
-        AgentsCommand::Validate { path } => {
+        AgentsCommand::Validate {
+            path,
+            check_code_repo,
+            geo,
+        } => {
+            // 与 `agents init` 一致：`--geo` 与 `--check-code-repo` 互斥，两者都
+            // 缺时零参自动裁决（`resolve_data_layer` 按 data-layer 元数据行 →
+            // crs 占位回退），地理与代码两类仓库均可一次通过。
+            if *geo && *check_code_repo {
+                bail!("--geo 与 --check-code-repo 不可同时指定");
+            }
             let doc = agents::load(path)?;
-            let issues = doc.validate();
+            let pin = if *check_code_repo {
+                Some(false)
+            } else if *geo {
+                Some(true)
+            } else {
+                None
+            };
+            let issues = doc.validate(pin);
             if json {
                 let payload = serde_json::json!({ "valid": issues.is_empty(), "issues": issues, "document": doc });
                 println!(

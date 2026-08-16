@@ -98,6 +98,11 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [开工] 2026-08-13 dsh-qwen(main) — 堪舆GIS × DeepSeek Harness 组件（七大能力移植）+ GIS模式
+- 范围：dsh/ 新目录（kanyu-gis 组件双半代码 + kanyu-gis 模式 preset 模板 + README + 示例数据）、AI_SYNC/README/CHANGELOG
+- 依据：用户指令（基于堪舆工程创建 DSH 组件：地图/数据/坐标框架/目录/地理处理/编辑/3D 七大能力移植进组件自我迭代；开源同步 GitHub；基于组件创建 GIS 模式长期推进）
+- 预计：大（组件 Host+Client、GIS 模式构成、开源推送、本机活体验证）
+
 ### [收工] 2026-08-12 kimi-code(main) — AI 意图评估集基准（Phase 4 清单收官）
 - 提交：见本次 commit；测试：367 全绿 + clippy 零警告 + fmt 净
 - 内容：EVAL_SET 40 用例 100% 通过（阈值 90% 守护）；评估驱动 4 处解析修正（优先级劫持/表达式合并/词缀匹配/Crs 缺省）

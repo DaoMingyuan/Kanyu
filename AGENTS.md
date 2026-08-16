@@ -8,7 +8,12 @@
 ## 项目元数据
 
 - **name**: 堪舆 (Kanyu) —— AI 原生地理空间操作系统
-- **crs**: 不适用（本仓库是软件工程仓库；地理项目的 AGENTS.md 规范见 `docs/MASTERPLAN.md` §4.3.2）
+- **crs**: 不适用（本仓库是软件工程仓库，无地理投影；地理项目的 crs 规范见
+  `docs/MASTERPLAN.md` §4.3.2）
+- **data-layer**: 否（本仓库为纯软件工程，无 GIS 地理数据层；校验对数据层
+  语义表与图层关键字段均免检。地理项目的 AGENTS.md 规范见 `docs/MASTERPLAN.md`
+  §4.3.2——本行把那类适用边界**显式化**为元数据，`kanyu agents validate` 依
+  「显式声明优先于 crs 占位」即免检；详见本文件「校验契约」节）
 - **author**: 道明远 (DaoMingyuan)
 - **created**: 2026-08-01
 
@@ -73,7 +78,31 @@ cargo fmt --all
   `toolrun.rs` 的 `run_tool` 加分支 → 壳层/CLI/Python 自动可见 → 截图验证
   （可用隐藏参数 `--tool-demo` 预设参数对话框）。
 
-## 自定义工具
-
 - `kanyu introspect`：输出本仓库内核的模块/工具/格式矩阵（AI 读取自身）。
 - `kanyu agents validate --path AGENTS.md`：校验本文件完整性。
+- `kanyu agents validate --path AGENTS.md --code-repo`：按**软件工程仓库**语境
+  校验（钉死免检数据层语义表）；等价于上方元数据中 `data-layer: 否` 的显式宣言的
+  CLI 直连形态。
+- `kanyu agents validate`（`--check-code-repo` 旗标）：校验时**以显式 `data-layer`
+  元数据行为最高优先语境裁决**（见下「校验契约」），零参即可让地理项目与代码
+  仓库各自通过，无需调用方再选语境。
+- `kanyu agents init <目录> --geo [crs]` / `--code-repo [crs]`：在目标目录生成
+  AGENTS.md 模板并打印校验（`--geo` 含数据层语义表骨架；`--code-repo` 为
+  软工程式骨架 + `crs` 占位 + `data-layer: 否`）。
+
+## 校验契约
+
+`kanyu agents validate` 对「数据层语义表必填」与「每层关键字段非空」的语境裁决，
+由 `AgentsMd::resolve_data_layer` 按**优先级**执行：
+
+1. **元数据行** `- **data-layer**: 是/否` 最高优先（`是` → 必填；`否` → 免检）。
+   这是**代码/软件仓库**声明「无 GIS 数据层、校验免检」的权威途径——见本文件
+   元数据的 `- **data-layer**: 否（…）` 行。
+2. 未显式声明时，回退 **crs 占位**（`resolve_crs`）：真实编码 → 地理项目 →
+   语义表必填；`不适用`/`N/A` 占位或缺失 → 代码仓库 → 免检（**软告警**，不阻断
+   通过）。
+
+零参 `validate` / `--check-code-repo` 据此自动裁决，地理与代码两类仓库**均可一次
+通过、零手工**；仍可用 `validate_code_repo`（`--code-repo`）显式钉死代码仓库语境
+。本仓库 `AGENTS.md` 已写 `data-layer: 否`，故**校验必不失败**（即便 crs 行仍含
+`不适用` 占位，也无矛盾）。

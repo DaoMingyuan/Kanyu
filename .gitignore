@@ -19,5 +19,8 @@ Thumbs.db
 /tmp/
 *.prof
 
+# GitHub 同步凭据登记（各克隆各自维护，不入库——token 永不进版本库）
+/docs/GITHUB.md
+
 # 安装包构建产物（本地制品，不入库）
 /dist/

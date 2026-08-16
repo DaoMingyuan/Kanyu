@@ -88,6 +88,11 @@ pub struct DataExportReq {
 pub struct AgentsValidateReq {
     /// AGENTS.md 路径。
     pub path: String,
+    /// 校验上下文（可选）。缺省 → 自动判定（元数据 `data-layer` 行 → crs 占位）；
+    /// `geo` → 地理项目（数据层语义表必填）；`code-repo` → 钉死软件仓库语境
+    /// （免检数据层），等价于 AGENTS.md「校验契约」零参/`--check-code-repo` 形态。
+    #[serde(default, alias = "context")]
+    pub ctx: Option<String>,
 }
 
 /// `kanyu_agents_init` 输入。
@@ -99,6 +104,11 @@ pub struct AgentsInitReq {
     pub name: Option<String>,
     /// 坐标参考系（默认 EPSG:4326）。
     pub crs: Option<String>,
+    /// 模板种类（可选）。缺省 → 地理项目（`geo`，含数据层语义表）；`code-repo` →
+    /// 软件/代码仓库模板（`data-layer: 否`，免数据层语义表），与 CLI
+    /// `init <dir> --code-repo` 一致。
+    #[serde(default, alias = "kind")]
+    pub ctx: Option<String>,
 }
 
 /// `kanyu_analysis_buffer` 输入。
@@ -637,17 +647,54 @@ impl KanyuServer {
     /// 校验 AGENTS.md 项目语义文件完整性。
     #[tool(
         name = "kanyu_agents_validate",
-        description = "校验 AGENTS.md 项目语义文件：元数据（name/crs）、图层语义、业务规则完整性"
+        description = "校验 AGENTS.md 项目语义文件：元数据（name/crs）、图层语义、业务规则完整性。校验契约：零参自动裁决（AGENTS.md 的 data-layer 元数据行优先，未声明时回退 crs 占位）；ctx=code-repo 钉死软件仓库语境（免检数据层）、ctx=geo 钉死地理项目（数据层必填）"
     )]
     async fn agents_validate(
         &self,
         Parameters(req): Parameters<AgentsValidateReq>,
     ) -> Result<Json<serde_json::Value>, McpError> {
         let doc = agents::load(&req.path).map_err(to_mcp)?;
-        let issues = doc.validate();
+        // 与 AGENTS.md「校验契约」零参 `validate` 一致：由文档自裁决——
+        // 显式 `- **data-layer**: 是/否` 元数据行最高优先；未声明时回退 crs
+        // 占位（真实编码 → 地理、必填；`不适用`/`N/A` 或缺失 → 代码仓库、免检）。
+        // 调用方再传 `ctx`：`code-repo`/`code_repo` → 钉死软件仓库（免检）；
+        // `geo` → 钉死地理项目（必填）。
+        let (validate_code_repo, ctx_note) = match req.ctx.as_deref() {
+            Some(code)
+                if code.eq_ignore_ascii_case("code-repo")
+                    || code.eq_ignore_ascii_case("code_repo") =>
+            {
+                (
+                    true,
+                    "code-repo → 软件仓库语境（数据层免检，校验契约钉死）".to_string(),
+                )
+            }
+            Some("geo") => (
+                false,
+                "geo → 地理项目（数据层语义表必填，校验契约钉死）".to_string(),
+            ),
+            Some(other) => {
+                return Err(McpError::invalid_params(
+                    format!("无法识别的校验上下文模式 {other:?}（支持缺省/code-repo/geo）"),
+                    None,
+                ));
+            }
+            None => (
+                false,
+                "auto（零参：由 AGENTS.md 自身按 data-layer 元数据 + crs 占位自动裁决）"
+                    .to_string(),
+            ),
+        };
+        let pin = if validate_code_repo {
+            Some(false)
+        } else {
+            None
+        };
+        let issues = doc.validate(pin);
         Ok(Json(serde_json::json!({
             "valid": issues.is_empty(),
             "issues": issues,
+            "context": ctx_note,
         })))
     }
 
@@ -675,11 +722,19 @@ impl KanyuServer {
             ));
         }
         std::fs::create_dir_all(dir).map_err(to_mcp)?;
+        // template 的 `is_geo`：仅当显式指定 code-repo（或 code_repo）时 → false
+        // （免数据层语义表）；geo / 空 / 未指定 / 无法识别 → 一律缺省按地理
+        // 项目处理（true，含语义表）。
+        let is_geo = !matches!(
+            req.ctx.as_deref(),
+            Some(code) if code.eq_ignore_ascii_case("code-repo") || code.eq_ignore_ascii_case("code_repo")
+        );
         let crs = req.crs.unwrap_or_else(|| "EPSG:4326".to_string());
-        std::fs::write(&path, agents::template(&name, &crs)).map_err(to_mcp)?;
-        Ok(Json(
-            serde_json::json!({ "created": path.display().to_string() }),
-        ))
+        std::fs::write(&path, agents::template(&name, &crs, is_geo)).map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "created": path.display().to_string(),
+            "template": if is_geo { "geo" } else { "code-repo" },
+        })))
     }
 
     /// 融合（QGIS Dissolve 移植）。
