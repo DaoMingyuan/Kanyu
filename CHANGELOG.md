@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+### 修复
+
+- **`agents validate` 双语境误报修复**：`parse_meta_line` 的 `to_ascii_lowercase`
+  分支补齐 `trim_start(boundary)` 规范化。此前键后无 `**bold**` 嵌套的裸键行
+  （如 `- **data-layer**: 否`）漏过该规范化，`split_once("**: ")` 找不到分隔符致
+  `data_layer` 漏判 None，零参 `validate` 误按 crs 占位回退为代码仓库语境、记
+  `name`/`crs` 软告警，与「0 图层」自相矛盾。修复后本仓库 `AGENTS.md` 零参
+  `validate`（显式 `data-layer: 否` 权威路径）与 `--code-repo` 均干净通过。
+
+### 新增
+
+- **kanyu agents validate 校验双语境自动裁决**：`AgentsMd::resolve_data_layer`
+  按「显式 `data-layer` 元数据行最高优先、crs 占位回退」裁决地理仓库与代码
+  仓库校验语境，零参 `validate` 让两类仓库各自一次通过、零手工；`--geo`/
+  `--code-repo`（`validate_code_repo`）旗标显式钉死语境；`agents init` 双模板
+  （`--geo` 含数据层语义表骨架、`--code-repo` 软工程骨架 + `data-layer: 否`）。
+  `AGENTS.md`（本仓库）钉死 `data-layer: 否` 免检宣言，「校验契约」节入册。
+
 ### 新增
 
 - **AI 意图评估集基准**：40 条中文用例（五分类/口语变体/歧义/无关输入），

@@ -14,7 +14,7 @@
 .DS_Store
 Thumbs.db
 
-# 本地实验与输出（不进入版本库）
+# 本地实验与输出
 /output/
 /tmp/
 *.prof
