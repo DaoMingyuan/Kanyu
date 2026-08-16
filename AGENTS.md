@@ -8,12 +8,8 @@
 ## 项目元数据
 
 - **name**: 堪舆 (Kanyu) —— AI 原生地理空间操作系统
-- **crs**: 不适用（本仓库是软件工程仓库，无地理投影；地理项目的 crs 规范见
-  `docs/MASTERPLAN.md` §4.3.2）
-- **data-layer**: 否（本仓库为纯软件工程，无 GIS 地理数据层；校验对数据层
-  语义表与图层关键字段均免检。地理项目的 AGENTS.md 规范见 `docs/MASTERPLAN.md`
-  §4.3.2——本行把那类适用边界**显式化**为元数据，`kanyu agents validate` 依
-  「显式声明优先于 crs 占位」即免检；详见本文件「校验契约」节）
+- **crs**: 不适用（本仓库是软件工程仓库，无地理投影；地理项目的 crs 规范见 docs/MASTERPLAN.md §4.3.2）
+- **data-layer**: 否（本仓库为纯软件工程，无 GIS 地理数据层，校验对数据层语义表与图层关键字段均免检；地理项目的 AGENTS.md 规范见 docs/MASTERPLAN.md §4.3.2，本行把适用边界显式化为元数据，kanyu agents validate 依「显式声明优先于 crs 占位」即免检，详见本文件「校验契约」节）
 - **author**: 道明远 (DaoMingyuan)
 - **created**: 2026-08-01
 

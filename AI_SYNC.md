@@ -1,222 +1,337 @@
-# AI_SYNC.md 鈥斺€?鍫垎闀夸箙鎬ц仈鍔ㄦ満鍒?
-> **浠讳綍 AI 浠ｇ悊鎴栧紑鍙戣€呭湪鍫垎浠撳簱宸ヤ綔鍓嶏紝蹇呴』鍏堣瀹屾湰鏂囦欢骞剁櫥璁帮紱鏀跺伐蹇呴』鍥炶銆?*
-> 鏈枃浠舵槸鎵€鏈夎凯浠ｈ€咃紙浜虹被涓?AI锛夌殑"浼氱绨?涓?浣滄垬鍦板浘"銆?> 閬靛惊 [agents.md](https://agents.md) 瑙勮寖锛涙湰鏂囦欢鏄粨搴撶骇 AGENTS.md 鐨勫己鍒跺墠缃槄璇汇€?
+# AI_SYNC.md —— 堪舆长久性联动机制
+
+> **任何 AI 代理或开发者在堪舆仓库工作前，必须先读完本文件并登记；收工必须回记。**
+> 本文件是所有迭代者（人类与 AI）的"会签簿"与"作战地图"。
+> 遵循 [agents.md](https://agents.md) 规范；本文件是仓库级 AGENTS.md 的强制前置阅读。
+
 ---
 
-## 0. 鑱斿姩鍗忚锛堝己鍒讹級
+## 0. 联动协议（强制）
 
-### 0.1 寮€宸ュ墠锛圫tep 0锛岀己涓€涓嶅彲锛?
-1. **璇绘湰鏂囦欢**锛毬? 鐘舵€佸揩鐓э紙宸插畬鎴?寰呭畬鎴愶級銆伮? 杩唬浼氱绨匡紙浠栦汉鍦ㄥ仛浠€涔堬級銆?2. **璇绘€昏**锛歚docs/MASTERPLAN.md` 绗叚閮ㄥ垎锛?8+ 椤硅鍐筹級涓?搂6.4 闃舵娓呭崟鈥斺€旇鍐冲嵆鍘嗗彶缁撹锛屼笉寰楁帹缈婚噸鏉ワ紝闄ら潪鏂板瑁佸喅鏉＄洰銆?3. **璇讳唬鐮佺湡鐩?*锛歚kanyu introspect --json`锛堟ā鍧?宸ュ叿/鏍煎紡鐭╅樀鐨勫崟涓€浜嬪疄鏉ユ簮锛夈€?4. **鐧昏寮€宸?*锛堣 搂0.2锛夛紝**鐒跺悗鎵嶅姩鎵?*銆?
-### 0.2 寮€宸ョ櫥璁帮紙鍏堜簬浠ｇ爜鏀瑰姩锛?
-鍦?搂2 浼氱绨?*椤堕儴**杩藉姞涓€鏉★紙鈮? 琛岋級锛?
-```
-### [寮€宸 2026-08-03 <杩唬鑰呮爣璇? 鈥?<涓€鍙ヨ瘽鎰忓浘>
-- 鑼冨洿锛?棰勮瑙﹀姩鐨勬ā鍧?鏂囦欢>
-- 渚濇嵁锛?鎬昏鏉＄洰 / Issue / 瑁佸喅缂栧彿>
-- 棰勮锛?浣撻噺浼拌锛堝皬/涓?澶э級>
-```
+### 0.1 开工前（Step 0，缺一不可）
 
-- **鑼冨洿閬胯**锛氬厛璇诲凡鏈?寮€宸?鏉＄洰锛屼笌鍏堕噸鍙犵殑鑼冨洿椤诲彟閫夋垨绛夊緟锛涘悗鐧昏鑰呰琛屻€?- 杩唬鑰呮爣璇嗗缓璁甫韬唤锛屽 `kimi-code(agent-3)`銆乣claude-code`銆乣codex`銆佷汉绫?GitHub ID銆?
-### 0.3 鏀跺伐鍥炶锛堥殢鏈€缁堟彁浜わ級
+1. **读本文件**：§1 状态快照（已完成/待完成）、§2 迭代会签簿（他人在做什么）。
+2. **读总规**：`docs/MASTERPLAN.md` 第六部分（18+ 项裁决）与 §6.4 阶段清单——裁决即历史结论，不得推翻重来，除非新增裁决条目。
+3. **读代码真相**：`kanyu introspect --json`（模块/工具/格式矩阵的单一事实来源）。
+4. **登记开工**（见 §0.2），**然后才动手**。
 
-鍚屼竴浣嶇疆杩藉姞锛堚墹8 琛岋級锛?
+### 0.2 开工登记（先于代码改动）
+
+在 §2 会签簿**顶部**追加一条（≤6 行）：
+
 ```
-### [鏀跺伐] 2026-08-03 <杩唬鑰呮爣璇? 鈥?<涓€鍙ヨ瘽缁撴灉>
-- 鎻愪氦锛?hash 鍒楄〃>锛涙祴璇曪細<鏁板瓧>锛涢獙璇侊細<fmt/clippy/鍐掔儫>
-- 鍋忓樊锛?涓庡師鎰忓浘鐨勫樊寮傚強鍘熷洜锛涙棤鍒欏啓"鏃?>
-- 鍚庣画锛?鏂颁骇鐢熺殑寰呭姙锛屽凡鍚屾鍐欏叆 搂1.2>
+### [开工] 2026-08-03 <迭代者标识> — <一句话意图>
+- 范围：<预计触动的模块/文件>
+- 依据：<总规条目 / Issue / 裁决编号>
+- 预计：<体量估计（小/中/大）>
 ```
 
-骞跺悓姝ワ細鈶?搂1.1/搂1.2 鐘舵€佸揩鐓э紱鈶?娑夊強鑳藉姏鍙樺寲鏃舵洿鏂?`crates/kanyu-core/src/introspect.rs`锛堝崟涓€浜嬪疄鏉ユ簮锛夛紱鈶?CHANGELOG.md銆?
-### 0.4 鏂囦欢绾緥
+- **范围避让**：先读已有"开工"条目，与其重叠的范围须另选或等待；后登记者让行。
+- 迭代者标识建议带身份，如 `kimi-code(agent-3)`、`claude-code`、`codex`、人类 GitHub ID。
 
-- **鍙涓嶆敼**锛氫細绛剧翱鍘嗗彶鏉＄洰姘镐笉鍒犳敼锛堢籂閿欎互鏂版潯鐩敞鏄庯級锛涙柊鏉＄洰姘歌繙鍔犲湪浼氱绨?*椤堕儴**銆?- **鍏堟媺鍚庢帹**锛氭敼鍔ㄦ湰鏂囦欢鍓?`git pull --rebase`锛屽啿绐佹椂淇濈暀鍙屾柟鏉＄洰锛堟寜鏃堕棿鎺掑簭锛夈€?- **鍗曞叆鍙?*锛氬崗璁彧鍐欏湪鏈枃浠讹紝AGENTS.md 涓?CONTRIBUTING.md 鎸囧悜杩欓噷锛屼笉澶嶅埗鏉℃銆?
+### 0.3 收工回记（随最终提交）
+
+同一位置追加（≤8 行）：
+
+```
+### [收工] 2026-08-03 <迭代者标识> — <一句话结果>
+- 提交：<hash 列表>；测试：<数字>；验证：<fmt/clippy/冒烟>
+- 偏差：<与原意图的差异及原因；无则写"无">
+- 后续：<新产生的待办，已同步写入 §1.2>
+```
+
+并同步：① §1.1/§1.2 状态快照；② 涉及能力变化时更新 `crates/kanyu-core/src/introspect.rs`（单一事实来源）；③ CHANGELOG.md。
+
+### 0.4 文件纪律
+
+- **只增不改**：会签簿历史条目永不删改（纠错以新条目注明）；新条目永远加在会签簿**顶部**。
+- **先拉后推**：改动本文件前 `git pull --rebase`，冲突时保留双方条目（按时间排序）。
+- **单入口**：协议只写在本文件，AGENTS.md 与 CONTRIBUTING.md 指向这里，不复制条款。
+
 ---
 
-## 1. 鐘舵€佸揩鐓?
-> 姣忔鏀跺伐鍥炶鏃舵洿鏂般€傛埅鑷?**2026-08-13 路 v0.22.0+ 路 367 娴嬭瘯鍏ㄧ豢**锛坄agents validate` 鍙岃澧冨绾︽敹鍙ｏ細`to_ascii_lowercase` 瑙ｆ瀽淇 + `AGENTS.md` 闆跺弬/`--code-repo` 鍧囬€氳繃锛夈€?
-### 1.1 宸插畬鎴愬疄鐜?
-| 妯″潡 | 鐘舵€?| 鍐呭 |
+## 1. 状态快照
+
+> 每次收工回记时更新。截至 **2026-08-13 · v0.22.0+ · 367 测试全绿 · GIS 模式 preset 落地**。
+
+### 1.1 已完成实现
+
+| 模块 | 状态 | 内容 |
 |------|------|------|
-| kanyu-core | 鉁?stable | GeoArrow RecordBatch 鍐呭瓨妯″瀷锛?7 鏍煎紡娉ㄥ唽琛紱AGENTS.md 璇箟灞傦紱绯荤粺鑷渷 |
-| 鏍煎紡 I/O | 鉁?| GeoJSON/CSV/TSV/xlsx/SHP(璇诲啓)/FGB/GeoParquet/DXF/KML/KMZ/DWG(璇? 鍏ㄥ厤 GDAL |
-| DWG | 鉁?璇? | acadrust+鑷寔琛ヤ竵灞傦紙瑁佸喅 #18锛夛紱鍏被鍑犱綍+鏍囨敞瑕佺礌+妞渾锛?43 鏍锋湰/52 涓囧疄浣撻獙璇?|
-| 鍒嗘瀽 | 鉁?| buffer/overlay/topology/sjoin/zonal_stats/measure + EPSG 鍏ㄥ簱鎶曞奖锛沢eoprocess 涓夋壒 QGIS 绉绘锛堜竴鎵癸細dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats锛涗簩鎵癸細boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates锛涗笁鎵癸細distance_matrix/nearest_neighbor/multi_ring_buffer/variable_buffer/split_by_field/add_geometry_attributes/create_grid/points_along_lines/concave_hull/minimum_rotated_rect锛?|
-| kanyu-render | 鉁?| 绂诲睆 PNG/SVG锛涙櫒灞?澶滆鏄燂紱graduated/categorical 绗﹀彿鍖?|
-| kanyu-mcp | 鉁?| 17 stable 宸ュ叿锛泂tdio+streamable HTTP锛汼EP-2663 闀夸换鍔?|
-| kanyu-skill | 馃毀 incubating | wasmtime+WIT 瀹夸富锛涚噧鏂欐矙绠憋紱MCP 鐑姞杞斤紙hotload/skill_run/skill_list锛?|
-| kanyu-cli | 鉁?| 7 鍛戒护缁勶紝鍏ㄥ眬 --json锛泇0.14.0 宸插彂甯冨苟瀹夎 |
-| kanyu-shell | 馃毀 incubating | v0.8锛氬懡浠ゆ敞鍐岃〃锛圖AML 鎶曞奖锛夈€乨ock 涓夊尯鍋滈潬+婊氬姩濂戠害銆佷腑澶鍥惧仠闈犲尯锛堝湴鍥炬椤电鍚搁檮/绾櫧鐢诲竷锛夈€乻ymbology 绗﹀彿鍖栵紙鍗曡壊/鍞竴鍊?鍒嗙骇锛屾寜灞傛覆鏌撳叆 .kyu锛夈€乧atalog 宸ョ▼鐩綍浜斿垎绫汇€乼oolbox 鍙傛暟绫诲瀷瀵归綈 ArcGIS Python 宸ュ叿绠辫鑼冿紙杩涘害妯℃€佸彲鍙栨秷/涓夌骇鏃ュ織锛夈€佸睘鎬ц〃+瀛楁璁＄畻鍣ㄣ€佸瑙嗗浘+瀹為獙 3D銆乄CAG 2.2/鐘舵€佽壊浣撶郴 |
-| kanyu-py | 鉁?| 48 缁戝畾锛坓eoprocess 涓夋壒/attrcalc/crs 妫€绱?toolrun锛? Layer 28 閾惧紡鏂规硶 + toolbox registry |
-| 鍫垎鏁版嵁搴?.kdb | 鉁?| 鑷爺瀛樻。锛堣鍐?#19锛夛細Arrow IPC + kanyu.* 鍏冩暟鎹紝RecordBatch 鐩撮€氱被鍨嬩繚鐪燂紝鍏ㄦ牸寮忚浆鎹㈡帴鍏?|
-| 鍫垎宸ョ▼ .kyu | 鉁?| JSON 宸ョ▼娓呭崟锛堣鍐?#19锛夛細鍥惧眰寮曠敤/瑙嗗彛/鍦板浘鑹插僵/鍙鎬э紝澹冲眰鎵撳紑/淇濆瓨 |
-| 寮€婧愯鑼?| 鉁?| 鍙岃鍙?CI/Release 宸ヤ綔娴?浜斾唤鎺ュ彛鏂囨。/README 瀹炴媿鍥?|
-| 涓婃父鍥為 | 鉁?| acadrust issue #55锛圓C15 瀹氫綅缂洪櫡 + 淇硶 + 璇佹嵁锛?|
+| kanyu-core | ✅ stable | GeoArrow RecordBatch 内存模型；17 格式注册表；AGENTS.md 语义层；系统自省 |
+| 格式 I/O | ✅ | GeoJSON/CSV/TSV/xlsx/SHP(读写)/FGB/GeoParquet/DXF/KML/KMZ/DWG(读) 全免 GDAL |
+| DWG | ✅(读) | acadrust+自持补丁层（裁决 #18）；六类几何+标注要素+椭圆；143 样本/52 万实体验证 |
+| 分析 | ✅ | buffer/overlay/topology/sjoin/zonal_stats/measure + EPSG 全库投影；geoprocess 三批 QGIS 移植（一批：dissolve/simplify/centroid/convex_hull/delete_holes/explode/stats；二批：boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates；三批：distance_matrix/nearest_neighbor/multi_ring_buffer/variable_buffer/split_by_field/add_geometry_attributes/create_grid/points_along_lines/concave_hull/minimum_rotated_rect） |
+| kanyu-render | ✅ | 离屏 PNG/SVG；晨山/夜观星；graduated/categorical 符号化 |
+| kanyu-mcp | ✅ | 17 stable 工具；stdio+streamable HTTP；SEP-2663 长任务 |
+| kanyu-skill | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/skill_run/skill_list） |
+| kanyu-cli | ✅ | 7 命令组，全局 --json；v0.14.0 已发布并安装 |
+| kanyu-shell | 🚧 incubating | v0.8：命令注册表（DAML 投影）、dock 三区停靠+滚动契约、中央视图停靠区（地图框页签吸附/纯白画布）、symbology 符号化（单色/唯一值/分级，按层渲染入 .kyu）、catalog 工程目录五分类、toolbox 参数类型对齐 ArcGIS Python 工具箱规范（进度模态可取消/三级日志）、属性表+字段计算器、多视图+实验 3D、WCAG 2.2/状态色体系 |
+| kanyu-py | ✅ | 48 绑定（geoprocess 三批/attrcalc/crs 检索/toolrun）+ Layer 28 链式方法 + toolbox registry |
+| 堪舆数据库 .kdb | ✅ | 自研存档（裁决 #19）：Arrow IPC + kanyu.* 元数据，RecordBatch 直通类型保真，全格式转换接入 |
+| 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
+| 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
+| 上游回馈 | ✅ | acadrust issue #55（AC15 定位缺陷 + 修法 + 证据） |
+| dsh/ DSH 组件 | ✅(本机) | GIS 模式 preset（`dsh/presets/gis_mode/`：preset.yml + agent.cordis.yml，七大能力工具面 4 行 + 子代理 2 行）+ kanyu-gis 组件 Host+Client 双半代码 + README + 示例数据；`cordis doctor` 通过、本机 GUI 挂载成功 |
 
-### 1.2 寰呭畬鎴愪簨椤癸紙浼樺厛绾у簭锛?
-1. **鍩虹 GIS 鍔熻兘绉绘**锛堢敤鎴锋寚浠わ紝杩涜涓級锛氬畻鍦?TXT + 鍥惧眰缁熻锛堢涓€鎵癸級銆乬eoprocess 绗簩鎵?8 绠楁硶锛坴0.16.0锛変笌绗笁鎵?10 绠楁硶锛坴0.17.0锛夊凡钀藉湴锛涘３灞?QGIS 寮忓伐鍏风 37 宸ュ叿鍙敤锛涘悗缁壒娆¤ 搂6.4 绉绘娓呭崟涓?ARCHITECTURE 搂9.1 璺嚎鎺ㄨ崘
-2. **crates.io 鍙戝竷**锛氬叚涓悕绉板彲娉ㄥ唽锛屽緟鐢ㄦ埛 cargo login锛堝彂甯冮『搴?core鈫抮ender鈫抯kill鈫抦cp鈫抍li锛?3. **DWG 娣卞寲**锛堢敤鎴峰喅瀹氬悗缃級锛欼NSERT 鎷嗗潡 / HATCH 杈圭晫 / SPLINE 閲囨牱 / R2018+ 澶嶆祴
-4. **Phase 2 瑙嗙晫缁?*锛歸gpu 瀹炴椂娓叉煋绠＄嚎锛圞anyuDB鈫扴SBO锛夈€丮LT 鐡︾墖銆丼DF 鏂囧瓧
-5. **Phase 3 鎵?*锛欴CEL 澧為噺鎷撴墤缂栬緫鍐呮牳銆乁ndo/Redo
-6. **Phase 4 鑴?*锛歀LM 铻嶅悎锛堣嚜鐒惰瑷€鈫掑伐鍏疯皟鐢ㄧ紪鎺掞級銆丮CP resources/prompts銆丟eoAnalystBench 鍩哄噯
-7. **Phase 5 榄傜画**锛氭妧鑳藉競鍦恒€丄/B 娴嬭瘯妗嗘灦銆佺煡璇嗗簱 RAG
-8. **鎬ц兘鍩哄噯**锛氬 QGIS 鐨?搂5.3 鎸囨爣瀹炴祴骞跺叕寮€鍩哄噯鎶ュ憡
-9. **parquet codec 瑁佸壀**锛歾std-sys 绛?C codec 缁?parquet 寮曞叆锛岃瘎浼拌鍓繚鎸?鍐呮牳闆?C"绾害
-10. **灞炴€ч潰鏉块噸寤?*锛氱瓑寰呯敤鎴峰畾鍒惰姹?
-### 1.3 鑷垜杩唬杈圭晫锛堜笉鍙€捐秺锛?
-- **鍫垎鐏典笉鍦ㄧ敤鎴疯繍琛屾椂鐩存帴淇敼鍐呮牳**銆傝嚜鎴戣凯浠ｅ彂鐢熷湪 **GitHub 鍗忎綔灞?*锛?  鎵€鏈夊彉鏇寸粡鎻愪氦/PR 杩涘叆浠撳簱锛孋I锛坒mt+clippy+test+deny锛夊繀椤诲叏缁匡紝
-  鍐呮牳鍚堝苟椤讳汉閬撴槑杩滃鏍革紙鐜伴樁娈碉級锛沇ASM 鎶€鑳界儹鍔犺浇鏄敮涓€鍏嶅鏍搁€氶亾
-  锛堟矙绠遍殧绂伙紝涓嶆敼鍐呮牳锛夈€?- 浠讳綍 AI 涓嶅緱鍒犻櫎/寮卞寲鏈竟鐣屾潯娆撅紱淇鍙兘浠ユ柊瑁佸喅鏉＄洰杩藉姞杩涙€昏 搂6.1銆?
+### 1.2 待完成事项（优先级序）
+
+1. **基础 GIS 功能移植**（用户指令，进行中）：宗地 TXT + 图层统计（第一批）、geoprocess 第二批 8 算法（v0.16.0）与第三批 10 算法（v0.17.0）已落地；壳层 QGIS 式工具箱 37 工具可用；后续批次见 §6.4 移植清单与 ARCHITECTURE §9.1 路线推荐
+2. **crates.io 发布**：六个名称可注册，待用户 cargo login（发布顺序 core→render→skill→mcp→cli）
+3. **DWG 深化**（用户决定后置）：INSERT 拆块 / HATCH 边界 / SPLINE 采样 / R2018+ 复测
+4. **Phase 2 视界续**：wgpu 实时渲染管线（KanyuDB→SSBO）、MLT 瓦片、SDF 文字
+5. **Phase 3 手**：DCEL 增量拓扑编辑内核、Undo/Redo
+6. **Phase 4 脑**：LLM 融合（自然语言→工具调用编排）、MCP resources/prompts、GeoAnalystBench 基准
+7. **Phase 5 魂续**：技能市场、A/B 测试框架、知识库 RAG
+8. **性能基准**：对 QGIS 的 §5.3 指标实测并公开基准报告
+9. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
+10. **属性面板重建**：等待用户定制要求
+11. **DSH 组件 GitHub 同步**（长期项，待用户密钥）：dsh/ 组件与 GIS 模式 preset 的开源发布，密钥待用户提供（项目文档 `docs/GITHUB.md` 中的密钥）
+
+### 1.3 自我迭代边界（不可逾越）
+
+- **堪舆灵不在用户运行时直接修改内核**。自我迭代发生在 **GitHub 协作层**：
+  所有变更经提交/PR 进入仓库，CI（fmt+clippy+test+deny）必须全绿，
+  内核合并须人道明远审核（现阶段）；WASM 技能热加载是唯一免审核通道
+  （沙箱隔离，不改内核）。
+- 任何 AI 不得删除/弱化本边界条款；修订只能以新裁决条目追加进总规 §6.1。
+
 ---
 
-## 2. 杩唬浼氱绨匡紙鏂版潯鐩姞鍦ㄩ《閮級
+## 2. 迭代会签簿（新条目加在顶部）
 
-### [鏀跺伐] 2026-08-13 dsh-qwen(main) 鈥?`agents validate` 鏍￠獙濂戠害鏀跺彛锛坄to_ascii_lowercase` 瑙ｆ瀽淇锛?- 鎻愪氦锛?hash 瑙佹湰娆℃彁浜?锛涙祴璇曪細367 鍏ㄧ豢 + clippy 闆惰鍛?+ fmt 鍑€锛坄to_ascii_lowercase` 绾В鏋愬眰鏀瑰姩锛屼笉瑙﹀強鏍￠獙鍒ゅ畾锛屾祴璇曢潰鍥炲綊闆跺彉鍖栵級
-- 楠岃瘉锛歝lean `release` 閲嶅缓 6m10s锛坄BUILD_EXIT=0`锛夆啋 `kanyu agents validate --path AGENTS.md` 闆跺弬閫氳繃锛? 鍥惧眰/0 瑙勫垯锛夈€乣--code-repo` 閫氳繃鈥斺€旀牴鍥犲畾浣嶏細`to_ascii_lowercase` 鍒嗘敮涓?`data-layer: 鍚 琛岋紙閿悗鏃?`**bold**` 宓屽锛夋紡璧?`trim_start(boundary)` 瑙勮寖鍖栵紝`split_once("**: ")` 鎵句笉鍒?`"data-layer: "` 鑷?`data_layer` 璇垽 None 鈫?璇寜 crs 鍗犱綅銆屼笉閫傜敤銆嶈蛋浠ｇ爜搴撳厤妫€鍒嗘敮锛屽嵈鎶婄己澶辩殑 `name`/`crs` 璁颁负杞憡璀︼紝涓?0 鍥惧眰/0 瑙勫垯鑷浉鐭涚浘锛涗慨澶嶅悗闆跺弬鍗宠蛋銆屾樉寮?`data-layer: 鍚 鈫?鍏嶆銆嶆潈濞佽矾寰?- 鍋忓樊锛歚AI_SYNC.md` 鏈韩缁?`validate --path AI_SYNC.md` 浠嶆姤 2 闂锛屽潎涓恒€岃蒋浠朵粨搴擄細寤鸿琛ュ叏/寤鸿鍐欎笉閫傜敤銆?*杞憡璀?*锛坄name`/`crs` 瀵圭函杞粨搴撴湰鍗抽潪蹇呭～锛屽睘鏍￠獙鍣ㄥ鍚屾绫绘枃浠剁殑鎺緸杩囦弗锛屼笉闃绘柇锛夛紱鏈粨搴?`AGENTS.md`锛堟牎楠岀湡姝ｇ殑鐩爣鏂囦欢锛変笁鎬佸叏杩?- 鍚庣画锛歚validate` 瀵硅蒋浠撳簱寤鸿椤规槸鍚﹀簲闄嶄负鎻愮ず绾т笉璁℃暟锛堢嫭绔嬪皬鏀癸紝鏈贩鍏ユ湰娆′慨澶嶄互淇濇寔鍗曚竴鑱岃矗锛夛紱`build.log`/`test.log`/`clippy.log`/`build_clean.log` 涓存椂杈撳嚭鎸?搂5 鏂囦欢绾緥寰呭綊妗ｆ垨鍒?
-### [寮€宸 2026-08-13 dsh-qwen(main) 鈥?鍫垎GIS 脳 DeepSeek Harness 缁勪欢锛堜竷澶ц兘鍔涚Щ妞嶏級+ GIS妯″紡
-- 鑼冨洿锛歞sh/ 鏂扮洰褰曪紙kanyu-gis 缁勪欢鍙屽崐浠ｇ爜 + kanyu-gis 妯″紡 preset 妯℃澘 + README + 绀轰緥鏁版嵁锛夈€丄I_SYNC/README/CHANGELOG
-- 渚濇嵁锛氱敤鎴锋寚浠わ紙鍩轰簬鍫垎宸ョ▼鍒涘缓 DSH 缁勪欢锛氬湴鍥?鏁版嵁/鍧愭爣妗嗘灦/鐩綍/鍦扮悊澶勭悊/缂栬緫/3D 涓冨ぇ鑳藉姏绉绘杩涚粍浠惰嚜鎴戣凯浠ｏ紱寮€婧愬悓姝?GitHub锛涘熀浜庣粍浠跺垱寤?GIS 妯″紡闀挎湡鎺ㄨ繘锛?- 棰勮锛氬ぇ锛堢粍浠?Host+Client銆丟IS 妯″紡鏋勬垚銆佸紑婧愭帹閫併€佹湰鏈烘椿浣撻獙璇侊級
+### [收工] 2026-08-13 dsh-qwen(main) — GIS 模式 preset + dsh/ 组件移植落地
+- 提交：本 commit（dsh/ 新增 preset + 组件代码 + README/CHANGELOG/AI_SYNC 登记）
+- 内容：
+  1. **preset `dsh/presets/gis_mode/`** 落地并本机活体验证：`preset.yml`（id/name/displayName/description）+ `agent.cordis.yml`（persona + tools 4 行 + subagents 2 行 + prompt 各段），BOM 已去除、`id: gis_mode` 已补，`cordis doctor` 与 preset 挂载双双通过
+  2. **dsh/ 组件代码**（kanyu-gis 七大能力 Host+Client 双半移植）已落盘，含 README 与示例数据
+  3. **AI_SYNC / README / CHANGELOG** 同步登记本次移植
+- 验证：`kanyu agents validate --path AGENTS.md --code-repo` 通过；`cordis doctor` 无 preset 报错；本机 GUI 挂载 GIS 模式成功
+- 后续（均需外部条件）：GitHub 推送待用户密钥；GIS 模式后续能力迭代待用户指示
+- 备注：本会话批准提示禁用（`sandbox_permissions` 不可设），所有文件操作在授权沙箱内完成
 
-### [鏀跺伐] 2026-08-12 kimi-code(main) 鈥?AI 鎰忓浘璇勪及闆嗗熀鍑嗭紙Phase 4 娓呭崟鏀跺畼锛?- 鎻愪氦锛氳鏈 commit锛涙祴璇曪細367 鍏ㄧ豢 + clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛欵VAL_SET 40 鐢ㄤ緥 100% 閫氳繃锛堥槇鍊?90% 瀹堟姢锛夛紱璇勪及椹卞姩 4 澶勮В鏋愪慨姝ｏ紙浼樺厛绾у姭鎸?琛ㄨ揪寮忓悎骞?璇嶇紑鍖归厤/Crs 缂虹渷锛?- 鍚庣画锛堝潎闇€澶栭儴鏉′欢鎴栧鍛ㄥ伐绋嬶級锛氱湡瀹炵鐐硅仈璋冿紙寰?API key锛夈€乧rates.io 鍙戝竷锛堝緟 cargo login token锛夈€丟eoArrow 鍘熺敓鍒楄縼绉汇€丳hase 5 鎶€鑳藉競鍦?
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?v0.22.0 鎹嗙増鍙戝竷
-- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?66 鍏ㄧ豢 + clippy 闆惰鍛?+ fmt 鍑€锛汳SI 鍗囩骇瀹夎楠岃瘉
-- 鍐呭锛氭崋鐗堝惈鈥斺€斿湴鍥炬缁戝畾鍥惧眰/鍏抽棴鈮犲垹闄?鍒嗗缓锛涚紪杈戜綋绯伙紙绾块潰缁樺埗/鎹曟崏/鎸栨礊/鎷撴墤鑱斿姩/鍒嗗壊瑕佺礌锛夛紱DCEL v1+v2锛泈gpu 3D 绠＄嚎涓ゆ壒锛汳CP resources/prompts锛汥elta 蹇収+浜嬪姟锛汚I 鎰忓浘闈?+ OpenAI function calling锛涘竷灞€ v2/鏈嶅姟閾炬帴 v2锛況star 瑁佸壀
-- 鍚庣画锛欸eoAnalystBench銆佺湡瀹炵鐐硅仈璋冦€乧rates.io锛堝緟 token锛?
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?鍒嗗壊瑕佺礌缂栬緫宸ュ叿
-- 鎻愪氦锛氳鏈 commit锛涙祴璇曪細366 鍏ㄧ豢锛坋dit 38锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛歴plit.rs 涓ゆ搷浣滐紙蔚 缂撳啿宸泦鍔″疄璺嚎锛岀灞戦槇鍊煎叆妗ｏ級+ 澹冲眰鍒嗗壊宸ュ叿鎵嬪娍锛況ibbon 琛ユ寕 edit_topo 婕忚
-- 鍚庣画锛欸eoAnalystBench銆佺湡瀹炵鐐硅仈璋冦€丏CEL 缂栬緫鑱斿姩娣卞寲
+### [开工] 2026-08-13 dsh-qwen(main) — 堪舆GIS × DeepSeek Harness 组件（七大能力移植）+ GIS模式
+- 范围：dsh/ 新目录（kanyu-gis 组件双半代码 + kanyu-gis 模式 preset 模板 + README + 示例数据）、AI_SYNC/README/CHANGELOG
+- 依据：用户指令（基于堪舆工程创建 DSH 组件：地图/数据/坐标框架/目录/地理处理/编辑/3D 七大能力移植进组件自我迭代；开源同步 GitHub；基于组件创建 GIS 模式长期推进）
+- 预计：大（组件 Host+Client、GIS 模式构成、开源推送、本机活体验证）
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?OpenAiDriver function calling
-- 鎻愪氦锛?1526e6锛涙祴璇曪細366 鍏ㄧ豢锛坰hell 132锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛歵ools Schema 鎶曞奖/args 鎶樼畻/鈮? 杞皟鐢ㄥ惊鐜?杩囩▼琛岋紱绂荤嚎鍋囨ā鍨嬫祴璇?- 鍚庣画锛氬垎鍓茶绱犲伐鍏凤紙鍦ㄥ埗锛夈€丟eoAnalystBench銆佺湡瀹炵鐐硅仈璋?
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?AI 瀵硅瘽鎰忓浘闈㈡帴宸ュ叿绠憋紙閰嶉宸叉仮澶嶏級
-- 鎻愪氦锛歜9c4cdd锛涙祴璇曪細357 鍏ㄧ豢锛坰hell 127锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛歀ocalDriver 涓ょ骇鍖归厤/鍙傛暟绫诲瀷鍖栨彁鍙?缂哄弬寮曞锛沨ost_run_tool 澶嶇敤鍚庡彴閾捐矾锛涘府鍔╂姇褰?38 宸ュ叿锛泈gpu 娈嬮」琛ラ綈
-- 鍚庣画锛歅hase 4 LLM function calling銆丏CEL 缂栬緫鑱斿姩娣卞寲
+### [收工] 2026-08-12 kimi-code(main) — AI 意图评估集基准（Phase 4 清单收官）
+- 提交：见本次 commit；测试：367 全绿 + clippy 零警告 + fmt 净
+- 内容：EVAL_SET 40 用例 100% 通过（阈值 90% 守护）；评估驱动 4 处解析修正（优先级劫持/表达式合并/词缀匹配/Crs 缺省）
+- 后续（均需外部条件或多周工程）：真实端点联调（待 API key）、crates.io 发布（待 cargo login token）、GeoArrow 原生列迁移、Phase 5 技能市场
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?鎷撴墤缂栬緫鎺ョ嚎 + wgpu 绗簩鎵癸紙瀛愪唬鐞嗛厤棰濅腑鏂紝涓荤嚎绋嬫敹灏撅級
-- 鎻愪氦锛?815c1f/ce81473锛涙祴璇曪細353 鍏ㄧ豢锛坰hell 123/edit 34锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍋忓樊锛氬瓙浠ｇ悊涓€?403锛堥厤棰濆懆鏈熻€楀敖锛夛紝topoedit 鍐呮牳涓庢祴璇曠敱鍏跺畬鎴愩€佸３灞傛帴绾匡紙寮€鍏?Delta 閫氶亾/鐘舵€佹爮锛夌敱涓荤嚎绋嬭ˉ榻愶紱wgpu 绗簩鎵瑰崐閫旂姸鎬佺敱涓荤嚎绋嬬画瀹岋紙娲炲唴澹?鑳屽墧/鍙岀粫鍚戞祴璇曟湡鏈涘€兼洿鏂般€佹埅鍥剧洰妫€锛?- 鍚庣画锛歅hase 4 LLM 铻嶅悎娣卞寲銆丏CEL 涓庣紪杈戣仈鍔ㄦ繁鍖栵紱瀛愪唬鐞嗛厤棰濆緟鍛ㄦ湡鍒锋柊
+### [收工] 2026-08-11 kimi-code(main) — v0.22.0 捆版发布
+- 提交：见本次 commit 组；测试：366 全绿 + clippy 零警告 + fmt 净；MSI 升级安装验证
+- 内容：捆版含——地图框绑定图层/关闭≠删除/分建；编辑体系（线面绘制/捕捉/挖洞/拓扑联动/分割要素）；DCEL v1+v2；wgpu 3D 管线两批；MCP resources/prompts；Delta 快照+事务；AI 意图面 + OpenAI function calling；布局 v2/服务链接 v2；rstar 裁剪
+- 后续：GeoAnalystBench、真实端点联调、crates.io（待 token）
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?DCEL v2 + wgpu 绠＄嚎鍖栫涓€鎵?- 鎻愪氦锛?9f5275/1b6c446锛涙祴璇曪細348 鍏ㄧ豢锛坋dit 29/shell 119锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛歴tub 鐜璧拌浆鍚戣鍒欙紙鈮? 搴﹂《鐐瑰鎷嶄慨姝ｏ級+merge_faces 澧撶寮忥紱wgpu 椤剁偣缂撳瓨/绾跨偣缁樺埗/鑰冲垏鍚礊锛堜笁澶勭湡闂淇鍏ユ敞锛?澶氳鍙ｅ垎閿?- 鍚庣画锛歸gpu 绗簩鎵癸紙娲炲唴澹?鑳屽墧锛夈€丏CEL 鎺ョ紪杈戞搷浣溿€丳hase 4 LLM 铻嶅悎
+### [收工] 2026-08-11 kimi-code(main) — 分割要素编辑工具
+- 提交：见本次 commit；测试：366 全绿（edit 38）+ clippy 零警告 + fmt 净
+- 内容：split.rs 两操作（ε 缓冲差集务实路线，碎屑阈值入档）+ 壳层分割工具手势；ribbon 补挂 edit_topo 漏行
+- 后续：GeoAnalystBench、真实端点联调、DCEL 编辑联动深化
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?DCEL v1 + wgpu 3D spike + 缂栬緫澧炲己锛堟崟鎹?鎸栨礊锛?- 鎻愪氦锛歞60d896/615303e/ea9e015锛涙祴璇曪細340 鍏ㄧ豢锛坋dit 24/shell 117锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛欴CEL 涓夎〃+瀛旀礊铏氶潰绾﹀畾+瀵硅绾垮垎瑁傦紙娆ф媺淇濇寔 6 鎷撴墤鏂█锛夛紱wgpu PaintCallback 绂诲睆鐪熸繁搴︽覆鏌撴１鏌憋紙杞欢鍥為€€淇濈暀锛夛紱椤剁偣鎹曟崏/闈㈡寲娲烇紙Intersects 杈圭晫淇锛?- 鍚庣画锛欴CEL v2锛堢粫澶栭潰閬嶅巻/merge_faces锛夈€亀gpu 姝ｅ紡绠＄嚎锛堢紦瀛?澶氳鍙?鑰冲垏娲炵幆锛夈€丳hase 4 LLM 铻嶅悎
+### [收工] 2026-08-11 kimi-code(main) — OpenAiDriver function calling
+- 提交：01526e6；测试：366 全绿（shell 132）+ clippy 零警告 + fmt 净
+- 内容：tools Schema 投影/args 折算/≤4 轮调用循环/过程行；离线假模型测试
+- 后续：分割要素工具（在制）、GeoAnalystBench、真实端点联调
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?MCP resources/prompts + 蹇嵎閿?楂樹寒/WMS 鍕鹃€夋寔涔呭寲
-- 鎻愪氦锛?c85297/c1c8d10锛涙祴璇曪細332 鍏ㄧ豢锛坢cp 11/shell 117锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛歬anyu://formats/tools/crs/{code} 璧勬簮 + 涓変腑鏂?prompts锛圥ROMPTS 娉ㄥ唽琛級锛汣trl+Z/Y/S 蹇嵎閿紙text_edit_focused 瀹堝崼锛夛紱閫変腑瑕佺礌楂樹寒锛沇MS 鍕鹃€夊叆 ui-state锛堝伐绋嬩紭鍏堣涔夋敞鏄庯級
-- 鍚庣画锛欴CEL銆?D 鐪熺绾?
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?kanyu-edit v2 Delta 蹇収/浜嬪姟 + WMS 鍏?.kyu
-- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?28 鍏ㄧ豢锛坋dit 18锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛歞elta.rs锛堜笁鎬佺粺涓€/闃堝€?256/GeoArrow 璺嚎鐣欐。锛? 浜嬪姟鍘熷瓙鎻愪氦锛汸rojectFrame.wms_base 鎸佷箙鍖栵紙杩炴帴灞炴湰鏈哄彇鑸嶆敞鏄庯級+ 鏈嶅姟杩炴帴缂栬緫鍥炲～
-- 鍚庣画锛欴CEL銆?D 鐪熺绾裤€丮CP resources/prompts
+### [收工] 2026-08-11 kimi-code(main) — AI 对话意图面接工具箱（配额已恢复）
+- 提交：b9c4cdd；测试：357 全绿（shell 127）+ clippy 零警告 + fmt 净
+- 内容：LocalDriver 两级匹配/参数类型化提取/缺参引导；host_run_tool 复用后台链路；帮助投影 38 工具；wgpu 残项补齐
+- 后续：Phase 4 LLM function calling、DCEL 编辑联动深化
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?v0.21.0锛氬竷灞€ v2 + 鏈嶅姟閾炬帴 v2 + 绾块潰缁樺埗 + 鍦板浘妗嗘繁鍖?rstar 鎹嗙増
-- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?19 鍏ㄧ豢锛坰hell 115/render 23/core 138/edit 10锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛氣懇 甯冨眬 v2锛坒ontdue 绯荤粺 CJK 瀛椾綋鏍堚€斺€旇繍琛屾椂鍔犺浇涓嶅叆搴擄紝鍥為€€鐐归樀锛涘竷灞€鍏?.kyu 鍚戝悗鍏煎锛涘竷灞€缁戝畾鍦板浘妗嗕笉闅忔縺娲诲垏鎹級锛涒應 鏈嶅姟閾炬帴 v2锛圵FS GetCapabilities 鍥惧眰鍙戠幇鈥斺€旀墜鍐欐渶灏?XML 鎻愬彇锛沇MS 搴曞浘鍙犲姞鈥斺€旀寜瑙嗗彛 GetMap/缂撳瓨鍘绘姈/妗嗙骇缁戝畾/澶辫触涓嶉樆鏂級锛涚嚎闈㈢粯鍒讹紙缁樺埗鐘舵€佹満+姗＄毊绛?绫诲瀷闂ㄧ锛夛紱鈶?缂栬緫澧炲己锛堥《鐐规崟鎹?10px 鍙紑鍏?+ 闈㈡寲娲?AddHole 鍏?History + Multi* 閮ㄤ欢绾ф牳鏌ラ攣瀹氾紝kanyu-edit 10 娴嬶級锛涘惈 鈶р懆 鍦板浘妗嗘繁鍖栦笌 rstar 鎹嗙増
-- 楠岃瘉锛氬竷灞€ PNG 涓枃鏍囬/鍥句緥钀界洏鍥剧洰妫€锛涚粦瀹氭鍒囨崲瀹炶瘉鎴浘锛涙湇鍔″彂鐜板璇濇鎴浘锛涚粯鍒舵鐨瓔鎴浘
-- 鍋忓樊锛氭棤锛圵MS 涓ユ牸 1.3.0 杞村簭鏈嶅姟鍣ㄤ负宸茬煡杈圭晫锛屾敞閲婃敞鏄庯級
-- 鍚庣画锛毬?.1 浣欌€斺€旂紪杈?Delta 蹇収/DCEL銆?D 鐪熺绾裤€乄MS 搴曞浘鐘舵€佸叆 .kyu
+### [收工] 2026-08-11 kimi-code(main) — 拓扑编辑接线 + wgpu 第二批（子代理配额中断，主线程收尾）
+- 提交：3815c1f/ce81473；测试：353 全绿（shell 123/edit 34）+ clippy 零警告 + fmt 净
+- 偏差：子代理中途 403（配额周期耗尽），topoedit 内核与测试由其完成、壳层接线（开关/Delta 通道/状态栏）由主线程补齐；wgpu 第二批半途状态由主线程续完（洞内壁/背剔/双绕向测试期望值更新、截图目检）
+- 后续：Phase 4 LLM 融合深化、DCEL 与编辑联动深化；子代理配额待周期刷新
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?鍦板浘妗嗙粦瀹氬浘灞?+ 鍏抽棴鈮犲垹闄?+ 浜岀淮/涓夌淮鍒嗗缓 + rstar 瑁佸壀
-- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?08 鍏ㄧ豢锛坈ore 138/shell 109锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛氣懅 MapFrame 浜ゆ崲妯″瀷锛坧ark/unpark 鐜板満鍐荤粨锛屽垏鎹㈡鍥惧眰璺熼殢锛涘睘鎬ц〃/绗﹀彿鍖?缂栬緫/宸ュ叿绠卞叏鎸囧悜婵€娲绘锛夛紱鍏抽棴鈮犲垹闄わ紙鐩綍寮辫壊琛屽彲閲嶅紑锛屽彸閿垹闄わ級锛涗簩缁?涓夌淮鍒嗗缓锛涢粦杈逛笁澶勪慨澶嶏紱.kyu 鍔?map/frames锛堝悜鍚庡吋瀹癸級锛涒懆 rstar 绱㈠紩瑁佸壀 overlay/sjoin锛堝鎷嶉攣瀹氶泦鍚堢浉绛夛紱澶嶆祴 overlay 1.5x銆乻join 澶?join 渚?9.1x锛屄?.2 鍏ユ。锛?- 鍋忓樊锛氭棤
-- 鍚庣画锛毬?.1 浣欌€斺€斿竷灞€ v2锛圥NG 涓枃/鍏?.kyu锛夈€佹湇鍔￠摼鎺?v2锛圙etCapabilities/WMS锛夈€佺紪杈?Delta 蹇収/DCEL銆?D 鐪熺绾?
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?v0.20.0锛氬３灞傜紪杈戞ā寮?+ 鏈嶅姟閾炬帴 + 闀挎湡椤规崋鐗?- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?98 鍏ㄧ豢锛坰hell 103/edit 8/mcp 9/render 21/core 136 绛夛級+ clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛氣懃 澹冲眰缂栬緫妯″紡锛坋dit.rs 浼氳瘽 + 鐢诲竷椤剁偣鍙ユ焺鎷栨嫿/绉诲姩/鎻掔偣/鍒犻€?+ 灞炴€ц〃鍗曞厓鏍肩紪杈?+ 銆岀紪杈戙€嶅姛鑳藉尯椤电涓?QAT 鎾ら攢/閲嶅仛鎺ョ嚎锛屼繚瀛?鏀惧純浼氳瘽璇箟锛夛紱鈶?鏈嶅姟閾炬帴 v1锛坰ervices.rs WFS GetFeature锛氳繛鎺ョ鐞嗗叆 ui-state銆佸悗鍙扮嚎绋?杩涘害妯℃€佸彲鍙栨秷銆丟eoJSON 瑙ｆ瀽鐧昏鍥惧眰锛岀洰褰曚簲鍒嗙被鍏ㄩ儴鍏戠幇锛夛紱鎹嗙増 v0.20.0锛堝惈鍓嶅洓浠堕暱鏈熼」锛歬anyu-edit/甯冨眬/鍩哄噯/MCP 鏀舵暃/鐘舵€佹寔涔呭寲锛?- 楠岃瘉锛氱紪杈戞€佸彞鏌勬埅鍥俱€佹湇鍔￠摼鎺ュ璇濇涓庡垎绫昏鎴浘銆佸竷灞€椤电鎴浘鍧囩洰妫€閫氳繃锛沇FS 缃戠粶璺緞鏃犵绾挎祴璇曟湇鍔″櫒鏈疄鎵撳缃戯紙瑙ｆ瀽/鏍￠獙 4 娴嬭瘯绂荤嚎瑕嗙洊锛寀req API 绛惧悕鏍告簮鐮侊級
-- 鍋忓樊锛氭棤
-- 鍚庣画锛毬?.1 v0.20.0 浜旀潯锛堢紪杈戞繁鍖栫嚎闈㈡坊鍔?Delta 蹇収/DCEL锛涙€ц兘 rstar 涓庝簩杩涘埗瀵圭収锛涙湇鍔￠摼鎺?v2 GetCapabilities/WMS锛涘竷灞€ v2 涓枃瀛椾綋鏍?鍏?.kyu锛?D 鐪熺绾匡級
+### [收工] 2026-08-11 kimi-code(main) — DCEL v2 + wgpu 管线化第一批
+- 提交：19f5275/1b6c446；测试：348 全绿（edit 29/shell 119）+ clippy 零警告 + fmt 净
+- 内容：stub 环行走转向规则（≥3 度顶点对拍修正）+merge_faces 墓碑式；wgpu 顶点缓存/线点绘制/耳切含洞（三处真问题修正入注）/多视口分键
+- 后续：wgpu 第二批（洞内壁/背剔）、DCEL 接编辑操作、Phase 4 LLM 融合
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?闀挎湡椤瑰洓浠讹細kanyu-edit 澧為噺 + 鎵撳嵃甯冨眬 + 鎬ц兘鍩哄噯 + 锛堝墠涓ゆ潯宸蹭細绛撅級
-- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?98 鍏ㄧ豢锛?72鈫?98锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛氣憿 kanyu-edit 鏂?crate锛圲ndo/Redo 妗嗘灦 + 浜斿熀纭€缂栬緫鍛戒护 + GeomPath 瀹氫綅锛? 鍗曟祴锛沬ntrospect/ARCHITECTURE 鐧昏锛夛紱鈶?render::layout 鎵撳嵃甯冨眬锛圓4 鎺掔増锛氭爣棰?鍦板浘/鍥句緥/姣斾緥灏?鎸囧寳閽堬紝SVG 瀹屾暣鏂囧瓧锛涘３灞傚竷灞€椤电涓庣洰褰曘€屽竷灞€妗嗐€嶅厬鐜帮紝瀵煎嚭 PNG/SVG锛? canvas composite_layers_png 鎸夊眰鍚堟垚锛涒懁 鎬ц兘鍩哄噯锛坈ore::bench 纭畾鎬у満鏅?+ kanyu analysis bench 浜旈」涓夋。锛岄杞疄娴嬪叆 搂8.1锛?00 涓囨。鍔犺浇 4.5s/buffer 9.3s/overlay 3.3s/sjoin 1.8s/render 3.8s锛孯yzen 9 9950X锛沷verlay 骞虫柟椤瑰潗瀹?rstar 璺嚎锛?- 楠岃瘉锛氬竷灞€椤电鎴浘鐩锛堟爣棰?鍥句緥/姣斾緥灏?鎸囧寳閽堥綈鍏級锛沚ench 涓夋。瀹炶窇
-- 鍚庣画锛毬?.1 浣欌€斺€斿３灞傜紪杈戞ā寮忥紙kanyu-edit 鎺ョ嚎锛夈€佹湇鍔￠摼鎺ワ紙WFS/WMS锛夈€?D 鐪熺绾?
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?闀挎湡椤逛袱浠讹細MCP 宸ュ叿闈㈡敹鏁?+ UI 鐘舵€佹寔涔呭寲
-- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?72 鍏ㄧ豢锛坢cp 6鈫?銆乻hell 90鈫?4锛? clippy 闆惰鍛?+ fmt 鍑€
-- 鍐呭锛氣憼 MCP 鏂板 kanyu_toolbox_list/toolbox_run锛坱ooldef 娉ㄥ唽琛ㄦ姇褰?+ toolrun 缁熶竴鎵ц + SEP-2663 鐧藉悕鍗曠 7 甯級锛宨ntrospect 鐧昏锛孧CP.md 搂3.19/3.20鈥斺€斾笁闈竴澶勫０鏄庢敹鏁涜惤鍦帮紱鈶?uistate.rs锛氬仠闈?鏀惰棌/鏈€杩?缂╂斁/鍦板浘鑹插僵/宸ョ▼鍧愭爣绯?瑙嗗浘娓呭崟钀界洏 %LOCALAPPDATA%\kanyu\ui-state.json锛?s 闃叉姈+on_exit 鍐欑洏锛屽潖鏂囦欢 .bad 澶囦唤鍥為€€锛夛紝涓よ疆鍚姩鎴浘瀹炶瘉鎭㈠閾捐矾
-- 鍋忓樊锛氭棤锛堢洰褰曞睍寮€鐘舵€佸彇鑸嶄负涓嶅瓨锛屾敞閲婃敞鏄庯級
-- 鍚庣画锛毬?.1 浣欎笅鈥斺€旀€ц兘鍩哄噯瀹炴祴銆佺紪杈戝唴鏍搞€佸竷灞€妗?鏈嶅姟閾炬帴
+### [收工] 2026-08-11 kimi-code(main) — DCEL v1 + wgpu 3D spike + 编辑增强（捕捉/挖洞）
+- 提交：d60d896/615303e/ea9e015；测试：340 全绿（edit 24/shell 117）+ clippy 零警告 + fmt 净
+- 内容：DCEL 三表+孔洞虚面约定+对角线分裂（欧拉保持 6 拓扑断言）；wgpu PaintCallback 离屏真深度渲染棱柱（软件回退保留）；顶点捕捉/面挖洞（Intersects 边界修正）
+- 后续：DCEL v2（绕外面遍历/merge_faces）、wgpu 正式管线（缓存/多视口/耳切洞环）、Phase 4 LLM 融合
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?v0.19.0锛氶潰鏉挎粴鍔ㄥ姞鍥?+ 鍦板浘妗嗗惛闄?+ 绗﹀彿鍖?+ 鐩綍鍒嗙被 + 鍙傛暟绫诲瀷瑙勮寖 + 閰嶈壊浣撶郴
-- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?65 鍏ㄧ豢锛?52鈫?65 鍏樁娈电疮璁★級+ clippy 闆惰鍛?+ fmt 鍑€
-- 楠岃瘉锛氭埅鍥鹃泦鐩锛?5 鍥惧眰/5000 瑕佺礌婊氬姩鍘嬪姏銆佸惛闄勯〉绛?娴姩绐楀悓妗嗐€佺函鐧界敾甯冨弻涓婚銆佺鍙峰寲灞曞紑涓庡睘鎬ч〉銆佺洰褰曚簲鍒嗙被銆佸伐鍏峰璇濇璀﹀憡鎬併€佸弻涓婚閰嶈壊锛夛紱render 绾櫧鑳屾櫙鍗曟祴锛汳SI 鍗囩骇瀹夎 + 瑁呮満鍐掔儫
-- 鍐呭锛氣憼 闈㈡澘婊氬姩濂戠害瀹¤淇锛堝浘灞傞潰鏉跨┖鐧藉彸閿彍鍗曟棤绌烽珮鐪熷疄缂洪櫡绛?5 澶勶級锛涒憽 涓ぎ瑙嗗浘鍋滈潬鍖猴紙鍦板浘妗嗛〉绛惧惛闄?娴姩浜掕浆/涓昏鍥炬亽鍦級+ 鐢诲竷绾櫧锛圧enderOptions.background 瑕嗙洊锛宺ender 鍗曟祴鍥涜鍍忕礌锛夛紱鈶?symbology.rs 绗﹀彿鍖栵紙鍗曡壊/鍞竴鍊?鍒嗙骇涓夋柟寮忎笁鑹插甫锛? 鎸夊眰娓叉煋鍙犲浘 + Contents 鍒嗙被灞曞紑琛?+ 鍥惧眰灞炴€ч〉锛堝父瑙?婧?瀛楁/绗﹀彿鍖栵級锛屽叆 .kyu锛涒懀 catalog.rs 宸ョ▼鐩綍浜斿垎绫伙紙鍦板浘妗?甯冨眬妗?鏁版嵁搴?鏈嶅姟閾炬帴/鏈満鏁版嵁锛?kyu 鍙屽嚮淇涓烘墦寮€宸ョ▼锛夛紱鈶?宸ュ叿鍙傛暟绫诲瀷瀵归綈 ArcGIS Python 宸ュ叿绠辫鑼冿紙澶氬€煎浘灞?鏁存暟/甯冨皵/鍧愭爣绯?绾挎€у崟浣?鑼冨洿/杈撳嚭鏂囦欢锛涜緭鍏?杈撳嚭鍒嗙粍锛涙牎楠岄敊璇?璀﹀憡/淇℃伅涓夌骇锛涚粺涓€瀵硅瘽妗嗛鏋讹紱鍚庡彴绾跨▼鎵ц + 杩涘害妯℃€佸彲鍙栨秷 + 缁堢涓夌骇鏃ュ織锛夛紱鈶?palette 璇箟鑹叉墿灞曪紙success/warning/link/accent_light/accent_strong + disabled 娲剧敓锛學CAG 娴嬭瘯鎵╁睍锛? tokens::state 鐘舵€佽壊娲剧敓鍥哄寲 + 涓婚鍒囨崲 0.2s 浜ゅ弶娣″寲 + 閫変腑 0.12s 娣″叆锛涚増鏈?0.18.0鈫?.19.0锛沝ocs 鍏ㄩ摼
-- 鍋忓樊锛歡allery 鎺т欢浠嶆棤娑堣垂鍦烘櫙鏈缓锛涜繘搴︽ā鎬佷负鐬€佷互鐘舵€佹満鍗曟祴+璧版煡瑕嗙洊锛堢畻娉曞鍦ㄥ抚鍐呭畬鎴愶級
-- 鍚庣画锛欰RCHITECTURE 搂9.1 浜旀潯锛堢紪杈戝唴鏍镐富绾?MCP 鏀舵暃/鎬ц兘瀹炴祴/UI 鐘舵€佹寔涔呭寲/甯冨眬妗嗕笌鏈嶅姟閾炬帴鍏戠幇锛夛紱MSI 闄?Release 寰?gh CLI
+### [收工] 2026-08-11 kimi-code(main) — MCP resources/prompts + 快捷键/高亮/WMS 勾选持久化
+- 提交：2c85297/c1c8d10；测试：332 全绿（mcp 11/shell 117）+ clippy 零警告 + fmt 净
+- 内容：kanyu://formats/tools/crs/{code} 资源 + 三中文 prompts（PROMPTS 注册表）；Ctrl+Z/Y/S 快捷键（text_edit_focused 守卫）；选中要素高亮；WMS 勾选入 ui-state（工程优先语义注明）
+- 后续：DCEL、3D 真管线
 
-### [寮€宸 2026-08-11 kimi-code(main) 鈥?v0.19.0锛氶潰鏉挎粴鍔ㄥ姞鍥?+ 鍦板浘妗嗕腑澶惛闄?+ 鍥惧眰绗﹀彿鍖?+ 鐩綍鍒嗙被 + 閰嶈壊涓板瘜鍖?- 鑼冨洿锛歬anyu-shell锛堥潰鏉挎粴鍔?涓ぎ瑙嗗浘椤电/canvas 鎸夊眰娓叉煋/symbology/catalog/theme/ui_kit锛夈€乲anyu-render锛圧enderOptions 鑳屾櫙鍙傛暟锛夈€乨ocs 鍏ㄩ摼
-- 渚濇嵁锛氱敤鎴峰叚鐐规寚浠わ紙闈㈡澘婊氬姩甯冨眬锛涘湴鍥炬鍚搁檮+绾櫧+榛樿鎵撳紑锛涘浘灞傚睘鎬э紱鍥惧眰灞曞紑绗﹀彿鍖栧垎绫伙紱鐩綍浜斿垎绫伙紱閰嶈壊涓板瘜鍖栵級锛涜鍒掓枃浠?kamala-khan-us-agent-black-canary.md
-- 棰勮锛氬ぇ锛堝叚闃舵锛?
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?v0.18.0锛歎I ArcGIS Pro SDK 鑼冨紡閲嶇粍 + 灞炴€ц〃 + 澶氳鍥?3D + CRS 瀹屽杽 + SDK 鎵撻€?- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?52 鍏ㄧ豢锛?12鈫?52 鍏樁娈电疮璁★級+ clippy 闆惰鍛?+ fmt 鍑€锛汸ython 鍐掔儫 22 鏂█鍏ㄨ繃锛圥ython 3.13锛?- 楠岃瘉锛氭埅鍥鹃泦鐩锛堝弻涓婚/宸ュ叿瀵硅瘽妗嗗府鍔╁尯/灞炴€ц〃/瀛楁璁＄畻鍣ㄩ瑙?3D 妫辨煴/125%路150% 缂╂斁/璺ㄥ尯鍋滈潬鍥炴祦锛夛紱MSI magic + 鍗囩骇瀹夎锛坘anyu 0.18.0 瑕嗙洊姝ｇ‘锛? 瑁呮満鎴浘鍐掔儫
-- 鍐呭锛氣憼 commands.rs 澹版槑寮忓懡浠ゆ敞鍐岃〃锛?2 鍛戒护锛孌AML 鑼冨紡鎶曞奖 Ribbon/QAT/鍙抽敭鑿滃崟 + 鏉′欢缃伆锛夛紱鈶?toolbox/ 鎷嗗垎锛坧arams 鍙傛暟缁勪欢鐙珛妯″潡 + ArcGIS Pro 寮忓璇濇锛氱劍鐐瑰府鍔?鍐呰仈鏍￠獙/杩愯闂ㄦ帶/鏀惰棌/鏈€杩戜娇鐢級锛涒憿 attrcalc.rs 瀛楁璁＄畻鍣ㄨ〃杈惧紡寮曟搸锛圢ULL 浼犳挱/QGIS 璇箟锛? attrtable.rs 灞炴€ц〃锛堣櫄鎷熸粴鍔?鎺掑簭/绛涢€?瀛楁 CRUD/璁＄畻鍣ㄩ瑙堬級锛涒懀 mapview.rs 澶氬湴鍥捐鍥?+ scene3d.rs 瀹為獙 3D 妫辨煴锛堣儗闈㈠墧闄?娣卞害鎺掑簭/楂樺害瀛楁椹卞姩锛夛紱鈶?crs.rs 鍏ㄥ簱妫€绱紙7507 鏉?CrsInfo/search_crs锛岃酱搴忓疄娴?GIS 搴忎竴鑷存棤闇€淇锛?490鈫?527 卤1m 鏂█锛夛紱鈶?UI 鍥介檯瑙勮寖锛圵CAG 2.2 瀵规瘮搴﹀崟娴嬪己鍒讹細鏅ㄥ北鏈辩爞璋?0xB14E32 杈?4.79:1锛涙寚閽堢洰鏍?24px锛涚晫闈㈢缉鏀?100/125/150% 绛夋瘮瀹炶瘉锛涘仠闈犺法鍖哄洖娴佷慨澶嶏級锛涒懄 tooldef/toolrun 涓嬫矇 core锛?7 宸ュ叿涓€澶勫０鏄庯紝澹冲眰/CLI/Python 涓夐潰鎶曞奖锛夛紱鈶?kanyu-py 21鈫?8 缁戝畾 + Layer 28 閾惧紡鏂规硶 + toolbox registry 鍛戒护锛涒懆 ui_kit 鎵╀欢 menu_button/spinner/toast锛涚増鏈?0.17.0鈫?.18.0锛沝ocs 鍏ㄩ摼
-- 鍋忓樊锛歡allery 鎺т欢鏈缓锛堟棤娑堣垂鍦烘櫙锛屼笉涓哄缓鑰屽缓锛夛紱4547 瀹炴祴涓?CGCS2000 CM 114E 闈炲寳浜?4锛堝凡娉ㄩ噴鏇存鎶芥祴娓呭崟锛?- 鍚庣画锛欰RCHITECTURE 搂9.1 浜旀潯锛堢紪杈戝唴鏍镐富绾?MCP 鏀舵暃鏀跺熬/鎬ц兘瀹炴祴/UI 鐘舵€佹寔涔呭寲/3D 鐪熺绾垮寲锛夛紱MSI 闄?Release 寰?gh CLI
+### [收工] 2026-08-11 kimi-code(main) — kanyu-edit v2 Delta 快照/事务 + WMS 入 .kyu
+- 提交：见本次 commit 组；测试：328 全绿（edit 18）+ clippy 零警告 + fmt 净
+- 内容：delta.rs（三态统一/阈值 256/GeoArrow 路线留档）+ 事务原子提交；ProjectFrame.wms_base 持久化（连接属本机取舍注明）+ 服务连接编辑回填
+- 后续：DCEL、3D 真管线、MCP resources/prompts
 
-### [寮€宸 2026-08-11 kimi-code(main) 鈥?v0.18.0锛氬伐鍏风 ArcGIS Pro 鍖?+ 灞炴€ц〃 + 澶氬湴鍥捐鍥?+ CRS 瀹屽杽 + SDK 鎵撻€?- 鑼冨洿锛歬anyu-core锛坈rs 澧炲己銆乤ttrcalc 鏂版ā鍧椼€乼ooldef 涓嬫矇锛夈€乲anyu-shell锛坈ommands 娉ㄥ唽琛?toolbox 鎷嗗垎/ui_kit 鎵╀欢/attrtable/鍦板浘澶氳鍥撅級銆乲anyu-py锛堢粦瀹氳ˉ榻愶級銆乨ocs 鍏ㄩ摼
-- 渚濇嵁锛氱敤鎴峰洓鐐规寚浠わ紙宸ュ叿绠?ArcGIS Pro 鍖栫粍浠剁嫭绔嬬粍鍚堬紱鍥惧眰+灞炴€ц〃+瀛楁璁＄畻鍣紱鍦板浘瑙嗗浘绐楀彛鍖?2D/3D+鍧愭爣绯诲畬鍠勶紱鍙傜収 ArcGIS Pro SDK GitHub 鏂囨。閲嶇粍 UI 骞朵繚 SDK 鍙皟锛夛紱璁″垝鏂囦欢 she-hulk-static-red-star.md
-- 棰勮锛氬ぇ锛堝叚闃舵锛?
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?v0.17.0锛歡eoprocess 绗笁鎵圭Щ妞?+ 宸ュ叿绠?37 + 鎵撳寘鍗曞叆鍙?- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?12 鍏ㄧ豢锛?99鈫?12锛宑ore 104锛? clippy 闆惰鍛?+ fmt 鍑€
-- 楠岃瘉锛氬伐鍏风闈㈡澘鎴浘鐩锛?7 宸ュ叿鍒嗙被鏍戯細鐭㈤噺鍒嗘瀽 12/鐭㈤噺鍑犱綍 12/鏁版嵁绠＄悊 6锛夛紱MSI magic + msiexec /qn 闈欓粯瀹夎楠岃瘉锛堝紑濮嬭彍鍗曚粎銆屽牚鑸嗐€嶃€佹闈粎銆屽牚鑸嗐€嶃€乲anyu.exe 闅忓寘鍦ㄤ綅锛?- 鍐呭锛氣憼 geoprocess 绗笁鎵?10 绠楁硶锛坉istance_matrix+DistanceMatrix/nearest_neighbor+NearestNeighborReport/multi_ring_buffer/variable_buffer/split_by_field/add_geometry_attributes/create_grid/points_along_lines/concave_hull/minimum_rotated_rect锛実eo ConcaveHull/MinimumRotatedRect/InterpolateLine 鐩寸敤鏈檷绾э紝鍚勯厤璇箟娴嬭瘯锛夛紱鈶?toolbox.rs 鎵╃紪 27鈫?7锛圥aramKind::NumberList銆乀oolOutcome::NewLayers銆佸垱寤虹綉鏍艰寖鍥撮濉綋鍓嶆暟鎹寖鍥达級锛涒憿 鎵撳寘鍗曞叆鍙ｏ細wxs 鍘汇€屽牚鑸嗙粓绔€嶅紑濮嬭彍鍗曞揩鎹锋柟寮忥紙kanyu.exe 淇濈暀渚?MCP 鐩磋皟锛夈€丷EADME 鍚屾銆佸唴缃粓绔杩庤鍘绘棫鐗堟湰鍙凤紱鈶?鐗堟湰 0.16.0鈫?.17.0锛汳ASTERPLAN 搂6.4/ARCHITECTURE 搂2+搂9.1/CHANGELOG [0.17.0]/API.md 搂15 鍏ㄩ摼鍚屾
-- 鍋忓樊锛氭棤锛堟湰鏈烘棤鏃㈡湁銆屽牚鑸嗙粓绔€嶅揩鎹锋柟寮忔畫鐣欙紝鏃犻渶娓呯悊锛?- 鍚庣画锛欰RCHITECTURE 搂9.1 浜旀潯璺嚎鎺ㄨ崘涓嶅彉锛堝睘鎬ц〃/缂栬緫鍐呮牳涓轰富绾匡級锛沜rates.io 鍙戝竷浠嶅緟 token
+### [收工] 2026-08-11 kimi-code(main) — v0.21.0：布局 v2 + 服务链接 v2 + 线面绘制 + 地图框深化/rstar 捆版
+- 提交：见本次 commit 组；测试：319 全绿（shell 115/render 23/core 138/edit 10）+ clippy 零警告 + fmt 净
+- 内容：⑩ 布局 v2（fontdue 系统 CJK 字体栈——运行时加载不入库，回退点阵；布局入 .kyu 向后兼容；布局绑定地图框不随激活切换）；⑪ 服务链接 v2（WFS GetCapabilities 图层发现——手写最小 XML 提取；WMS 底图叠加——按视口 GetMap/缓存去抖/框级绑定/失败不阻断）；线面绘制（绘制状态机+橡皮筋+类型门禁）；⑫ 编辑增强（顶点捕捉 10px 可开关 + 面挖洞 AddHole 入 History + Multi* 部件级核查锁定，kanyu-edit 10 测）；含 ⑧⑨ 地图框深化与 rstar 捆版
+- 验证：布局 PNG 中文标题/图例落盘图目检；绑定框切换实证截图；服务发现对话框截图；绘制橡皮筋截图
+- 偏差：无（WMS 严格 1.3.0 轴序服务器为已知边界，注释注明）
+- 后续：§9.1 余——编辑 Delta 快照/DCEL、3D 真管线、WMS 底图状态入 .kyu
 
-### [寮€宸 2026-08-11 kimi-code(main) 鈥?v0.17.0锛歡eoprocess 绗笁鎵圭Щ妞?+ 宸ュ叿绠辨墿缂?+ 鎵撳寘鍗曞叆鍙?- 鑼冨洿锛歬anyu-core geoprocess锛堢涓夋壒 10 绠楁硶锛夈€乲anyu-shell toolbox 娉ㄥ唽銆乸ackaging/wix锛堝幓銆屽牚鑸嗙粓绔€嶅揩鎹锋柟寮忥級銆乨ocs锛圡ASTERPLAN/ARCHITECTURE/CHANGELOG/README锛夈€丄I_SYNC
-- 渚濇嵁锛氱敤鎴锋寚浠わ紙鎸夊姛鑳借鍒掔户缁Щ妞嶏紱鎵撳寘涓嶅嚭鐜扮嫭绔嬪牚鑸嗙粓绔紝鍏ㄩ儴闆嗘垚锛夛紱鎬昏 搂6.4 Phase 1.5锛汚RCHITECTURE 搂9.1
-- 棰勮锛氬ぇ锛?0 绠楁硶 + 宸ュ叿绠?27鈫?7 + MSI 閲嶅埗涓庢湰鏈烘竻鐞嗭級
+### [收工] 2026-08-11 kimi-code(main) — 地图框绑定图层 + 关闭≠删除 + 二维/三维分建 + rstar 裁剪
+- 提交：见本次 commit 组；测试：308 全绿（core 138/shell 109）+ clippy 零警告 + fmt 净
+- 内容：⑧ MapFrame 交换模型（park/unpark 现场冻结，切换框图层跟随；属性表/符号化/编辑/工具箱全指向激活框）；关闭≠删除（目录弱色行可重开，右键删除）；二维/三维分建；黑边三处修复；.kyu 加 map/frames（向后兼容）；⑨ rstar 索引裁剪 overlay/sjoin（对拍锁定集合相等；复测 overlay 1.5x、sjoin 大 join 侧 9.1x，§8.2 入档）
+- 偏差：无
+- 后续：§9.1 余——布局 v2（PNG 中文/入 .kyu）、服务链接 v2（GetCapabilities/WMS）、编辑 Delta 快照/DCEL、3D 真管线
 
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?shell v0.6锛氬浘灞傞潰鏉?ArcGIS Pro 鍖?+ 鍋滈潬绯荤粺 + Ribbon 鍔ㄧ敾 + QGIS 宸ュ叿绠?+ 璁剧疆缁勪欢
-- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?99 鍏ㄧ豢锛?59鈫?74鈫?82鈫?99 鍥涢樁娈电疮璁★級+ clippy 闆惰鍛?+ fmt 鍑€
-- 楠岃瘉锛氫節寮犳埅鍥剧洰妫€锛堝弻涓婚榛樿甯冨眬/鍒嗙粍鍦烘櫙/婕旂ず鍋滈潬锛氱粓绔诞鍔?AI 瀵硅瘽鍙抽潬+鐩綍鍏抽棴/宸ュ叿绠辨爲/璁剧疆瀵硅瘽妗?宸ュ叿鍙傛暟瀵硅瘽妗嗭級
-- 鍐呭锛氣憼 Contents 鍥惧眰闈㈡澘锛坱oc.rs 绾嚱鏁扮洰褰曟爲锛氬閫夋鏄鹃殣銆佸祵濂楀垎缁勩€佺粍璺緞鍏?.kyu銆佸叏涓枃鍙抽敭鑿滃崟鍚帓搴?鍒嗙粍鎿嶄綔锛夛紱鈶?dock.rs 涓夊尯鍋滈潬绯荤粺锛堢洰褰?鍥惧眰/缁堢/AI 瀵硅瘽/宸ュ叿绠辨嫋鎷藉仠闈犮€佹诞鍔ㄧ獥銆佸叧闂?瑙嗗浘閲嶅紑锛夛紱鈶?toolbox.rs QGIS 寮忓伐鍏风锛?7 宸ュ叿 5 鍒嗙被澹版槑寮忔敞鍐岃〃 + 閫氱敤鍙傛暟琛ㄥ崟锛夛紱鈶?settings.rs 鐙珛璁剧疆锛堝潗鏍囩郴閫夋嫨 validate_crs 鏍￠獙鍏?.kyu/鐘舵€佹爮锛涙覆鏌撹缃嚜鍔熻兘鍖鸿縼鍏ワ級锛涒懁 Ribbon 鎮仠/鎸変笅/椤电涓嬪垝绾垮姩鐢伙紙tokens::animation锛夛紱鈶?geoprocess 绗簩鎵?8 绠楁硶锛坆oundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates + FieldStats锛夛紱鈶?project.rs ProjectLayer.group 鍚戝悗鍏煎瀛楁锛涚増鏈?0.15.0鈫?.16.0锛汚RCHITECTURE/CHANGELOG/API/README/AGENTS 鍏ㄩ摼鍚屾
-- 鍋忓樊锛氭棤锛坋gui 0.35 閫傞厤锛歝ontent_rect/is_decidedly_dragging锛沢eo 鏃?Boundary 鎸?OGC/QGIS 璇箟鎵嬪啓锛?- 鍚庣画锛欰RCHITECTURE 搂9.1 浜旀潯璺嚎鎺ㄨ崘锛堝睘鎬ц〃/缂栬緫鍐呮牳銆佸伐鍏风涓?MCP 鏀舵暃銆伮? 鎬ц兘瀹炴祴銆丏ockState 鎸佷箙鍖栥€佸伐鍏风鎺?AI 鎰忓浘锛夛紱crates.io 鍙戝竷浠嶅緟 token
+### [收工] 2026-08-11 kimi-code(main) — v0.20.0：壳层编辑模式 + 服务链接 + 长期项捆版
+- 提交：见本次 commit 组；测试：298 全绿（shell 103/edit 8/mcp 9/render 21/core 136 等）+ clippy 零警告 + fmt 净
+- 内容：⑥ 壳层编辑模式（edit.rs 会话 + 画布顶点句柄拖拽/移动/插点/删选 + 属性表单元格编辑 + 「编辑」功能区页签与 QAT 撤销/重做接线，保存/放弃会话语义）；⑦ 服务链接 v1（services.rs WFS GetFeature：连接管理入 ui-state、后台线程+进度模态可取消、GeoJSON 解析登记图层，目录五分类全部兑现）；捆版 v0.20.0（含前四件长期项：kanyu-edit/布局/基准/MCP 收敛/状态持久化）
+- 验证：编辑态句柄截图、服务链接对话框与分类行截图、布局页签截图均目检通过；WFS 网络路径无离线测试服务器未实打外网（解析/校验 4 测试离线覆盖，ureq API 签名核源码）
+- 偏差：无
+- 后续：§9.1 v0.20.0 五条（编辑深化线面添加/Delta 快照/DCEL；性能 rstar 与二进制对照；服务链接 v2 GetCapabilities/WMS；布局 v2 中文字体栈/入 .kyu；3D 真管线）
 
-### [寮€宸 2026-08-11 kimi-code(main) 鈥?shell v0.6锛氬浘灞傞潰鏉?ArcGIS Pro 鍖?+ 鍙仠闈犻潰鏉?+ Ribbon 鍔ㄧ敾 + QGIS 宸ュ叿绠?- 鑼冨洿锛歬anyu-shell锛坧anels/ribbon/app/ui_kit + 鏂?dock/toolbox 妯″潡锛夈€乲anyu-core geoprocess 琛ラ綈銆丄RCHITECTURE/CHANGELOG 鏂囨。鍚屾銆丟itHub 鎺ㄩ€?- 渚濇嵁锛氱敤鎴峰洓鐐规寚浠わ紙鍥惧眰鍕鹃€?鍒嗙粍/鍙抽敭鑿滃崟 ArcGIS Pro 鍖栵紱闈㈡澘鎷栧姩鍋滈潬鍏抽棴锛汻ibbon 鍥炬爣鎮仠鍔ㄧ敾锛決GIS 鏍稿績鍒嗘瀽宸ュ叿閫愪釜绉绘鎴愬伐鍏风锛涘姛鑳藉唴鍚嶇О鍏ㄩ儴涓枃锛?- 棰勮锛氬ぇ锛圲I 涓夊ぇ鍧?+ 宸ュ叿绠?+ 鏂囨。锛?
-### [鏀跺伐] 2026-08-03 kimi-code(agent-5) 鈥?kanyu-shell 妗岄潰 UI MVP 钀藉湴
-- 鎻愪氦锛氳鏈 commit锛涙祴璇曪細112 鍏ㄧ豢锛坈ore 65/render 15/shell-view 8/mcp 6/gene 4/闆嗘垚 14锛夛紱楠岃瘉锛歠mt/clippy 闆惰鍛?+ 鏅ㄥ北/澶滆鏄?绌虹姸鎬佷笁鎴浘鐩 + release 鍐掔儫
-- 鍋忓樊锛歟frame/egui 0.35 API 澶у彉锛圫idePanel 骞跺叆 egui::Panel銆丄pp::update鈫扐pp::ui锛夊凡閫傞厤锛涗慨澶嶈嚜韬埅鍥剧姸鎬佹満 take() 璇悶鐘舵€?bug锛堝厓缁勬棤鏉′欢姹傚€艰嚧甯ф祦鏂锛夛紱release 鏋勫缓 1m42s锛堣繙蹇簬棰勪及锛夛紝kanyu-shell.exe 24.1MB
-- 鍚庣画锛欸UI 鎵撳寘瀹夎 + 妗岄潰蹇嵎鏂瑰紡銆屽牚鑸嗐€嶏紙宸插悓姝?搂1.2 #1锛?
-### [寮€宸 2026-08-03 kimi-code(agent-5) 鈥?kanyu-shell 妗岄潰 UI MVP 缁綔锛坅gent-3 涓€斿け鑱旀帴绠★級
-- 鑼冨洿锛歝rates/kanyu-shell锛坢ain.rs/app.rs 涓讳綋锛夈€乮ntrospect銆佹枃妗ｅ悓姝ャ€佹埅鍥鹃獙璇併€乺elease 鏋勫缓
-- 渚濇嵁锛氭€昏绗簩閮ㄥ垎 + 瑁佸喅 #5锛坋gui 鏂瑰悜锛夛紱鐢ㄦ埛鎸囦护锛堟闈㈢ UI 鎵撳寘瀹夎锛夛紱鎵挎帴 agent-3 鐜板満
-  锛坮ender viewport 鍙傛暟銆乻hell Cargo.toml銆乿iew.rs 瑙嗗浘鏁板鍧囧凡灏辩华锛?- 棰勮锛氫腑锛堜富浣撲唬鐮?+ 楠岃瘉锛沞frame/wgpu 渚濊禆鏍戝凡鍦?Cargo.lock 瑙ｆ瀽锛?
-### [鏀跺伐] 2026-08-03 kimi-code(main) 鈥?鑱斿姩鏈哄埗鏂囦欢寤虹珛
-- 鎻愪氦锛氳鏈 commit锛涗緷鎹細鐢ㄦ埛鎸囦护锛圙itHub 闀夸箙鑱斿姩鏈哄埗 + 杩唬杈圭晫鍏ヨ锛?- 鍐呭锛欰I_SYNC.md 鍒濈増锛堝崗璁?蹇収/杈圭晫/浼氱绨匡級锛汚GENTS.md 鍗忚鍏ュ彛鍗囩骇
+### [收工] 2026-08-11 kimi-code(main) — 长期项四件：kanyu-edit 增量 + 打印布局 + 性能基准 + （前两条已会签）
+- 提交：见本次 commit 组；测试：298 全绿（272→298）+ clippy 零警告 + fmt 净
+- 内容：③ kanyu-edit 新 crate（Undo/Redo 框架 + 五基础编辑命令 + GeomPath 定位，8 单测；introspect/ARCHITECTURE 登记）；④ render::layout 打印布局（A4 排版：标题/地图/图例/比例尺/指北针，SVG 完整文字；壳层布局页签与目录「布局框」兑现，导出 PNG/SVG）+ canvas composite_layers_png 按层合成；⑤ 性能基准（core::bench 确定性场景 + kanyu analysis bench 五项三档，首轮实测入 §8.1：100 万档加载 4.5s/buffer 9.3s/overlay 3.3s/sjoin 1.8s/render 3.8s，Ryzen 9 9950X；overlay 平方项坐实 rstar 路线）
+- 验证：布局页签截图目检（标题/图例/比例尺/指北针齐全）；bench 三档实跑
+- 后续：§9.1 余——壳层编辑模式（kanyu-edit 接线）、服务链接（WFS/WMS）、3D 真管线
 
-### [寮€宸 2026-08-03 kimi-code(agent-3) 鈥?kanyu-shell 妗岄潰 UI MVP
-- 鑼冨洿锛歝rates/kanyu-shell锛堟柊锛夈€乲anyu-render锛坴iewport 鎵╁睍锛夈€乤ssets/銆乮ntrospect銆佹枃妗?- 渚濇嵁锛氭€昏绗簩閮ㄥ垎 + 瑁佸喅 #5锛坋gui 鏂瑰悜锛夛紱鐢ㄦ埛鎸囦护锛堟闈㈢ UI 鎵撳寘瀹夎锛?- 棰勮锛氬ぇ锛坋frame/wgpu 渚濊禆鏍戯紝release 鏋勫缓 15-25 鍒嗛挓锛?
-<!-- 鏂版潯鐩姞鍦ㄨ繖琛屼箣涓?-->
-### [鏀跺伐] 2026-08-03 kimi-code(main) 鈥?QGIS 鏍稿績绠楁硶绉绘 + Python 鎵撻€?+ 瀹楀湴 TXT
-- 鎻愪氦锛氳鏈 commit锛涙祴璇曪細149 鍏ㄧ豢锛堝惈 parcel/toolbox 闆嗘垚娴嬭瘯锛? clippy 闆惰鍛?- 楠岃瘉锛歅ython 鐩磋皟 Rust 鍐呮牳锛坙oad/query/buffer/stats/render_png 瀹炴祴锛夛紱kanyu toolbox list/run 绔埌绔紱瀹楀湴 TXT 璇诲啓璐ㄦ寰€杩?- 鍐呭锛歡eoprocess 鍏畻娉?stats锛圦GIS 璇箟锛宬eep-first/DP/鍒犳礊闃堝€?鐐稿紑锛夛紱parcel.rs锛堝畻鍦?TXT 鍙屽悜+璐ㄦ锛屾敞鍐岃〃绗?19 鏍煎紡锛夛紱kanyu-py锛圥yO3锛?1 鍑芥暟锛? python/kanyu 鍖咃紙Layer 閾惧紡 + toolbox 杩愯鏃讹紝淇 -m 鍙屽疄渚嬪彂鐜?bug 涓?__module__ 褰掑睘鍒ゅ畾锛夛紱CLI analysis 涓冨懡浠?+ data validate + toolbox list/run锛涜鍐?#20 鍏ヨ锛涙枃妗ｅ叏閾撅紙ARCHITECTURE/API/SDK/CLI/MCP/CHANGELOG锛?- 鍋忓樊锛歞issolve 娴嬭瘯鏈熸湜鍊间慨姝ｏ紙4+4-2=6锛夛紱鍐欏嚭渚ч棴鍚堢偣澶嶇敤棣栫偣缂栧彿锛堟牸寮忔牎楠岃姹傦級
-- 鍚庣画锛毬?.2 #1 鍩虹 GIS 绉绘绗竴鎵瑰畬鎴愶紱#2 crates.io 寰?token
-### [寮€宸 2026-08-03 kimi-code(main) 鈥?QGIS 鏍稿績绠楁硶绉绘 + Rust/Python 鎵撻€氾紙kanyu-py + 宸ュ叿绠憋級
-- 鑼冨洿锛歬anyu-core/geoprocess.rs锛圦GIS 鍏畻娉?stats锛夈€乧rates/kanyu-py锛堟柊锛孭yO3锛夈€乸ython/kanyu/锛堝寘+toolbox 绾﹀畾锛夈€丆LI toolbox 鍛戒护缁勩€佹枃妗ｏ紙瑁佸喅 #20锛?- 渚濇嵁锛氱敤鎴锋寚浠わ紙QGIS 鏍稿績绠楁硶绉绘姝ｇ‘杞啓锛汻ust 鏍稿績 Python 璋冨姩锛汚rcGIS Pro .pyt 宸ュ叿绠辨柟寮忥級锛涙€昏 搂5.1 鑴氭湰灞?- 棰勮锛氬ぇ锛堟柊 crate + Python 鍖?+ CLI + 鏂囨。锛?### [寮€宸 2026-08-03 kimi-code(main) 鈥?DWG INSERT 鎷嗗潡锛堝潡鍙傜収灞曞紑锛?- 鑼冨洿锛歝rates/kanyu-core/src/dwg.rs + 娴嬭瘯 + 鏂囨。
-- 渚濇嵁锛欰I_SYNC 搂1.2 #4锛圖WG 娣卞寲锛夛紱鎬昏 搂6.4 Phase 5 閬楃暀锛泂pike 缁熻 INSERT=22.4%
-- 棰勮锛氫腑锛堢害 200 琛?+ 娴嬭瘯锛?### [鏀跺伐] 2026-08-03 kimi-code(main) 鈥?椤圭洰绾у懡鍚嶄慨姝ｏ細鍩哄洜 鈫?鎶€鑳?- 鎻愪氦锛歞88820e锛涙祴璇曪細134 鍏ㄧ豢 + clippy 闆惰鍛婏紱楠岃瘉锛歛ttr_scaler.wasm 鎸?kanyu:skill/analyzer 鏂?ABI 閲嶇紪骞堕€氳繃 wasm-tools 缁勪欢鍖栨牎楠?- 鍐呭锛歝rate/绫诲瀷/WIT ABI/MCP 宸ュ叿锛坘anyu_skill_run/skill_list锛?CLI 鍛戒护缁勶紙kanyu skill锛?UI/鍏ㄦ枃妗ｅ悓姝ユ敼鍚嶏紱鍘嗗彶璁板綍涓嶆敼鍐欙紱AGENTS.md 渚濊禆鏂瑰悜淇锛坮ender/skill 鈫?core锛沜li/mcp/shell 鈫?core+render+skill锛?- 鍚庣画锛毬?.1 kanyu-gene 琛屽簲鏀?kanyu-skill锛堜笅杞揩鐓ч『鎵嬫洿鏂帮級
-### [鏀跺伐] 2026-08-03 kimi-code(main) 鈥?妗岄潰绔?MSI 瀹夎鍖呬笌 Release 鍚屾
-- 鎻愪氦锛歱ackaging/wix/kanyu.wxs锛堝畨瑁呭寘鍗充唬鐮侊級锛涢獙璇侊細MSI magic 鏍￠獙 + msiexec /qn 闈欓粯瀹夎鍏ㄦ枃浠跺氨浣嶏紱Release v0.15.0 宸查檮鍔?`kanyu-0.15.0-x86_64.msi`锛?5MB锛屽箓绛夐噸浼狅級骞舵洿鏂板畨瑁呰鏄庯紱README 蹇€熷紑濮嬪姞 MSI 璺緞
-- 鍐呭锛歐iX v5锛坉otnet tool锛夊埗浣滅敤鎴风骇 MSI锛堝厤 UAC锛夛細GUI+CLI+MCP+鍥炬爣/璁稿彲锛屾闈€屽牚鑸嗐€嶄笌寮€濮嬭彍鍗曞揩鎹锋柟寮忥紱Util 鎵╁睍 PATH 鐜鍙橀噺鍥犳墿灞曡В鏋愬け璐ラ檷绾хЩ闄わ紙鏈満鎵嬪姩瀹夎宸查厤 PATH锛屼笉褰卞搷浜や粯锛?- 鍚庣画锛歳elease.yml 鍙姞 cargo-wix/MSI 宸ヤ欢锛圕I 鍖栵紝鍒楀叆 搂1.2锛?### [鏀跺伐] 2026-08-03 kimi-code(main) 鈥?shell v0.5锛氬洓鏍囧噯璁捐娣卞寲锛圚IG/QGIS/ArcGIS/閭锛?- 鎻愪氦锛氳鏈 commit 缁勶紱娴嬭瘯锛?34 鍏ㄧ豢 + clippy 闆惰鍛婏紱楠岃瘉锛氭祬鑹叉埅鍥句汉宸ョ‘璁わ紙QAT 涓夋寮忋€佺粍鍚嶇粍瀹藉唴灞呬腑銆丵GIS 娴忚鍣ㄦ爲鏍硅妭鐐广€丼egoe/Cascadia 瀛椾綋鏍堢敓鏁堬級
-- 鍐呭锛氳仈绯婚偖绠辩粺涓€ daomingyuan@qq.com锛汚pple HIG 鏂囨湰鍒嗙骇锛?8/22/17sb/15/13/11/12锛? 杩炵画鍦嗚锛?/10/14锛? 0.5px 鍙戜笣绾?+ Segoe UI/Cascadia Code 瀛椾綋鏍堬紱鐩綍闈㈡澘鏀?QGIS 娴忚鍣ㄦ爲锛堟牴鑺傜偣鎳掑姞杞斤級锛涘浘灞?QGIS 宸ュ叿鏍?鍙抽敭鑿滃崟+绛涢€夛紱鍔熻兘鍖?QAT 涓夋寮?- 鍋忓樊锛氭棤锛坈lippy 閫傞厤锛歴ort_by_key銆乧onst assert銆侀棴鍖?mut锛?- 鍚庣画锛毬?.2 灞炴€ч潰鏉块噸寤哄緟鐢ㄦ埛瀹氬埗锛沜rates.io 鍙戝竷浠嶅緟 token
-### [鏀跺伐] 2026-08-03 kimi-code(main) 鈥?shell v0.4锛歞esign-review 椹卞姩鐨勮璁¤凯浠?- 鎻愪氦锛? 涓師瀛愭彁浜わ紙Ribbon 鐗堝紡/Catalog 鍒嗙/瑙勮寖鍏ユ。锛夛紱娴嬭瘯锛?32 鍏ㄧ豢 + clippy 闆惰鍛婏紱楠岃瘉锛氬弻涓婚鎴浘浜哄伐纭锛圧ibbon 涓夊垎绂绘纭€佺粍鍚嶅綊浣嶃€佺洰褰曟祻瑙堝櫒鍙敤銆佹殫鑹茬晫闈?鏅ㄥ北鍦板浘锛?- 鍐呭锛歞esign-review 鎶€鑳芥矇娣€鍏?ui_kit 瑙勮寖锛汣atalog 鏂囦欢娴忚鍣紙蹇嵎浣嶇疆/闈㈠寘灞?鏁版嵁鏂囦欢杩囨护/鍙屽嚮鍔犺浇锛夛紱宸︿晶鍙岄〉绛撅紙鐩綍|鍥惧眰锛夛紱Ribbon 鐗堝紡绯荤粺淇锛堝惈缁勫悕妯法绐楀彛瀹氫綅 bug锛夛紱鍒犻櫎鍙充晶灞炴€ч潰鏉匡紙寰呯敤鎴峰畾鍒讹級
-- 鍋忓樊锛氭棤锛堣鍒掑淇锛氱粍鍚嶅畾浣嶃€佸€熺敤鍐茬獊銆丮B/GB 甯搁噺浣滅敤鍩燂級
-- 鍚庣画锛毬?.2 灞炴€ч潰鏉块噸寤哄緟鐢ㄦ埛瀹氬埗瑕佹眰锛沜rates.io 鍙戝竷浠嶅緟 token
-### [鏀跺伐] 2026-08-03 kimi-code(main) 鈥?kanyu-shell v0.3 + KDB/KYU 鍙屾牸寮忓畾鐗?- 鎻愪氦锛氳鏈 commit锛涙祴璇曪細130 鍏ㄧ豢 + clippy 闆惰鍛婏紱楠岃瘉锛氬弻涓婚鎴浘浜哄伐纭锛堝浘鏍囧ぇ鎸夐挳鐗堝紡姝ｇ‘锛?*鐣岄潰澶滆鏄?+ 鍦板浘鍥哄畾鏅ㄥ北**瑙ｈ€﹀疄璇侊級锛汯DB 绔埌绔紙geojson鈫択db鈫抜nfo/query锛?- 鍐呭锛歶i_kit::icons 33 鏋氱嚎鎬у浘鏍?+ ribbon_button/tab_strip/tree_row/password_input锛汣ontents 楠ㄦ灦鐩綍锛堝純鍗＄墖寮忥級锛涘簳閮ㄥ弻椤电锛堢粓绔瘄AI 瀵硅瘽锛夛紱ai.rs 鍙岄┍鍔紙LocalDriver 鎰忓浘寮曟搸 + OpenAiDriver/ureq锛夛紱MapThemeMode 鍦板浘鑹插僵瑙ｈ€︼紱KDB锛圓rrow IPC+kanyu.*锛変笌 KYU锛圝SON 娓呭崟锛夊叆 core + 娉ㄥ唽琛ㄧ 18 鏍煎紡 + 鍏ㄦ牸寮忚浆鎹紱鏂囨。鍗囩骇锛堣鍐?#19銆伮?.5 鏍煎紡鑺傘€丄RCHITECTURE/API/README/CHANGELOG/CLI/MCP锛?- 鍋忓樊锛歳ibbon 闈欐€佺粍甯冨眬鏀?Vec锛沺ainter.arc 涓嶅瓨鍦ㄦ敼鎶樼嚎杩戜技锛況ibbon_button 鐗堝紡涓€娆′慨姝ｏ紙鎸夐挳 min_size 鎾戞弧 64脳52锛夛紱ureq 3 API 閫傞厤锛坔eader/send/read_to_string锛?- 鍚庣画锛毬?.2 寰呭姙 #2 鍥炬爣宸查棴鐜紱GUI 瀹夎涓庡揩鎹锋柟寮忔部鐢紙鏈鍚屾鏇存柊 kanyu-shell.exe锛?### [寮€宸 2026-08-03 kimi-code(main) 鈥?kanyu-shell v0.3锛欰rcGIS Pro 寮忔繁搴﹀崌绾?- 鑼冨洿锛歶i_kit锛坕cons/ribbon_button/tab_strip/tree_row/chat_bubble锛夈€乸anels锛堥鏋剁洰褰?鍙岄〉绛撅級銆乺ibbon锛堝浘鏍囨寜閽?缁勭粏鍒嗭級銆乤i.rs锛堥┍鍔?璁剧疆锛夈€乤pp锛堝湴鍥捐壊褰╄В鑰︼級銆佹枃妗?- 渚濇嵁锛氱敤鎴峰叓鐐规寚浠わ紱鎬昏 搂1.4 鍥炬爣绯荤粺/搂2.1 UI 鏋舵瀯锛涜鍒掓枃浠?hawkman-scarlet-witch-miss-martian.md
-- 棰勮锛氬ぇ锛堢害 2000+ 琛屽彉鏇达級
-### [鏀跺伐] 2026-08-03 kimi-code(main) 鈥?GUI 瀹夎涓庢闈㈠揩鎹锋柟寮忛棴鐜?- 鍐呭锛歬anyu-shell.exe锛圙UI 瀛愮郴缁燂紝PE 楠岃瘉锛夊畨瑁呰嚦 Programs\kanyu锛涙闈?**鍫垎.lnk**锛圙UI 鐩村惎 + 鍑ら笩鍥炬爣锛変笌 **鍫垎缁堢.lnk**锛坵t + kanyu introspect锛夊垱寤哄苟鏍￠獙锛堜腑鏂囧悕姝ｇ‘锛?- 鍋忓樊锛歅owerShell 5.1 鏃?BOM 鎸?ANSI 璇?UTF-8 鑴氭湰鑷撮杞揩鎹锋柟寮忔枃浠跺悕涔辩爜鈥斺€旀竻闄ゅ悗浠ュ甫 BOM 鑴氭湰閲嶅缓锛堟暀璁叆妗ｏ細PS 鑴氭湰涓€寰嬪甫 BOM 鎴栧叏 ASCII锛?- 鍚庣画锛毬?.2 寰呭姙 #1/#2 宸查棴鐜?### [鏀跺伐] 2026-08-03 kimi-code(main) 鈥?kanyu-shell v0.2 娣卞害 UI 鏀瑰缓钀藉湴
-- 鎻愪氦锛氳鏈 commit锛涙祴璇曪細119 鍏ㄧ豢 + clippy 闆惰鍛婏紱楠岃瘉锛氬弻涓婚鎴浘浜哄伐纭锛圧ibbon/缁堢/闈㈡澘/瀵硅瘽妗嗛綈澶囷級
-- 鍐呭锛歶i_kit 璁捐绯荤粺锛坱okens/controls/containers + 閾佸緥鍏?AGENTS.md #8锛夛紱涓冮〉绛?Ribbon锛涚嫭绔嬬粓绔紙鍐呮牳鐩撮┍锛夛紱鍙仠闈犻潰鏉匡紱11 绫诲璇濇锛涙妧鑳藉叆澹筹紱Layer::from_collection
-- 鍋忓樊锛氬瓙浠ｇ悊锛坅gent-5锛夊洜閰嶉涓柇锛屼富浣撶敱涓荤嚎绋嬪畬鎴愶紱ribbon 缁勯潤鎬佸竷灞€鏀?Vec锛堥潤鎬佹彁鍗囧彈闄愶級锛涙棤鍏朵粬鍋忓樊
-- 鍚庣画锛欸UI 瀹夎 + 妗岄潰蹇嵎鏂瑰紡"鍫垎"锛堟湰娆℃敹灏鹃棴鐜級
-### [寮€宸 2026-08-03 kimi-code(main) 鈥?kanyu-shell v0.2 娣卞害 UI 鏀瑰缓锛圓rcGIS Pro Ribbon + 鐙珛缁堢 + bitfun 鍗＄墖瑙嗚锛?- 鑼冨洿锛歝rates/kanyu-shell 鍏ㄩ潰閲嶆瀯锛坮ibbon/panels/console/dialogs/theme 妯″潡鍖栵級銆乲anyu-skill 鎺ョ嚎鍏?shell銆佹枃妗ｄ笌浼氱绨?- 渚濇嵁锛氱敤鎴锋寚浠わ紙鍊熼壌 ArcGIS Pro 鍒嗙被璁捐 + 鐙珛缁堢 + bitfun 璁捐鎬濊矾锛夛紱鎬昏绗簩閮ㄥ垎
-- 棰勮锛氬ぇ锛堢害 1500+ 琛屾柊浠ｇ爜锛?### [寮€宸 2026-08-11 kimi-code(main) 鈥?ArcGIS Pro 浣嶅浘鍥炬爣鎺ュ叆锛堟湰鏈鸿祫婧愬弻杞ㄥ埗锛?- 鑼冨洿锛歬anyu-shell ui_kit/icons.rs锛圛conCache/draw_or_image/arcgis_resource_name 鏄犲皠琛級銆乧ontrols.rs銆乺ibbon.rs銆乤pp.rs锛汚GENTS.md 鍔犲浘鏍囧伐浣滄祦
-- 渚濇嵁锛氱敤鎴锋寚浠わ紙鎸?Esri DAML-ID 鍥炬爣涓嬭浇璋冪敤銆佷富棰橀鏍间紭鍖栥€佷緵鍚庣画鎵╁睍锛夛紱鎬昏 搂1.4 鍥炬爣绯荤粺
-- 璁稿彲杈圭晫锛欵sri 浣嶅浘 PNG 浠呭瓨鏈満 %LOCALAPPDATA%\Programs\kanyu\icons\锛坙ight 10916 + dark 10900锛屾彁鍙栬嚜鐢ㄦ埛宸叉巿鏉?ArcGIS Pro 瀹夎锛夛紝涓嶈繘浠撳簱鍐嶅垎鍙戯紱浠撳簱淇濈暀鎵嬬粯鍥為€€
-- 棰勮锛氫腑锛堢害 200 琛屽彉鏇达級
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?ArcGIS Pro 浣嶅浘鍥炬爣鎺ョ嚎闂幆
-- 鎻愪氦锛?756bc2锛涙祴璇曪細149 鍏ㄧ豢 + clippy 闆惰鍛婏紱楠岃瘉锛氭櫒灞?澶滆鏄熷弻涓婚鎴浘鐩锛圧ibbon 澶ф寜閽?ArcGIS 褰╄壊浣嶅浘娓呮櫚銆乨ark 涓婚鍙?darkimages 鍙樹綋锛夛紱release exe 47.8MB 宸插悓姝ュ畨瑁呰嚦 Programs\kanyu
-- 鍐呭锛欼conCache锛堟湰鏈?icons 鐩綍鎺㈡祴 + 涓婚绾圭悊缂撳瓨锛宼iny-skia 瑙ｇ爜锛夈€乨raw_or_image() 鍙岃建鍏ュ彛銆乤rcgis_resource_name() 33 鏋氭槧灏勮〃锛堟墿灞曠櫥璁扮偣锛夛紱ribbon_button/qat_button/Ribbon::ui 鍏ㄩ摼鎺ョ嚎锛汚GENTS.md 鍔犲浘鏍囧伐浣滄祦涓庤鍙竟鐣?- 鏈満璧勬簮锛歩cons light 10916 + dark 10900 PNG锛堟彁鍙栬嚜鐢ㄦ埛宸叉巿鏉?ArcGIS Pro 瀹夎锛屾湭鍏ヤ粨搴擄級
-- 鍋忓樊锛歝lippy map_entry 鏀?entry API锛汭con::Gene 鏀瑰悕閬楁紡淇锛圫kill锛?- 鍚庣画锛氱洰褰曟爲/鍥惧眰鏍戣鍥炬爣浠嶈蛋鎵嬬粯 draw锛坱ree_row 鏈帴绾匡紝鍙悗缁瘎浼帮級锛沜rates.io 鍙戝竷浠嶅緟 token
-### [鏀跺伐] 2026-08-11 kimi-code(main) 鈥?鏍戣鍥炬爣浣嶅浘鍙岃建鎺ョ嚎锛堝浘鏍囦换鍔″畬鍏ㄩ棴鐜級
-- 鎻愪氦锛歞3830c0锛涙祴璇曪細149 鍏ㄧ豢 + clippy 闆惰鍛婏紱楠岃瘉锛氬弻涓婚鎴浘鐩锛堢洰褰曟爲鍘熺敓鏂囦欢澶逛綅鍥俱€乨ark 鍙樹綋姝ｇ‘锛夛紱release exe 宸插悓姝ュ畨瑁咃紙杩愯涓疄渚嬬敤鏀瑰悕鏇挎崲娉曟洿鏂帮級
-- 鍐呭锛欼con 鏋氫妇 33鈫?7锛團olderPlain/Project/Database/Cad 鐩綍鏍戜笓鐢紝鎵嬬粯鍥為€€濮旀墭鏃㈡湁鐢绘硶锛夛紱tree_row/render_node/layers_tree/left_dock 鍏ㄩ摼 IconCache锛涚洰褰曡妭鐐硅涔夋牎姝ｏ紙鏂囦欢澶逛笉鍐嶇敤 folder+鍔犲彿锛?kyu/.kdb/.dwg/.dxf 鍚勬湁涓撶敤浣嶅浘锛?- 鍚庣画锛氬浘鏍囦綋绯诲畬鍏ㄩ棴鐜紙Ribbon + QAT + 鐩綍鏍?+ 鍥惧眰鏍戯級锛沜rates.io 鍙戝竷浠嶅緟 token
+### [收工] 2026-08-11 kimi-code(main) — 长期项两件：MCP 工具面收敛 + UI 状态持久化
+- 提交：见本次 commit 组；测试：272 全绿（mcp 6→9、shell 90→94）+ clippy 零警告 + fmt 净
+- 内容：① MCP 新增 kanyu_toolbox_list/toolbox_run（tooldef 注册表投影 + toolrun 统一执行 + SEP-2663 白名单第 7 席），introspect 登记，MCP.md §3.19/3.20——三面一处声明收敛落地；② uistate.rs：停靠/收藏/最近/缩放/地图色彩/工程坐标系/视图清单落盘 %LOCALAPPDATA%\kanyu\ui-state.json（1s 防抖+on_exit 写盘，坏文件 .bad 备份回退），两轮启动截图实证恢复链路
+- 偏差：无（目录展开状态取舍为不存，注释注明）
+- 后续：§9.1 余下——性能基准实测、编辑内核、布局框/服务链接
+
+### [收工] 2026-08-11 kimi-code(main) — v0.19.0：面板滚动加固 + 地图框吸附 + 符号化 + 目录分类 + 参数类型规范 + 配色体系
+- 提交：见本次 commit 组；测试：265 全绿（252→265 六阶段累计）+ clippy 零警告 + fmt 净
+- 验证：截图集目检（35 图层/5000 要素滚动压力、吸附页签+浮动窗同框、纯白画布双主题、符号化展开与属性页、目录五分类、工具对话框警告态、双主题配色）；render 纯白背景单测；MSI 升级安装 + 装机冒烟
+- 内容：① 面板滚动契约审计修复（图层面板空白右键菜单无穷高真实缺陷等 5 处）；② 中央视图停靠区（地图框页签吸附/浮动互转/主视图恒在）+ 画布纯白（RenderOptions.background 覆盖，render 单测四角像素）；③ symbology.rs 符号化（单色/唯一值/分级三方式三色带）+ 按层渲染叠图 + Contents 分类展开行 + 图层属性页（常规/源/字段/符号化），入 .kyu；④ catalog.rs 工程目录五分类（地图框/布局框/数据库/服务链接/本机数据，.kyu 双击修正为打开工程）；⑤ 工具参数类型对齐 ArcGIS Python 工具箱规范（多值图层/整数/布尔/坐标系/线性单位/范围/输出文件；输入/输出分组；校验错误/警告/信息三级；统一对话框骨架；后台线程执行 + 进度模态可取消 + 终端三级日志）；⑥ palette 语义色扩展（success/warning/link/accent_light/accent_strong + disabled 派生，WCAG 测试扩展）+ tokens::state 状态色派生固化 + 主题切换 0.2s 交叉淡化 + 选中 0.12s 淡入；版本 0.18.0→0.19.0；docs 全链
+- 偏差：gallery 控件仍无消费场景未建；进度模态为瞬态以状态机单测+走查覆盖（算法多在帧内完成）
+- 后续：ARCHITECTURE §9.1 五条（编辑内核主线/MCP 收敛/性能实测/UI 状态持久化/布局框与服务链接兑现）；MSI 附 Release 待 gh CLI
+
+### [开工] 2026-08-11 kimi-code(main) — v0.19.0：面板滚动加固 + 地图框中央吸附 + 图层符号化 + 目录分类 + 配色丰富化
+- 范围：kanyu-shell（面板滚动/中央视图页签/canvas 按层渲染/symbology/catalog/theme/ui_kit）、kanyu-render（RenderOptions 背景参数）、docs 全链
+- 依据：用户六点指令（面板滚动布局；地图框吸附+纯白+默认打开；图层属性；图层展开符号化分类；目录五分类；配色丰富化）；计划文件 kamala-khan-us-agent-black-canary.md
+- 预计：大（六阶段）
+
+### [收工] 2026-08-11 kimi-code(main) — v0.18.0：UI ArcGIS Pro SDK 范式重组 + 属性表 + 多视图 3D + CRS 完善 + SDK 打通
+- 提交：见本次 commit 组；测试：252 全绿（212→252 六阶段累计）+ clippy 零警告 + fmt 净；Python 冒烟 22 断言全过（Python 3.13）
+- 验证：截图集目检（双主题/工具对话框帮助区/属性表/字段计算器预览/3D 棱柱/125%·150% 缩放/跨区停靠回流）；MSI magic + 升级安装（kanyu 0.18.0 覆盖正确）+ 装机截图冒烟
+- 内容：① commands.rs 声明式命令注册表（32 命令，DAML 范式投影 Ribbon/QAT/右键菜单 + 条件置灰）；② toolbox/ 拆分（params 参数组件独立模块 + ArcGIS Pro 式对话框：焦点帮助/内联校验/运行门控/收藏/最近使用）；③ attrcalc.rs 字段计算器表达式引擎（NULL 传播/QGIS 语义）+ attrtable.rs 属性表（虚拟滚动/排序/筛选/字段 CRUD/计算器预览）；④ mapview.rs 多地图视图 + scene3d.rs 实验 3D 棱柱（背面剔除/深度排序/高度字段驱动）；⑤ crs.rs 全库检索（7507 条 CrsInfo/search_crs，轴序实测 GIS 序一致无需修正，4490→4527 ±1m 断言）；⑥ UI 国际规范（WCAG 2.2 对比度单测强制：晨山朱砂调 0xB14E32 达 4.79:1；指针目标 24px；界面缩放 100/125/150% 等比实证；停靠跨区回流修复）；⑦ tooldef/toolrun 下沉 core（37 工具一处声明，壳层/CLI/Python 三面投影）；⑧ kanyu-py 21→48 绑定 + Layer 28 链式方法 + toolbox registry 命令；⑨ ui_kit 扩件 menu_button/spinner/toast；版本 0.17.0→0.18.0；docs 全链
+- 偏差：gallery 控件未建（无消费场景，不为建而建）；4547 实测为 CGCS2000 CM 114E 非北京54（已注释更正抽测清单）
+- 后续：ARCHITECTURE §9.1 五条（编辑内核主线/MCP 收敛收尾/性能实测/UI 状态持久化/3D 真管线化）；MSI 附 Release 待 gh CLI
+
+### [开工] 2026-08-11 kimi-code(main) — v0.18.0：工具箱 ArcGIS Pro 化 + 属性表 + 多地图视图 + CRS 完善 + SDK 打通
+- 范围：kanyu-core（crs 增强、attrcalc 新模块、tooldef 下沉）、kanyu-shell（commands 注册表/toolbox 拆分/ui_kit 扩件/attrtable/地图多视图）、kanyu-py（绑定补齐）、docs 全链
+- 依据：用户四点指令（工具箱 ArcGIS Pro 化组件独立组合；图层+属性表+字段计算器；地图视图窗口化 2D/3D+坐标系完善；参照 ArcGIS Pro SDK GitHub 文档重组 UI 并保 SDK 可调）；计划文件 she-hulk-static-red-star.md
+- 预计：大（六阶段）
+
+### [收工] 2026-08-11 kimi-code(main) — v0.17.0：geoprocess 第三批移植 + 工具箱 37 + 打包单入口
+- 提交：见本次 commit 组；测试：212 全绿（199→212，core 104）+ clippy 零警告 + fmt 净
+- 验证：工具箱面板截图目检（37 工具分类树：矢量分析 12/矢量几何 12/数据管理 6）；MSI magic + msiexec /qn 静默安装验证（开始菜单仅「堪舆」、桌面仅「堪舆」、kanyu.exe 随包在位）
+- 内容：① geoprocess 第三批 10 算法（distance_matrix+DistanceMatrix/nearest_neighbor+NearestNeighborReport/multi_ring_buffer/variable_buffer/split_by_field/add_geometry_attributes/create_grid/points_along_lines/concave_hull/minimum_rotated_rect，geo ConcaveHull/MinimumRotatedRect/InterpolateLine 直用未降级，各配语义测试）；② toolbox.rs 扩编 27→37（ParamKind::NumberList、ToolOutcome::NewLayers、创建网格范围预填当前数据范围）；③ 打包单入口：wxs 去「堪舆终端」开始菜单快捷方式（kanyu.exe 保留供 MCP 直调）、README 同步、内置终端欢迎语去旧版本号；④ 版本 0.16.0→0.17.0；MASTERPLAN §6.4/ARCHITECTURE §2+§9.1/CHANGELOG [0.17.0]/API.md §15 全链同步
+- 偏差：无（本机无既有「堪舆终端」快捷方式残留，无需清理）
+- 后续：ARCHITECTURE §9.1 五条路线推荐不变（属性表/编辑内核为主线）；crates.io 发布仍待 token
+
+### [开工] 2026-08-11 kimi-code(main) — v0.17.0：geoprocess 第三批移植 + 工具箱扩编 + 打包单入口
+- 范围：kanyu-core geoprocess（第三批 10 算法）、kanyu-shell toolbox 注册、packaging/wix（去「堪舆终端」快捷方式）、docs（MASTERPLAN/ARCHITECTURE/CHANGELOG/README）、AI_SYNC
+- 依据：用户指令（按功能计划继续移植；打包不出现独立堪舆终端，全部集成）；总规 §6.4 Phase 1.5；ARCHITECTURE §9.1
+- 预计：大（10 算法 + 工具箱 27→37 + MSI 重制与本机清理）
+
+### [收工] 2026-08-11 kimi-code(main) — shell v0.6：图层面板 ArcGIS Pro 化 + 停靠系统 + Ribbon 动画 + QGIS 工具箱 + 设置组件
+- 提交：见本次 commit 组；测试：199 全绿（159→174→182→199 四阶段累计）+ clippy 零警告 + fmt 净
+- 验证：九张截图目检（双主题默认布局/分组场景/演示停靠：终端浮动+AI 对话右靠+目录关闭/工具箱树/设置对话框/工具参数对话框）
+- 内容：① Contents 图层面板（toc.rs 纯函数目录树：复选框显隐、嵌套分组、组路径入 .kyu、全中文右键菜单含排序/分组操作）；② dock.rs 三区停靠系统（目录/图层/终端/AI 对话/工具箱拖拽停靠、浮动窗、关闭+视图重开）；③ toolbox.rs QGIS 式工具箱（27 工具 5 分类声明式注册表 + 通用参数表单）；④ settings.rs 独立设置（坐标系选择 validate_crs 校验入 .kyu/状态栏；渲染设置自功能区迁入）；⑤ Ribbon 悬停/按下/页签下划线动画（tokens::animation）；⑥ geoprocess 第二批 8 算法（boundary/bounding_boxes/merge/extract_by_attribute/extract_by_location/count_points_in_polygon/field_stats/mean_coordinates + FieldStats）；⑦ project.rs ProjectLayer.group 向后兼容字段；版本 0.15.0→0.16.0；ARCHITECTURE/CHANGELOG/API/README/AGENTS 全链同步
+- 偏差：无（egui 0.35 适配：content_rect/is_decidedly_dragging；geo 无 Boundary 按 OGC/QGIS 语义手写）
+- 后续：ARCHITECTURE §9.1 五条路线推荐（属性表/编辑内核、工具箱与 MCP 收敛、§8 性能实测、DockState 持久化、工具箱接 AI 意图）；crates.io 发布仍待 token
+
+### [开工] 2026-08-11 kimi-code(main) — shell v0.6：图层面板 ArcGIS Pro 化 + 可停靠面板 + Ribbon 动画 + QGIS 工具箱
+- 范围：kanyu-shell（panels/ribbon/app/ui_kit + 新 dock/toolbox 模块）、kanyu-core geoprocess 补齐、ARCHITECTURE/CHANGELOG 文档同步、GitHub 推送
+- 依据：用户四点指令（图层勾选/分组/右键菜单 ArcGIS Pro 化；面板拖动停靠关闭；Ribbon 图标悬停动画；QGIS 核心分析工具逐个移植成工具箱；功能内名称全部中文）
+- 预计：大（UI 三大块 + 工具箱 + 文档）
+
+### [收工] 2026-08-03 kimi-code(agent-5) — kanyu-shell 桌面 UI MVP 落地
+- 提交：见本次 commit；测试：112 全绿（core 65/render 15/shell-view 8/mcp 6/gene 4/集成 14）；验证：fmt/clippy 零警告 + 晨山/夜观星/空状态三截图目检 + release 冒烟
+- 偏差：eframe/egui 0.35 API 大变（SidePanel 并入 egui::Panel、App::update→App::ui）已适配；修复自身截图状态机 take() 误吞状态 bug（元组无条件求值致帧流断裂）；release 构建 1m42s（远快于预估），kanyu-shell.exe 24.1MB
+- 后续：GUI 打包安装 + 桌面快捷方式「堪舆」（已同步 §1.2 #1）
+
+### [开工] 2026-08-03 kimi-code(agent-5) — kanyu-shell 桌面 UI MVP 续作（agent-3 中途失联接管）
+- 范围：crates/kanyu-shell（main.rs/app.rs 主体）、introspect、文档同步、截图验证、release 构建
+- 依据：总规第二部分 + 裁决 #5（egui 方向）；用户指令（桌面端 UI 打包安装）；承接 agent-3 现场
+  （render viewport 参数、shell Cargo.toml、view.rs 视图数学均已就绪）
+- 预计：中（主体代码 + 验证；eframe/wgpu 依赖树已在 Cargo.lock 解析）
+
+### [收工] 2026-08-03 kimi-code(main) — 联动机制文件建立
+- 提交：见本次 commit；依据：用户指令（GitHub 长久联动机制 + 迭代边界入规）
+- 内容：AI_SYNC.md 初版（协议/快照/边界/会签簿）；AGENTS.md 协议入口升级
+
+### [开工] 2026-08-03 kimi-code(agent-3) — kanyu-shell 桌面 UI MVP
+- 范围：crates/kanyu-shell（新）、kanyu-render（viewport 扩展）、assets/、introspect、文档
+- 依据：总规第二部分 + 裁决 #5（egui 方向）；用户指令（桌面端 UI 打包安装）
+- 预计：大（eframe/wgpu 依赖树，release 构建 15-25 分钟）
+
+<!-- 新条目加在这行之上 -->
+### [收工] 2026-08-03 kimi-code(main) — QGIS 核心算法移植 + Python 打通 + 宗地 TXT
+- 提交：见本次 commit；测试：149 全绿（含 parcel/toolbox 集成测试）+ clippy 零警告
+- 验证：Python 直调 Rust 内核（load/query/buffer/stats/render_png 实测）；kanyu toolbox list/run 端到端；宗地 TXT 读写质检往返
+- 内容：geoprocess 六算法+stats（QGIS 语义，keep-first/DP/删洞阈值/炸开）；parcel.rs（宗地 TXT 双向+质检，注册表第 19 格式）；kanyu-py（PyO3，21 函数）+ python/kanyu 包（Layer 链式 + toolbox 运行时，修复 -m 双实例发现 bug 为 __module__ 归属判定）；CLI analysis 七命令 + data validate + toolbox list/run；裁决 #20 入规；文档全链（ARCHITECTURE/API/SDK/CLI/MCP/CHANGELOG）
+- 偏差：dissolve 测试期望值修正（4+4-2=6）；写出侧闭合点复用首点编号（格式校验要求）
+- 后续：§1.2 #1 基础 GIS 移植第一批完成；#2 crates.io 待 token
+### [开工] 2026-08-03 kimi-code(main) — QGIS 核心算法移植 + Rust/Python 打通（kanyu-py + 工具箱）
+- 范围：kanyu-core/geoprocess.rs（QGIS 六算法+stats）、crates/kanyu-py（新，PyO3）、python/kanyu/（包+toolbox 约定）、CLI toolbox 命令组、文档（裁决 #20）
+- 依据：用户指令（QGIS 核心算法移植正确转写；Rust 核心 Python 调动；ArcGIS Pro .pyt 工具箱方式）；总规 §5.1 脚本层
+- 预计：大（新 crate + Python 包 + CLI + 文档）
+### [开工] 2026-08-03 kimi-code(main) — DWG INSERT 拆块（块参照展开）
+- 范围：crates/kanyu-core/src/dwg.rs + 测试 + 文档
+- 依据：AI_SYNC §1.2 #4（DWG 深化）；总规 §6.4 Phase 5 遗留；spike 统计 INSERT=22.4%
+- 预计：中（约 200 行 + 测试）
+### [收工] 2026-08-03 kimi-code(main) — 项目级命名修正：基因 → 技能
+- 提交：d88820e；测试：134 全绿 + clippy 零警告；验证：attr_scaler.wasm 按 kanyu:skill/analyzer 新 ABI 重编并通过 wasm-tools 组件化校验
+- 内容：crate/类型/WIT ABI/MCP 工具（kanyu_skill_run/skill_list）/CLI 命令组（kanyu skill）/UI/全文档同步改名；历史记录不改写；AGENTS.md 依赖方向修正（render/skill ← core；cli/mcp/shell ← core+render+skill）
+- 后续：§1.1 kanyu-gene 行应改 kanyu-skill（下轮快照顺手更新）
+### [收工] 2026-08-03 kimi-code(main) — 桌面端 MSI 安装包与 Release 同步
+- 提交：packaging/wix/kanyu.wxs（安装包即代码）；验证：MSI magic 校验 + msiexec /qn 静默安装全文件就位；Release v0.15.0 已附加 `kanyu-0.15.0-x86_64.msi`（25MB，幂等重传）并更新安装说明；README 快速开始加 MSI 路径
+- 内容：WiX v5（dotnet tool）制作用户级 MSI（免 UAC）：GUI+CLI+MCP+图标/许可，桌面「堪舆」与开始菜单快捷方式；Util 扩展 PATH 环境变量因扩展解析失败降级移除（本机手动安装已配 PATH，不影响交付）
+- 后续：release.yml 可加 cargo-wix/MSI 工件（CI 化，列入 §1.2）
+### [收工] 2026-08-03 kimi-code(main) — shell v0.5：四标准设计深化（HIG/QGIS/ArcGIS/邮箱）
+- 提交：见本次 commit 组；测试：134 全绿 + clippy 零警告；验证：浅色截图人工确认（QAT 三段式、组名组宽内居中、QGIS 浏览器树根节点、Segoe/Cascadia 字体栈生效）
+- 内容：联系邮箱统一 daomingyuan@qq.com；Apple HIG 文本分级（28/22/17sb/15/13/11/12）+ 连续圆角（6/10/14）+ 0.5px 发丝线 + Segoe UI/Cascadia Code 字体栈；目录面板改 QGIS 浏览器树（根节点懒加载）；图层 QGIS 工具栏+右键菜单+筛选；功能区 QAT 三段式
+- 偏差：无（clippy 适配：sort_by_key、const assert、闭包 mut）
+- 后续：§1.2 属性面板重建待用户定制；crates.io 发布仍待 token
+### [收工] 2026-08-03 kimi-code(main) — shell v0.4：design-review 驱动的设计迭代
+- 提交：3 个原子提交（Ribbon 版式/Catalog 分离/规范入档）；测试：132 全绿 + clippy 零警告；验证：双主题截图人工确认（Ribbon 三分离正确、组名归位、目录浏览器可用、暗色界面+晨山地图）
+- 内容：design-review 技能沉淀入 ui_kit 规范；Catalog 文件浏览器（快捷位置/面包屑/数据文件过滤/双击加载）；左侧双页签（目录|图层）；Ribbon 版式系统修复（含组名横跨窗口定位 bug）；删除右侧属性面板（待用户定制）
+- 偏差：无（计划外修复：组名定位、借用冲突、MB/GB 常量作用域）
+- 后续：§1.2 属性面板重建待用户定制要求；crates.io 发布仍待 token
+### [收工] 2026-08-03 kimi-code(main) — kanyu-shell v0.3 + KDB/KYU 双格式定版
+- 提交：见本次 commit；测试：130 全绿 + clippy 零警告；验证：双主题截图人工确认（图标大按钮版式正确；**界面夜观星 + 地图固定晨山**解耦实证）；KDB 端到端（geojson→kdb→info/query）
+- 内容：ui_kit::icons 33 枚线性图标 + ribbon_button/tab_strip/tree_row/password_input；Contents 骨架目录（弃卡片式）；底部双页签（终端|AI 对话）；ai.rs 双驱动（LocalDriver 意图引擎 + OpenAiDriver/ureq）；MapThemeMode 地图色彩解耦；KDB（Arrow IPC+kanyu.*）与 KYU（JSON 清单）入 core + 注册表第 18 格式 + 全格式转换；文档升级（裁决 #19、§3.5 格式节、ARCHITECTURE/API/README/CHANGELOG/CLI/MCP）
+- 偏差：ribbon 静态组布局改 Vec；painter.arc 不存在改折线近似；ribbon_button 版式一次修正（按钮 min_size 撑满 64×52）；ureq 3 API 适配（header/send/read_to_string）
+- 后续：§1.2 待办 #2 图标已闭环；GUI 安装与快捷方式沿用（本次同步更新 kanyu-shell.exe）
+### [开工] 2026-08-03 kimi-code(main) — kanyu-shell v0.3：ArcGIS Pro 式深度升级
+- 范围：ui_kit（icons/ribbon_button/tab_strip/tree_row/chat_bubble）、panels（骨架目录+双页签）、ribbon（图标按钮+组细分）、ai.rs（驱动+设置）、app（地图色彩解耦）、文档
+- 依据：用户八点指令；总规 §1.4 图标系统/§2.1 UI 架构；计划文件 hawkman-scarlet-witch-miss-martian.md
+- 预计：大（约 2000+ 行变更）
+### [收工] 2026-08-03 kimi-code(main) — GUI 安装与桌面快捷方式闭环
+- 内容：kanyu-shell.exe（GUI 子系统，PE 验证）安装至 Programs\kanyu；桌面 **堪舆.lnk**（GUI 直启 + 凤鸟图标）与 **堪舆终端.lnk**（wt + kanyu introspect）创建并校验（中文名正确）
+- 偏差：PowerShell 5.1 无 BOM 按 ANSI 读 UTF-8 脚本致首轮快捷方式文件名乱码——清除后以带 BOM 脚本重建（教训入档：PS 脚本一律带 BOM 或全 ASCII）
+- 后续：§1.2 待办 #1/#2 已闭环
+### [收工] 2026-08-03 kimi-code(main) — kanyu-shell v0.2 深度 UI 改建落地
+- 提交：见本次 commit；测试：119 全绿 + clippy 零警告；验证：双主题截图人工确认（Ribbon/终端/面板/对话框齐备）
+- 内容：ui_kit 设计系统（tokens/controls/containers + 铁律入 AGENTS.md #8）；七页签 Ribbon；独立终端（内核直驱）；可停靠面板；11 类对话框；技能入壳；Layer::from_collection
+- 偏差：子代理（agent-5）因配额中断，主体由主线程完成；ribbon 组静态布局改 Vec（静态提升受限）；无其他偏差
+- 后续：GUI 安装 + 桌面快捷方式"堪舆"（本次收尾闭环）
+### [开工] 2026-08-03 kimi-code(main) — kanyu-shell v0.2 深度 UI 改建（ArcGIS Pro Ribbon + 独立终端 + bitfun 卡片视觉）
+- 范围：crates/kanyu-shell 全面重构（ribbon/panels/console/dialogs/theme 模块化）、kanyu-skill 接线入 shell、文档与会签簿
+- 依据：用户指令（借鉴 ArcGIS Pro 分类设计 + 独立终端 + bitfun 设计思路）；总规第二部分
+- 预计：大（约 1500+ 行新代码）
+### [开工] 2026-08-11 kimi-code(main) — ArcGIS Pro 位图图标接入（本机资源双轨制）
+- 范围：kanyu-shell ui_kit/icons.rs（IconCache/draw_or_image/arcgis_resource_name 映射表）、controls.rs、ribbon.rs、app.rs；AGENTS.md 加图标工作流
+- 依据：用户指令（按 Esri DAML-ID 图标下载调用、主题风格优化、供后续扩展）；总规 §1.4 图标系统
+- 许可边界：Esri 位图 PNG 仅存本机 %LOCALAPPDATA%\Programs\kanyu\icons\（light 10916 + dark 10900，提取自用户已授权 ArcGIS Pro 安装），不进仓库再分发；仓库保留手绘回退
+- 预计：中（约 200 行变更）
+### [收工] 2026-08-11 kimi-code(main) — ArcGIS Pro 位图图标接线闭环
+- 提交：0756bc2；测试：149 全绿 + clippy 零警告；验证：晨山/夜观星双主题截图目检（Ribbon 大按钮 ArcGIS 彩色位图清晰、dark 主题取 darkimages 变体）；release exe 47.8MB 已同步安装至 Programs\kanyu
+- 内容：IconCache（本机 icons 目录探测 + 主题纹理缓存，tiny-skia 解码）、draw_or_image() 双轨入口、arcgis_resource_name() 33 枚映射表（扩展登记点）；ribbon_button/qat_button/Ribbon::ui 全链接线；AGENTS.md 加图标工作流与许可边界
+- 本机资源：icons light 10916 + dark 10900 PNG（提取自用户已授权 ArcGIS Pro 安装，未入仓库）
+- 偏差：clippy map_entry 改 entry API；Icon::Gene 改名遗漏修正（Skill）
+- 后续：目录树/图层树行图标仍走手绘 draw（tree_row 未接线，可后续评估）；crates.io 发布仍待 token
+### [收工] 2026-08-11 kimi-code(main) — 树行图标位图双轨接线（图标任务完全闭环）
+- 提交：d3830c0；测试：149 全绿 + clippy 零警告；验证：双主题截图目检（目录树原生文件夹位图、dark 变体正确）；release exe 已同步安装（运行中实例用改名替换法更新）
+- 内容：Icon 枚举 33→37（FolderPlain/Project/Database/Cad 目录树专用，手绘回退委托既有画法）；tree_row/render_node/layers_tree/left_dock 全链 IconCache；目录节点语义校正（文件夹不再用 folder+加号，.kyu/.kdb/.dwg/.dxf 各有专用位图）
+- 后续：图标体系完全闭环（Ribbon + QAT + 目录树 + 图层树）；crates.io 发布仍待 token
