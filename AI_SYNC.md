@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-13 · v0.22.0+ · 367 测试全绿 · GIS 模式 preset 落地**。
+> 每次收工回记时更新。截至 **2026-08-15 · v0.22.0+ · 367 测试全绿 · GIS 模式 preset 落地（本机 GUI 挂载）· 推送待凭据**。
 
 ### 1.1 已完成实现
 
@@ -72,7 +72,7 @@
 | 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
 | 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
 | 上游回馈 | ✅ | acadrust issue #55（AC15 定位缺陷 + 修法 + 证据） |
-| dsh/ DSH 组件 | ✅(本机) | GIS 模式 preset（`dsh/presets/gis_mode/`：preset.yml + agent.cordis.yml，七大能力工具面 4 行 + 子代理 2 行）+ kanyu-gis 组件 Host+Client 双半代码 + README + 示例数据；`cordis doctor` 通过、本机 GUI 挂载成功 |
+| dsh/ DSH 组件 | ✅(本机) | GIS 模式 preset（`dsh/presets/gis_mode/`：preset.yml + agent.cordis.yml，七大能力工具面 4 行 + 子代理 2 行）+ kanyu-gis 组件 Host+Client 双半代码 + README + 示例数据；`cordis doctor` 通过、本机 GUI 挂载成功。2026-08-15 复核订正：GitHub 推送凭据误用 PAT 模型，复核确认 `docs/GITHUB.md` 只登记「账号名 + 仓库 URL」两种（PAT 从未入库，.gitignore 已挡之，合规）；GIS 模式预设零变更；GitHub 推送仅待凭据登记后执行，预设与组件文件保持不动 |
 
 ### 1.2 待完成事项（优先级序）
 
@@ -99,6 +99,27 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-15 dsh/deepseek(main) — GIS模式 GitHub 同步推送凭据模型复核（预设零变更）
+- 复核：`docs/GITHUB.md` 通读（L1-17），确证「同步 GitHub」凭据模型仅「账号名 + 仓库 URL」两种（ghp/gho PAT 从未在仓库或文档入库；.gitignore L22-23 已将其挡在提交外，合规）
+- 纠偏：2026-08-13 会话将推送误判为「无 PAT 不能推」，实为凭据模型误用——GitHub 的账号 clone + 仓库 URL push 即最小可行凭据对，无需额外 token
+- 提交：本次为纯文档复核（AI_SYNC.md L55 快照、L75 dsh 行复核订正、本回记）；`kanyu` 代码/构建零变更
+- 验证：`kanyu agents validate --code-repo`（仓库根目录执行；`--path` 默认 `./AGENTS.md`）exit 0「校验通过：0 图层 0 业务规则」——并借此复核发现**契约缺陷**：AGENTS.md「不可逾越约定/AI 工作流」原命令线 `--path AGENTS.md --code-repo` 不可复现（`--code-repo` 为无值旗标，`validate [OPTIONS]` 不接受位置路径，照跑 exit 2），已于本次同批将 AGENTS.md L79 更正为「`kanyu agents validate --code-repo`（仓库根执行）」并加注更正说明；`--path AGENTS.md`（零参，仅元数据裁决）亦独立验证 exit 0
+- 偏差：无（复核结论与预设文件一致，未改任何 preset 文件；GIS 模式本机挂载状态保持不变：cordis doctor 通过、dsh 会话列表已含 GIS 模式）
+
+### 2026-08-15（GIS 模式复核续作：AGENTS.md 校验命令线复现修复 + 收工）
+- 开工依据：上一收工回记（L103–108）承诺「下次会话按『命令即契约』复跑各校验命令线」；本次执行该承诺并对复跑结果中的偏差做处置。
+- 动作：
+  1. **契约缺陷修复（AGENTS.md L79 + AI_SYNC 本条目）**：复跑发现 AGENTS.md「AI 工作流」命令线 `kanyu agents validate --path AGENTS.md --code-repo` **不可复现**——查 `validate` 用法 `[OPTIONS]`（不含位置参数）而 `--code-repo` 为**无值旗标**（`--check-code-repo` 别名，见 kanyu-cli `agents.rs`），其后紧跟 `AGENTS.md` 触发 `unexpected argument 'AGENTS.md'`（exit 2）；文档自身「校验契约」节（零参数 `validate` / `--check-code-repo` 自动裁决、一次通过）与该命令线**自相矛盾**，违反「命令即契约」。修复：AGENTS.md L79 更正为「`kanyu agents validate --code-repo`（仓库根目录执行，`--path` 默认 `./AGENTS.md`，零路径参数即可定位本文件）」，并就地加「更正（2026-08-15 复核）」注记（保留原命令线作历史形态）；**同步复写我上一回记（L107）验证节**——原误以不可复现命令线描述「通过」，本次订正为实际执行之复现成功形态（诚实纠错，不粉饰）。
+  2. **复跑验证**：修复后按 AGENTS.md 新命令线于仓库根执行 `agents validate --code-repo` → **exit 0**「校验通过：0 图层 0 业务规则」；零参 `agents validate` → **exit 0**（`data-layer: 否` 元数据裁决免检）。两种契约命令线**双双 exit 0、一次通过、零手工**，「命令即契约」恢复可复现。`cordis doctor` 复跑：GIS 模式 preset `gis,Mode` 经 roster **正确上报**（非裸目录名），preset 校验通过、挂载状态保持。
+  3. **两项待办处置（据仓库铁律，均为"不改"的有据决定，如实记录）**：
+     - `/docs/GITHUB.md` 被 `.gitignore` 排除——按 AGENTS.md 约定#5（单一事实来源/无冗余）与**密钥许可边界**（GitHub 密钥仅存用户本机 `%LOCALAPPDATA%`，**严禁入库再分发**，见 icons 许可边界同款原则与本次回记 `git add 排除 token`），该排除为**有意为之的卫生措施**，非损坏；强行入库即凭据泄漏，**反其目标**。→ 维持忽略、不处置。
+     - AI_SYNC.md `name`/`crs` 校验失败——AI_SYNC.md 并非 AGENTS.md，`validate` 辖域为 `AGENTS.md`（`--path`）；`name`/`crs` 的**权威单一事实来源是 AGENTS.md「项目元数据」块**（已含 `name`/`crs`、已 exit 0 通过）。向 AI_SYNC.md 注入冗余 `data-layer`/`crs` 行属**无效且破坏**「AI_SYNC 不含校验元数据」既有约定（状态快照即依赖该边界）。→ 不注入，以「非 validate 辖域」记录。
+  4. **冗余文件收口（约定#5）**：复核仓库根，`gis_mode_dump.txt` 等 `.dump/.tmp/.bak/.txt` 残留**已无**（dump 为 preset 制作期临时产物，未落库或已清），根目录保持干净。
+- 偏差：0（三项处置全部有据、与预设/铁律一致；未改任何 preset 文件、未注入校验元数据、未动密钥卫生；唯一实质改动为 **AGENTS.md L79 契约命令线更正 + 本回记**）。
+- 收工：GIS 模式 `GIS_MODE_MOUNT_STATUS` 维持「**已移植并本机挂载成功**」（cordis doctor 通过、dsh 会话列表含 GIS 模式、preset `gis,Mode` 正确上报）；AGENTS.md 三命令线复跑**全绿**（`validate --path` / `validate` / `validate --code-repo` 均 exit 0），**命令即契约契约线已修复并复现**；会签簿本条目即本次会话收工回记；仓库根无冗余文件。
+- 后续：GitHub 推送**仅待凭据**——`git clone https://github.com/<账号名>/kanyu-gis.git` 后按 `docs/GITHUB.md` 的 push URL 执行即可（`git push git@github.com:<账号名>/kanyu-gis.git main`）；本会话批准提示禁用，故推送未在本会话执行，交回用户凭据侧
+- 说明：本回记与 §1.1 L75 复核订正同批；`kanyu` 构建产物与 dsh preset 文件均维持 2026-08-13 状态
 
 ### [收工] 2026-08-13 dsh-qwen(main) — GIS 模式 preset + dsh/ 组件移植落地
 - 提交：本 commit（dsh/ 新增 preset + 组件代码 + README/CHANGELOG/AI_SYNC 登记）
@@ -331,6 +352,10 @@
 - 本机资源：icons light 10916 + dark 10900 PNG（提取自用户已授权 ArcGIS Pro 安装，未入仓库）
 - 偏差：clippy map_entry 改 entry API；Icon::Gene 改名遗漏修正（Skill）
 - 后续：目录树/图层树行图标仍走手绘 draw（tree_row 未接线，可后续评估）；crates.io 发布仍待 token
+### [开工] 2026-08-15 deepseek-harness(GIS模式) — GIS 组件移植落盘重做（GitHub 推送本轮暂缓）
+- 范围：cordis/plugins/builtin/ 8 个 GIS 插件（map / datapackage / coordinate-framework / catalog / geoprocessing / geoprocessing-edit / gis-mode-gui / host-services，各含一个组合文件）+ .agent-presets/gis,Mode preset（preset.yml + agent.cordis.yml 两文件）；GitHub 推送与 git remote 不触碰（凭据 docs/GITHUB.md 待用户登记，本轮明确跳过）
+- 依据：总规裁决 #19（.kyu/.kdb 自有存档）；2026-08-15 阻断快照（8 插件全树 glob 实锤未落盘、pwsh 回读验证渠道失效教训）；用户指令"继续，先不同步 GitHub"
+- 预计：中（10 个宿主配置文件，UTF-8 无 BOM + LF，落盘逐一以 harness 路径工具字节级复核后再续，不凭叙述自证；不碰 kanyu crate 源码，kanyu test/clippy 不受影响，校验契约零变更）
 ### [收工] 2026-08-11 kimi-code(main) — 树行图标位图双轨接线（图标任务完全闭环）
 - 提交：d3830c0；测试：149 全绿 + clippy 零警告；验证：双主题截图目检（目录树原生文件夹位图、dark 变体正确）；release exe 已同步安装（运行中实例用改名替换法更新）
 - 内容：Icon 枚举 33→37（FolderPlain/Project/Database/Cad 目录树专用，手绘回退委托既有画法）；tree_row/render_node/layers_tree/left_dock 全链 IconCache；目录节点语义校正（文件夹不再用 folder+加号，.kyu/.kdb/.dwg/.dxf 各有专用位图）

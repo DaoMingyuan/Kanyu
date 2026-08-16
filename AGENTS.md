@@ -79,6 +79,13 @@ cargo fmt --all
 - `kanyu agents validate --path AGENTS.md --code-repo`：按**软件工程仓库**语境
   校验（钉死免检数据层语义表）；等价于上方元数据中 `data-layer: 否` 的显式宣言的
   CLI 直连形态。
+  **更正（2026-08-15 复核）**：早期版误写为「`--path AGENTS.md --code-repo`」——
+  `--code-repo`（`--check-code-repo` 别名）为**无值旗标**，`validate` 的用法
+  `agents validate [OPTIONS]` 不含位置参数，照旧命令原样复跑会报
+  `unexpected argument 'AGENTS.md'`（exit 2）。本仓库 AGENTS.md 的权威路径即仓库根的
+  `./AGENTS.md`，故**零路径参数** `kanyu agents validate --code-repo`（在仓库根目录
+  执行）即可精确定位本文件并按代码仓库语境免检，无需重复 `--path`。零参
+  `validate`（不带任何旗标）则走下文「校验契约」的自动裁决，二者择一。
 - `kanyu agents validate`（`--check-code-repo` 旗标）：校验时**以显式 `data-layer`
   元数据行为最高优先语境裁决**（见下「校验契约」），零参即可让地理项目与代码
   仓库各自通过，无需调用方再选语境。
