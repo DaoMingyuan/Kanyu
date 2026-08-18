@@ -80,9 +80,18 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十三轮）
+## 4. 当前状态（2026-08-19，第七十四轮）
 
-- **3D 视角书签持久化（本轮）**：双端 TabScene3d 书签改 localStorage 按
+- **统计聚合 WASM 技能（本轮，技能沙箱第五算子）**：新 guest crate
+  `dsh/skills/stat_summary/`（param `_stat` 必填数值字段 + `_field` 可选
+  分组字段，纯属性聚合输出 geometry:null 表语义要素，带
+  `_count/_skipped/_sum/_min/_max/_avg`）+ `dsh/skills/stat_summary.wasm`
+  入仓。调试发现并修复宿主侧隐蔽行为：混合类型列经 GeoArrow 类型化列
+  中转被强制为字符串列，guest 兼容解析数值字符串（"10"→10），真正
+  非数值跳过计 `_skipped`。host.js `kanyu_skill` 清单登记；双端技能分析区
+  加统计行（skillRelay 接力）。测试器 213/213（static 162/162）。
+  七十三轮双仓 CI（38bad5a / 36ced05）均 success。
+- **3D 视角书签持久化（第七十三轮）**：双端 TabScene3d 书签改 localStorage 按
   图层路径键控（`kanyu-3d-views:<path>`，跨会话留存 + 逐条删除）。
   测试器 211/211（static 162/162）。七十二轮双仓 CI（80181b6 / f1a6c3c）
   均 success。
