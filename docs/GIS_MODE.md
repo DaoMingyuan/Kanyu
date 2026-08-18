@@ -80,9 +80,17 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第四十五轮）
+## 4. 当前状态（2026-08-18，第四十六轮）
 
-- **中文路径根因复核（本轮新增）**：推翻上轮「shell 桥 GBK 乱码」初判——
+- **布局排版出口（本轮新增，壳层 layoutview 移植）**：主仓新增
+  `kanyu render layout`（render crate `layout` 排版器首个 CLI 出口——
+  A4 横/竖 + 标题/图例/比例尺/指北针内嵌地图渲染，`--page/--dpi/
+  --no-legend/--no-scalebar/--no-north/--theme/--style[-file]` 全参数面）；
+  组件侧 `kanyu_render` 动态工具新增 `layout` 分支（renderLayout 助手 +
+  ensureOutDir 防护 + 样式文件直通 + 「排版完成」回执）。测试器
+  125/125（static 97/97）。RPC 仍 26 项（布局预览 UI 页签为下轮候选）。
+  端点复测仍全部离线。
+- **中文路径根因复核（第四十五轮）**：推翻上轮「shell 桥 GBK 乱码」初判——
   乱码源是 curl.exe 命令行参数 GBK 化（测试方法学伪影），组件桥 UTF-8
   解码本就正确，生产中文路径全链路实证无恙（组件零改动）；测试器 +1
   桥 UTF-8 正文回归锁。测试器 123/123（static 96/96）。RPC 仍 26 项。

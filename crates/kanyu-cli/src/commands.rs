@@ -63,7 +63,11 @@ pub fn tool(cmd: &ToolCommand, json: bool) -> Result<()> {
             for (p, v) in def.params.iter().zip(&values) {
                 let paths: Vec<String> = match p.kind {
                     kanyu_core::tooldef::ParamKind::Layer => {
-                        if v.trim().is_empty() { vec![] } else { vec![v.trim().to_string()] }
+                        if v.trim().is_empty() {
+                            vec![]
+                        } else {
+                            vec![v.trim().to_string()]
+                        }
                     }
                     kanyu_core::tooldef::ParamKind::MultiLayers => {
                         kanyu_core::toolrun::parse_multi_layers(v)
@@ -78,10 +82,9 @@ pub fn tool(cmd: &ToolCommand, json: bool) -> Result<()> {
                     }
                 }
             }
-            let outcome = kanyu_core::toolrun::run_tool(id, &values, |path| {
-                cache.get(path).cloned()
-            })
-            .map_err(|e| anyhow::anyhow!(e))?;
+            let outcome =
+                kanyu_core::toolrun::run_tool(id, &values, |path| cache.get(path).cloned())
+                    .map_err(|e| anyhow::anyhow!(e))?;
             use kanyu_core::toolrun::ToolOutcome;
             match outcome {
                 ToolOutcome::Report(text) => {
@@ -119,8 +122,7 @@ pub fn tool(cmd: &ToolCommand, json: bool) -> Result<()> {
 pub fn crs(cmd: &CrsCommand, json: bool) -> Result<()> {
     match cmd {
         CrsCommand::Search { query, limit } => {
-            let results =
-                kanyu_core::crs::search_crs(query.as_deref().unwrap_or(""), *limit);
+            let results = kanyu_core::crs::search_crs(query.as_deref().unwrap_or(""), *limit);
             print_value(&results, json, |list| {
                 if list.is_empty() {
                     return format!(
@@ -782,8 +784,153 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
                 }
             }
         }
+        RenderCommand::Layout {
+            file,
+            out,
+            title,
+            page,
+            dpi,
+            no_legend,
+            no_scalebar,
+            no_north,
+            theme,
+            style,
+            style_file,
+        } => {
+            // 样式规则解析与 render map 同路径。
+            let style_rule: Option<kanyu_render::StyleRule> = match (style, style_file) {
+                (Some(_), Some(_)) => {
+                    bail!("--style 与 --style-file 二选一，不可同时指定")
+                }
+                (Some(s), None) => Some(
+                    serde_json::from_str(s)
+                        .map_err(|e| anyhow::anyhow!("样式规则 JSON 解析失败: {e}"))?,
+                ),
+                (None, Some(p)) => {
+                    let text = std::fs::read_to_string(p)
+                        .with_context(|| format!("读取样式文件 {p} 失败"))?;
+                    Some(
+                        serde_json::from_str(&text)
+                            .map_err(|e| anyhow::anyhow!("样式规则 JSON 解析失败（{p}）: {e}"))?,
+                    )
+                }
+                (None, None) => None,
+            };
+            use kanyu_render::layout::{LayoutFrame, LayoutSpec, PageSize};
+            let page_size = match page.as_str() {
+                "a4l" => PageSize::A4Landscape,
+                "a4p" => PageSize::A4Portrait,
+                other => bail!("纸张仅支持 a4l（A4 横）/a4p（A4 纵）（实际: '{other}'）"),
+            };
+            let spec = LayoutSpec {
+                page: page_size,
+                dpi: *dpi,
+                title: title.clone().unwrap_or_default(),
+                show_legend: !no_legend,
+                show_scalebar: !no_scalebar,
+                show_north: !no_north,
+            };
+            let layer = Layer::load(stem_of(file), file)?;
+            let collection = layer.collection();
+            let frame = LayoutFrame::compute(&spec);
+            // 图例行：样式规则分类直通（graduated ≤ 阈值 / categorical 类别值）；
+            // 无样式留空（排版器对空图例不绘，对齐壳层空集语义）。
+            let legend = layout_legend_rows(style_rule.as_ref());
+            let opts = kanyu_render::RenderOptions {
+                width: frame.map[2].round().max(1.0) as u32,
+                height: frame.map[3].round().max(1.0) as u32,
+                theme: theme.parse()?,
+                style: style_rule,
+                ..Default::default()
+            };
+            // 比例尺：视口东西跨度 × 赤道近似米/度（示意级，与壳层 layoutview 同式）。
+            let scale = if spec.show_scalebar {
+                kanyu_render::collection_extent(&collection)
+                    .ok()
+                    .flatten()
+                    .map(|b| {
+                        let span_m = (b[2] - b[0]).abs() * 111320.0;
+                        let (label, bar_px, _bar_m) =
+                            kanyu_render::layout::nice_scale(span_m, frame.map[2], spec.dpi);
+                        (label, bar_px)
+                    })
+            } else {
+                None
+            };
+            let scale_ref = scale.as_ref().map(|(l, p)| (l.as_str(), *p));
+            let ext = out
+                .rsplit('.')
+                .next()
+                .map(str::to_ascii_lowercase)
+                .unwrap_or_default();
+            match ext.as_str() {
+                "png" => {
+                    let map_png = kanyu_render::render_png(&collection, &opts)?;
+                    let bytes = kanyu_render::layout::render_layout_png(
+                        &spec, &map_png, &legend, scale_ref,
+                    )?;
+                    std::fs::write(out, &bytes).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!(
+                        "已排版 {} 个要素 → {out} (layout png, {}x{}px, {}dpi)",
+                        layer.len(),
+                        spec.page.pixels(spec.dpi).0,
+                        spec.page.pixels(spec.dpi).1,
+                        spec.dpi
+                    );
+                }
+                "svg" => {
+                    let map_svg = kanyu_render::render_svg(&collection, &opts)?;
+                    let text = kanyu_render::layout::render_layout_svg(
+                        &spec, &map_svg, &legend, scale_ref,
+                    );
+                    std::fs::write(out, &text).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!(
+                        "已排版 {} 个要素 → {out} (layout svg, {}x{}px, {}dpi)",
+                        layer.len(),
+                        spec.page.pixels(spec.dpi).0,
+                        spec.page.pixels(spec.dpi).1,
+                        spec.dpi
+                    );
+                }
+                other => {
+                    bail!("输出格式按扩展名判定，仅支持 .png/.svg（实际: '.{other}'）")
+                }
+            }
+        }
     }
     Ok(())
+}
+
+/// 布局图例行：样式规则分类直通（无样式为空——排版器空图例不绘）。
+fn layout_legend_rows(
+    style: Option<&kanyu_render::StyleRule>,
+) -> Vec<kanyu_render::layout::LegendRow> {
+    fn rgb(s: &str) -> [u8; 3] {
+        let h = s.trim().trim_start_matches('#');
+        let p = |i: usize| u8::from_str_radix(h.get(i..i + 2).unwrap_or("00"), 16).unwrap_or(0);
+        [p(0), p(2), p(4)]
+    }
+    match style {
+        Some(kanyu_render::StyleRule::Graduated { stops, .. }) => stops
+            .iter()
+            .map(|(th, c)| kanyu_render::layout::LegendRow {
+                color: rgb(c),
+                label: format!("≤ {th}"),
+            })
+            .collect(),
+        Some(kanyu_render::StyleRule::Categorical { colors, .. }) => {
+            let mut rows: Vec<_> = colors
+                .iter()
+                .map(|(k, c)| kanyu_render::layout::LegendRow {
+                    color: rgb(c),
+                    label: k.clone(),
+                })
+                .collect();
+            rows.sort_by(|a, b| a.label.cmp(&b.label));
+            rows
+        }
+        None => Vec::new(),
+    }
 }
 
 /// `kanyu skill ...`

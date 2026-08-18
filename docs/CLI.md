@@ -448,6 +448,31 @@ $ ./target/debug/kanyu.exe render map examples/buildings.geojson --out styled.pn
 # 实测：height=33 的住宅为青绿（低档）、88.5 的大厦A 为琥珀（中档）、120 的大厦C 为赭红（高档）
 ```
 
+### 5.2 `kanyu render layout <file> --out <path>` ✅
+
+布局排版（kanyu-render `layout` 模块，壳层 layoutview 同源排版器）：A4 页面
++ 标题/图例/比例尺/指北针，内嵌地图渲染。输出格式按 `--out` 扩展名判定
+（`svg`/`png`）。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--out <path>` | （必填） | 输出路径（`.svg` 或 `.png`） |
+| `--title <text>` | `布局` | 图名（页眉标题） |
+| `--page <a4l\|a4p>` | `a4l` | 页面：A4 横向 / A4 纵向 |
+| `--dpi <n>` | `96` | PNG 分辨率（SVG 忽略） |
+| `--no-legend` | （关） | 不画图例 |
+| `--no-scalebar` | （关） | 不画比例尺 |
+| `--no-north` | （关） | 不画指北针 |
+| `--theme <light\|dark>` | `light` | 内嵌地图主题 |
+| `--style <json>` / `--style-file <path>` | （无） | 同 `render map`（有样式才出图例） |
+
+比例尺按数据 extent 跨度 ×111320 m/°（赤道近似）取整（`nice_scale`）。
+
+```bash
+$ ./target/debug/kanyu.exe render layout examples/buildings.geojson --out layout.svg --title 示例布局
+已排版 4 个要素 → layout.svg (layout svg, 1123x794px, 96dpi)   # 该提示在 stderr
+```
+
 ## 6. kanyu gene ✅
 
 WASM 技能系统宿主（kanyu-skill crate；ABI 与沙箱模型见

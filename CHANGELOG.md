@@ -6,6 +6,15 @@
 
 ### 新增
 
+- **`kanyu render layout` 布局排版（layout 排版器 CLI 出口）**：
+  `RenderCommand::Layout` → kanyu-render `layout` 模块（此前仅壳层
+  layoutview 消费）——A4 横/竖页面 + 标题/图例/比例尺/指北针内嵌地图
+  渲染；`--page a4l|a4p` / `--dpi` / `--no-legend` / `--no-scalebar` /
+  `--no-north` / `--theme` / `--style[-file]`；比例尺按数据 extent 跨度
+  ×111320 m/°（赤道近似）经 `nice_scale` 取整；graduated 图例行
+  「≤ 阈值」、categorical 类别排序。dsh 组件 `kanyu_render` 动态工具
+  新增 `layout` 分支（`title/page/dpi/out` 可选参数 + 落盘回执）。
+
 - **`kanyu data calc` 字段计算器（attrcalc 内核 CLI 出口）**：`DataCommand::Calc`
   → `attrcalc::calc_field`，逐要素求值表达式写入目标字段（不存在则新建）；
   支持算术/比较/逻辑、round/upper/concat/coalesce 等函数与

@@ -379,6 +379,42 @@ pub enum RenderCommand {
         #[arg(long)]
         style_file: Option<String>,
     },
+    /// 打印布局排版（ArcGIS Pro Layout 对应物）：纸张 + 标题 + 地图框 +
+    /// 图例/比例尺/指北针（输出格式按 --out 扩展名判定：svg 全排版 / png）。
+    Layout {
+        /// 数据文件路径。
+        file: String,
+        /// 输出路径（.svg 或 .png）。
+        #[arg(long)]
+        out: String,
+        /// 布局标题（顶部居中；缺省不绘）。
+        #[arg(long)]
+        title: Option<String>,
+        /// 纸张：a4l（A4 横，默认）/a4p（A4 纵）。
+        #[arg(long, default_value = "a4l")]
+        page: String,
+        /// 分辨率 dpi（默认 96）。
+        #[arg(long, default_value_t = 96.0)]
+        dpi: f64,
+        /// 关闭图例。
+        #[arg(long)]
+        no_legend: bool,
+        /// 关闭比例尺。
+        #[arg(long)]
+        no_scalebar: bool,
+        /// 关闭指北针。
+        #[arg(long)]
+        no_north: bool,
+        /// 主题：light（晨山）/dark（夜观星）。
+        #[arg(long, default_value = "light")]
+        theme: String,
+        /// 属性驱动样式规则（内联 JSON；图例行随之分类；与 --style-file 二选一）。
+        #[arg(long)]
+        style: Option<String>,
+        /// 样式规则 JSON 文件路径（与 --style 二选一）。
+        #[arg(long)]
+        style_file: Option<String>,
+    },
 }
 
 /// `kanyu skill ...`
