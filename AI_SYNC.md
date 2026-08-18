@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-18 kimi-code(main) — verify_preset.mjs 校验覆盖扩展：插件包存在性 + 技能 frontmatter 两面
+- 提交：本次 commit；验证：`node dsh/tools/verify_preset.mjs --preset-dir dsh/presets` ALL FILES LOADABLE + bogus 包名负向拦截实证 + sync-preset.sh 显式文件通道联动过；测试器 static 回归 100/100（verify_preset 依赖本机宿主检出，不进 CI——既有边界维持）
+- 内容：① 行内插件包存在性校验（作用域包前两段、子路径剥离、cordis:* 豁免，对照宿主 node_modules——roster 包不存在类 broken 旁路拦截）；② preset 自带技能 SKILL.md frontmatter 校验（--- 块 + name === 目录名 + description 非空），显式文件模式附带（preset 目录 = 文件所在目录）；③ 顺修：宿主 node_modules 路径提为 HOST_NM 单一事实来源 + 动态 import 命名空间/default 双层查找（首轮改写实测 load undefined）
+- 偏差：无；两处实现教训（ESM default 导出解构、isPreset 正则吞 bogus-preset.yml 文件名）已注释入码
+- 后续：端点在线后 kanyu-gis 会话首局对话实测（仍全 000 离线）；GCM 凭据回填后恢复旧推送管线——§1.2 维持
+
+### [开工] 2026-08-18 kimi-code(main) — verify_preset.mjs 校验覆盖扩展（对照 preset 现状补断言缺口）
+- 范围：dsh/tools/verify_preset.mjs + dsh/presets/kanyu-gis/（agent.cordis.yml / SKILL.md 现状盘点）；测试器计数随动
+- 依据：第四十六/四十八轮收工登记候选；preset 是 GIS 模式的门面，校验器覆盖滞后于组合演进
+- 预计：小（单文件断言扩展 + 文档计数）
+
 ### [收工] 2026-08-18 kimi-code(main) — 布局预览 UI：render.layout RPC 27 + 双端目录布局框点击排版预览（129/129 断言）
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **129/129**（+4：render.layout host 契约键 + catalog kyu 字段 + 双端 previewLayout 契约键 + render.layout(kyu) 动态实测）、`--static` **100/100**；3080 实例 sync-local + 重启 health `{"ok":true,"tools":8,"rpc":27}`，生产桥实测 render.layout(kyu) 通过（1754×1240 = A4@150dpi 工程规格生效）
 - 内容：host 半 layoutPreview 助手双入参（path 直传 / kyu+title 读工程清单取 ProjectLayout 规格 + 首个可见图层 source 相对工程目录解析）+ RPC 注册；catalog.list 布局框条目带 kyu 路径；双端目录页签布局框点击 → SVG 内嵌预览（kyg-layout-preview + 关闭按钮）；demo.kyu 夹具补可见图层；两半对称锁 20=20
