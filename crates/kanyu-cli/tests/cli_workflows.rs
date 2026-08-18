@@ -763,25 +763,18 @@ fn toolbox_list_and_run_via_python() {
         .join("../../python")
         .canonicalize()
         .unwrap();
-    // 原生扩展（kanyu.pyd / kanyu*.so，maturin 产物）未构建时跳过：
-    // CI 只跑 cargo 构建不产 wheel，`import kanyu` 会在
-    // `from .kanyu import ...` 处 ModuleNotFoundError（2026-08-18 CI 实证）。
-    // 注意后缀按当前平台判定：仓库内 python/kanyu/kanyu.pyd 是 Windows
-    // 预产物且被 git 跟踪，Linux/macOS CI 检出后「文件存在但不可加载」，
-    // 只看存在性会误判（第四十七轮首轮修复复发实证）。
-    let ext_dir = python_home.join("kanyu");
-    let ext_suffix = if cfg!(windows) { ".pyd" } else { ".so" };
-    let has_native = ext_dir
-        .read_dir()
-        .map(|it| {
-            it.filter_map(|e| e.ok()).any(|e| {
-                let n = e.file_name().to_string_lossy().into_owned();
-                n.starts_with("kanyu") && n.ends_with(ext_suffix)
-            })
-        })
+    // 原生扩展（maturin 产物）可导入性实测：存在性/后缀都不是充分条件——
+    // 仓库内 python/kanyu/kanyu.pyd 是按本机 Python 3.13 构建的 Windows
+    // 预产物且被 git 跟踪，CI 的 Python 3.12 加载即 DLL load failed
+    // （ABI 不匹配）；Linux/macOS 更无 .so。直接试 import 才是权威判定。
+    let probe_ok = std::process::Command::new("python")
+        .args(["-c", "import kanyu"])
+        .env("PYTHONPATH", &python_home)
+        .output()
+        .map(|o| o.status.success())
         .unwrap_or(false);
-    if !has_native {
-        eprintln!("kanyu 原生扩展未构建（maturin 产物缺失），跳过工具箱集成测试");
+    if !probe_ok {
+        eprintln!("kanyu 原生扩展不可导入（maturin 产物缺失或 ABI 不匹配），跳过工具箱集成测试");
         return;
     }
     let out = kanyu()
