@@ -11,7 +11,9 @@
   支持算术/比较/逻辑、round/upper/concat/coalesce 等函数与
   `$area/$length/$x/$y` 几何虚列（对齐壳层属性表字段计算器）；`--output`
   落盘 GeoJSON 走 `write_geojson_result` 共用契约。dsh 组件 `kanyu_data`
-  动态工具新增 `action=calc`（含落盘确认回执）。
+  动态工具新增 `action=calc`（含落盘确认回执）；组件 Host 半新增
+  `data.calc` RPC（RPC 表 26 项），双端编辑页签加 ƒx 字段计算器区
+  （前 5 行预览 + 应用落盘联动）。
 
 - **`kanyu data info` 范围摘要（LayerSummary.extent）**：`LayerSummary` 新增
   `extent: Option<[f64; 4]>` 字段——`Layer::summary()` 在既有 WKB 行走中

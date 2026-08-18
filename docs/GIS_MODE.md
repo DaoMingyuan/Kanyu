@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第四十三轮）
+## 4. 当前状态（2026-08-18，第四十四轮）
 
-- **字段计算器出口（本轮新增）**：主仓新增 `kanyu data calc`（attrcalc
+- **字段计算器 UI 面板（本轮新增）**：host 半 data.calc RPC（25→26）+
+  双端编辑页签 ƒx 区（目标字段/表达式 + 前 5 行预览 + 应用落盘联动广播，
+  对齐壳层 attrtable preview_calc 语义）。测试器 122/122（static 95/95）。
+  3080 桥实测 calc 通过；中文绝对路径经 shell 桥 GBK 乱码为既有跨 RPC
+  限制（下轮候选）。端点复测仍全部离线。
+- **字段计算器出口（第四十三轮）**：主仓新增 `kanyu data calc`（attrcalc
   内核首个 CLI 出口；--target/--expr/--output，表达式支持算术/比较/逻辑/
   函数与 $area/$length/$x/$y）；组件侧 kanyu_data 新增 action=calc
   （ensureOutDir 防护 + 落盘确认回执，与 query 分支同契约）。测试器
