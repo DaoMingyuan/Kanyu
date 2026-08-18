@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 组件目录域深化：五分类对齐壳层 catalog.rs（51/51 断言）
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **51/51**（新增 3 断言：五分类名称序 + kyu 归类契约 + 双客户端分类区 UI 契约）、`--static` **40/40**；sync-local 回灌 + 3080 重启后桥实测：`catalog.list` 五分类计数正确（数据库 1 · 本机数据 1）、demo.kyu 入数据库类、安装区 client.js 含 kyg-cat-head
+- 内容：① host.js `catalogList` 响应扩展 `categories` 固定五分类元组（地图框/布局框/数据库/服务链接/本机数据，壳层 catalog.rs 范式）+ `dataItems`/`dbItems` 分离（.kdb/.kyu 入数据库类），`kanyu_catalog` 输出加五分类计数行；② 双客户端目录页签改分类区渲染（`kyg-cat-head` 计数徽标 + 展开/收起，壳层契约默认仅本机数据展开，空分类空态提示）；③ 新增 `dsh/examples/demo.kyu` 夹具（KYU v1 最小清单）
+- 偏差：无（RPC 计数不变仍 18——响应字段扩展而非新增方法）
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续十四轮离线）；目录域下一步候选——服务链接分类接壳层 services.rs 的 WFS 发现
+
+### [开工] 2026-08-18 kimi-code(main) — 组件目录域深化：五分类对齐壳层 catalog.rs（数据库类分离 + 空态提示）
+- 范围：dsh/plugin/host.js（catalogList 分类 + categories 元组）、双客户端目录页签（分类区渲染）、dsh/tools/test_plugin.mjs（断言）、dsh/examples/demo.kyu 夹具、文档与双仓同步；crates 零改动
+- 依据：长期目标「目录功能同步移植到组件功能进行自我迭代」——壳层 catalog.rs 固定五分类（地图框/布局框/数据库/服务链接/本机数据）在组件侧仍是平铺扫描；本地三模型端点第十四轮复测仍全部离线（curl 000），组件仓 CI 第十三轮推送 success
+- 预计：中（RPC 响应扩展 + 双端分类 UI + 测试 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — 组件数据域深化：属性表预览（RPC 18 项 + 双端表格）
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **48/48**（新增 2 断言：data.preview 字段/行契约 + kanyu_data(preview) 文本）、`--static` **37/37**；sync-local 回灌（本轮实证 3080 运行实例锁 pnpm-lock.yaml 致 EPERM——先停实例再同步）+ 3080 重启后桥实测：health `"rpc":18`、`data.preview` 返回 buildings.geojson 5 字段 4 行（limit=3 截断正确）、安装区 client.js 含 kyg-table-wrap

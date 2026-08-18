@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第十三轮）
+## 4. 当前状态（2026-08-18，第十四轮）
 
-- **属性表预览（本轮新增）**：新增 `data.preview` RPC（纯 fs 读面，不经
+- **目录五分类（本轮新增）**：`catalog.list` 响应扩展 `categories` 固定五分类
+  元组 + `dataItems`/`dbItems` 分离（.kdb/.kyu 入数据库类），对齐壳层
+  catalog.rs 工程目录范式；双客户端目录页签改分类区渲染（计数徽标 +
+  展开/收起，默认仅本机数据展开，空分类空态提示）；新增 demo.kyu 夹具。
+  测试器 51/51（static 40/40）；3080 桥实测分类计数与 kyu 归类正确。
+  端点复测仍全部离线。
+- **属性表预览（第十三轮）**：新增 `data.preview` RPC（纯 fs 读面，不经
   CLI），RPC 表 17→18；`kanyu_data` 动态工具加 `preview` action；双客户端
   数据页签加「属性表」按钮 + 表格渲染（sticky 表头滚动容器）。测试器
   48/48（static 37/37）；3080 桥实测 buildings.geojson 5 字段 4 行、

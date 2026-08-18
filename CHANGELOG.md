@@ -52,7 +52,10 @@
   测试器 46/46 全绿，3080 桥 graduated PNG 目检通过。**属性表预览**：
   新增 `data.preview` RPC（纯 fs 读面，RPC 表 18 项）+ `kanyu_data`
   `preview` action + 双客户端数据页签表格渲染，测试器 48/48 全绿，
-  3080 桥实测字段/行/limit 截断契约正确。
+  3080 桥实测字段/行/limit 截断契约正确。**目录五分类**：catalog.list 响应
+  扩展 categories 元组 + dataItems/dbItems 分离（.kdb/.kyu 入数据库类），
+  对齐壳层 catalog.rs 工程目录范式；双客户端目录页签改分类区渲染
+  （计数徽标 + 空态提示），测试器 51/51 全绿。
 
 ### 修复
 
