@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五十七轮）
+## 4. 当前状态（2026-08-18，第五十八轮）
 
-- **挖洞算子移植（本轮，kanyu-edit AddHole → 组件）**：EDIT_OPS 7→8 新增
+- **整行属性替换移植（本轮，kanyu-edit UpdateProperties → 组件）**：EDIT_OPS
+  8→9 新增 attributes-replace——properties 整体覆写（null 清空属性表），
+  自逆算子（undo 恢复旧属性行含 null 态）。测试器 169/169（static 133/133），
+  3080 生产桥替换/撤销闭环实测通过。注：五十七轮组件仓 CI（3c5be08）success、
+  主仓 CI 后台轮询中。
+- **挖洞算子移植（第五十七轮，kanyu-edit AddHole → 组件）**：EDIT_OPS 7→8 新增
   hole-add 面内挖洞——ring 未闭合自动闭合 + holeValidate 校验语义完整移植
   （点环关系射线法 + 边界相接判负），part 单面恒 0/多面子面下标，逆操作
   hole-remove 弹出末环。测试器 166/166（static 130/130），3080 生产桥
