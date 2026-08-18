@@ -80,9 +80,13 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第三十五轮）
+## 4. 当前状态（2026-08-18，第三十六轮）
 
-- **编辑页签联动刷新（本轮新增）**：双端 Client 编辑页签 apply2/undoRedo
+- **kanyu_catalog WMS 参数面（本轮新增）**：WMS 底图分支 bbox/width/height
+  直通（可据 data.info extent 给真实范围，此前恒全球）+ urlOnly 离线契约
+  路径 + 回执宽高写实；服务链接三分支模型侧面全部补齐。测试器 103/103
+  （static 80/80）。RPC 仍 25 项。端点复测仍全部离线。
+- **编辑页签联动刷新（第三十五轮）**：双端 Client 编辑页签 apply2/undoRedo
   成功后——属性表作废待重载、顶点画布重载几何、非原地产出改用 r.output
   为当前路径并 props.notify() 广播（对齐顶点编辑 vUp 语义）；此前通用
   表单应用/撤销/重做后两区滞留旧数据。测试器 101/101（static 78/78）。
