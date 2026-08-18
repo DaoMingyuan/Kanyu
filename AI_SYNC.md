@@ -103,7 +103,7 @@
 ### [收工] 2026-08-18 kimi-code(main) — 数据域续：kanyu data calc 字段计算器出口落地（119/119 断言）
 - 提交：本次 commit；测试：`cargo test --workspace` + `clippy -D warnings` 全绿、`node dsh/tools/test_plugin.mjs` **119/119**（+4：calc 落盘值 177=88.5×2 / stdout JSON 直通 / 错误表达式失败回执 / hostSrc 契约键）、`--static` **93/93**（+1）；`cargo install` release 已重装（PATH 生效），3080 实例停→sync-local→重启，health `{"ok":true,"tools":8,"rpc":25}`
 - 内容：主仓 `DataCommand::Calc`（cli.rs/commands.rs，`attrcalc::calc_field` 直通 + `write_geojson_result` 共用契约，内核零改动）；组件侧 `kanyu_data` 新增 `action=calc`（dataCalc 助手 + ensureOutDir 落盘防护 + 「字段计算完成（target）：N 要素 → 已写出」确认回执，与 query 分支同契约）；文档六处（docs/CLI.md §3.6、dsh/CHANGELOG [0.40.0]、GIS_MODE §4 第四十三轮、根 CHANGELOG [Unreleased]、dsh/README 能力表、SKILL.md 115→119/92→93、workflow 头注 115→119）
-- 偏差：断言计数预计 118 实为 119（静态契约键两种模式皆计数）；release 安装首轮被误 TaskStop 杀掉，即时重启补齐（教训：TaskStop 即杀进程，勿作状态查询用）
+- 偏差：断言计数预计 118 实为 119（静态契约键两种模式皆计数）；release 安装首轮被误 TaskStop 杀掉，即时重启补齐（教训：TaskStop 即杀进程，勿作状态查询用）；**凭据事故**：组件仓首轮推送用未导出的 `$GH_TOKEN` 拼克隆 URL（内嵌空密码）触发 GCM `credential reject` 清空存储，其后 GCM 交互式 OAuth 在无头shell 挂死（`timeout` 亦不可终止）——改走 Windows 凭据管理器「GitHub for Visual Studio - DaoMingyuan」令牌旁路（一次性 ps1 读 CredRead，用后删除，不落盘），且 `credential.helper` 必须先 `-c credential.helper=` 清空再设壳函数（否则叠加 manager 仍挂死）；docs/GITHUB.md 已补登记
 - 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续四十三轮离线）；下轮候选——字段计算器 UI 面板（编辑页签 ƒx 区，对齐壳层 attrtable 含前 5 行预览）、壳层 layoutview 布局移植评估、verify_preset.mjs 覆盖扩展
 
 ### [开工] 2026-08-18 kimi-code(main) — 数据域续：kanyu data calc 字段计算器 CLI 出口（attrcalc 内核 → CLI → 组件 kanyu_data）
