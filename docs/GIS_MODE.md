@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第三十四轮）
+## 4. 当前状态（2026-08-18，第三十五轮）
 
-- **kanyu_catalog 服务链接回执指引（本轮新增）**：discover 回执附拉取
+- **编辑页签联动刷新（本轮新增）**：双端 Client 编辑页签 apply2/undoRedo
+  成功后——属性表作废待重载、顶点画布重载几何、非原地产出改用 r.output
+  为当前路径并 props.notify() 广播（对齐顶点编辑 vUp 语义）；此前通用
+  表单应用/撤销/重做后两区滞留旧数据。测试器 101/101（static 78/78）。
+  RPC 仍 25 项。端点复测仍全部离线。
+- **kanyu_catalog 服务链接回执指引（第三十四轮）**：discover 回执附拉取
   用法指引、fetch 回执附产出接力提示（对齐 query/geoprocess/edit 范式）；
   工具面补 xml/data 离线直通参数（RPC 早有的调试路径），服务链接分支
   首次可离线动态实测。测试器 99/99（static 76/76）。RPC 仍 25 项。
