@@ -46,7 +46,10 @@
   启动时一次成型，须重启实例生效）。**kanyu-mcp 桥接入 GIS 模式**：preset
   组合新增 mcp-kanyu 行（dsh-mcp-client，stdio `kanyu mcp serve`），内核
   17 stable 工具以 `mcp__kanyu__*` 限定名进会话模型工具面（web profile
-  实证：roster 无 broken + stdio 桥启动零错误）。
+  实证：roster 无 broken + stdio 桥启动零错误）。**地图面板符号化**：
+  render.map/kanyu_render 支持 StyleRule（graduated/categorical，经
+  --style-file 传递，pwsh 引号教训入档），双客户端地图页签加符号化控件，
+  测试器 46/46 全绿，3080 桥 graduated PNG 目检通过。
 
 ### 修复
 

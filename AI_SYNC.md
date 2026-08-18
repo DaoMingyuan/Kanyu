@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 地图面板接入符号化（StyleRule 直通）+ pwsh 引号教训 + sync-local 加固
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **46/46**（新增符号化 4 断言：graduated 出图 / 非升序 stops 内核拒止 / 双客户端控件契约）、`--static` **35/35**；3080 重启后桥端到端实测：graduated(height) PNG 出图并目检（分档着色正确）、bundle 含 buildStyle
+- 内容：① render.map RPC + kanyu_render 工具加 style 参数（StyleRule 语义对齐 kanyu render --style）；② 双客户端地图页签加符号化控件（buildStyle 构建规则，graduated「阈值:#RRGGBB,…」/ categorical「类别:#RRGGBB,…，* 默认色」）；③ **pwsh 引号教训**：JSON 内嵌双引号经 `\"` 转义在 bash 成立、pwsh 被拆多参数（3080 实测 unexpected argument）——改 --style-file 落临时 JSON 传路径；④ sync-local.sh 加固：remove 后强制清 profile 残留 + add 后内容级新鲜度校验（本轮实证 remove 部分失败致旧副本滞留、bundle 无新代码）
+- 偏差：首版内联 --style 在本地测试器（Git Bash 后端）全绿、3080 桥（pwsh 后端）才暴露——测试器与生产 shell 差异面入档，涉引号参数的 CLI 调用今后一律走文件传递
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续十二轮离线）
+
+### [开工] 2026-08-18 kimi-code(main) — 组件地图面板接入符号化（StyleRule：graduated/categorical 直通 --style）
+- 范围：dsh/plugin/host.js（render.map RPC + kanyu_render 工具加 style 参数）、双客户端地图页签（符号化控件）、dsh/tools/test_plugin.mjs（断言）、文档与双仓同步；crates 零改动
+- 依据：长期目标「地图面板功能同步移植到组件功能进行自我迭代」——内核 render 的 StyleRule（v0.22.0 已有 --style 内联 JSON）是地图面板的既有符号化能力，组件尚未暴露；本地三模型端点第十二轮复测仍全部离线（curl 000）
+- 预计：中（RPC/工具/双端 UI + 测试 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — GIS 模式接入 kanyu-mcp 桥（17 stable 工具以 mcp__kanyu__* 入会话）
 - 提交：本次 commit；测试：crates 零改动；验证：`verify_preset.mjs --preset-dir dsh/presets` exit 0（direct 行 13→14）；`bash dsh/sync-local.sh` 回灌通过；3080 重启后实证：health 200、roster（agentPreset.list）kanyu-gis **无 broken**、`session.create(agentPreset=kanyu-gis)` 成功、实例日志 9 处「kanyu-mcp: MCP server 监听 stdio」启动行**零错误**

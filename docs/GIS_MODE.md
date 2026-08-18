@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第十一轮）
+## 4. 当前状态（2026-08-18，第十二轮）
 
-- **kanyu-mcp 桥接入 GIS 模式（本轮新增）**：preset 组合新增 `mcp-kanyu` 行
+- **地图面板符号化（本轮新增）**：`render.map`/`kanyu_render` 支持 `style`
+  （StyleRule graduated/categorical，经 `--style-file` 传递——pwsh 下 JSON
+  内嵌引号不能走命令行，实测排障入档）；双客户端地图页签加符号化控件。
+  测试器 46/46（static 35/35）；3080 桥端到端 graduated PNG 目检通过。
+  `sync-local.sh` 加固（残留清理 + 新鲜度校验）。端点复测仍全部离线。
+- **kanyu-mcp 桥接入 GIS 模式（第十一轮）**：preset 组合新增 `mcp-kanyu` 行
   （dsh-mcp-client，stdio `kanyu mcp serve`），内核 17 stable 工具以
   `mcp__kanyu__*` 限定名进会话模型工具面，与组件 8 动态工具互补。实证：
   roster 无 broken、session.create 成功、实例日志 9 处 kanyu-mcp stdio 启动
