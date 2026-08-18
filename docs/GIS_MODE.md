@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十轮）
+## 4. 当前状态（2026-08-19，第七十一轮）
 
-- **技能画布交互（本轮，WASM 技能入编辑页签对话框）**：双端 client.js 编辑
+- **融合 WASM 技能（本轮，技能沙箱第四算子）**：新 guest crate
+  `dsh/skills/dissolve_field/`（geo union 组内折叠——按 `_field` 分组，
+  相邻并单部 / 相离附 `_part`，留分组字段 + `_count`）+
+  `dsh/skills/dissolve_field.wasm` 入仓；双端技能分析区加融合行
+  （param `_field` 注入，skillRelay 接力）。测试器 207/207
+  （static 158/158）。七十轮双仓 CI（d375093 / 9188788）均 success。
+- **技能画布交互（第七十轮，WASM 技能入编辑页签对话框）**：双端 client.js 编辑
   页签新增「技能分析」区——缓冲区（距离输入走 param `_distance` 注入）/
   叠加分析（算子下拉 + 第二图层路径走 param `_op` + input2 注入）；公共
   `skillRelay` 产图层接力（产出设为当前图层 + 版本号广播 + 几何重载）。
