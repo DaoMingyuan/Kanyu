@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五十轮）
+## 4. 当前状态（2026-08-18，第五十一轮）
 
-- **目录地图框点击预览（本轮新增，目录五分类可点闭环）**：host 半新增
+- **SKILL.md 能力面一致性精修（本轮，AI 能力整合优化）**：GIS 模式领域
+  技能 `dsh/presets/kanyu-gis/skills/kanyu-gis/SKILL.md` 实况对齐——
+  面板侧 RPC 清单 26→28（补 render.layout / catalog.readImage）、
+  验证面计数 123→134（static 96→104）并补四项验证列举、metadata
+  version 1.0→1.1。verify_preset 可加载 + static 104/104 全绿 +
+  sync-preset 回灌完成。纯文档一致性改动。端点复测仍全部离线。
+- **目录地图框点击预览（第五十轮，目录五分类可点闭环）**：host 半新增
   `catalog.readImage` RPC（27→28，渲染产物 PNG → base64，越界防护仅限
   dsh/output 产物目录内 .png）；双端目录页签地图框条目点击 → PNG 内嵌
   预览。测试器 134/134（static 104/104）。RPC 28 项。端点复测仍全部离线。
