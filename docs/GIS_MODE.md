@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第六十九轮）
+## 4. 当前状态（2026-08-19，第七十轮）
 
-- **叠加分析 WASM 技能（本轮，技能沙箱第三算子）**：新 guest crate
+- **技能画布交互（本轮，WASM 技能入编辑页签对话框）**：双端 client.js 编辑
+  页签新增「技能分析」区——缓冲区（距离输入走 param `_distance` 注入）/
+  叠加分析（算子下拉 + 第二图层路径走 param `_op` + input2 注入）；公共
+  `skillRelay` 产图层接力（产出设为当前图层 + 版本号广播 + 几何重载）。
+  测试器 205/205（static 158/158）。六十九轮双仓 CI（70aceb8 / 748be79）
+  均 success。
+- **叠加分析 WASM 技能（第六十九轮，技能沙箱第三算子）**：新 guest crate
   `dsh/skills/overlay_ops/`（geo 0.33 BooleanOps——intersect 两两配对
   基准属性继承 / union 合并整体 / difference 基准减叠加，仅面要素）+
   `dsh/skills/overlay_ops.wasm` 入仓；第二图层经 host.js `skillRun` 新增
