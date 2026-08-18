@@ -116,6 +116,9 @@
   测试器 93/93 全绿。**kanyu_edit 撤销栈回执**：动态工具成功回执附
   「撤销栈 N 步 / 重做栈 M 步」（editApply 本已返回 history，此前被
   文本面丢弃），模型侧可提示可回滚步数，测试器 96/96 全绿。
+  **kanyu_catalog 服务链接回执指引**：discover 附拉取用法指引、fetch
+  附产出接力提示，工具面补 xml/data 离线直通参数（对齐 RPC 调试路径），
+  测试器 99/99 全绿。
 
 - **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
   （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>

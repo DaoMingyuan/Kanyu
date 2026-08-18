@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第三十三轮）
+## 4. 当前状态（2026-08-18，第三十四轮）
 
-- **kanyu_edit 撤销栈回执（本轮新增）**：动态工具成功回执附「撤销栈
+- **kanyu_catalog 服务链接回执指引（本轮新增）**：discover 回执附拉取
+  用法指引、fetch 回执附产出接力提示（对齐 query/geoprocess/edit 范式）；
+  工具面补 xml/data 离线直通参数（RPC 早有的调试路径），服务链接分支
+  首次可离线动态实测。测试器 99/99（static 76/76）。RPC 仍 25 项。
+  端点复测仍全部离线。
+- **kanyu_edit 撤销栈回执（第三十三轮）**：动态工具成功回执附「撤销栈
   N 步 / 重做栈 M 步（可经 edit.undo/edit.redo RPC 或工作台编辑页签
   回滚）」——`editApply` 本已返回 history 栈深，此前被文本面丢弃；
   模型侧可据此提示可回滚步数（只读算子 feature-count 不附）。测试器
