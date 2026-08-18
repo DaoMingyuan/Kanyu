@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五十九轮）
+## 4. 当前状态（2026-08-18，第六十轮）
 
-- **线打断移植（本轮，kanyu-edit split_line_at_point → 组件）**：EDIT_OPS 9→10
+- **共享顶点拓扑编辑移植（本轮，编辑算子盘点表收官）**：EDIT_OPS 10→11 新增
+  topo-move（对齐 kanyu-edit move_shared_vertex，Map Topology 语义）——坐标
+  精确相等一次移动全部共享顶点（含环闭合首末点多处出现），自逆坐标对换。
+  测试器 177/177（static 141/141），3080 生产桥 3 处命中 + 撤销闭环实测通过。
+  至此盘点表全部落地：6 原始算子 + 五件移植（feature-move/hole-add/
+  attributes-replace/line-split/topo-move）+ vertex-move 双修复，面切割留内核侧。
+- **线打断移植（第五十九轮，kanyu-edit split_line_at_point → 组件）**：EDIT_OPS 9→10
   新增 line-split——打断点投影最近线段（t 截断 + 1e-9 吸附顶点），首段就地
   改 + 次段插入（属性复制），逆操作 line-unsplit 合并回原样。**面切割评估
   结论**：split_polygon_by_line 依赖 geo Buffer/BooleanOps 差集 + 碎条剔除，
