@@ -80,9 +80,16 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第二十轮）
+## 4. 当前状态（2026-08-18，第二十一轮）
 
-- **目录五分类补全（本轮新增）**：`catalog.list` 加 `mapItems`（output/*.png
+- **CRS 全库检索接内核 EPSG 库（本轮新增）**：主仓 kanyu-cli 新增
+  `kanyu crs search/info` 顶层子命令（直连 core::crs 单一事实来源，EPSG
+  7507 条；docs/CLI.md §4B），本机 CLI 已更新；组件新增 `crs.search` RPC
+  （23 项）——经 CLI 检索全库，CLI 过旧回退预设兜底并标注 degraded；
+  `kanyu_crs` 工具加 search 分支；双客户端坐标页签加 EPSG 检索框（结果
+  点击设为目标 CRS）。测试器 65/65（static 54/54）；cargo test 全绿。
+  端点复测仍全部离线。
+- **目录五分类补全（第二十轮）**：`catalog.list` 加 `mapItems`（output/*.png
   渲染产物 = 地图框对应物）+ `layoutItems`（解析 .kyu 工程 v2 layouts 节 =
   布局框对应物，壳层 project.rs 单一事实来源），五分类计数全部真实回填；
   双客户端改 catRows 分行描述符（产物行只读、数据行可点选）；demo.kyu 夹具

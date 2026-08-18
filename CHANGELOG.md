@@ -73,6 +73,17 @@
   测试器 62/62 全绿。**目录五分类补全**：catalog.list 加 mapItems（渲染产物
   = 地图框对应物）+ layoutItems（.kyu 工程 v2 layouts 节 = 布局框对应物），
   五分类计数全部真实回填，双端改 catRows 分行描述符，测试器 63/63 全绿。
+  **CRS 全库检索**：新增 crs.search RPC（23 项）经 `kanyu crs search` 接内核
+  EPSG 全库（7507 条；CLI 过旧回退预设兜底标注 degraded），kanyu_crs 工具
+  加 search 分支，双端坐标页签加 EPSG 检索框（点击设为目标 CRS），
+  测试器 65/65 全绿。
+
+- **`kanyu crs` 顶层子命令（EPSG 全库检索/检视）**：`kanyu crs search [query]
+  [--limit N]`（代码子串/名称大小写不敏感匹配，空查询返回常用精选）与
+  `kanyu crs info <code>`（名称/类型/单位/proj4 定义串）直连
+  `core::crs::search_crs`/`crs_info` 单一事实来源（crs-definitions 内置
+  EPSG 库 7507 条，代码域 2000..=32766），壳层设置对话框与 DSH 组件
+  `crs.search` 共用同一内核出口；文档见 docs/CLI.md §4B。
 
 ### 修复
 

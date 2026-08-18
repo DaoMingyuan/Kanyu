@@ -4,9 +4,66 @@ use anyhow::{bail, Context, Result};
 use kanyu_core::{agents, introspect, FormatRegistry, Layer};
 
 use crate::cli::{
-    AgentsCommand, AnalysisCommand, DataCommand, McpCommand, RenderCommand, SkillCommand,
-    ToolboxCommand, Transport,
+    AgentsCommand, AnalysisCommand, CrsCommand, DataCommand, McpCommand, RenderCommand,
+    SkillCommand, ToolboxCommand, Transport,
 };
+
+/// `kanyu crs ...`（EPSG 全库检索/检视，直连 kanyu_core::crs 单一事实来源）。
+pub fn crs(cmd: &CrsCommand, json: bool) -> Result<()> {
+    match cmd {
+        CrsCommand::Search { query, limit } => {
+            let results =
+                kanyu_core::crs::search_crs(query.as_deref().unwrap_or(""), *limit);
+            print_value(&results, json, |list| {
+                if list.is_empty() {
+                    return format!(
+                        "无匹配条目（检索词 '{}'；内置 EPSG 库代码域 2000..=32766）",
+                        query.as_deref().unwrap_or("")
+                    );
+                }
+                list.iter()
+                    .map(|c| {
+                        format!(
+                            "EPSG:{:<6} {}（{}，{}）",
+                            c.code,
+                            c.name,
+                            crs_kind_cn(c.kind),
+                            c.unit
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
+        }
+        CrsCommand::Info { code } => {
+            let info = kanyu_core::crs::crs_info(*code).ok_or_else(|| {
+                anyhow::anyhow!("EPSG:{code} 不在内置 EPSG 数据库（代码域 2000..=32766）")
+            })?;
+            let proj4 = kanyu_core::crs::crs_proj4_def(*code).unwrap_or("");
+            print_value(&info, json, |c| {
+                format!(
+                    "EPSG:{}  {}\n类型:    {}\n单位:    {}\nproj4:   {}",
+                    c.code,
+                    c.name,
+                    crs_kind_cn(c.kind),
+                    c.unit,
+                    proj4
+                )
+            });
+        }
+    }
+    Ok(())
+}
+
+/// CRS 类型中文标签（人机输出用；JSON 输出走 serde 原名）。
+fn crs_kind_cn(kind: kanyu_core::crs::CrsKind) -> &'static str {
+    use kanyu_core::crs::CrsKind;
+    match kind {
+        CrsKind::Geographic => "地理坐标系",
+        CrsKind::Projected => "投影坐标系",
+        CrsKind::Other => "其他",
+    }
+}
 
 /// `kanyu data ...`
 pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {

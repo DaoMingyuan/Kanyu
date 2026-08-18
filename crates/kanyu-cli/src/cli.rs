@@ -55,6 +55,28 @@ pub enum Command {
     /// Python 工具箱（ArcGIS .pyt 式）：列出/执行 Python 编写的工具。
     #[command(subcommand)]
     Toolbox(ToolboxCommand),
+
+    /// 坐标参考系（CRS）：EPSG 全库检索与条目检视（内置 EPSG 数据库 7507 条）。
+    #[command(subcommand)]
+    Crs(CrsCommand),
+}
+
+/// `kanyu crs ...`
+#[derive(Subcommand, Debug)]
+pub enum CrsCommand {
+    /// EPSG 全库检索：按代码子串或名称（大小写不敏感）匹配；空查询返回常用精选。
+    Search {
+        /// 检索词（代码子串如 "4547"，或名称片段如 "CGCS2000"）；缺省返回常用精选。
+        query: Option<String>,
+        /// 结果上限（默认 20）。
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+    },
+    /// 按代码检视 EPSG 条目详情（名称/类型/单位/proj4 定义串）。
+    Info {
+        /// EPSG 代码（如 4326、4547；代码域 2000..=32766）。
+        code: u32,
+    },
 }
 
 /// `kanyu toolbox ...`

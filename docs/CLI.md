@@ -11,6 +11,8 @@
 2. [全局约定](#2-全局约定)
 3. [kanyu data](#3-kanyu-data)
 4. [kanyu analysis](#4-kanyu-analysis)
+   - 4A. [kanyu toolbox](#4a-kanyu-toolbox-python-工具箱arcgis-pyt-式样)
+   - 4B. [kanyu crs](#4b-kanyu-crs-坐标参考系epsg-全库)
 5. [kanyu render](#5-kanyu-render)
 6. [kanyu gene](#6-kanyu-skill)
 7. [kanyu introspect](#7-kanyu-introspect)
@@ -336,6 +338,34 @@ kanyu toolbox run <file.py> <tool> [--param k=v]...   # 执行工具
 - 工具内 `import kanyu` 直接调用 Rust 内核（Python SDK 见 [SDK.md](SDK.md) §4）；
 - Python 包路径解析：`KANYU_PYTHON` 环境变量 > exe 同级 `python/` > 当前目录 `python/`；
 - `--param k=v` 数值/布尔自动类型化；结果 JSON 打印（`--json` 原样透传）。
+
+## 4B. kanyu crs ✅（坐标参考系，EPSG 全库）
+
+直连内核 `kanyu_core::crs`（crs-definitions 内置 EPSG 数据库 7507 条，代码域
+2000..=32766；单一事实来源，壳层设置对话框与 DSH 组件 `crs.search` 共用）。
+
+```bash
+kanyu crs search [query] [--limit N]     # EPSG 全库检索：代码子串或名称（大小写不敏感）
+kanyu crs info <code>                    # 条目详情：名称/类型/单位/proj4 定义串
+```
+
+- `search` 空查询返回常用精选（EPSG:4326/3857/4490/4526/4527/4610/4214/32650/4547，
+  库中缺失自动跳过）；`--json` 输出 `[{code,name,kind,unit}]`（kind 为
+  Geographic/Projected/Other 英文枚举，人机输出为中文「地理/投影坐标系」）。
+- `info` 库中不存在的代码中文报错；`--json` 输出单条 `{code,name,kind,unit}`
+  （proj4 定义串仅人机输出，原始定义消费方走 `kanyu_core::crs::crs_proj4_def`
+  或 MCP `kanyu://crs/{code}` 资源）。
+
+```bash
+$ kanyu crs search CGCS2000 --limit 2
+EPSG:4490   China Geodetic Coordinate System 2000（地理坐标系，度）
+EPSG:4491   CGCS2000 / Gauss-Kruger zone 13（投影坐标系，米）
+$ kanyu crs info 4547
+EPSG:4547  CGCS2000 / 3-degree Gauss-Kruger CM 114E
+类型:    投影坐标系
+单位:    米
+proj4:   +proj=tmerc +lat_0=0 +lon_0=114 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs +type=crs
+```
 
 ## 5. kanyu render ✅
 
