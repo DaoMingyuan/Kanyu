@@ -35,7 +35,10 @@
   `edit.undo`/`edit.redo`/`edit.history` RPC，工作台编辑页签加撤销/重做；
   本地测试器扩至 40 断言全绿（含 undo/redo 闭环）。**GIS 模式领域技能 SKILL.md
   增补「DSH 组件形态」章节**，对齐组件现状（17 RPC / 8 工具 / 双安装形态 /
-  验证面）。
+  验证面）。**组件仓 CI 落地**：测试器新增 `--static` 零依赖模式与主仓/组件仓
+  双布局自检，`dsh/.github/workflows/component-test.yml` 为源同步进组件仓
+  仓根（push/PR 触发，静态契约 31 断言；本机主仓 static 31/31、全量 40/40
+  回归、模拟根布局 31/31 三验通过）。
 
 ### 修复
 

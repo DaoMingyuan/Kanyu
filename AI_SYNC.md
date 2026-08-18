@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -86,7 +86,7 @@
 8. **性能基准**：对 QGIS 的 §5.3 指标实测并公开基准报告
 9. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
 10. **属性面板重建**：等待用户定制要求
-11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；后续批次：kanyu-gis 会话首局对话实测（待本地模型端点在线）、3D 真管线对接、组件仓 CI、凭据轮换时按 docs/GITHUB.md 登记
+11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml）；后续批次：kanyu-gis 会话首局对话实测（待本地模型端点在线）、3D 真管线对接、凭据轮换时按 docs/GITHUB.md 登记
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 组件仓 CI 落地（测试器 --static 零依赖模式 + 双布局自检，三验全绿）
+- 提交：本次 commit；测试：crates 零改动；验证：主仓 `node dsh/tools/test_plugin.mjs --static` **31/31**、全量模式回归 **40/40** 不破、模拟组件仓根布局（target/tmp 副本）static **31/31**
+- 内容：① test_plugin.mjs 新增 `--static` 模式（跳过 ping/introspect/data.xxx/render.map/crs.reproject/geoprocess.run/动态工具抽查整组 CLI 依赖断言，RPC 桥实测改用纯本地 crs.presets）+ 布局自检（主仓 dsh/ 子目录 vs 组件仓根，REPO_ROOT/DSH_DIR/CATALOG_DIR 自动判定）；② `dsh/.github/workflows/component-test.yml` 新建（ubuntu + node 20，push/PR 触发 `node tools/test_plugin.mjs --static`，同步进组件仓仓根 .github/workflows/）；③ 文档全链（dsh/CHANGELOG [0.6.0]、GIS_MODE §4 第九轮、根 CHANGELOG）
+- 偏差：首跑 SyntaxError——头注 `data.*/render` 的 `*/` 提前闭合块注释，改写为正斜杠分隔即修复（注释禁 `*/` 序列，教训入档）
+- 后续：组件仓首跑 CI 结果观察（下次推送触发）；kanyu-gis 会话首局对话实测（待本地模型端点在线）；3D 真管线对接
+
+### [开工] 2026-08-18 kimi-code(main) — 组件仓 CI 落地（测试器 --static 零依赖模式 + 双布局自检 + workflow）
+- 范围：dsh/tools/test_plugin.mjs（--static 跳过 CLI 依赖断言 + 主仓 dsh/ 子目录与组件仓根布局自检）、dsh/.github/workflows/component-test.yml（新）、文档与双仓同步；crates 零改动
+- 依据：§1.2 #11 后续批次「组件仓 CI」；本地三模型端点第九轮复测仍全部离线（curl 000），首局对话实测继续顺延
+- 预计：中（测试器改造 + workflow + 双布局本地实证 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — GIS 模式领域技能 SKILL.md 对齐组件现状（组件形态章节落地）
 - 提交：本次 commit；测试：crates 零改动；验证：`bash dsh/sync-preset.sh` 回灌本机安装区 + 旁路校验 ALL FILES LOADABLE（preset.yml + agent.cordis.yml OK，exit 0）

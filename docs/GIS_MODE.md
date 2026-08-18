@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第八轮）
+## 4. 当前状态（2026-08-18，第九轮）
 
-- **领域技能 SKILL.md 对齐组件现状（本轮新增）**：`skills/kanyu-gis/SKILL.md` 新增
+- **组件仓 CI 落地（本轮新增）**：`tools/test_plugin.mjs` 新增 `--static` 零依赖
+  CI 模式（跳过全部 kanyu CLI 依赖断言，RPC 桥实测改用纯本地 `crs.presets`）+
+  主仓/组件仓双布局自检；新增 `.github/workflows/component-test.yml`（同步进
+  组件仓仓根 `.github/workflows/`，push/PR 触发）。本机三验：主仓 static 31/31、
+  全量 40/40 回归不破、模拟组件仓根布局 static 31/31。本地三模型端点复测仍全部
+  离线，首局对话实测继续顺延。
+- **领域技能 SKILL.md 对齐组件现状（第八轮）**：`skills/kanyu-gis/SKILL.md` 新增
   「DSH 组件形态」章节——双半与双安装形态（plugin/ 动态 + pkg/ 静态）、8 个
   `kanyu_*` 动态工具清单、17 项 RPC 全清单（含编辑 undo/redo/history）、工作台
   联动与编辑双栈、组件验证面（test_plugin.mjs 40 断言 / verify_preset.mjs /
