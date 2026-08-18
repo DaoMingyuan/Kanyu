@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十一轮）
+## 4. 当前状态（2026-08-19，第七十二轮）
 
-- **融合 WASM 技能（本轮，技能沙箱第四算子）**：新 guest crate
+- **3D 视角书签 + PNG 导出（本轮）**：双端 TabScene3d 新增视角书签
+  （存 yaw/pitch 具名恢复 + 复位）与 PNG 导出（画布 toDataURL 浏览器
+  下载）；TabAbout/README/agent.cordis.yml 工具计数 8→9 漂移修正。
+  测试器 209/209（static 160/160）。七十一轮双仓 CI（fbb10ad / f863d95）
+  均 success。
+- **融合 WASM 技能（第七十一轮，技能沙箱第四算子）**：新 guest crate
   `dsh/skills/dissolve_field/`（geo union 组内折叠——按 `_field` 分组，
   相邻并单部 / 相离附 `_part`，留分组字段 + `_count`）+
   `dsh/skills/dissolve_field.wasm` 入仓；双端技能分析区加融合行
