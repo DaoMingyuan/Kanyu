@@ -61,7 +61,10 @@
   分支，双客户端目录页签服务链接分类加发现表单，测试器 54/54 全绿。
   **WFS GetFeature 拉取**：新增 services.fetch RPC（20 项，buildGetFeatureUrl
   移植壳层，离线 data 路径 + 缺省落 output/wfs_<图层>.geojson），双端图层行
-  「拉取」按钮联动当前图层，测试器 55/55 全绿。
+  「拉取」按钮联动当前图层，测试器 55/55 全绿。**WMS GetMap 底图**：
+  新增 services.wms RPC（21 项，buildGetmapUrl 移植壳层 v2——WMS 1.3.0 +
+  EPSG:4326 + bbox 六位小数，urlOnly 离线契约路径），kanyu_catalog 加
+  kind=wms 分支，双端服务链接分类加底图预览行，测试器 56/56 全绿。
 
 ### 修复
 

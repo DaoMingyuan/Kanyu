@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· 服务链接 WFS 发现（第十五轮：services.discover RPC 19 项 + parseCapabilities 移植 + 双端发现表单，54/54 断言）· WFS GetFeature 拉取落图层（第十六轮：services.fetch RPC 20 项 + 双端拉取按钮联动当前图层，55/55 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· 服务链接 WFS 发现（第十五轮：services.discover RPC 19 项 + parseCapabilities 移植 + 双端发现表单，54/54 断言）· WFS GetFeature 拉取落图层（第十六轮：services.fetch RPC 20 项 + 双端拉取按钮联动当前图层，55/55 断言）· WMS GetMap 底图预览（第十七轮：services.wms RPC 21 项 + buildGetmapUrl 移植壳层 v2 + 双端底图预览，56/56 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 组件目录域延伸：WMS GetMap 底图预览（RPC 21 项，56/56 断言）
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **56/56**（新增 1 断言：buildGetmapUrl 逐字符契约——1.3.0/EPSG:4326/bbox 六位小数/基址补 &）、`--static` **45/45**；sync-local 回灌 + 3080 重启后桥实测：health `"rpc":21`、urlOnly 地址构造逐字符正确、安装区 client.js 含 services.wms
+- 内容：① host.js 新增 `services.wms` RPC（20→21）——`buildGetmapUrl` 移植壳层 services.rs v2（WMS 1.3.0 + CRS=EPSG:4326 + bbox 经/纬序六位小数），联机路径 10s 超时拉 PNG → base64 内联预览（content-type 非图像即报图层名有误），`urlOnly` 离线契约路径；② `kanyu_catalog` 工具加 `kind=wms` 分支；③ 双客户端目录页签服务链接分类加「WMS 图层名 + 预览底图」行（基址与 WFS 发现共用）
+- 偏差：无
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续十七轮离线）；服务链接域已对齐壳层 v1+v2 全部语义（WFS GetFeature/GetCapabilities + WMS GetMap），目录域下一步候选——地图框/布局框分类的组件语境对应物
+
+### [开工] 2026-08-18 kimi-code(main) — 组件目录域延伸：WMS GetMap 底图预览（services.wms RPC 21 项）
+- 范围：dsh/plugin/host.js（services.wms RPC + buildGetmapUrl 移植壳层 services.rs v2 + kanyu_catalog kind=wms 分支）、双客户端目录页签（WMS 底图预览）、dsh/tools/test_plugin.mjs（断言）、文档与双仓同步；crates 零改动
+- 依据：第十六轮收工回记登记的后续候选「WMS GetMap 底图（壳层 v2，build_getmap_url 按视口构造）」；本地三模型端点第十七轮复测仍全部离线（curl 000），组件仓 CI 第十六轮推送 success
+- 预计：中（RPC + 工具分支 + 双端预览 UI + 测试 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — 组件目录域延伸：WFS GetFeature 拉取落图层（RPC 20 项，55/55 断言）
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **55/55**（新增 1 断言：离线拉取落盘 FeatureCollection 校验 + 2 要素写出）、`--static` **44/44**；sync-local 回灌 + 3080 重启后桥实测：health `"rpc":20`、离线拉取落 `output/wfs_demo_test.geojson`（图层名消毒 `demo:test`→`demo_test`）、计数正确、安装区 client.js 含 services.fetch

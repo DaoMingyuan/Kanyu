@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第十六轮）
+## 4. 当前状态（2026-08-18，第十七轮）
 
-- **WFS GetFeature 拉取（本轮新增）**：新增 `services.fetch` RPC（20 项）——
+- **WMS GetMap 底图（本轮新增）**：新增 `services.wms` RPC（21 项）——
+  `buildGetmapUrl` 移植壳层 services.rs v2（WMS 1.3.0 + EPSG:4326 + bbox
+  六位小数），联机拉 PNG base64 内联预览，`urlOnly` 离线契约路径；
+  `kanyu_catalog` 加 `kind=wms` 分支；双客户端服务链接分类加底图预览行。
+  测试器 56/56（static 45/45）；3080 桥实测地址构造逐字符正确。
+  端点复测仍全部离线。
+- **WFS GetFeature 拉取（第十六轮）**：新增 `services.fetch` RPC（20 项）——
   `buildGetFeatureUrl`/`joinQuery` 移植壳层 services.rs（GeoJSON 输出优先、
   10s 超时、离线 `data` 路径），响应校验 FeatureCollection 根，缺省落
   `output/wfs_<图层>.geojson`；`kanyu_catalog` 加 `url+layer` 拉取分支；
