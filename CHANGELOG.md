@@ -113,7 +113,9 @@
   测试器 90/90 全绿。**kanyu_geoprocess 产出回执**：动态工具双分支
   （精选白名单 + 注册表全库）成功回执附「产出: N 要素 → path」写出
   清单（writesSummary 解析 stderr 共用契约，与客户端 tbRun 同源），
-  测试器 93/93 全绿。
+  测试器 93/93 全绿。**kanyu_edit 撤销栈回执**：动态工具成功回执附
+  「撤销栈 N 步 / 重做栈 M 步」（editApply 本已返回 history，此前被
+  文本面丢弃），模型侧可提示可回滚步数，测试器 96/96 全绿。
 
 - **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
   （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>

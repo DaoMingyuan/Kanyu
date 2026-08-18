@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第三十二轮）
+## 4. 当前状态（2026-08-18，第三十三轮）
 
-- **data.info 范围摘要（本轮新增）**：主仓 LayerSummary 新增 extent
+- **kanyu_edit 撤销栈回执（本轮新增）**：动态工具成功回执附「撤销栈
+  N 步 / 重做栈 M 步（可经 edit.undo/edit.redo RPC 或工作台编辑页签
+  回滚）」——`editApply` 本已返回 history 栈深，此前被文本面丢弃；
+  模型侧可据此提示可回滚步数（只读算子 feature-count 不附）。测试器
+  96/96（static 73/73）。RPC 仍 25 项。端点复测仍全部离线。
+- **data.info 范围摘要（第三十二轮）**：主仓 LayerSummary 新增 extent
   （[minx,miny,maxx,maxy]，WKB 解码累积，空为 None）——CLI 文本/JSON、
   MCP data_load、组件 data.info RPC 三面直通同获益；CRS 不报（内核不
   追踪坐标系，不诚实报告不如不报）。cargo test/clippy 全绿，本机 CLI
