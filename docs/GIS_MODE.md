@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五十六轮）
+## 4. 当前状态（2026-08-18，第五十七轮）
 
-- **编辑算子对照盘点补齐（本轮，EDIT_OPS ↔ kanyu-edit 全量比对）**：新增
+- **挖洞算子移植（本轮，kanyu-edit AddHole → 组件）**：EDIT_OPS 7→8 新增
+  hole-add 面内挖洞——ring 未闭合自动闭合 + holeValidate 校验语义完整移植
+  （点环关系射线法 + 边界相接判负），part 单面恒 0/多面子面下标，逆操作
+  hole-remove 弹出末环。测试器 166/166（static 130/130），3080 生产桥
+  挖洞/撤销闭环实测通过。注：五十六轮双仓 CI（293707a / 71292ec）均 success。
+- **编辑算子对照盘点补齐（第五十六轮，EDIT_OPS ↔ kanyu-edit 全量比对）**：新增
   feature-move 整要素平移算子（对齐 MoveFeature {index,dx,dy}，递归平移
   任意维度坐标、保留 Z/M、负量逆操作）；vertex-move 两个 bug 级修复——
   ringPath 缺省按几何类型分派（面[0]/多面与多线[0,0]/线与点[]，旧版恒
