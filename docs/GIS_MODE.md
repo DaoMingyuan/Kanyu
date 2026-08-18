@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第六十三轮）
+## 4. 当前状态（2026-08-18，第六十四轮）
 
-- **挖洞/打断画布交互（本轮，两算子进编辑画布）**：双端 client.js 顶点编辑
+- **feature-add 画布化（本轮，绘制点/线/面新要素进画布）**：双端 client.js
+  编辑画布绘制模式扩三种——绘制点单击即成 feature-add Point，绘制线 ≥2 点 /
+  绘制面 ≥3 点（自动闭合）攒点应用 feature-add LineString/Polygon；复用
+  drawRef/drawOverlay/afterEdit 骨架。测试器 185/185（static 149/149），
+  生产桥 feature-add Polygon 实测通过。注：六十三轮双仓 CI
+  （65e2f61 / 31251f9）均 success。
+- **挖洞/打断画布交互（第六十三轮，两算子进编辑画布）**：双端 client.js 顶点编辑
   画布新增「绘制挖洞 / 点选打断」模式——挖洞逐点攒环（覆盖层 ≥3 点预闭合
   预览，应用写 hole-add），打断单击落点即 line-split；目标要素=属性表选中
   行否则 #0；afterEdit 联动刷新与 vUp 同语义。测试器 183/183
