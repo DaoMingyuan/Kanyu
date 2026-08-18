@@ -65,6 +65,9 @@
   新增 services.wms RPC（21 项，buildGetmapUrl 移植壳层 v2——WMS 1.3.0 +
   EPSG:4326 + bbox 六位小数，urlOnly 离线契约路径），kanyu_catalog 加
   kind=wms 分支，双端服务链接分类加底图预览行，测试器 56/56 全绿。
+  **属性单元格编辑**：双客户端编辑页签加「加载属性表→点选行→写入单元格」
+  闭环（复用 data.preview + attribute-set）；workspace-write 模式入档
+  （生产 fs 工作区外只读，writeHint 给可操作指引），测试器 59/59 全绿。
 
 ### 修复
 

@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· 服务链接 WFS 发现（第十五轮：services.discover RPC 19 项 + parseCapabilities 移植 + 双端发现表单，54/54 断言）· WFS GetFeature 拉取落图层（第十六轮：services.fetch RPC 20 项 + 双端拉取按钮联动当前图层，55/55 断言）· WMS GetMap 底图预览（第十七轮：services.wms RPC 21 项 + buildGetmapUrl 移植壳层 v2 + 双端底图预览，56/56 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· 服务链接 WFS 发现（第十五轮：services.discover RPC 19 项 + parseCapabilities 移植 + 双端发现表单，54/54 断言）· WFS GetFeature 拉取落图层（第十六轮：services.fetch RPC 20 项 + 双端拉取按钮联动当前图层，55/55 断言）· WMS GetMap 底图预览（第十七轮：services.wms RPC 21 项 + buildGetmapUrl 移植壳层 v2 + 双端底图预览，56/56 断言）· 属性单元格编辑 + workspace-write 指引（第十八轮：双端编辑页签单元格闭环 + 生产写拒绝可操作化，59/59 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 组件编辑域深化：属性单元格编辑 + workspace-write 指引（59/59 断言）
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **59/59**（新增 3 断言：双端属性编辑区契约 + host writeHint 指引）、`--static` **48/48**；sync-local 回灌 + 3080 重启后桥实测：工作区外写回报中文可操作指引；工作区内 attribute-set 闭环（写入 → data.preview 复查值 → undo 栈 +1）
+- 内容：① 双客户端编辑页签新增属性单元格编辑区（data.preview 加载 → 点选行 → 字段/新值 → edit.apply attribute-set；新值 JSON 可解析按类型写入；成功收起表格）——无新增 RPC（仍 21 项）；② **workspace-write 模式实测入档**：DSH fs 服务生产侧工作区外读放行、写拒绝（file access denied under workspace-write mode），writeHint 统一规范化 edit/services 写失败消息为可操作指引；editWriteFc 改返回错误串（原布尔丢原因）
+- 偏差：本轮切片原仅 UI 深化，冒烟暴露生产写拒绝约束后并入修（属组件自我迭代的实测排障）
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续十八轮离线）；编辑域下一步候选——顶点编辑画布交互（点选顶点拖拽，对齐壳层 edit.rs 顶点会话）
+
+### [开工] 2026-08-18 kimi-code(main) — 组件编辑域深化：属性单元格编辑（壳层 edit.rs/attrtable.rs 语义，复用 data.preview + attribute-set）
+- 范围：双客户端编辑页签（属性表加载 + 行选 + 字段/值表单 → edit.apply attribute-set）、dsh/tools/test_plugin.mjs（双端契约断言）、文档与双仓同步；host.js/crates 零改动（复用既有 RPC）
+- 依据：长期目标「地理编辑功能同步移植到组件功能进行自我迭代」——壳层编辑会话含单元格编辑，组件编辑页签此前只有裸算子 JSON；本地三模型端点第十八轮复测仍全部离线（curl 000），组件仓 CI 第十七轮推送 success
+- 预计：小（纯双端 UI + 测试 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — 组件目录域延伸：WMS GetMap 底图预览（RPC 21 项，56/56 断言）
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **56/56**（新增 1 断言：buildGetmapUrl 逐字符契约——1.3.0/EPSG:4326/bbox 六位小数/基址补 &）、`--static` **45/45**；sync-local 回灌 + 3080 重启后桥实测：health `"rpc":21`、urlOnly 地址构造逐字符正确、安装区 client.js 含 services.wms

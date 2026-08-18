@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第十七轮）
+## 4. 当前状态（2026-08-18，第十八轮）
 
-- **WMS GetMap 底图（本轮新增）**：新增 `services.wms` RPC（21 项）——
+- **属性单元格编辑（本轮新增）**：双客户端编辑页签加「加载属性表 → 点选行
+  → 写入单元格」闭环（复用 data.preview + attribute-set，无新增 RPC）。
+  **workspace-write 模式入档**：DSH fs 服务生产侧工作区外读放行、写拒绝
+  （3080 实测），writeHint 统一给中文可操作指引；工作区内编辑闭环桥实测
+  通过（写入 → preview 复查 → undo 栈 +1）。测试器 59/59（static 48/48）。
+  端点复测仍全部离线。
+- **WMS GetMap 底图（第十七轮）**：新增 `services.wms` RPC（21 项）——
   `buildGetmapUrl` 移植壳层 services.rs v2（WMS 1.3.0 + EPSG:4326 + bbox
   六位小数），联机拉 PNG base64 内联预览，`urlOnly` 离线契约路径；
   `kanyu_catalog` 加 `kind=wms` 分支；双客户端服务链接分类加底图预览行。
