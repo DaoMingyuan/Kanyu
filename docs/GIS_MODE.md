@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第三十六轮）
+## 4. 当前状态（2026-08-18，第三十七轮）
 
-- **kanyu_catalog WMS 参数面（本轮新增）**：WMS 底图分支 bbox/width/height
+- **kanyu_scene3d 高度范围回执（本轮新增）**：scene3d.data RPC 增量返回
+  heightRange（缺高度字段归一 10 后累积 min/max）；动态工具回执附
+  「高度范围 min~max」+ 工作台 3D 页签接力指引。8 个动态工具回执面全部
+  过一轮。测试器 106/106（static 83/83）。RPC 仍 25 项。
+  端点复测仍全部离线。
+- **kanyu_catalog WMS 参数面（第三十六轮）**：WMS 底图分支 bbox/width/height
   直通（可据 data.info extent 给真实范围，此前恒全球）+ urlOnly 离线契约
   路径 + 回执宽高写实；服务链接三分支模型侧面全部补齐。测试器 103/103
   （static 80/80）。RPC 仍 25 项。端点复测仍全部离线。

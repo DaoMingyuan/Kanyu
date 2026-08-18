@@ -122,7 +122,9 @@
   apply2/undoRedo 成功后属性表作废 + 顶点画布重载 + 产出路径广播
   （对齐 vUp 语义），测试器 101/101 全绿。**kanyu_catalog WMS 参数面**：
   WMS 分支 bbox/宽高直通 + urlOnly 离线契约 + 回执写实，服务链接三分支
-  模型侧面补齐，测试器 103/103 全绿。
+  模型侧面补齐，测试器 103/103 全绿。**kanyu_scene3d 高度范围回执**：
+  scene3d.data 增量返回 heightRange，动态工具回执附高度范围 + 工作台
+  3D 页签接力指引，8 动态工具回执面全部过一轮，测试器 106/106 全绿。
 
 - **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
   （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>
