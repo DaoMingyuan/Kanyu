@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五十四轮）
+## 4. 当前状态（2026-08-18，第五十五轮）
 
-- **3D 场景符号化着色（本轮）**：`scene3d.data` 新增 symbology 入参——
+- **目录 .kyu 工程图层接力（本轮，目录→地图联动闭环）**：新增 style.list
+  RPC（30→31，.kyu 图层全列 + source 相对工程目录绝对化 + styleMode
+  摘要）；双端目录页签 .kyu 条目点击展开图层清单（主色色块对齐壳层
+  Contents），图层行点击载入当前图层 + store.sym/kyu/layerId 接力地图
+  页签回填符号化表单与写入区。测试器 156/156（static 120/120）。
+  3080 生产桥实测通过。SKILL.md v1.5。端点复测仍全部离线。
+- **3D 场景符号化着色（第五十四轮）**：`scene3d.data` 新增 symbology 入参——
   逐要素派生 hex 色（categorical 接管 colorField + catColors 映射；
   graduated stops 末档命中；缺字段不着色）；kanyu_scene3d 工具同参；
   双端 3D 页签符号化行（复用 buildSymbology）+ 模型色三级回退 +
