@@ -100,6 +100,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-18 kimi-code(main) — 本地测试器覆盖静态双面包（35/35 断言全绿）
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **35/35 通过 exit 0**（新增 pkg 契约组 12 项全绿，含 RPC 桥实测 ping 200）
+- 内容：test_plugin.mjs 新增 pkg 静态双面包契约断言组——package.json exports 三键 + dsh.client 声明；client.js 语法/工厂 id==包名/inject 三服务/slot 注册/preset 门控/方言禁项；两半漂移锁（客户端 hostCall 方法名 ⊆ host.js RPC 表，9⊆14）；index.js mock apply（8 工具 + /kanyu-gis 前缀路由注册）+ node:http 等价面实测桥 ping；文档计数同步（README/GIS_MODE/CHANGELOG），dsh/CHANGELOG [0.4.1]
+- 偏差：首跑两项禁项断言误伤（includes 命中头注说明文字），改为调用形态判定（host.call(/styles.insert(）后全绿——断言写法教训：禁项查调用不查词
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线）；组件能力深化批次（§1.2 #11）
+
+### [开工] 2026-08-18 kimi-code(main) — 本地测试器覆盖静态双面包（pkg/ 契约断言组）
+- 范围：dsh/tools/test_plugin.mjs（新增 pkg 测试组：package.json dsh.client/exports 契约、client.js 工厂格式/preset 门控/方言禁项、index.js webServer 桥）、文档与双仓同步；crates 零改动
+- 依据：长期目标「在本地的 DeepSeek harness 进行测试更新」；第五轮新增的静态双面包尚无回归保障（23 断言只覆盖动态包形态）
+- 预计：小（测试组约 80 行 + 文档 + 推送）
+
 ### [收工] 2026-08-18 kimi-code(main) — GIS 工作台面板随 preset 联动加载（dsh.client 双面包 + RPC 桥，实测全通）
 - 提交：本次 commit；测试：crates 零改动；验证：`dsh web --port 3099` 实测链——启动日志无 ClientPackageCompositionError、`__DSH_BOOT__` 含 kanyu-gis-dsh-plugin 条目（immediately: true）、`/plugins/kanyu-gis-dsh-plugin/client.js` 200（27972B）、`POST /kanyu-gis/call` ping 返回 kanyu 0.22.0 + 七能力清单、catalog.list 中文路径端到端命中 examples/buildings.geojson；`node --check` 双文件语法过
 - 内容：① `dsh/pkg/client.js` 新建（约 490 行手写工厂格式静态客户端 bundle：React 经 require 种子、样式自管挂 ctx.effect、host.call → fetch /kanyu-gis/call、删 tool.view.cordis 动态专利卡片、**会话快照 agentPreset 门控**——仅 kanyu-gis 会话渲染头部按钮与工作台，remote 'agent-preset/selected' 事件跟进切换）；② `dsh/pkg/index.js` 加 webServer 注入与 `/kanyu-gis/call`（POST 派发到 host.js 同一张 14 项 RPC 表）+ `/kanyu-gis/health` 路由；③ `package.json` 加 exports（`.`/`./client`/`./package.json`）+ dsh.client 声明；④ 实测排障：exports 封装拦 require.resolve('pkg/package.json') 致客户端扫描静默跳过（boot 图无条目、bundle 404），补 `./package.json` 导出修复；⑤ 文档全链（dsh/README 组成表+安装表、GIS_MODE §4、dsh/CHANGELOG [0.4.0]、根 CHANGELOG）

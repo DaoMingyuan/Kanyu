@@ -107,8 +107,9 @@ bash dsh/sync-preset.sh
   （对齐 invariant.js `entryListProblem`），此后仓库侧旁路校验可提前拦截此类 broken。
 - **本地测试**：`dsh/tools/test_plugin.mjs` 组件测试器落地——node:vm 等价
   沙箱（shell→真实子进程跑 kanyu CLI、fs→node:fs、harness→RPC/工具表收集），
-  **23/23 断言全绿**（14 RPC + 8 动态工具注册 + 七大能力逐项实证 + Client 半
-  语法/结构静态校验）；临时产物自清理，`dsh/output/` 已入 .gitignore。
+  **35/35 断言全绿**（14 RPC + 8 动态工具注册 + 七大能力逐项实证 + Client 半
+  语法/结构静态校验 + pkg 静态双面包契约组：exports/dsh.client 声明、工厂 id 契约、
+  preset 门控、方言禁项、两半 RPC 漂移锁、index.js RPC 桥实测 ping 200）；临时产物自清理，`dsh/output/` 已入 .gitignore。
 - **DSH 活体冒烟**：`dsh --profile headless` 在仓库根执行真实任务
   「`kanyu agents validate --code-repo` 并引用输出」——会话代理实测执行并正确引用
   「AGENTS.md 校验通过：0 个图层，0 条业务规则」，DSH × kanyu CLI 链路活体验证通过。

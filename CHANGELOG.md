@@ -13,7 +13,7 @@
   GIS 模式 preset（agent.cordis.yml 组合 + 领域技能 SKILL.md）；
   `sync-preset.sh` 仓库→本机安装区同步脚本；`tools/verify_preset.mjs` 旁路
   可加载性校验；**`tools/test_plugin.mjs` 组件本地测试器（node:vm 等价沙箱 +
-  真实 kanyu CLI 后端，23 断言全绿）**；DSH headless 活体冒烟通过；手册
+  真实 kanyu CLI 后端，35 断言全绿——含 pkg 静态双面包契约组与 RPC 桥实测）**；DSH headless 活体冒烟通过；手册
   `docs/GIS_MODE.md` 对齐实际机制（更正不可复现的 `kanyu dsh` 虚写命令、
   入档 headless 无 roster/runner 边界）。开源同步至 GitHub：主仓库推送 +
   独立组件仓 DaoMingyuan/kanyu-gis（详见 AI_SYNC.md 会签簿 2026-08-18 回记）。
