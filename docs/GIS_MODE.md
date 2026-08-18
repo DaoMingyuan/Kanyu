@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第二十一轮）
+## 4. 当前状态（2026-08-18，第二十二轮）
 
-- **CRS 全库检索接内核 EPSG 库（本轮新增）**：主仓 kanyu-cli 新增
+- **工具箱注册表全库接内核 tooldef（本轮新增）**：主仓 kanyu-cli 新增
+  `kanyu tool list/run` 顶层子命令（37 工具，core::tooldef 单一事实来源；
+  docs/CLI.md §4C）；组件新增 `toolbox.list`/`toolbox.run` RPC（25 项），
+  CLI 过旧降级为中文升级指引；GP_TOOLS 13 白名单精选面保留。测试器 68/68
+  （static 55/55）。双端处理页签全库表单下轮跟进。端点复测仍全部离线。
+- **CRS 全库检索接内核 EPSG 库（第二十一轮）**：主仓 kanyu-cli 新增
   `kanyu crs search/info` 顶层子命令（直连 core::crs 单一事实来源，EPSG
   7507 条；docs/CLI.md §4B），本机 CLI 已更新；组件新增 `crs.search` RPC
   （23 项）——经 CLI 检索全库，CLI 过旧回退预设兜底并标注 degraded；

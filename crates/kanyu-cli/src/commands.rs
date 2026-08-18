@@ -5,8 +5,115 @@ use kanyu_core::{agents, introspect, FormatRegistry, Layer};
 
 use crate::cli::{
     AgentsCommand, AnalysisCommand, CrsCommand, DataCommand, McpCommand, RenderCommand,
-    SkillCommand, ToolboxCommand, Transport,
+    SkillCommand, ToolCommand, ToolboxCommand, Transport,
 };
+
+/// `kanyu tool ...`（core::tooldef 注册表 + toolrun::run_tool 统一执行入口；
+/// 与壳层工具箱面板/MCP 工具面同一单一事实来源）。
+pub fn tool(cmd: &ToolCommand, json: bool) -> Result<()> {
+    match cmd {
+        ToolCommand::List => {
+            let tools = kanyu_core::tooldef::TOOLS;
+            print_value(&tools, json, |list| {
+                list.iter()
+                    .map(|t| {
+                        format!(
+                            "{:<28} {}（{}）—— {}",
+                            t.id,
+                            t.name,
+                            t.category.label(),
+                            t.desc
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
+        }
+        ToolCommand::Run { id, params, output } => {
+            let def = kanyu_core::tooldef::find(id)
+                .ok_or_else(|| anyhow::anyhow!("未知工具: {id}（kanyu tool list 查看注册表）"))?;
+            // --param k=v → 键值表；按 def.params 序组装 values（缺省取参数默认值）。
+            let mut kv = std::collections::HashMap::new();
+            for p in params {
+                let (k, v) = p
+                    .split_once('=')
+                    .ok_or_else(|| anyhow::anyhow!("参数须为 k=v 形式: '{p}'"))?;
+                kv.insert(k.trim().to_string(), v.to_string());
+            }
+            let values: Vec<String> = def
+                .params
+                .iter()
+                .map(|p| {
+                    let v = kv
+                        .get(p.key)
+                        .cloned()
+                        .unwrap_or_else(|| p.default.to_string());
+                    // 多图层参数：CLI 侧允许逗号分隔，规范化为内核的换行分隔承载。
+                    if matches!(p.kind, kanyu_core::tooldef::ParamKind::MultiLayers) {
+                        v.replace(',', "\n")
+                    } else {
+                        v
+                    }
+                })
+                .collect();
+            // Layer 类参数值 = 数据文件路径：执行前预加载进图层表
+            // （run_tool 的 get_layer 为 Fn 只读闭包，同名路径只载一次）。
+            let mut cache: std::collections::HashMap<String, geojson::FeatureCollection> =
+                std::collections::HashMap::new();
+            for (p, v) in def.params.iter().zip(&values) {
+                let paths: Vec<String> = match p.kind {
+                    kanyu_core::tooldef::ParamKind::Layer => {
+                        if v.trim().is_empty() { vec![] } else { vec![v.trim().to_string()] }
+                    }
+                    kanyu_core::tooldef::ParamKind::MultiLayers => {
+                        kanyu_core::toolrun::parse_multi_layers(v)
+                    }
+                    _ => vec![],
+                };
+                for path in paths {
+                    if let std::collections::hash_map::Entry::Vacant(e) = cache.entry(path) {
+                        let layer = Layer::load(stem_of(e.key()), e.key())
+                            .with_context(|| format!("加载图层 '{}' 失败", e.key()))?;
+                        e.insert(layer.collection());
+                    }
+                }
+            }
+            let outcome = kanyu_core::toolrun::run_tool(id, &values, |path| {
+                cache.get(path).cloned()
+            })
+            .map_err(|e| anyhow::anyhow!(e))?;
+            use kanyu_core::toolrun::ToolOutcome;
+            match outcome {
+                ToolOutcome::Report(text) => {
+                    if json {
+                        println!("{}", serde_json::json!({ "tool": id, "report": text }));
+                    } else {
+                        println!("{text}");
+                    }
+                }
+                ToolOutcome::NewLayer { collection, .. } => {
+                    write_geojson_result(&collection, output.as_deref())?;
+                }
+                ToolOutcome::NewLayers { layers, .. } => {
+                    let dir = output.as_deref().ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "工具 {id} 产出 {} 个图层，须以 --output 指定输出目录",
+                            layers.len()
+                        )
+                    })?;
+                    std::fs::create_dir_all(dir).with_context(|| format!("创建 {dir} 失败"))?;
+                    for (base, collection) in &layers {
+                        let path = format!("{dir}/{base}.geojson");
+                        std::fs::write(&path, Layer::to_geojson_string(collection))
+                            .with_context(|| format!("写入 {path} 失败"))?;
+                        eprintln!("已写出 {} 个要素 → {path}", collection.features.len());
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
 /// `kanyu crs ...`（EPSG 全库检索/检视，直连 kanyu_core::crs 单一事实来源）。
 pub fn crs(cmd: &CrsCommand, json: bool) -> Result<()> {

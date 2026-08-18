@@ -19,5 +19,6 @@ fn main() -> anyhow::Result<()> {
         Command::Mcp(cmd) => commands::mcp_cmd(cmd),
         Command::Toolbox(cmd) => commands::toolbox(cmd, args.json),
         Command::Crs(cmd) => commands::crs(cmd, args.json),
+        Command::Tool(cmd) => commands::tool(cmd, args.json),
     }
 }

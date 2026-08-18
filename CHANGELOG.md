@@ -76,7 +76,18 @@
   **CRS 全库检索**：新增 crs.search RPC（23 项）经 `kanyu crs search` 接内核
   EPSG 全库（7507 条；CLI 过旧回退预设兜底标注 degraded），kanyu_crs 工具
   加 search 分支，双端坐标页签加 EPSG 检索框（点击设为目标 CRS），
-  测试器 65/65 全绿。
+  测试器 65/65 全绿。**工具箱注册表全库**：新增 toolbox.list/toolbox.run
+  RPC（25 项）经 `kanyu tool list/run` 接内核 tooldef 37 工具注册表（与壳层
+  工具箱/MCP 同一单一事实来源；CLI 过旧降级为中文升级指引），GP_TOOLS 13
+  白名单精选面保留，测试器 68/68 全绿。
+
+- **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
+  （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>
+  [--param k=v]... [--output <路径>]`（直连 `core::tooldef` 注册表 +
+  `toolrun::run_tool` 统一执行入口：Layer 参数值按文件路径预加载、多图层
+  逗号/换行分隔、枚举内核值或中文标签均可、报告类 --json 包装、多产出
+  --output 视作输出目录），与壳层工具箱面板/MCP 工具面/kanyu-py SDK 同一
+  单一事实来源；文档见 docs/CLI.md §4C。
 
 - **`kanyu crs` 顶层子命令（EPSG 全库检索/检视）**：`kanyu crs search [query]
   [--limit N]`（代码子串/名称大小写不敏感匹配，空查询返回常用精选）与

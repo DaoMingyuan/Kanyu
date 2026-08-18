@@ -367,6 +367,36 @@ EPSG:4547  CGCS2000 / 3-degree Gauss-Kruger CM 114E
 proj4:   +proj=tmerc +lat_0=0 +lon_0=114 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs +type=crs
 ```
 
+## 4C. kanyu tool ✅（工具箱注册表，QGIS Processing 式）
+
+直连内核 `core::tooldef` 注册表（37 工具，与壳层工具箱面板、MCP 工具面、
+kanyu-py SDK 同一单一事实来源）+ `toolrun::run_tool` 统一执行入口。
+
+```bash
+kanyu tool list                          # 列出注册表（id/中文名/分类/说明）
+kanyu tool list --json                   # 全量定义含参数表（AI/组件发现面）
+kanyu tool run <id> [--param k=v]... [--output <路径>]
+```
+
+- `run` 的 Layer 类参数值给**数据文件路径**（执行前预加载，同名路径只载
+  一次）；多图层参数（MultiLayers）逗号或换行分隔多个路径；枚举参数内核值
+  与中文标签均可（如 `--param predicate=相交` 等价 `intersect s`）；缺省
+  参数取注册表默认值。
+- 产出结算：报告类工具（`report: true`，如 `stats`/`topology_check`）打印
+  终端报告（`--json` 包装为 `{"tool":..,"report":..}`）；单图层产出走
+  `--output`（GeoJSON，缺省打印 stdout）；多产出工具（如 `split_by_field`）
+  `--output` 视作**输出目录**，逐组一个 `<目录>/<组名>.geojson`；工具声明
+  OutFile 参数时由内核按扩展名格式直接写盘。
+
+```bash
+$ kanyu tool run buffer --param layer=examples/buildings.geojson \
+    --param "distance=0.001|度" --output buf.geojson
+已写出 4 个要素 → buf.geojson
+$ kanyu tool run stats --param layer=examples/buildings.geojson
+图层统计 examples/buildings.geojson:
+{ "feature_count": 4, "points": 3, ... }
+```
+
 ## 5. kanyu render ✅
 
 离屏地图渲染（kanyu-render crate；色彩系统见 [MASTERPLAN.md](MASTERPLAN.md) §1.2）。

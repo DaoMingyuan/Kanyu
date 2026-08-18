@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· 服务链接 WFS 发现（第十五轮：services.discover RPC 19 项 + parseCapabilities 移植 + 双端发现表单，54/54 断言）· WFS GetFeature 拉取落图层（第十六轮：services.fetch RPC 20 项 + 双端拉取按钮联动当前图层，55/55 断言）· WMS GetMap 底图预览（第十七轮：services.wms RPC 21 项 + buildGetmapUrl 移植壳层 v2 + 双端底图预览，56/56 断言）· 属性单元格编辑 + workspace-write 指引（第十八轮：双端编辑页签单元格闭环 + 生产写拒绝可操作化，59/59 断言）· 顶点编辑画布（第十九轮：edit.geometry RPC 22 项 + 拖拽写 vertex-move，62/62 断言）· 目录五分类补全（第二十轮：地图框=渲染产物 + 布局框=.kyu layouts，计数全真实，63/63 断言）· CRS 全库检索接内核 EPSG 库（第二十一轮：kanyu crs search/info 子命令 + crs.search RPC 23 项 + 双端检索框，65/65 断言，cargo test/clippy 全绿）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· 服务链接 WFS 发现（第十五轮：services.discover RPC 19 项 + parseCapabilities 移植 + 双端发现表单，54/54 断言）· WFS GetFeature 拉取落图层（第十六轮：services.fetch RPC 20 项 + 双端拉取按钮联动当前图层，55/55 断言）· WMS GetMap 底图预览（第十七轮：services.wms RPC 21 项 + buildGetmapUrl 移植壳层 v2 + 双端底图预览，56/56 断言）· 属性单元格编辑 + workspace-write 指引（第十八轮：双端编辑页签单元格闭环 + 生产写拒绝可操作化，59/59 断言）· 顶点编辑画布（第十九轮：edit.geometry RPC 22 项 + 拖拽写 vertex-move，62/62 断言）· 目录五分类补全（第二十轮：地图框=渲染产物 + 布局框=.kyu layouts，计数全真实，63/63 断言）· CRS 全库检索接内核 EPSG 库（第二十一轮：kanyu crs search/info 子命令 + crs.search RPC 23 项 + 双端检索框，65/65 断言，cargo test/clippy 全绿）· 工具箱注册表全库接内核 tooldef（第二十二轮：kanyu tool list/run 子命令 + toolbox.list/toolbox.run RPC 25 项，37 工具单一事实来源，68/68 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -65,7 +65,7 @@
 | kanyu-render | ✅ | 离屏 PNG/SVG；晨山/夜观星；graduated/categorical 符号化 |
 | kanyu-mcp | ✅ | 17 stable 工具；stdio+streamable HTTP；SEP-2663 长任务 |
 | kanyu-skill | 🚧 incubating | wasmtime+WIT 宿主；燃料沙箱；MCP 热加载（hotload/skill_run/skill_list） |
-| kanyu-cli | ✅ | 8 命令组（v0.22.0 起新增 crs 组：EPSG 全库检索 search/检视 info，直连 core::crs），全局 --json |
+| kanyu-cli | ✅ | 9 命令组（v0.22.0 起新增 crs 组：EPSG 全库检索 search/检视 info；tool 组：tooldef 37 工具注册表 list/run 出口，直连 core::crs/tooldef/toolrun），全局 --json |
 | kanyu-shell | 🚧 incubating | v0.8：命令注册表（DAML 投影）、dock 三区停靠+滚动契约、中央视图停靠区（地图框页签吸附/纯白画布）、symbology 符号化（单色/唯一值/分级，按层渲染入 .kyu）、catalog 工程目录五分类、toolbox 参数类型对齐 ArcGIS Python 工具箱规范（进度模态可取消/三级日志）、属性表+字段计算器、多视图+实验 3D、WCAG 2.2/状态色体系 |
 | kanyu-py | ✅ | 48 绑定（geoprocess 三批/attrcalc/crs 检索/toolrun）+ Layer 28 链式方法 + toolbox registry |
 | 堪舆数据库 .kdb | ✅ | 自研存档（裁决 #19）：Arrow IPC + kanyu.* 元数据，RecordBatch 直通类型保真，全格式转换接入 |
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 组件处理域深化：`kanyu tool` CLI 出口接 tooldef 37 工具注册表（RPC 25 项，68/68 断言）
+- 提交：本次 commit；测试：`cargo test -p kanyu-cli` 17+1 全绿（上一轮 workspace 全绿）+ `cargo clippy -p kanyu-cli --all-targets -- -D warnings` 清洁（map_entry lint 修复：预加载循环改 Entry::Vacant）；验证：`node dsh/tools/test_plugin.mjs` **68/68**（新增 3 全量断言：37 工具清单含 buffer/zonal_stats + 注册表路径 buffer 输出 4 要素 + stats 报告 --json 包装；+1 静态断言：无 CLI 降级报错形状）、`--static` **55/55**；cargo install 更新本机 CLI 后 sync-local 回灌 + 3080 重启桥实测：health `"rpc":25`、`toolbox.list` 返回 37 工具全量定义、`toolbox.run stats` 真实报告（feature_count=4）
+- 内容：① **本轮动 crates**——kanyu-cli 新增顶层子命令 `kanyu tool list`（--json 全量参数表）/ `kanyu tool run <id> --param k=v...`（直连 core::tooldef 37 工具注册表 + toolrun::run_tool：Layer 参数值按文件路径预加载进 Fn 只读闭包查表、MultiLayers 逗号→换行规范化、报告类 --json 包装 {"tool","report"}、NewLayer 走 --output/stdout、NewLayers --output 视作目录逐组落盘；OutFile 参数由内核自写盘），docs/CLI.md 新增 §4C；② host.js 新增 `toolbox.list`/`toolbox.run` RPC（23→25）——CLI 过旧无 tool 子命令时中文升级指引（无本地兜底，注册表在内核不重复造表）；GP_TOOLS 13 白名单精选面保留不动
+- 偏差：3080 桥冒烟首跑 toolbox.run 相对路径误按实例工作区（npx 缓存目录）解析失败——生产桥 Layer 参数须绝对路径（测试器沙箱 WORKSPACE=REPO_ROOT 故相对路径可用），非组件缺陷，冒烟改绝对路径通过
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续二十二轮离线）；下轮候选——双客户端处理页签工具箱全库表单（toolbox.list 参数表驱动动态表单：Layer→路径、Enum→下拉、Boolean→复选、Field→字段名、LinearUnit→值+单位，与 GP_TOOLS 精选面并存）；kanyu_geoprocess 工具可加 registry 分支复用 toolbox.run
+
+### [开工] 2026-08-18 kimi-code(main) — 组件处理域深化：`kanyu tool` CLI 出口（tooldef 37 工具注册表接组件 toolbox.list/toolbox.run RPC 25 项）
+- 范围：**本轮动 crates**（kanyu-cli 新增 `tool` 顶层子命令 list/run 直连 core::tooldef 注册表 + toolrun::run_tool 统一执行入口——Layer 参数值按文件路径加载、OutFile 分支内核自写盘、NewLayer(s) 产出落 --output/stdout；docs/CLI.md 同步）+ dsh/plugin/host.js（toolbox.list/toolbox.run RPC 23→25，geoprocess 13 白名单保留不动）、dsh/tools/test_plugin.mjs（断言）、文档与双仓同步；双客户端工具箱全库表单下轮跟进
+- 依据：第二十一轮收工回记登记的处理域候选；内核 tooldef 37 工具（QGIS 式注册表，壳层工具箱/MCP/kanyu-py 三面投影）此前 CLI 无出口（cli.rs 仅 analysis 14 子命令子集），组件 GP_TOOLS 13 条硬编码白名单与注册表漂移风险渐增——按「单一事实来源」经 CLI 接注册表；本地三模型端点第二十二轮复测仍全部离线（curl 000），组件仓 CI 第二十一轮推送 success（b86bb21）
+- 预计：中（CLI 子命令 + 构建安装 + 双 RPC + 测试 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — 组件坐标框架域深化：CRS 全库检索接内核 EPSG 库（RPC 23 项，65/65 断言）
 - 提交：本次 commit；测试：`cargo test --workspace` 全绿（0 失败）+ `cargo clippy -p kanyu-cli --all-targets -- -D warnings` 清洁；验证：`node dsh/tools/test_plugin.mjs` **65/65**（新增 2 断言：4547 检索命中 EPSG:4547 + 空查询常用精选含 EPSG:4326——双模式可测，degraded 兜底不影响契约）、`--static` **54/54**；cargo install 更新本机 CLI 后 sync-local 回灌 + 3080 重启桥实测：health `"rpc":23`、`crs.search` CGCS2000 返回 EPSG:4491-4495（source 为内核全库非兜底，kind 中文映射正确）、安装区 client.js 含 crs.search

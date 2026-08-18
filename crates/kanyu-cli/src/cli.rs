@@ -59,6 +59,33 @@ pub enum Command {
     /// 坐标参考系（CRS）：EPSG 全库检索与条目检视（内置 EPSG 数据库 7507 条）。
     #[command(subcommand)]
     Crs(CrsCommand),
+
+    /// 工具箱注册表（QGIS Processing 式，core::tooldef 单一事实来源）：
+    /// 列出/执行内核工具，与壳层工具箱面板、MCP 工具面共用同一注册表。
+    #[command(subcommand)]
+    Tool(ToolCommand),
+}
+
+/// `kanyu tool ...`
+#[derive(Subcommand, Debug)]
+pub enum ToolCommand {
+    /// 列出工具注册表（id/中文名/分类/说明；--json 输出含参数表全量定义，
+    /// 供 AI 代理与 DSH 组件发现）。
+    List,
+    /// 执行注册表工具：Layer 类参数值给数据文件路径（多图层参数逗号/换行
+    /// 分隔多个路径），枚举参数给内核值或中文标签均可。
+    Run {
+        /// 工具 id（`kanyu tool list` 查看）。
+        id: String,
+        /// 参数（k=v 形式，键为参数 key，可多个；缺省取参数默认值）。
+        #[arg(long = "param")]
+        params: Vec<String>,
+        /// 结果输出路径（GeoJSON；多产出工具视作输出目录，逐组一个文件；
+        /// 缺省打印到 stdout）。工具声明了输出文件参数（OutFile）时由内核
+        /// 直接按扩展名格式写盘，与本旗标无关。
+        #[arg(long)]
+        output: Option<String>,
+    },
 }
 
 /// `kanyu crs ...`
