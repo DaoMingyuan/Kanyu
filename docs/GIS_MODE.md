@@ -80,9 +80,17 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五十五轮）
+## 4. 当前状态（2026-08-18，第五十六轮）
 
-- **目录 .kyu 工程图层接力（本轮，目录→地图联动闭环）**：新增 style.list
+- **编辑算子对照盘点补齐（本轮，EDIT_OPS ↔ kanyu-edit 全量比对）**：新增
+  feature-move 整要素平移算子（对齐 MoveFeature {index,dx,dy}，递归平移
+  任意维度坐标、保留 Z/M、负量逆操作）；vertex-move 两个 bug 级修复——
+  ringPath 缺省按几何类型分派（面[0]/多面与多线[0,0]/线与点[]，旧版恒
+  [0] 对线/点错误下钻）+ 仅覆写 x/y 保留 Z/M（旧版丢弃高程）；undo 容量
+  64→100 对齐 kanyu-edit History 默认。EDIT_OPS 6→7（RPC 仍 31），
+  kanyu_edit 工具描述同步补齐分派语义。测试器 162/162（static 126/126），
+  3080 生产桥 feature-move 平移/撤销闭环实测通过。
+- **目录 .kyu 工程图层接力（第五十五轮，目录→地图联动闭环）**：新增 style.list
   RPC（30→31，.kyu 图层全列 + source 相对工程目录绝对化 + styleMode
   摘要）；双端目录页签 .kyu 条目点击展开图层清单（主色色块对齐壳层
   Contents），图层行点击载入当前图层 + store.sym/kyu/layerId 接力地图
