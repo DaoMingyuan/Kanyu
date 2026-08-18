@@ -80,9 +80,16 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五十一轮）
+## 4. 当前状态（2026-08-18，第五十二轮）
 
-- **SKILL.md 能力面一致性精修（本轮，AI 能力整合优化）**：GIS 模式领域
+- **图层符号化编辑移植（本轮，壳层图层属性页对齐）**：Host 半
+  LayerSymbology→StyleRule 投影（symToRule + 三色带 + F64_MIN 首档）；
+  render.map 新增 symbology 入参（回执 styleApplied）；新增 style.get /
+  style.set RPC（28→30，.kyu 图层样式读写，写拒绝带 writeHint 指引）；
+  双端地图页签符号化区升级三模式编辑模型 + 工程样式读写行（读取回填/
+  写入工程）。测试器 141/141（static 108/108）。3080 生产桥三测通过。
+  SKILL.md 同步 v1.2。端点复测仍全部离线。
+- **SKILL.md 能力面一致性精修（第五十一轮，AI 能力整合优化）**：GIS 模式领域
   技能 `dsh/presets/kanyu-gis/skills/kanyu-gis/SKILL.md` 实况对齐——
   面板侧 RPC 清单 26→28（补 render.layout / catalog.readImage）、
   验证面计数 123→134（static 96→104）并补四项验证列举、metadata
