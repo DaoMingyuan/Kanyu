@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五十二轮）
+## 4. 当前状态（2026-08-18，第五十三轮）
 
-- **图层符号化编辑移植（本轮，壳层图层属性页对齐）**：Host 半
+- **模型侧符号化同能力（本轮）**：`kanyu_render` 动态工具 schema 新增
+  `symbology` 入参（LayerSymbology 编辑模型三模式文档化），地图与 layout
+  双分支同款 symToRule 投影（显式 style 优先）——模型侧与面板侧同一
+  编辑模型语义，AI 可直接产出 .kyu 持久化格式样式。RPC 仍 30 项。
+  测试器 145/145（static 110/110）。3080 生产桥复测通过。SKILL.md v1.3。
+  端点复测仍全部离线。
+- **图层符号化编辑移植（第五十二轮，壳层图层属性页对齐）**：Host 半
   LayerSymbology→StyleRule 投影（symToRule + 三色带 + F64_MIN 首档）；
   render.map 新增 symbology 入参（回执 styleApplied）；新增 style.get /
   style.set RPC（28→30，.kyu 图层样式读写，写拒绝带 writeHint 指引）；
