@@ -87,6 +87,7 @@
 9. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
 10. **属性面板重建**：等待用户定制要求
 11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml，首跑 success）；3D 真管线对接已完成（第十轮：双客户端对齐 scene3d.rs 软件管线，42/42）；后续批次：布局预览 UI 页签（目录布局框点击 → 预览，届时议 RPC 27）、kanyu-gis 会话首局对话实测（待本地模型端点在线）、凭据轮换时按 docs/GITHUB.md 登记
+12. **主仓 CI 预存红修复**（2026-08-18 第四十六轮推送后发现，至少 6 连跑同因失败，与当轮改动无关）：① ubuntu/windows Test `toolbox_list_and_run_via_python` 缺 `kanyu.kanyu` 原生模块（CI 环境未构建 maturin 产物，测试需跳过或 CI 加构建步骤）；② macos Build pyo3 链接失败（`__Py_NoneStruct`/`__Py_TrueStruct` 等符号 arm64 缺失，kanyu-py 需 extension-module 链接配置或 CI 关 feature）；③ cargo-deny license rejected（error-code v3.3.2 等经 thiserror 链引入，deny.toml 许可面需复核放行或依赖升级）
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -104,7 +105,7 @@
 - 提交：本次 commit；测试：`cargo test --workspace` 全绿 + `clippy -D warnings` 零告警 + `node dsh/tools/test_plugin.mjs` **125/125**（+2：renderLayout 静态契约键 + 动态工具 layout 出 SVG 含标题实测）、`--static` **97/97**；3080 实例已 sync-local + 重启，health `{"ok":true,"tools":8,"rpc":26}`
 - 内容：评估定界结论——排版器 `kanyu-render/src/layout.rs` 现成（LayoutSpec/LayoutFrame/nice_scale/render_layout_svg/png），壳层 layoutview 同源，唯 CLI/组件无出口 → 按 attrcalc 轮范式补出口：主仓 `RenderCommand::Layout`（A4 横/竖 + 标题/图例/比例尺/指北针内嵌地图渲染，--page/--dpi/--no-legend/--no-scalebar/--no-north/--theme/--style[-file]；比例尺 extent 跨度 ×111320 赤道近似 + nice_scale；graduated 图例「≤ 阈值」、categorical 类别排序）+ 组件 renderLayout 助手（ensureOutDir + --style-file 直通）+ kanyu_render `layout` 分支（title/page/dpi/out 参数 + 「排版完成」回执）
 - 偏差：开工预期「布局预览 RPC + 页签」调整为「先 CLI 出口 + 模型侧工具」——排版器零 UI 依赖，CLI 出口是更小事实的切片；UI 预览页签留作下轮（届时再议 RPC 27）
-- 后续：布局预览 UI 页签（目录布局框点击 → 预览）、verify_preset.mjs 覆盖扩展、GCM 凭据回填后恢复旧推送管线——已同步 §1.2
+- 后续：布局预览 UI 页签（目录布局框点击 → 预览）、**主仓 CI 预存红修复（本轮推送后发现：3eaef11 与此前 6 连跑同因失败，与本轮改动无关——① ubuntu/windows Test `toolbox_list_and_run_via_python` 缺 `kanyu.kanyu` 原生模块（CI 未 maturin build）；② macos Build pyo3 链接 `__Py_NoneStruct` 等符号缺失（arm64 缺 Python.framework 链接配置）；③ cargo-deny license rejected（error-code/thiserror 等许可面收紧））**、verify_preset.mjs 覆盖扩展、GCM 凭据回填后恢复旧推送管线——已同步 §1.2
 
 ### [开工] 2026-08-18 kimi-code(main) — 布局域：壳层 layoutview 移植评估（先评估定界，可行则落最小切片）
 - 范围：crates/kanyu-shell/src/layoutview.rs + kanyu-core 布局模型侦察（数据模型/渲染依赖/工程量定级）；组件侧现状（目录五分类已有「布局框=.kyu layouts 清单」，无视图）；评估结论入 docs/GIS_MODE.md，可行则落最小切片（如布局预览 RPC + 页签），不可行则登记定界与路线
