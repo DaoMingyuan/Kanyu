@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第七轮）
+## 4. 当前状态（2026-08-18，第八轮）
 
-- **编辑能力深化（本轮新增）**：组件编辑内核对齐 kanyu-edit 命令逆操作双栈范式——
+- **领域技能 SKILL.md 对齐组件现状（本轮新增）**：`skills/kanyu-gis/SKILL.md` 新增
+  「DSH 组件形态」章节——双半与双安装形态（plugin/ 动态 + pkg/ 静态）、8 个
+  `kanyu_*` 动态工具清单、17 项 RPC 全清单（含编辑 undo/redo/history）、工作台
+  联动与编辑双栈、组件验证面（test_plugin.mjs 40 断言 / verify_preset.mjs /
+  sync-preset.sh）。本地三模型端点（11434/1031614/15724）当日实测全部离线，
+  kanyu-gis 会话首局对话实测顺延，待端点在线后执行。
+- **编辑能力深化（第七轮）**：组件编辑内核对齐 kanyu-edit 命令逆操作双栈范式——
   `applyMutation` 单一变更入口正/逆共用，变更算子入 undo 栈（容量 64、新变更清 redo），
   新增 `edit.undo`/`edit.redo`/`edit.history` RPC（RPC 表 14→17），双客户端编辑页签
   加撤销/重做按钮；测试器 40/40 全绿（含 undo/redo 闭环 5 断言）。

@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -86,7 +86,7 @@
 8. **性能基准**：对 QGIS 的 §5.3 指标实测并公开基准报告
 9. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
 10. **属性面板重建**：等待用户定制要求
-11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；后续批次：kanyu-gis 会话首局对话实测（待本地模型端点在线）、组件能力深化（编辑内核与 kanyu-edit 对齐、3D 真管线对接）、凭据轮换时按 docs/GITHUB.md 登记
+11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；后续批次：kanyu-gis 会话首局对话实测（待本地模型端点在线）、3D 真管线对接、组件仓 CI、凭据轮换时按 docs/GITHUB.md 登记
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — GIS 模式领域技能 SKILL.md 对齐组件现状（组件形态章节落地）
+- 提交：本次 commit；测试：crates 零改动；验证：`bash dsh/sync-preset.sh` 回灌本机安装区 + 旁路校验 ALL FILES LOADABLE（preset.yml + agent.cordis.yml OK，exit 0）
+- 内容：① `skills/kanyu-gis/SKILL.md` 新增「DSH 组件形态（本会话即运行在堪舆 GIS 组件之上）」章节——双半与双安装形态（plugin/ 动态 cordis 包 + pkg/ 常驻静态 web profile）、8 个 kanyu_* 动态工具清单、17 项 RPC 全清单（含 edit.undo/redo/history）、工作台 preset 门控联动、编辑逆操作双栈、组件验证面（test_plugin.mjs 40 断言 / verify_preset.mjs / sync-preset.sh）；② dsh/CHANGELOG [0.4.2]、GIS_MODE §4 第八轮条目、根 CHANGELOG [Unreleased] 补句
+- 偏差：首局对话实测顺延——本地三模型端点（11434/1031614/15724）实测全部离线（curl 000），待端点在线后执行（开工条目已预告，非新增偏差）
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线）；3D 真管线对接（§1.2 #11 余项）；组件仓 CI
+
+### [开工] 2026-08-18 kimi-code(main) — GIS 模式领域技能对齐组件现状（SKILL.md 组件形态章节）
+- 范围：dsh/presets/kanyu-gis/skills/kanyu-gis/SKILL.md（新增组件形态章节：17 RPC/8 工具/工作台页签/双安装形态/验证命令面）、sync-preset.sh 回灌本机、文档与双仓同步；crates 零改动
+- 依据：长期目标「原来堪舆的 AI 能力根据 DeepSeek harness 整合优化」——SKILL.md 是 GIS 模式会话的领域地图，须与组件现状（编辑双栈、面板联动、RPC 桥）同源一致；本地三模型端点实测离线（11434/1031614/15724 均 000），首局对话实测顺延
+- 预计：小（SKILL.md 一章 + 校验 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — 组件编辑能力深化：对齐 kanyu-edit 命令逆操作双栈（40/40 断言全绿）
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **40/40 通过 exit 0**（新增编辑历史闭环 5 断言：apply 入栈 → undo 逆操作回写字段移除 → redo 重放字段恢复 → 新变更清 redo → edit.history 栈深标签）；web profile 重装后 3099 冒烟：health 报 8 工具 + 17 RPC、boot 图条目在、日志零报错
