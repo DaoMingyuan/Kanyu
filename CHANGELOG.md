@@ -21,7 +21,11 @@
   name/inject/apply，`new Function` 求值 `../plugin/host.js`，
   harness.registerTool → ctx.tools.register 方言折算）：已按 pnpm `file:` 副本
   工作流装进本机 DSH web profile（`cordis.patch.yml` insert 行），`dsh web`
-  启动实测激活 8 个 `kanyu_*` 工具。
+  启动实测激活 8 个 `kanyu_*` 工具。**GIS 模式 preset 活体挂载验证通过**：
+  roster API 实测发现初版组合 broken（误按宿主平面写 model 路由/服务行），
+  按 local-hybrid 方言重写 `agent.cordis.yml` 为合法代理平面组合并修复
+  SKILL.md frontmatter 非法 YAML 转义后，`session.create(agentPreset=kanyu-gis)`
+  + `skill.list` 实证领域技能入目（详见 docs/GIS_MODE.md §4）。
 
 ### 修复
 

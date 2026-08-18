@@ -52,19 +52,17 @@ bash dsh/sync-preset.sh
 > kanyu CLI **没有** dsh 子命令（`crates/kanyu-cli/src` 无此定义），该命令线不可复现，
 > 已于 2026-08-18 更正为上述 `sync-preset.sh`。
 
-**新开 kanyu-gis 会话**（preset 落位后）：
+**新开 kanyu-gis 会话**（preset 落位后，2026-08-18 活体实证的两条途径）：
 
-```powershell
-dsh run --preset kanyu-gis -w E:\BaiduSyncdisk\堪舆GIS
-```
+- **Web UI**：`dsh web` 启动后在新建会话处选择 preset「kanyu-gis」。
+- **API**：`POST /api/agentPreset.list` 确认 roster 中 `kanyu-gis` 无 `broken` 标记，
+  再 `POST /api/session.create`（payload 含 `cwd` + `agentPreset: "kanyu-gis"`）；
+  会话技能目录经 `POST /api/skill.list` 应见 `kanyu-gis` 领域技能入目。
 
-**从任意会话挂载体验**：
-
-```powershell
-cordis_mount "C:\Users\Administrator\.dsh\.agent-presets\kanyu-gis" kanyu-gis
-```
-
-挂载后刷新会话，`kanyu_*` 工具随 preflight 可用。
+> 注：早期版本文档曾写 `kanyu dsh --preset ... --workdir ...` 同步命令——
+> kanyu CLI **没有** dsh 子命令（`crates/kanyu-cli/src` 无此定义），该命令线不可复现，
+> 已于 2026-08-18 更正为上述 `sync-preset.sh`。旧版另写的 `dsh run --preset` /
+> `cordis_mount` 挂载命令线亦未经实证，以上述两条实证途径为准。
 
 ## 3. 与 kanyu 仓库的联动机制
 
@@ -74,17 +72,32 @@ cordis_mount "C:\Users\Administrator\.dsh\.agent-presets\kanyu-gis" kanyu-gis
    找不到 `kanyu.exe` 时，`kanyu-mcp`（MCP stdio 入口，同批安装）兜底。
 2. **语义面**：`tooldef` 参数类型、`format.rs` 格式矩阵、`crs` 全库是参数的单一事实来源。
 3. **GIS 模式 preset**（[`dsh/presets/kanyu-gis/`](../dsh/presets/kanyu-gis/)）：
-   `agent.cordis.yml` 组合（模型三级路由 model-local → model-deepseek → model-local-8b、
-   文件/进程服务、子代理路由、工具面、system-prompt 追加段）+ `preset.yml` 发现元数据 +
+   `agent.cordis.yml` 代理平面组合（persona 身份层 + shell/fs/jobs/skill/goal 工具面 +
+   plan-mode / compaction / delegation 三个 isolate 组 + skill-filesystem 领域技能注入；
+   形态逐行沿用 local-hybrid 方言——模型路由、fs/沙箱、subagents 注册表皆属宿主平面，
+   preset 不得声明）+ `preset.yml` 发现元数据 +
    `skills/kanyu-gis/SKILL.md` 领域技能（七域能力地图 + 四道门禁 + 仓库约定边界）。
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第二轮）
+## 4. 当前状态（2026-08-18，第四轮）
 
 - **仓库侧**：`dsh/` 组件源完整入库；`host.js` CLI 命令面与 v0.22.0 实测逐旗标对拍一致；
   `verify_preset.mjs --preset-dir dsh/presets` exit 0；`kanyu agents validate --code-repo` exit 0。
-- **本地测试（本轮新增）**：`dsh/tools/test_plugin.mjs` 组件测试器落地——node:vm 等价
+- **GIS 模式 preset 活体挂载验证（本轮新增，web profile 实证闭环）**：
+  `dsh web` 实例上经 API 实测——`agentPreset.list` 起初判 kanyu-gis **broken**
+  （"row 1 names no plugin"：初版组合误按宿主平面写了 model 路由行/file-operations/
+  process 服务行/memory/system-prompt 特殊行与不存在的 dsh-tool-read 等包名）；
+  按 local-hybrid 方言重写 `agent.cordis.yml` 后 roster 复验 broken 清除，
+  `session.create(agentPreset=kanyu-gis)` 成功，`skill.list` 初见空目录——
+  根因为 SKILL.md frontmatter 双引号标量内 `\B` 非法 YAML 转义致技能文件被静默
+  丢弃，修为正斜杠路径后**技能入目实证通过**。
+  实测教训两条入档：① 代理平面组合每行必须是带 `name` 的插件行（或 cordis:group
+  组行），模型路由/fs/沙箱/subagents 注册表属宿主平面，preset 不可声明；
+  ② SKILL.md frontmatter 是严格 YAML——双引号标量内 Windows 反斜杠路径为非法
+  转义，一律用正斜杠或单引号。`verify_preset.mjs` 已补「行必须有 name」同款判定
+  （对齐 invariant.js `entryListProblem`），此后仓库侧旁路校验可提前拦截此类 broken。
+- **本地测试**：`dsh/tools/test_plugin.mjs` 组件测试器落地——node:vm 等价
   沙箱（shell→真实子进程跑 kanyu CLI、fs→node:fs、harness→RPC/工具表收集），
   **23/23 断言全绿**（14 RPC + 8 动态工具注册 + 七大能力逐项实证 + Client 半
   语法/结构静态校验）；临时产物自清理，`dsh/output/` 已入 .gitignore。
@@ -96,7 +109,7 @@ cordis_mount "C:\Users\Administrator\.dsh\.agent-presets\kanyu-gis" kanyu-gis
   只能在 web profile（GUI 会话）进行；本机三个模型端点（11434/1031614/15724）当时离线，
   headless 走部署默认路由；cmd.exe 传中文绝对路径会被代码页截断（宿主 shell 为 pwsh
   无此问题，测试器走 Git Bash）。
-- **安装侧（本轮新增常驻路线）**：preset 经 `bash dsh/sync-preset.sh` 同步至
+- **安装侧**：preset 经 `bash dsh/sync-preset.sh` 同步至
   `~/.dsh/.agent-presets/kanyu-gis/`；**组件静态插件已装进本机 DSH web profile**——
   `dsh/pkg/` 适配器（读取 `dsh/plugin/host.js` 单一事实源，harness façade →
   `ctx.tools.register`，参数表折算标准 JSON Schema）经

@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset 镜像落盘（YAML 修复已回灌本机）· GitHub 双仓同步完成（Kanyu 主仓 + 新仓 DaoMingyuan/kanyu-gis 首发）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -72,7 +72,7 @@
 | 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
 | 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
 | 上游回馈 | ✅ | acadrust issue #55（AC15 定位缺陷 + 修法 + 证据） |
-| dsh/ DSH 组件 | ✅(开源) | kanyu-gis 组件 Host+Client 双半（`dsh/plugin/`：7 大能力 RPC + 8 个 kanyu_* 动态工具，CLI 旗标与 v0.22.0 实测对拍一致）+ GIS 模式 preset 仓库源（`dsh/presets/kanyu-gis/`：preset.yml + agent.cordis.yml + skills/kanyu-gis/SKILL.md）+ README/CHANGELOG/示例/sync-preset.sh/verify_preset.mjs/**test_plugin.mjs 本地测试器（23 断言全绿）**；**已开源双仓**：主仓 Kanyu 入库推送 + 独立仓 [DaoMingyuan/kanyu-gis](https://github.com/DaoMingyuan/kanyu-gis)（184e47f 首发 + 测试器增量）；本机安装区经 sync-preset.sh 同步并通过旁路校验（agent.cordis.yml 顶层 fallback 键 YAML 非法已修复回灌）；**DSH headless 活体冒烟通过**（会话代理真实执行 kanyu agents validate 并引用输出）；组件动态包/preset 挂载仅在 web profile（headless 无 roster/runner，dump-config 实证） |
+| dsh/ DSH 组件 | ✅(开源) | kanyu-gis 组件 Host+Client 双半（`dsh/plugin/`：7 大能力 RPC + 8 个 kanyu_* 动态工具，CLI 旗标与 v0.22.0 实测对拍一致）+ GIS 模式 preset 仓库源（`dsh/presets/kanyu-gis/`：preset.yml + agent.cordis.yml + skills/kanyu-gis/SKILL.md）+ README/CHANGELOG/示例/sync-preset.sh/verify_preset.mjs/**test_plugin.mjs 本地测试器（23 断言全绿）**；**已开源双仓**：主仓 Kanyu 入库推送 + 独立仓 [DaoMingyuan/kanyu-gis](https://github.com/DaoMingyuan/kanyu-gis)（184e47f 首发 + 测试器增量）；本机安装区经 sync-preset.sh 同步并通过旁路校验（agent.cordis.yml 顶层 fallback 键 YAML 非法已修复回灌）；**DSH headless 活体冒烟通过**（会话代理真实执行 kanyu agents validate 并引用输出）；组件动态包/preset 挂载仅在 web profile（headless 无 roster/runner，dump-config 实证）；**preset web profile 活体挂载验证通过**（2026-08-18 第四轮：roster broken 修复闭环——agent.cordis.yml 重写为 local-hybrid 方言合法代理平面组合 + SKILL.md frontmatter 转义修复，session.create + skill.list 实证技能入目；verify_preset.mjs 补运行时同款 name 判定） |
 
 ### 1.2 待完成事项（优先级序）
 
@@ -86,7 +86,7 @@
 8. **性能基准**：对 QGIS 的 §5.3 指标实测并公开基准报告
 9. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
 10. **属性面板重建**：等待用户定制要求
-11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；后续批次：DSH 活体挂载验证、组件能力深化（编辑内核与 kanyu-edit 对齐、3D 真管线对接）、凭据轮换时按 docs/GITHUB.md 登记
+11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；后续批次：kanyu-gis 会话首局对话实测（待本地模型端点在线）、组件能力深化（编辑内核与 kanyu-edit 对齐、3D 真管线对接）、凭据轮换时按 docs/GITHUB.md 登记
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — GIS 模式 preset web profile 活体挂载验证通过（broken 修复闭环 + 技能入目实证）
+- 提交：本次 commit；测试：crates 零改动；验证：`dsh web --port 3099` 实例 API 实证链——`agentPreset.list` 初判 broken「row 1 names no plugin」→ 重写后复验 broken 清除 → `session.create(agentPreset=kanyu-gis)` 成功 → `skill.list` 初见空目录（根因 SKILL.md frontmatter `\B` 非法 YAML 转义）→ 修复后**「kanyu-gis」技能入目**；`verify_preset.mjs --preset-dir dsh/presets` exit 0
+- 内容：① `agent.cordis.yml` 按 local-hybrid 方言重写为合法代理平面组合（persona + shell/fs/jobs/skill/goal 工具面 + plan-mode/compaction/delegation 三 isolate 组；删除宿主平面误写：model 三行、file-operations/process 服务行、memory/system-prompt 特殊行、不存在的 dsh-tool-read/write/edit/glob/grep/read-image 包名；tool-cordis 行按单例冲突惯例不携带）；② SKILL.md frontmatter 路径修正斜杠；③ `verify_preset.mjs` 补「行必须有 name」同款判定（对齐 invariant.js entryListProblem）；④ preset.yml 笔误修正；⑤ GIS_MODE.md §2/§3/§4 重写为实证途径（Web UI 选 preset / session.create API），dsh/README 组成表同步
+- 偏差：roster 的 broken 判定为运行时才有的健康检查，旁路校验此前不覆盖——已把同款判定补进 verify_preset.mjs 闭环；另实测 roster 健康重扫即时生效，但 preset 常驻挂载在进程启动时一次完成，改组合后须重启实例重挂载
+- 后续：kanyu-gis 会话首局对话实测（需本地模型端点在线，留用户侧）；组件能力深化批次（§1.2 #11：编辑内核对齐 kanyu-edit、3D 真管线对接）
+
+### [开工] 2026-08-18 kimi-code(main) — GIS 模式 preset 在本机 DSH web profile 活体挂载验证
+- 范围：~/.dsh/profiles/web/（preset roster/组合配置勘察与挂载）、dsh/presets/kanyu-gis/（如需修正）、文档与双仓同步；crates 零改动
+- 依据：§1.2 #11 后续批次首项「DSH 活体挂载验证」；上一轮遗留后续项「web profile GUI 会话活体挂载」；headless 无 roster/runner 边界已实证，故验证只在 web profile 进行
+- 预计：中（挂载机制勘察 + 启动验证 + 文档推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — kanyu-gis 组件常驻静态安装进本机 DSH web profile（启动实测激活）
 - 提交：本次 commit；测试：crates 零改动；验证：适配器本地冒烟（mock tools.register + 真 shell/fs，8 工具注册 + kanyu_catalog/kanyu_geoprocess 实测出结果）；**`dsh web --port 3099` 真实启动日志：「kanyu-gis 静态插件已激活：8 个 kanyu_* 工具注册进工具注册表」**；`--dump-config` 确认 insert 行入组合树
