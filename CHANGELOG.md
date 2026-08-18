@@ -68,6 +68,9 @@
   **属性单元格编辑**：双客户端编辑页签加「加载属性表→点选行→写入单元格」
   闭环（复用 data.preview + attribute-set）；workspace-write 模式入档
   （生产 fs 工作区外只读，writeHint 给可操作指引），测试器 59/59 全绿。
+  **顶点编辑画布**：新增 edit.geometry RPC（22 项，原样几何不抽稀），双端
+  编辑页签加顶点画布（enumVertices 三级 ringPath + 拖拽写 vertex-move），
+  测试器 62/62 全绿。
 
 ### 修复
 
