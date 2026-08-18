@@ -84,7 +84,10 @@
   ParamKind 驱动动态表单（Enum 下拉/Boolean 复选/Layer 预填当前图层），
   测试器 70/70 全绿。**kanyu_geoprocess 注册表分支**：模型侧动态工具双轨
   分流，白名单外 id 走 toolbox.run 接 37 工具全库（input 映射 layer、
-  params 键值透传），测试器 72/72 全绿。
+  params 键值透传），测试器 72/72 全绿。**3D 分类着色**：scene3d.data 加
+  colorField（逐要素 cat + categories ≤12 类），双端 catColor 哈希 HSL
+  稳定取色 + 棱柱类别着色 + 图例行，kanyu_scene3d 加 colorField，
+  测试器 74/74 全绿。
 
 - **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
   （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>

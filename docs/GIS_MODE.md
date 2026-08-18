@@ -80,9 +80,13 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第二十四轮）
+## 4. 当前状态（2026-08-18，第二十五轮）
 
-- **kanyu_geoprocess 注册表分支（本轮新增）**：模型侧动态工具双轨分流——
+- **3D 分类着色（本轮新增）**：scene3d.data 加 colorField（逐要素 cat +
+  categories 去重清单 ≤12 类）；双端 catColor 哈希 HSL 稳定取色、棱柱按
+  类别着色 + 类别图例行；kanyu_scene3d 加 colorField。测试器 74/74
+  （static 59/59）；3080 桥实测两类正确。RPC 仍 25 项。端点复测仍全部离线。
+- **kanyu_geoprocess 注册表分支（第二十四轮）**：模型侧动态工具双轨分流——
   白名单外 id 走 toolbox.run 注册表分支（37 工具全库，input 映射 layer、
   params 键值透传），处理域模型面覆盖全库。测试器 72/72（static 57/57）。
   RPC 仍 25 项。端点复测仍全部离线。
