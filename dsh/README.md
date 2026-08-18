@@ -38,6 +38,26 @@ bash dsh/sync-preset.sh
 组件工具全部经 PATH 上的 `kanyu` CLI 执行，不依赖宿主 `node_modules`；
 找不到 `kanyu.exe` 时以 `kanyu-mcp`（MCP stdio 入口）兜底。
 
+## 本地测试
+
+```bash
+# 组件测试器：node:vm 等价沙箱加载 plugin/host.js，真实 kanyu CLI 后端，
+# 逐项实证七大能力 + 8 动态工具 + Client 半静态结构（23 项断言）
+node dsh/tools/test_plugin.mjs        # 退出码 0 = 全绿
+
+# preset 可加载性旁路校验（与 DSH 发现库同判定链）
+node dsh/tools/verify_preset.mjs --preset-dir dsh/presets
+
+# DSH 无头会话冒烟（真实模型链路 × kanyu CLI；需本机 DSH 检出）
+dsh --profile headless "执行 kanyu agents validate --code-repo 并引用其输出"
+```
+
+边界（2026-08-18 实测记录）：headless profile 不含 agent-presets roster 与 cordis
+动态包 runner（`--dump-config` 实证），故 preset 挂载与组件动态包（cordis_define/
+cordis_run）只能在 web profile（GUI 会话）进行；headless 可用于「DSH 会话 ×
+kanyu CLI」链路冒烟。Windows 上经 cmd.exe 传含中文的绝对路径会被代码页截断——
+组件宿主 shell 为 pwsh（无此问题），本地测试器统一走 Git Bash。
+
 ## 自我迭代边界
 
 组件的迭代发生在 **Git 协作层**（提交/PR + CI），运行时绝不自改内核——

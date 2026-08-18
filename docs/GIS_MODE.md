@@ -80,17 +80,26 @@ cordis_mount "C:\Users\Administrator\.dsh\.agent-presets\kanyu-gis" kanyu-gis
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18）
+## 4. 当前状态（2026-08-18，第二轮）
 
-- **仓库侧**：`dsh/` 组件源首次完整入库（plugin 双半 + preset + 技能 + 示例 + 工具）；
-  `host.js` 的 kanyu CLI 命令面与 v0.22.0 实测逐旗标对拍一致；
-  `verify_preset.mjs --preset-dir dsh/presets` 退出码 0；
-  `kanyu agents validate --code-repo` 退出码 0。
-- **安装侧**：`bash dsh/sync-preset.sh` 已把修正后的 preset 同步至
-  `~/.dsh/.agent-presets/kanyu-gis/` 并通过旁路校验（含 agent.cordis.yml 的
-  `fallback` 顶层键 YAML 非法修复——收回 model-local 行内）。
-- **crates 侧**：本轮零改动（组件层作业，四道门禁不适用）。
-- **远端侧**：见 AI_SYNC.md 会签簿 2026-08-18 回记（主仓库推送与独立组件仓建仓结果）。
+- **仓库侧**：`dsh/` 组件源完整入库；`host.js` CLI 命令面与 v0.22.0 实测逐旗标对拍一致；
+  `verify_preset.mjs --preset-dir dsh/presets` exit 0；`kanyu agents validate --code-repo` exit 0。
+- **本地测试（本轮新增）**：`dsh/tools/test_plugin.mjs` 组件测试器落地——node:vm 等价
+  沙箱（shell→真实子进程跑 kanyu CLI、fs→node:fs、harness→RPC/工具表收集），
+  **23/23 断言全绿**（14 RPC + 8 动态工具注册 + 七大能力逐项实证 + Client 半
+  语法/结构静态校验）；临时产物自清理，`dsh/output/` 已入 .gitignore。
+- **DSH 活体冒烟**：`dsh --profile headless` 在仓库根执行真实任务
+  「`kanyu agents validate --code-repo` 并引用输出」——会话代理实测执行并正确引用
+  「AGENTS.md 校验通过：0 个图层，0 条业务规则」，DSH × kanyu CLI 链路活体验证通过。
+- **边界（实测记录）**：headless profile 经 `--dump-config` 确认**不含** agent-presets
+  roster 与 cordis 动态包 runner——preset 挂载与组件动态包（cordis_define/cordis_run）
+  只能在 web profile（GUI 会话）进行；本机三个模型端点（11434/1031614/15724）当时离线，
+  headless 走部署默认路由；cmd.exe 传中文绝对路径会被代码页截断（宿主 shell 为 pwsh
+  无此问题，测试器走 Git Bash）。
+- **安装侧**：preset 经 `bash dsh/sync-preset.sh` 同步至 `~/.dsh/.agent-presets/kanyu-gis/`
+  并通过旁路校验（agent.cordis.yml `fallback` YAML 修复已回灌）。
+- **crates 侧**：零改动（组件层作业）。
+- **远端侧**：主仓 Kanyu + 独立仓 DaoMingyuan/kanyu-gis 双仓均已推送（见会签簿回记）。
 
 ## 5. 维护契约
 

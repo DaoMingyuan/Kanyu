@@ -72,7 +72,7 @@
 | 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
 | 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
 | 上游回馈 | ✅ | acadrust issue #55（AC15 定位缺陷 + 修法 + 证据） |
-| dsh/ DSH 组件 | ✅(开源) | kanyu-gis 组件 Host+Client 双半（`dsh/plugin/`：7 大能力 RPC + 8 个 kanyu_* 动态工具，CLI 旗标与 v0.22.0 实测对拍一致）+ GIS 模式 preset 仓库源（`dsh/presets/kanyu-gis/`：preset.yml + agent.cordis.yml + skills/kanyu-gis/SKILL.md）+ README/CHANGELOG/示例/sync-preset.sh/verify_preset.mjs；**已开源双仓**：主仓 Kanyu 入库推送 + 独立仓 [DaoMingyuan/kanyu-gis](https://github.com/DaoMingyuan/kanyu-gis) 首发（184e47f）；本机安装区经 sync-preset.sh 同步并通过旁路校验（agent.cordis.yml 顶层 fallback 键 YAML 非法已修复回灌）；DSH 活体挂载验证待 dsh CLI 环境 |
+| dsh/ DSH 组件 | ✅(开源) | kanyu-gis 组件 Host+Client 双半（`dsh/plugin/`：7 大能力 RPC + 8 个 kanyu_* 动态工具，CLI 旗标与 v0.22.0 实测对拍一致）+ GIS 模式 preset 仓库源（`dsh/presets/kanyu-gis/`：preset.yml + agent.cordis.yml + skills/kanyu-gis/SKILL.md）+ README/CHANGELOG/示例/sync-preset.sh/verify_preset.mjs/**test_plugin.mjs 本地测试器（23 断言全绿）**；**已开源双仓**：主仓 Kanyu 入库推送 + 独立仓 [DaoMingyuan/kanyu-gis](https://github.com/DaoMingyuan/kanyu-gis)（184e47f 首发 + 测试器增量）；本机安装区经 sync-preset.sh 同步并通过旁路校验（agent.cordis.yml 顶层 fallback 键 YAML 非法已修复回灌）；**DSH headless 活体冒烟通过**（会话代理真实执行 kanyu agents validate 并引用输出）；组件动态包/preset 挂载仅在 web profile（headless 无 roster/runner，dump-config 实证） |
 
 ### 1.2 待完成事项（优先级序）
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — dsh 组件本地测试器落地（23/23 全绿）+ DSH headless 活体冒烟通过 + 双仓增量同步
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **23/23 断言全绿 exit 0**（14 RPC 注册 / 8 动态工具注册 / 七大能力逐项实证：render.map 出 PNG+base64、catalog.list、data.info 4 要素、data.query 命中 3、crs.reproject 4326→4490、buffer 出 4 要素、edit 写回、scene3d bbox+高度 / Client 半语法+三 slot+八页签静态校验）；`dsh --profile headless` 活体任务「执行 kanyu agents validate --code-repo 并引用输出」——会话代理真实执行并原样引用「AGENTS.md 校验通过：0 个图层，0 条业务规则」
+- 内容：① `dsh/tools/test_plugin.mjs`（约 300 行，node:vm 等价沙箱：shell→真实子进程、fs→node:fs、harness→RPC/工具表收集；临时产物自清理）；② 实测修复两处测试器自身断言（catalog GIS 扩展名矩阵不含 yml/js；data.query 输出为 FeatureCollection 无 matched 字段）；③ 实测发现并规避 cmd.exe 中文绝对路径代码页截断（宿主 shell 为 pwsh 无此问题，测试器走 Git Bash）；④ 边界入档：headless profile 经 `--dump-config` 实证**无 agent-presets roster、无 cordis 动态包 runner**——preset 挂载与组件动态包只能在 web profile 进行；本机模型端点 11434/1031614/15724 当时离线，headless 走部署默认路由；⑤ `.gitignore` 加 `/dsh/output/`；⑥ dsh/README.md 加「本地测试」节、docs/GIS_MODE.md §4 重写、dsh/CHANGELOG.md [0.2.0]、根 CHANGELOG 同步
+- 偏差：无（headless 不能挂组件动态包的结论有 README + dump-config 双重实证，非估计）
+- 后续：web profile GUI 会话活体挂载（交互式，留用户侧或后续会话）；组件能力深化批次（§1.2 #11）
+
+### [开工] 2026-08-18 kimi-code(main) — dsh 组件本地测试器（vm 沙箱等价契约实测）+ headless 可行性冒烟 + 双仓增量同步
+- 范围：dsh/tools/test_plugin.mjs（新）、dsh/README.md、docs/GIS_MODE.md、dsh/CHANGELOG.md、AI_SYNC.md；GitHub 主仓 + kanyu-gis 组件仓推送
+- 依据：用户指令（在本地的 DeepSeek harness 进行测试更新；长期持续推进）；第一轮勘察结论（headless 不挂 Host/动态包机制不可用，组件活体挂载只能在 web profile；host.js 的 ctx/harness 契约可用 node:vm 本地等价模拟，kanyu CLI 真实在 PATH）
+- 预计：中（测试器约 300 行 + 文档 + 推送；crates 零改动）
 
 ### [收工] 2026-08-18 kimi-code(main) — dsh/ 组件源完整入库 + GIS 模式 preset 镜像 + GitHub 双仓开源同步
 - 提交：本次 commit；测试：crates 零改动（组件层作业，四道门禁不适用）；验证：`node dsh/tools/verify_preset.mjs --preset-dir dsh/presets` exit 0（21 行组合 + preset 元数据全可加载）、`kanyu agents validate --code-repo` exit 0、`kanyu introspect --json`/`data info --json examples/buildings.geojson`/`render map` 出图三抽查全过、`bash dsh/sync-preset.sh` 本机安装区同步 + 旁路校验通过
