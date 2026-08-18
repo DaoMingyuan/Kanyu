@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五十三轮）
+## 4. 当前状态（2026-08-18，第五十四轮）
 
-- **模型侧符号化同能力（本轮）**：`kanyu_render` 动态工具 schema 新增
+- **3D 场景符号化着色（本轮）**：`scene3d.data` 新增 symbology 入参——
+  逐要素派生 hex 色（categorical 接管 colorField + catColors 映射；
+  graduated stops 末档命中；缺字段不着色）；kanyu_scene3d 工具同参；
+  双端 3D 页签符号化行（复用 buildSymbology）+ 模型色三级回退 +
+  HUD 标注。测试器 152/152（static 117/117）。3080 生产桥实测通过。
+  SKILL.md v1.4。端点复测仍全部离线。
+- **模型侧符号化同能力（第五十三轮）**：`kanyu_render` 动态工具 schema 新增
   `symbology` 入参（LayerSymbology 编辑模型三模式文档化），地图与 layout
   双分支同款 symToRule 投影（显式 style 优先）——模型侧与面板侧同一
   编辑模型语义，AI 可直接产出 .kyu 持久化格式样式。RPC 仍 30 项。
