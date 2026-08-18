@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第二十八轮）
+## 4. 当前状态（2026-08-18，第二十九轮）
 
-- **工具箱产图层联动（本轮新增）**：双端 ToolboxPanel 产图层工具
+- **kanyu_data query 落盘回执（本轮新增）**：动态工具 query 带 output
+  成功时返回「查询完成：命中 N 要素 → 已写出: path」确认文本（此前
+  stdout 空、模型侧无回执），命中数与客户端 runQuery 同源解析 stderr；
+  描述注明产出接力用法。测试器 88/88（static 69/69）。RPC 仍 25 项。
+  端点复测仍全部离线。
+- **工具箱产图层联动（第二十八轮）**：双端 ToolboxPanel 产图层工具
   （report=false 且无 OutFile 参数）输出缺省落 dsh/output/（split_by_field
   多产出视作目录），成功解析 stderr 写出清单 → 首产出设为当前图层全页签
   联动；报告类直出原文；host toolboxRun 补 ensureOutDir（三条 --output

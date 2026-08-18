@@ -97,7 +97,10 @@
   **工具箱产图层联动**：ToolboxPanel 产图层工具输出缺省落 dsh/output/
   （split_by_field 多产出视作目录），stderr 写出清单首产出设为当前图层
   全页签联动；host toolboxRun 补 ensureOutDir（三条 --output 路径全部
-  保底），测试器 86/86 全绿。
+  保底），测试器 86/86 全绿。**kanyu_data query 落盘回执**：动态工具
+  query 带 output 成功时返回「查询完成：命中 N 要素 → 已写出: path」
+  确认文本（此前模型侧拿到空串），命中数与客户端 runQuery 同源解析，
+  测试器 88/88 全绿。
 
 - **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
   （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>
