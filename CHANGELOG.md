@@ -26,6 +26,10 @@
   按 local-hybrid 方言重写 `agent.cordis.yml` 为合法代理平面组合并修复
   SKILL.md frontmatter 非法 YAML 转义后，`session.create(agentPreset=kanyu-gis)`
   + `skill.list` 实证领域技能入目（详见 docs/GIS_MODE.md §4）。
+  **面板联动加载**：`dsh/pkg/` 升级为 dsh.client 双面包——新增 `pkg/client.js`
+  静态客户端 bundle 常驻 web 前端 boot 图，GIS 工作台头部按钮 + 七页签浮层经
+  会话 `agentPreset` 快照门控，切换到 kanyu-gis preset 会话即联动显示；
+  Host 半新增 `/kanyu-gis/call` RPC 桥（webServer 前缀路由）供客户端回调内核。
 
 ### 修复
 

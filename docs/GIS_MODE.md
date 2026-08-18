@@ -80,11 +80,19 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第四轮）
+## 4. 当前状态（2026-08-18，第五轮）
 
+- **面板联动加载（本轮新增，用户指令落地）**：`dsh/pkg/` 升级为 dsh.client 双面包——
+  `pkg/client.js` 静态客户端 bundle 常驻 web 前端 boot 图，「🧭 堪舆GIS」会话头部按钮 +
+  七页签工作台浮层（目录/数据/地图/坐标/处理/编辑/3D/关于）经会话快照 `agentPreset`
+  字段门控：**新建/切换到 kanyu-gis preset 会话时面板自动出现，切回其他模式即隐藏**。
+  Host 半配套新增 `webServer` 前缀路由 `/kanyu-gis/call` RPC 桥（静态形态无 host.call，
+  此为官方等价物）。实测验证链：boot 图条目 + bundle 200 + ping/catalog.list 中文路径
+  端到端全通。实测教训：带 `exports` 的客户端包必须导出 `./package.json`，否则
+  `require.resolve` 被封装拦截、客户端扫描静默跳过。
 - **仓库侧**：`dsh/` 组件源完整入库；`host.js` CLI 命令面与 v0.22.0 实测逐旗标对拍一致；
   `verify_preset.mjs --preset-dir dsh/presets` exit 0；`kanyu agents validate --code-repo` exit 0。
-- **GIS 模式 preset 活体挂载验证（本轮新增，web profile 实证闭环）**：
+- **GIS 模式 preset 活体挂载验证（第四轮，web profile 实证闭环）**：
   `dsh web` 实例上经 API 实测——`agentPreset.list` 起初判 kanyu-gis **broken**
   （"row 1 names no plugin"：初版组合误按宿主平面写了 model 路由行/file-operations/
   process 服务行/memory/system-prompt 特殊行与不存在的 dsh-tool-read 等包名）；

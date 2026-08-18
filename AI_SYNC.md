@@ -100,6 +100,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-18 kimi-code(main) — GIS 工作台面板随 preset 联动加载（dsh.client 双面包 + RPC 桥，实测全通）
+- 提交：本次 commit；测试：crates 零改动；验证：`dsh web --port 3099` 实测链——启动日志无 ClientPackageCompositionError、`__DSH_BOOT__` 含 kanyu-gis-dsh-plugin 条目（immediately: true）、`/plugins/kanyu-gis-dsh-plugin/client.js` 200（27972B）、`POST /kanyu-gis/call` ping 返回 kanyu 0.22.0 + 七能力清单、catalog.list 中文路径端到端命中 examples/buildings.geojson；`node --check` 双文件语法过
+- 内容：① `dsh/pkg/client.js` 新建（约 490 行手写工厂格式静态客户端 bundle：React 经 require 种子、样式自管挂 ctx.effect、host.call → fetch /kanyu-gis/call、删 tool.view.cordis 动态专利卡片、**会话快照 agentPreset 门控**——仅 kanyu-gis 会话渲染头部按钮与工作台，remote 'agent-preset/selected' 事件跟进切换）；② `dsh/pkg/index.js` 加 webServer 注入与 `/kanyu-gis/call`（POST 派发到 host.js 同一张 14 项 RPC 表）+ `/kanyu-gis/health` 路由；③ `package.json` 加 exports（`.`/`./client`/`./package.json`）+ dsh.client 声明；④ 实测排障：exports 封装拦 require.resolve('pkg/package.json') 致客户端扫描静默跳过（boot 图无条目、bundle 404），补 `./package.json` 导出修复；⑤ 文档全链（dsh/README 组成表+安装表、GIS_MODE §4、dsh/CHANGELOG [0.4.0]、根 CHANGELOG）
+- 偏差：无；浏览器渲染层未开 GUI 实测（加载机制已端到端证明：boot 图+bundle+RPC 桥全通），preset 门控逻辑经语法与机制静态校验
+- 后续：用户在 3080 实例重启 DSH 后即可在 web UI 选 kanyu-gis preset 见面板；组件能力深化批次（§1.2 #11：编辑内核对齐、3D 真管线）
+
+### [开工] 2026-08-18 kimi-code(main) — GIS 模式切换联动加载组件面板（Client 半随 preset 自动挂载）
+- 范围：dsh/pkg/（静态插件适配器扩展 Client 半）、dsh/plugin/client.js（如需适配）、~/.dsh/profiles/web/（如需配置）、文档与双仓同步；crates 零改动
+- 依据：用户指令（切换到 GIS 模式时相应面板等界面一并联动加载）；第四轮遗留「Web 工作台（Client 半）仍走动态包 cordis_run 路线」——需改为随 kanyu-gis preset 联动自动挂载
+- 预计：中（DSH 客户端插件机制勘察 + 适配器扩展 + web profile 启动验证 + 推送）
+
 ### [收工] 2026-08-18 kimi-code(main) — GIS 模式 preset web profile 活体挂载验证通过（broken 修复闭环 + 技能入目实证）
 - 提交：本次 commit；测试：crates 零改动；验证：`dsh web --port 3099` 实例 API 实证链——`agentPreset.list` 初判 broken「row 1 names no plugin」→ 重写后复验 broken 清除 → `session.create(agentPreset=kanyu-gis)` 成功 → `skill.list` 初见空目录（根因 SKILL.md frontmatter `\B` 非法 YAML 转义）→ 修复后**「kanyu-gis」技能入目**；`verify_preset.mjs --preset-dir dsh/presets` exit 0
 - 内容：① `agent.cordis.yml` 按 local-hybrid 方言重写为合法代理平面组合（persona + shell/fs/jobs/skill/goal 工具面 + plan-mode/compaction/delegation 三 isolate 组；删除宿主平面误写：model 三行、file-operations/process 服务行、memory/system-prompt 特殊行、不存在的 dsh-tool-read/write/edit/glob/grep/read-image 包名；tool-cordis 行按单例冲突惯例不携带）；② SKILL.md frontmatter 路径修正斜杠；③ `verify_preset.mjs` 补「行必须有 name」同款判定（对齐 invariant.js entryListProblem）；④ preset.yml 笔误修正；⑤ GIS_MODE.md §2/§3/§4 重写为实证途径（Web UI 选 preset / session.create API），dsh/README 组成表同步
