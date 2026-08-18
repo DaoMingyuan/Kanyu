@@ -79,7 +79,10 @@
   测试器 65/65 全绿。**工具箱注册表全库**：新增 toolbox.list/toolbox.run
   RPC（25 项）经 `kanyu tool list/run` 接内核 tooldef 37 工具注册表（与壳层
   工具箱/MCP 同一单一事实来源；CLI 过旧降级为中文升级指引），GP_TOOLS 13
-  白名单精选面保留，测试器 68/68 全绿。
+  白名单精选面保留，测试器 68/68 全绿。**处理页签工具箱全库表单**：双客户端
+  ToolboxPanel 接 toolbox.list/toolbox.run——37 工具五分类分组下拉 +
+  ParamKind 驱动动态表单（Enum 下拉/Boolean 复选/Layer 预填当前图层），
+  测试器 70/70 全绿。
 
 - **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
   （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>

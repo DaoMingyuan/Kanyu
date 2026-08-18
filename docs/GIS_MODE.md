@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第二十二轮）
+## 4. 当前状态（2026-08-18，第二十三轮）
 
-- **工具箱注册表全库接内核 tooldef（本轮新增）**：主仓 kanyu-cli 新增
+- **处理页签工具箱全库表单（本轮新增）**：双客户端新增 ToolboxPanel——
+  toolbox.list 拉 tooldef 37 工具注册表，五分类 optgroup 分组 + ParamKind
+  驱动动态表单（Enum 下拉/Boolean 复选/Layer 预填当前图层/LinearUnit·
+  MultiLayers·Extent 格式提示），运行走 toolbox.run；13 精选快捷面并存。
+  测试器 70/70（static 57/57，toolbox.list 静态断言改双态）。RPC 仍 25 项。
+  端点复测仍全部离线。
+- **工具箱注册表全库接内核 tooldef（第二十二轮）**：主仓 kanyu-cli 新增
   `kanyu tool list/run` 顶层子命令（37 工具，core::tooldef 单一事实来源；
   docs/CLI.md §4C）；组件新增 `toolbox.list`/`toolbox.run` RPC（25 项），
   CLI 过旧降级为中文升级指引；GP_TOOLS 13 白名单精选面保留。测试器 68/68
