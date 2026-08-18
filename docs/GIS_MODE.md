@@ -80,9 +80,13 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十二轮）
+## 4. 当前状态（2026-08-19，第七十三轮）
 
-- **3D 视角书签 + PNG 导出（本轮）**：双端 TabScene3d 新增视角书签
+- **3D 视角书签持久化（本轮）**：双端 TabScene3d 书签改 localStorage 按
+  图层路径键控（`kanyu-3d-views:<path>`，跨会话留存 + 逐条删除）。
+  测试器 211/211（static 162/162）。七十二轮双仓 CI（80181b6 / f1a6c3c）
+  均 success。
+- **3D 视角书签 + PNG 导出（第七十二轮）**：双端 TabScene3d 新增视角书签
   （存 yaw/pitch 具名恢复 + 复位）与 PNG 导出（画布 toDataURL 浏览器
   下载）；TabAbout/README/agent.cordis.yml 工具计数 8→9 漂移修正。
   测试器 209/209（static 160/160）。七十一轮双仓 CI（fbb10ad / f863d95）
