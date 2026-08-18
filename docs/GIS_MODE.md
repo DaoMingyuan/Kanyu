@@ -80,9 +80,17 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第六十五轮）
+## 4. 当前状态（2026-08-18，第六十六轮）
 
-- **顶点框选批量移动（本轮，vertices-move 原子批量算子）**：EDIT_OPS 11→12
+- **面切割 WASM 技能通道（本轮，内核 BooleanOps 能力经技能沙箱进组件）**：
+  新 guest crate `dsh/skills/split_polygons/`（geo 0.33 Buffer+BooleanOps 差集
+  劈分，属性继承 + `_part` 序号）+ `dsh/skills/split_polygons.wasm` 入仓；
+  host.js RPC 31→32 新增 `skill.run`（kanyu skill run CLI 出口 + cutLine 注入
+  `_role="cut"`）；pkg 适配器注入 skillDir 同源定位；双端编辑画布「面切割」
+  模式（cutPoly 攒切割线，产出接力当前图层）。测试器 195/195
+  （static 159/159），生产桥实测通过（横贯劈分 2 部 + 未横贯面保留）。
+  注：六十五轮双仓 CI（e63f193 / bb53068）均 success。
+- **顶点框选批量移动（第六十五轮，vertices-move 原子批量算子）**：EDIT_OPS 11→12
   新增 vertices-move（先全量校验再统一写入，单条 undo 整体回滚，保留 Z/M）；
   双端 client.js 编辑画布新增「框选」开关——拖橡皮筋多选顶点（单击清空），
   选择集 ≥2 时拖拽任一选中顶点整组批量移动，drawEdit2d opts 叠加橡皮筋
