@@ -87,7 +87,7 @@
 9. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
 10. **属性面板重建**：等待用户定制要求
 11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml，首跑 success）；3D 真管线对接已完成（第十轮：双客户端对齐 scene3d.rs 软件管线，42/42）；后续批次：布局预览 UI 页签（目录布局框点击 → 预览，届时议 RPC 27）、kanyu-gis 会话首局对话实测（待本地模型端点在线）、凭据轮换时按 docs/GITHUB.md 登记
-12. **主仓 CI 预存红修复**（2026-08-18 第四十六轮推送后发现，至少 6 连跑同因失败，与当轮改动无关）：① ubuntu/windows Test `toolbox_list_and_run_via_python` 缺 `kanyu.kanyu` 原生模块（CI 环境未构建 maturin 产物，测试需跳过或 CI 加构建步骤）；② macos Build pyo3 链接失败（`__Py_NoneStruct`/`__Py_TrueStruct` 等符号 arm64 缺失，kanyu-py 需 extension-module 链接配置或 CI 关 feature）；③ cargo-deny license rejected（error-code v3.3.2 等经 thiserror 链引入，deny.toml 许可面需复核放行或依赖升级）
+12. ~~**主仓 CI 预存红修复**~~ **已完成（2026-08-18 第四十七轮，`12de4ed` 全绿）**：macOS pyo3 链接（build.rs + add_extension_module_link_args）、toolbox 测试跳过面（实测 import 权威判定）、deny 许可/停维护豁免三因闭环；后续推送 CI 恢复守护意义
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -100,6 +100,12 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 主仓 CI 预存红修复闭环（三次推送迭代，12de4ed 全绿 success）
+- 提交：`e4aa9fe`（三因初修）→ `80f70b7`（补：守卫按平台定后缀 + deny 豁免 unmaintained）→ `12de4ed`（守卫改实测 import）；测试：`cargo test --workspace` 全绿 + clippy 零告警 + toolbox 测试本地照过（本机 pyd 可用）
+- 内容：① macOS pyo3 链接失败 → kanyu-py 新增 build.rs 调 `add_extension_module_link_args()`（pyo3 指南 macOS 章节；CI RUSTFLAGS 覆盖 config.toml rustflags 故只能走 build.rs）；② toolbox_list_and_run_via_python → 守卫三连迭代定稿为「PYTHONPATH 指向 python/ 实测 `python -c "import kanyu"`」（存在性误判：仓库跟踪的 kanyu.pyd 是 Py3.13 Windows 预产物，CI Py3.12 加载 DLL 失败；后缀误判同理）；③ deny.toml → 许可白名单补 BSL-1.0/OFL-1.1/Ubuntu-font-1.0（egui 栈字体与 arboard 链）+ [advisories] ignore RUSTSEC-2024-0436（paste）/RUSTSEC-2026-0192（ttf-parser，均无漏洞仅停维护）
+- 偏差：开工估「小」实际三轮 CI 往返——windows Py3.12 ABI 问题首轮未预见；教训入档：跳过守卫的权威判定是实测加载，不是文件存在性
+- 后续：CI 转绿后守护意义恢复；本轮不涉 dsh/ 组件文件，组件仓无需同步；下轮候选回布局预览 UI 页签——已同步 §1.2
 
 ### [开工] 2026-08-18 kimi-code(main) — 主仓 CI 预存红修复（三因：macOS pyo3 链接 / toolbox python 测试跳过面 / deny 许可）
 - 范围：crates/kanyu-py/build.rs + Cargo.toml（build-deps）、crates/kanyu-cli/tests/cli_workflows.rs toolbox 测试守卫、deny.toml 许可白名单
