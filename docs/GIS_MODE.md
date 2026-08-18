@@ -80,9 +80,17 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第六十七轮）
+## 4. 当前状态（2026-08-19，第六十八轮）
 
-- **kanyu_skill 模型工具（本轮，面切割入 AI 工具面）**：动态工具 8→9 新增
+- **缓冲区 WASM 技能（本轮，技能沙箱第二算子）**：新 guest crate
+  `dsh/skills/buffer_zones/`（geo 0.33 Buffer round join——点/线/面按
+  距离膨胀为面，属性继承 + `_distance` 回写、多部附 `_part`）+
+  `dsh/skills/buffer_zones.wasm` 入仓；缓冲距离经 `_role` 注入约定传递——
+  host.js `skillRun` 增 `param` 通道（参数键值注入 `_role="param"` 参数
+  要素，与 cutLine 切割线注入并轨），`skill.run` RPC 与 `kanyu_skill`
+  模型工具参数面同步加 `param`。测试器 199/199（static 156/156）。
+  六十七轮双仓 CI（37f25d9 / fb324eb）均 success。
+- **kanyu_skill 模型工具（第六十七轮，面切割入 AI 工具面）**：动态工具 8→9 新增
   kanyu_skill（skill/input/output/cutLine 直挂 skillRun，回执附产出清单 +
   接力提示）。测试器 196/196（static 156/156）。CI 修复：skill.run 三断言
   补 STATIC_ONLY 门控（六十六轮组件仓 CI e3f052e 红于 CLI 依赖未门控，
