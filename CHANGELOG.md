@@ -49,7 +49,10 @@
   实证：roster 无 broken + stdio 桥启动零错误）。**地图面板符号化**：
   render.map/kanyu_render 支持 StyleRule（graduated/categorical，经
   --style-file 传递，pwsh 引号教训入档），双客户端地图页签加符号化控件，
-  测试器 46/46 全绿，3080 桥 graduated PNG 目检通过。
+  测试器 46/46 全绿，3080 桥 graduated PNG 目检通过。**属性表预览**：
+  新增 `data.preview` RPC（纯 fs 读面，RPC 表 18 项）+ `kanyu_data`
+  `preview` action + 双客户端数据页签表格渲染，测试器 48/48 全绿，
+  3080 桥实测字段/行/limit 截断契约正确。
 
 ### 修复
 

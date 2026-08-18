@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 组件数据域深化：属性表预览（RPC 18 项 + 双端表格）
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **48/48**（新增 2 断言：data.preview 字段/行契约 + kanyu_data(preview) 文本）、`--static` **37/37**；sync-local 回灌（本轮实证 3080 运行实例锁 pnpm-lock.yaml 致 EPERM——先停实例再同步）+ 3080 重启后桥实测：health `"rpc":18`、`data.preview` 返回 buildings.geojson 5 字段 4 行（limit=3 截断正确）、安装区 client.js 含 kyg-table-wrap
+- 内容：① host.js 新增 `data.preview` RPC（纯 fs 读面不经 CLI：字段并集 ≤40、行 ≤min(limit,200)、单元格 ≤80 字符）RPC 表 17→18；② `kanyu_data` 动态工具加 `preview` action（字段清单 + 前行文本，截 5000）；③ 双客户端数据页签加「属性表」按钮 + `kyg-table-wrap` sticky 表头表格；④ 测试器 RPC 计数断言 18 + 漂移锁同步
+- 偏差：冒烟首测误用 `{method,payload}` 请求体（桥约定为 `{method,args}`），修正后通过——非组件缺陷；bundle 无独立 URL（pkg 客户端由 cordis client-runner 装载），改验安装区文件新鲜度
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续十三轮离线）
+
+### [开工] 2026-08-18 kimi-code(main) — 组件数据域深化：属性表预览（data.preview RPC + 数据页签表格 + kanyu_data preview）
+- 范围：dsh/plugin/host.js（data.preview RPC 18 项 + kanyu_data action=preview）、双客户端数据页签（属性表渲染）、dsh/tools/test_plugin.mjs（断言）、文档与双仓同步；crates 零改动
+- 依据：长期目标「读取GIS数据的目录功能同步移植到组件功能进行自我迭代」——壳层 attrtable.rs 的属性表读面在组件尚无对应物；本地三模型端点第十三轮复测仍全部离线（curl 000）
+- 预计：中（RPC + 工具 + 双端表格 UI + 测试 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — 地图面板接入符号化（StyleRule 直通）+ pwsh 引号教训 + sync-local 加固
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **46/46**（新增符号化 4 断言：graduated 出图 / 非升序 stops 内核拒止 / 双客户端控件契约）、`--static` **35/35**；3080 重启后桥端到端实测：graduated(height) PNG 出图并目检（分档着色正确）、bundle 含 buildStyle
