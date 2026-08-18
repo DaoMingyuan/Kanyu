@@ -96,8 +96,17 @@ cordis_mount "C:\Users\Administrator\.dsh\.agent-presets\kanyu-gis" kanyu-gis
   只能在 web profile（GUI 会话）进行；本机三个模型端点（11434/1031614/15724）当时离线，
   headless 走部署默认路由；cmd.exe 传中文绝对路径会被代码页截断（宿主 shell 为 pwsh
   无此问题，测试器走 Git Bash）。
-- **安装侧**：preset 经 `bash dsh/sync-preset.sh` 同步至 `~/.dsh/.agent-presets/kanyu-gis/`
-  并通过旁路校验（agent.cordis.yml `fallback` YAML 修复已回灌）。
+- **安装侧（本轮新增常驻路线）**：preset 经 `bash dsh/sync-preset.sh` 同步至
+  `~/.dsh/.agent-presets/kanyu-gis/`；**组件静态插件已装进本机 DSH web profile**——
+  `dsh/pkg/` 适配器（读取 `dsh/plugin/host.js` 单一事实源，harness façade →
+  `ctx.tools.register`，参数表折算标准 JSON Schema）经
+  `dsh plugin --profile web add file:.../dsh/pkg` + `cordis.patch.yml` insert 行
+  （`config.hostSource` 显式指向 host.js 绝对路径）安装，**web profile 启动实测激活**：
+  日志「kanyu-gis 静态插件已激活：8 个 kanyu_* 工具注册进工具注册表」。
+  实测教训三条入档：① Cordis 普通插件必须 `inject` 声明服务（无 inject 时 ctx.get
+  取 undefined 静默停用）；② pnpm file: 安装为副本非活链，改 host.js/pkg 后须
+  remove+add 重装刷新；③ `import.meta.url` 在 profile node_modules 副本下相对
+  路径不可行，须 config.hostSource 显式路径。
 - **crates 侧**：零改动（组件层作业）。
 - **远端侧**：主仓 Kanyu + 独立仓 DaoMingyuan/kanyu-gis 双仓均已推送（见会签簿回记）。
 

@@ -100,6 +100,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-18 kimi-code(main) — kanyu-gis 组件常驻静态安装进本机 DSH web profile（启动实测激活）
+- 提交：本次 commit；测试：crates 零改动；验证：适配器本地冒烟（mock tools.register + 真 shell/fs，8 工具注册 + kanyu_catalog/kanyu_geoprocess 实测出结果）；**`dsh web --port 3099` 真实启动日志：「kanyu-gis 静态插件已激活：8 个 kanyu_* 工具注册进工具注册表」**；`--dump-config` 确认 insert 行入组合树
+- 内容：① `dsh/pkg/`（package.json + index.js 适配器：`new Function` 求值 host.js 单一事实源，harness.registerTool → ctx.tools.register，defineTool 参数方言折算标准 JSON Schema，命名导出 name/inject/apply 无 default）；② 安装进 `~/.dsh/profiles/web/`（pnpm file: 依赖 + cordis.patch.yml insert 行含 config.hostSource）；③ 三轮启动排障入档：inject 缺失静默停用 / pnpm file: 副本语义 / import.meta.url 副本路径 ENOENT（→ config.hostSource 显式路径）；④ 文档全链（dsh/README 双安装路线表、GIS_MODE §4、dsh/CHANGELOG [0.3.0]、根 CHANGELOG）
+- 偏差：无；3080 端口用户既有实例未触碰（验证用 3099 独立实例，残留孤儿进程已清理）
+- 后续：更新 host.js 后须 remove+add 重装刷新 profile 副本（已入 README）；Web 工作台（Client 半）仍走动态包 cordis_run 路线
+
+### [开工] 2026-08-18 kimi-code(main) — kanyu-gis 组件静态安装进本机 DSH web profile（常驻插件适配器 dsh/pkg）
+- 范围：dsh/pkg/（新：package.json + index.js 适配器，加载 plugin/host.js 单一事实源）、~/.dsh/profiles/web/（cordis.patch.yml insert 行 + pnpm file: 依赖）、文档与双仓同步
+- 依据：用户指令（将更新后插件安装在本地 DeepSeek Harness）；实测结论：动态包（cordis_define/run）进程内存态、不落盘不恢复（dsh-cordis-host-runner README「Storage stance」），常驻安装只能走常规插件工作流（profile 组合 + 本地包）
+- 预计：中（适配器约 120 行 + 安装 + web profile 启动验证 + 推送）
+
 ### [收工] 2026-08-18 kimi-code(main) — dsh 组件本地测试器落地（23/23 全绿）+ DSH headless 活体冒烟通过 + 双仓增量同步
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **23/23 断言全绿 exit 0**（14 RPC 注册 / 8 动态工具注册 / 七大能力逐项实证：render.map 出 PNG+base64、catalog.list、data.info 4 要素、data.query 命中 3、crs.reproject 4326→4490、buffer 出 4 要素、edit 写回、scene3d bbox+高度 / Client 半语法+三 slot+八页签静态校验）；`dsh --profile headless` 活体任务「执行 kanyu agents validate --code-repo 并引用输出」——会话代理真实执行并原样引用「AGENTS.md 校验通过：0 个图层，0 条业务规则」
 - 内容：① `dsh/tools/test_plugin.mjs`（约 300 行，node:vm 等价沙箱：shell→真实子进程、fs→node:fs、harness→RPC/工具表收集；临时产物自清理）；② 实测修复两处测试器自身断言（catalog GIS 扩展名矩阵不含 yml/js；data.query 输出为 FeatureCollection 无 matched 字段）；③ 实测发现并规避 cmd.exe 中文绝对路径代码页截断（宿主 shell 为 pwsh 无此问题，测试器走 Git Bash）；④ 边界入档：headless profile 经 `--dump-config` 实证**无 agent-presets roster、无 cordis 动态包 runner**——preset 挂载与组件动态包只能在 web profile 进行；本机模型端点 11434/1031614/15724 当时离线，headless 走部署默认路由；⑤ `.gitignore` 加 `/dsh/output/`；⑥ dsh/README.md 加「本地测试」节、docs/GIS_MODE.md §4 重写、dsh/CHANGELOG.md [0.2.0]、根 CHANGELOG 同步

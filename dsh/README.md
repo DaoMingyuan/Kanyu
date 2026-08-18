@@ -30,9 +30,22 @@
 
 ## 安装与同步
 
+**两条安装路线**（互补，可并存）：
+
+| 路线 | 机制 | 生命周期 |
+|------|------|----------|
+| 动态包（Web 工作台 + 8 工具） | 会话内 `cordis_define`（host.js + client.js）→ `cordis_run` | 进程内存态，重启不恢复（宿主设计如此） |
+| **常驻静态插件（8 工具）** | `dsh/pkg/` 适配器包装 host.js 单一事实源，经 `dsh plugin --profile web add file:<仓库>/dsh/pkg` + profile `cordis.patch.yml` insert 行安装 | 常驻，随 DSH 启动自动激活（2026-08-18 实测：web profile 启动日志「8 个 kanyu_* 工具注册进工具注册表」） |
+
 ```bash
-# 仓库 → 本机 DSH 安装区（含校验）
+# 仓库 → 本机 DSH 安装区（preset 同步 + 校验）
 bash dsh/sync-preset.sh
+
+# 常驻静态插件安装（一次性；更新 host.js 后需重装以刷新 profile 副本）：
+dsh plugin --profile web remove kanyu-gis-dsh-plugin
+dsh plugin --profile web add "file:<仓库绝对路径>/dsh/pkg"
+# cordis.patch.yml 需含 insert 行（含 config.hostSource 指向 host.js 绝对路径），
+# 见 dsh/pkg/index.js 头部注释与 docs/GIS_MODE.md §3
 ```
 
 组件工具全部经 PATH 上的 `kanyu` CLI 执行，不依赖宿主 `node_modules`；

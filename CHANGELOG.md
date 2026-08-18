@@ -17,6 +17,11 @@
   `docs/GIS_MODE.md` 对齐实际机制（更正不可复现的 `kanyu dsh` 虚写命令、
   入档 headless 无 roster/runner 边界）。开源同步至 GitHub：主仓库推送 +
   独立组件仓 DaoMingyuan/kanyu-gis（详见 AI_SYNC.md 会签簿 2026-08-18 回记）。
+  **`dsh/pkg/` 常驻静态插件适配器**（package.json + index.js：命名导出
+  name/inject/apply，`new Function` 求值 `../plugin/host.js`，
+  harness.registerTool → ctx.tools.register 方言折算）：已按 pnpm `file:` 副本
+  工作流装进本机 DSH web profile（`cordis.patch.yml` insert 行），`dsh web`
+  启动实测激活 8 个 `kanyu_*` 工具。
 
 ### 修复
 
