@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -99,6 +99,12 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 修复「组件界面未正确加载」+ 落地一键本地同步（sync-local.sh）
+- 提交：本次 commit；测试：crates 零改动；验证：重启 3080 后 health 200（8 工具/17 RPC）+ boot 图含 kanyu-gis-dsh-plugin 条目（immediately: true）+ bundle 200（32076B 含新 3D 管线）；`bash dsh/sync-local.sh` 端到端实证通过（preset 回灌校验 OK + 插件 remove/add 成功）；同步后运行中实例复检仍健康
+- 内容：① 根因定位——profile 安装区与 cordis.patch.yml 均完好（client.js 副本与仓库内容级一致，仅 CRLF 差异），真相是 3080 运行实例过期：组合树/boot 图启动时一次成型不热加载，症状 boot 图零 kanyu 条目 + bundle 404 + health 落 SPA 兜底页；② 重启用户 3080 实例修复；③ 新建 `dsh/sync-local.sh`（preset 回灌 + 插件重装一键化，落实用户指令「每次更新完成，本地要同步更新」）；④ 文档契约更新（README 组成表/安装节、GIS_MODE §5 维护契约：改 dsh/** 必跑 sync-local.sh + 重启实例）
+- 偏差：本轮为用户报告的紧急修复，开工登记与本条目合并补记（未走先登后做）
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续十一轮离线）
 
 ### [收工] 2026-08-18 kimi-code(main) — 组件 3D 能力对齐内核 scene3d.rs 软件管线（42/42 断言全绿）
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **42/42**（新增 3D 管线契约断言 ×2）、`--static` **33/33**；web profile 重装（pnpm file: 副本刷新）后 3099 冒烟：health 200（8 工具/17 RPC）+ `/plugins/kanyu-gis-dsh-plugin/client.js` 200（32076B，含 faceVisible 新管线）

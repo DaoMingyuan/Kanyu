@@ -82,6 +82,11 @@ bash dsh/sync-preset.sh
 
 ## 4. 当前状态（2026-08-18，第十轮）
 
+- **本地同步契约落地（用户报告修复）**：运行中的 `dsh web` 实例不热加载——
+  组合树/boot 图启动时一次成型，插件更新后旧实例症状为 boot 图无 kanyu 条目、
+  bundle 404、health 落 SPA 兜底页；重启实例即修复。新增 `dsh/sync-local.sh`
+  一键本地同步（preset 回灌 + 校验 + 插件重装），**每次 dsh/ 更新后必跑**，
+  并重启 `dsh web` 实例（§5 维护契约已改写）。
 - **3D 真管线对接（本轮新增）**：双客户端 `drawScene3d` 对齐内核 `scene3d.rs`
   软件管线——投影链（线性映射 → yaw 旋转 → sin(pitch) 压缩 → 高度抬升）、
   背面剔除、质心纵深排序、侧面两档明暗、高度归一化 0.25、纯白底；Tab3d 加
@@ -157,7 +162,11 @@ bash dsh/sync-preset.sh
 
 ## 5. 维护契约
 
-- 改 `dsh/**` → 重跑 `bash dsh/sync-preset.sh`（同步 + 旁路校验一体）；
+- 改 `dsh/**` → 重跑 `bash dsh/sync-local.sh`（一键本地同步：preset 回灌 +
+  旁路校验 + web profile 静态插件重装；用户指令「每次更新完成，本地要同步更新」
+  的落地脚本）；若 `dsh web` 实例在跑，**须重启实例**——组合树与客户端 boot 图
+  在启动时一次成型，不热加载（过期实例症状：boot 图无 kanyu 条目、bundle 404、
+  /kanyu-gis/health 落 SPA 兜底页）。
   改 crates 能力面 → 先四道门禁（build→test→clippy→fmt），再同步组件文档。
 - 单一事实来源：能力表以本手册 §1、`dsh/README.md` 与 `introspect.rs` 三者一致为准；
   新增组件工具时三处同时更新，并在会签簿登记。
