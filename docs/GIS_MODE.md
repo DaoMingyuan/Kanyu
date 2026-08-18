@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第十九轮）
+## 4. 当前状态（2026-08-18，第二十轮）
 
-- **顶点编辑画布（本轮新增）**：新增 `edit.geometry` RPC（22 项，原样几何
+- **目录五分类补全（本轮新增）**：`catalog.list` 加 `mapItems`（output/*.png
+  渲染产物 = 地图框对应物）+ `layoutItems`（解析 .kyu 工程 v2 layouts 节 =
+  布局框对应物，壳层 project.rs 单一事实来源），五分类计数全部真实回填；
+  双客户端改 catRows 分行描述符（产物行只读、数据行可点选）；demo.kyu 夹具
+  加 layouts 节。测试器 63/63（static 52/52）；3080 桥实测布局框入列正确。
+  端点复测仍全部离线。
+- **顶点编辑画布（第十九轮）**：新增 `edit.geometry` RPC（22 项，原样几何
   不抽稀——scene3d.data 抽稀预算不可用）；双客户端编辑页签加顶点编辑画布
   （enumVertices 三级 ringPath 定位 + 拖拽松开写 vertex-move + 重载几何，
   非原地输出自动设为当前图层）。测试器 62/62（static 51/51）；3080 桥实测

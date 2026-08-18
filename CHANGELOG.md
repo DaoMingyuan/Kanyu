@@ -70,7 +70,9 @@
   （生产 fs 工作区外只读，writeHint 给可操作指引），测试器 59/59 全绿。
   **顶点编辑画布**：新增 edit.geometry RPC（22 项，原样几何不抽稀），双端
   编辑页签加顶点画布（enumVertices 三级 ringPath + 拖拽写 vertex-move），
-  测试器 62/62 全绿。
+  测试器 62/62 全绿。**目录五分类补全**：catalog.list 加 mapItems（渲染产物
+  = 地图框对应物）+ layoutItems（.kyu 工程 v2 layouts 节 = 布局框对应物），
+  五分类计数全部真实回填，双端改 catRows 分行描述符，测试器 63/63 全绿。
 
 ### 修复
 
