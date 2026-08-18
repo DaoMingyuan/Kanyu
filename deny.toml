@@ -26,6 +26,13 @@ allow = [
 [advisories]
 # 拒绝引入带已知漏洞的依赖版本。
 yanked = "deny"
+# 「停止维护但无漏洞」豁免（替换依赖链成本远高于收益，复核后按需收敛）：
+# - RUSTSEC-2024-0436 paste（经 zvariant 链引入；dtolnay 宣布停止维护，功能稳定）
+# - RUSTSEC-2026-0192 ttf-parser（经 tiny-skia/ab_glyph 渲染链与 acadrust/nalgebra 引入）
+ignore = [
+    "RUSTSEC-2024-0436",
+    "RUSTSEC-2026-0192",
+]
 
 [bans]
 # 同一依赖的多个大版本给出警告（内核要求版本收敛）。

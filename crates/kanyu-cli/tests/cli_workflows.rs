@@ -766,13 +766,17 @@ fn toolbox_list_and_run_via_python() {
     // 原生扩展（kanyu.pyd / kanyu*.so，maturin 产物）未构建时跳过：
     // CI 只跑 cargo 构建不产 wheel，`import kanyu` 会在
     // `from .kanyu import ...` 处 ModuleNotFoundError（2026-08-18 CI 实证）。
+    // 注意后缀按当前平台判定：仓库内 python/kanyu/kanyu.pyd 是 Windows
+    // 预产物且被 git 跟踪，Linux/macOS CI 检出后「文件存在但不可加载」，
+    // 只看存在性会误判（第四十七轮首轮修复复发实证）。
     let ext_dir = python_home.join("kanyu");
+    let ext_suffix = if cfg!(windows) { ".pyd" } else { ".so" };
     let has_native = ext_dir
         .read_dir()
         .map(|it| {
             it.filter_map(|e| e.ok()).any(|e| {
                 let n = e.file_name().to_string_lossy().into_owned();
-                n.starts_with("kanyu") && (n.ends_with(".pyd") || n.ends_with(".so"))
+                n.starts_with("kanyu") && n.ends_with(ext_suffix)
             })
         })
         .unwrap_or(false);
