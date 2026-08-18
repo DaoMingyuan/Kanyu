@@ -25,3 +25,7 @@ kanyu-render.workspace = true
 serde_json.workspace = true
 geojson.workspace = true
 pyo3 = { version = "0.29", features = ["extension-module"] }
+
+[build-dependencies]
+# build.rs 用：macOS 扩展模块链接参数（-undefined dynamic_lookup）下发
+pyo3-build-config = "0.29"

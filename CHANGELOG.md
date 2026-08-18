@@ -170,6 +170,18 @@
 
 ### 修复
 
+- **CI 三处预存失败修复**：① macOS 构建 pyo3 链接失败（`_Py_NoneStruct` 等
+  符号缺失）——kanyu-py 新增 `build.rs` 调
+  `pyo3_build_config::add_extension_module_link_args()`（macOS 扩展模块需
+  `-undefined dynamic_lookup`，maturin 会自动注入而裸 `cargo build` 不会；
+  不能走 `.cargo/config.toml` rustflags，CI 的 `RUSTFLAGS=-D warnings`
+  环境变量会整体覆盖配置项）；② `toolbox_list_and_run_via_python` 在 CI
+  失败——测试跳过守卫从「python 不在 PATH」扩展到「`python/kanyu/` 无
+  kanyu.pyd/kanyu*.so 原生扩展（maturin 产物）」（CI 只跑 cargo 构建不产
+  wheel，本地有扩展时测试照常执行）；③ cargo-deny 许可拒绝——`deny.toml`
+  白名单补 `BSL-1.0`（clipboard-win/error-code，egui 栈经 arboard 链引入）
+  与 `OFL-1.1`/`Ubuntu-font-1.0`（epaint_default_fonts 内置字体）。
+
 - **`agents validate` 双语境误报修复**：`parse_meta_line` 的 `to_ascii_lowercase`
   分支补齐 `trim_start(boundary)` 规范化。此前键后无 `**bold**` 嵌套的裸键行
   （如 `- **data-layer**: 否`）漏过该规范化，`split_once("**: ")` 找不到分隔符致

@@ -763,6 +763,23 @@ fn toolbox_list_and_run_via_python() {
         .join("../../python")
         .canonicalize()
         .unwrap();
+    // 原生扩展（kanyu.pyd / kanyu*.so，maturin 产物）未构建时跳过：
+    // CI 只跑 cargo 构建不产 wheel，`import kanyu` 会在
+    // `from .kanyu import ...` 处 ModuleNotFoundError（2026-08-18 CI 实证）。
+    let ext_dir = python_home.join("kanyu");
+    let has_native = ext_dir
+        .read_dir()
+        .map(|it| {
+            it.filter_map(|e| e.ok()).any(|e| {
+                let n = e.file_name().to_string_lossy().into_owned();
+                n.starts_with("kanyu") && (n.ends_with(".pyd") || n.ends_with(".so"))
+            })
+        })
+        .unwrap_or(false);
+    if !has_native {
+        eprintln!("kanyu 原生扩展未构建（maturin 产物缺失），跳过工具箱集成测试");
+        return;
+    }
     let out = kanyu()
         .args(["toolbox", "list", "examples/planning_tools.py", "--json"])
         .env("KANYU_PYTHON", &python_home)

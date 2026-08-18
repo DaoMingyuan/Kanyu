@@ -16,6 +16,11 @@ allow = [
     "MPL-2.0",
     "CC0-1.0",
     "0BSD",
+    # BSL-1.0（Boost）：clipboard-win / error-code（egui 栈经 arboard 链引入），宽松许可
+    "BSL-1.0",
+    # 字体许可：epaint_default_fonts（egui 内置字体，仅字体文件适用）
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
 ]
 
 [advisories]

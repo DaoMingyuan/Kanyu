@@ -101,6 +101,11 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [开工] 2026-08-18 kimi-code(main) — 主仓 CI 预存红修复（三因：macOS pyo3 链接 / toolbox python 测试跳过面 / deny 许可）
+- 范围：crates/kanyu-py/build.rs + Cargo.toml（build-deps）、crates/kanyu-cli/tests/cli_workflows.rs toolbox 测试守卫、deny.toml 许可白名单
+- 依据：§1.2 第 12 项（第四十六轮推送后发现 6 连跑同因失败）；pyo3 指南 macOS 章节（add_extension_module_link_args）
+- 预计：小（三处定点修改；macOS 链接修复本地不可验，靠 CI 实证）
+
 ### [收工] 2026-08-18 kimi-code(main) — 布局排版出口：render layout CLI + 组件 kanyu_render layout 分支（125/125 断言）
 - 提交：本次 commit；测试：`cargo test --workspace` 全绿 + `clippy -D warnings` 零告警 + `node dsh/tools/test_plugin.mjs` **125/125**（+2：renderLayout 静态契约键 + 动态工具 layout 出 SVG 含标题实测）、`--static` **97/97**；3080 实例已 sync-local + 重启，health `{"ok":true,"tools":8,"rpc":26}`
 - 内容：评估定界结论——排版器 `kanyu-render/src/layout.rs` 现成（LayoutSpec/LayoutFrame/nice_scale/render_layout_svg/png），壳层 layoutview 同源，唯 CLI/组件无出口 → 按 attrcalc 轮范式补出口：主仓 `RenderCommand::Layout`（A4 横/竖 + 标题/图例/比例尺/指北针内嵌地图渲染，--page/--dpi/--no-legend/--no-scalebar/--no-north/--theme/--style[-file]；比例尺 extent 跨度 ×111320 赤道近似 + nice_scale；graduated 图例「≤ 阈值」、categorical 类别排序）+ 组件 renderLayout 助手（ensureOutDir + --style-file 直通）+ kanyu_render `layout` 分支（title/page/dpi/out 参数 + 「排版完成」回执）
