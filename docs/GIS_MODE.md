@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第十四轮）
+## 4. 当前状态（2026-08-18，第十五轮）
 
-- **目录五分类（本轮新增）**：`catalog.list` 响应扩展 `categories` 固定五分类
+- **服务链接 WFS 发现（本轮新增）**：新增 `services.discover` RPC（19 项）——
+  `parseCapabilities` 移植壳层 services.rs 最小提取纯函数（不引 XML 库），
+  URL 路径 10s 超时 + 离线 `xml` 解析路径；`kanyu_catalog` 加 `url` 分支；
+  双客户端目录页签服务链接分类加发现表单。测试器 54/54（static 43/43）；
+  3080 桥实测夹具解析正确。端点复测仍全部离线。
+- **目录五分类（第十四轮）**：`catalog.list` 响应扩展 `categories` 固定五分类
   元组 + `dataItems`/`dbItems` 分离（.kdb/.kyu 入数据库类），对齐壳层
   catalog.rs 工程目录范式；双客户端目录页签改分类区渲染（计数徽标 +
   展开/收起，默认仅本机数据展开，空分类空态提示）；新增 demo.kyu 夹具。

@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· 服务链接 WFS 发现（第十五轮：services.discover RPC 19 项 + parseCapabilities 移植 + 双端发现表单，54/54 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 组件目录域延伸：服务链接 WFS 发现（RPC 19 项，54/54 断言）
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **54/54**（新增 3 断言：services.discover 解析契约 + 双客户端发现表单契约）、`--static` **43/43**；sync-local 回灌 + 3080 重启后桥实测：health `"rpc":19`、夹具 GetCapabilities 解析 2 图层（命名空间剥离/实体反转义/缺 Name 坏块跳过三态全对）、安装区 client.js 含 services.discover
+- 内容：① host.js 新增 `services.discover` RPC（18→19）——`parseCapabilities`/`extractBlocks`/`xmlUnescape` 移植壳层 services.rs 最小提取纯函数（不引 XML 库），URL 路径 AbortController 10s 超时 + `acceptVersions=2.0.0,1.1.0`，`xml` 参数离线解析路径（测试不触网）；② `kanyu_catalog` 工具加 `url` 分支（WFS 图层清单文本）；③ 双客户端目录页签服务链接分类加发现表单（基址输入 + 图层清单）；④ 新增 `dsh/examples/wfs_capabilities.xml` 夹具
+- 偏差：无
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续十五轮离线）；服务链接下一步候选——WFS GetFeature 拉取落 GeoJSON 图层（壳层 v1 语义）
+
+### [开工] 2026-08-18 kimi-code(main) — 组件目录域延伸：服务链接 WFS 发现（services.discover RPC 19 项 + parseCapabilities 移植）
+- 范围：dsh/plugin/host.js（services.discover RPC + parseCapabilities/extractBlocks 纯函数移植壳层 services.rs + kanyu_catalog url 分支）、双客户端目录页签（服务链接分类发现表单）、dsh/examples/wfs_capabilities.xml 夹具、dsh/tools/test_plugin.mjs（断言）、文档与双仓同步；crates 零改动
+- 依据：第十四轮收工回记登记的后续候选「服务链接分类接壳层 services.rs 的 WFS 发现」；本地三模型端点第十五轮复测仍全部离线（curl 000），组件仓 CI 第十四轮推送 success
+- 预计：中（RPC + 工具分支 + 双端表单 UI + 测试 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — 组件目录域深化：五分类对齐壳层 catalog.rs（51/51 断言）
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **51/51**（新增 3 断言：五分类名称序 + kyu 归类契约 + 双客户端分类区 UI 契约）、`--static` **40/40**；sync-local 回灌 + 3080 重启后桥实测：`catalog.list` 五分类计数正确（数据库 1 · 本机数据 1）、demo.kyu 入数据库类、安装区 client.js 含 kyg-cat-head

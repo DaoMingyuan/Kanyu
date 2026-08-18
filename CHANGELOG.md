@@ -55,7 +55,10 @@
   3080 桥实测字段/行/limit 截断契约正确。**目录五分类**：catalog.list 响应
   扩展 categories 元组 + dataItems/dbItems 分离（.kdb/.kyu 入数据库类），
   对齐壳层 catalog.rs 工程目录范式；双客户端目录页签改分类区渲染
-  （计数徽标 + 空态提示），测试器 51/51 全绿。
+  （计数徽标 + 空态提示），测试器 51/51 全绿。**服务链接 WFS 发现**：
+  新增 services.discover RPC（19 项，parseCapabilities 移植壳层 services.rs
+  最小提取纯函数，10s 超时 + 离线 xml 解析路径），kanyu_catalog 加 url
+  分支，双客户端目录页签服务链接分类加发现表单，测试器 54/54 全绿。
 
 ### 修复
 
