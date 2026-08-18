@@ -175,6 +175,7 @@ inputSchema（JSON Schema draft 2020-12；可选字段类型为 `["string","null
   "feature_count": 4,
   "geometry_types": ["LineString", "Point"],
   "fields": ["grade", "height", "name", "usage", "width"],
+  "extent": [116.39, 39.9, 116.41, 39.92],
   "crs": "EPSG:4326"
 }
 ```

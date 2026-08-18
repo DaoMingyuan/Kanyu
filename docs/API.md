@@ -146,6 +146,7 @@ println!("{}", Layer::to_geojson_string(&high));
 | `feature_count` | `usize` | 要素数量 |
 | `geometry_types` | `Vec<String>` | 几何类型集合（去重、排序），如 `["LineString", "Point"]` |
 | `fields` | `Vec<String>` | 属性字段名集合（去重、排序） |
+| `extent` | `Option<[f64; 4]>` | 坐标范围 `[minx, miny, maxx, maxy]`（WKB 解码累积；空图层/全空几何为 `None`；内核不追踪坐标系，GeoJSON 默认 EPSG:4326） |
 
 ## 4. analysis —— 空间分析内核
 

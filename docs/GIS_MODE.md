@@ -80,13 +80,19 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第三十一轮）
+## 4. 当前状态（2026-08-18，第三十二轮）
 
-- **kanyu_geoprocess 产出回执（本轮新增）**：动态工具双分支（精选白名单 +
-  注册表全库）成功回执附「产出: N 要素 → path」写出清单（writesSummary
-  解析 stderr 共用契约，与客户端 tbRun 同源），此前白名单回执无路径无
-  计数、注册表分支带 output 时回执无产出信息。测试器 93/93
-  （static 71/71）。RPC 仍 25 项。端点复测仍全部离线。
+- **data.info 范围摘要（本轮新增）**：主仓 LayerSummary 新增 extent
+  （[minx,miny,maxx,maxy]，WKB 解码累积，空为 None）——CLI 文本/JSON、
+  MCP data_load、组件 data.info RPC 三面直通同获益；CRS 不报（内核不
+  追踪坐标系，不诚实报告不如不报）。cargo test/clippy 全绿，本机 CLI
+  已更新。测试器 94/94（static 71/71）。RPC 仍 25 项。
+  端点复测仍全部离线。
+- **kanyu_geoprocess 产出回执（第三十一轮）**：动态工具双分支（精选
+  白名单 + 注册表全库）成功回执附「产出: N 要素 → path」写出清单
+  （writesSummary 解析 stderr 共用契约，与客户端 tbRun 同源），此前
+  白名单回执无路径无计数、注册表分支带 output 时回执无产出信息。
+  测试器 93/93（static 71/71）。RPC 仍 25 项。端点复测仍全部离线。
 - **kanyu_crs reproject 计数回执（第三十轮）**：动态工具 reproject 带
   output 成功时返回「投影变换完成：from → to，N 要素 → 已写出: path」
   （此前仅「已输出: path」无计数），要素数与客户端 runReproject 同源

@@ -304,7 +304,7 @@ impl KanyuServer {
     /// 加载地理数据文件，返回图层概要（要素数/几何类型/字段/CRS）。
     #[tool(
         name = "kanyu_data_load",
-        description = "加载地理数据文件到内存，返回图层概要（要素数、几何类型、字段清单）"
+        description = "加载地理数据文件到内存，返回图层概要（要素数、几何类型、范围、字段清单）"
     )]
     async fn data_load(
         &self,

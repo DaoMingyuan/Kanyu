@@ -6,6 +6,13 @@
 
 ### 新增
 
+- **`kanyu data info` 范围摘要（LayerSummary.extent）**：`LayerSummary` 新增
+  `extent: Option<[f64; 4]>` 字段——`Layer::summary()` 在既有 WKB 行走中
+  解码几何累积坐标范围 `[minx, miny, maxx, maxy]`（空图层/全空几何为
+  `None`；内核不追踪坐标系，GeoJSON 按 RFC 7946 默认 EPSG:4326，故只报
+  数值范围不标 CRS）。CLI 文本模式加「范围」行、`--json` 直通，MCP
+  `kanyu_data_load` 同结构自动带出，dsh 组件 `data.info` 透传获益。
+
 - **堪舆 GIS × DeepSeek Harness 组件源入库（`dsh/`）**：`plugin/host.js` +
   `plugin/client.js` 双半（七大能力域——地图面板/GIS 数据目录读取/坐标框架/
   工程目录/地理处理/地理编辑/3D 地理——经 kanyu CLI 驱动，8 个 `kanyu_*` 动态

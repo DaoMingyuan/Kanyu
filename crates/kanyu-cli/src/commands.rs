@@ -178,12 +178,16 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
         DataCommand::Info { file } => {
             let layer = Layer::load(stem_of(file), file)?;
             print_value(&layer.summary(), json, |s| {
+                let extent = s.extent.map_or("（空）".to_string(), |e| {
+                    format!("[{:.6}, {:.6}] → [{:.6}, {:.6}]", e[0], e[1], e[2], e[3])
+                });
                 format!(
-                    "图层:      {}\n格式:      {}\n要素数:    {}\n几何类型:  {}\n字段:      {}",
+                    "图层:      {}\n格式:      {}\n要素数:    {}\n几何类型:  {}\n范围:      {}\n字段:      {}",
                     s.id,
                     s.format,
                     s.feature_count,
                     s.geometry_types.join(", "),
+                    extent,
                     s.fields.join(", ")
                 )
             });

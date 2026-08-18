@@ -26,6 +26,10 @@ pub struct LayerSummary {
     pub geometry_types: Vec<String>,
     /// 属性字段名集合（去重、排序）。
     pub fields: Vec<String>,
+    /// 坐标范围 [minx, miny, maxx, maxy]；空图层或全部几何为空时为 `None`。
+    /// （内核图层模型不追踪坐标系——reproject 为显式操作；GeoJSON 按
+    /// RFC 7946 默认 EPSG:4326，故此处只报数值范围不标 CRS。）
+    pub extent: Option<[f64; 4]>,
 }
 
 /// 一个已加载的矢量图层（GeoArrow RecordBatch 列式载体）。
@@ -149,21 +153,29 @@ impl Layer {
         self.batch.num_rows() == 0
     }
 
-    /// 概要信息（直接在 batch 上统计：几何类型读 WKB 头部，
-    /// 字段取属性列名，无需物化 GeoJSON）。
+    /// 概要信息（直接在 batch 上统计：几何类型读 WKB 头部，范围解码 WKB
+    /// 累积坐标 bbox，字段取属性列名，无需物化 GeoJSON FeatureCollection）。
     pub fn summary(&self) -> LayerSummary {
         let schema = self.batch.schema();
-        let mut geometry_types: Vec<String> = match schema.index_of(GEOMETRY_COL) {
-            Ok(idx) => {
-                let arr = self.batch.column(idx);
-                (0..self.batch.num_rows())
-                    .filter(|row| !arr.is_null(*row))
-                    .filter_map(|row| wkb_type_name(parquet_binary_value(arr, row).ok()?))
-                    .map(str::to_string)
-                    .collect()
+        let mut geometry_types: Vec<String> = Vec::new();
+        let mut extent: Option<[f64; 4]> = None;
+        if let Ok(idx) = schema.index_of(GEOMETRY_COL) {
+            let arr = self.batch.column(idx);
+            for row in 0..self.batch.num_rows() {
+                if arr.is_null(row) {
+                    continue;
+                }
+                let Ok(bytes) = parquet_binary_value(arr, row) else {
+                    continue;
+                };
+                if let Some(name) = wkb_type_name(bytes) {
+                    geometry_types.push(name.to_string());
+                }
+                if let Ok(value) = wkb_decode_geom(bytes) {
+                    accumulate_extent(&value, &mut extent);
+                }
             }
-            Err(_) => Vec::new(),
-        };
+        }
         geometry_types.sort();
         geometry_types.dedup();
 
@@ -181,6 +193,7 @@ impl Layer {
             feature_count: self.len(),
             geometry_types,
             fields,
+            extent,
         }
     }
 
@@ -987,6 +1000,54 @@ fn wkb_decode_geom(bytes: &[u8]) -> Result<geojson::Value> {
         return Err(KanyuError::Other("WKB 几何存在尾部多余字节".to_string()));
     }
     Ok(value)
+}
+
+/// 递归累积 GeoJSON 几何的坐标范围（position 取前两个分量 x/y）。
+fn accumulate_extent(value: &geojson::Value, acc: &mut Option<[f64; 4]>) {
+    fn add(pos: &[f64], acc: &mut Option<[f64; 4]>) {
+        if pos.len() < 2 {
+            return;
+        }
+        let (x, y) = (pos[0], pos[1]);
+        match acc {
+            Some(e) => {
+                e[0] = e[0].min(x);
+                e[1] = e[1].min(y);
+                e[2] = e[2].max(x);
+                e[3] = e[3].max(y);
+            }
+            None => *acc = Some([x, y, x, y]),
+        }
+    }
+    match value {
+        geojson::Value::Point(p) => add(p, acc),
+        geojson::Value::MultiPoint(ps) | geojson::Value::LineString(ps) => {
+            for p in ps {
+                add(p, acc);
+            }
+        }
+        geojson::Value::MultiLineString(ls) | geojson::Value::Polygon(ls) => {
+            for line in ls {
+                for p in line {
+                    add(p, acc);
+                }
+            }
+        }
+        geojson::Value::MultiPolygon(polys) => {
+            for poly in polys {
+                for line in poly {
+                    for p in line {
+                        add(p, acc);
+                    }
+                }
+            }
+        }
+        geojson::Value::GeometryCollection(geoms) => {
+            for g in geoms {
+                accumulate_extent(&g.value, acc);
+            }
+        }
+    }
 }
 
 /// WKB 字节流游标（带边界校验）。
@@ -2448,6 +2509,28 @@ mod tests {
         assert_eq!(s.feature_count, 3);
         assert_eq!(s.fields, vec!["height", "name", "usage"]);
         assert_eq!(s.geometry_types, vec!["LineString", "Point"]);
+        // 范围累积：点 (116.39,39.90)/(116.40,39.91) + 线 [[0,0],[1,1]]
+        assert_eq!(s.extent, Some([0.0, 0.0, 116.40, 39.91]));
+    }
+
+    #[test]
+    fn summary_extent_none_when_no_geometry() {
+        // 纯属性表（无几何列）范围应为 None，且不 panic
+        let gj: geojson::GeoJson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {"type":"Feature","geometry":null,"properties":{"name":"x"}}
+            ]
+        }"#
+        .parse()
+        .unwrap();
+        let collection = geojson::FeatureCollection::try_from(gj).unwrap();
+        let layer = Layer {
+            id: "attrs".into(),
+            format: "geojson".into(),
+            batch: collection_to_batch(&collection).unwrap(),
+        };
+        assert_eq!(layer.summary().extent, None);
     }
 
     #[test]

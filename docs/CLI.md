@@ -58,6 +58,7 @@ $ ./target/debug/kanyu.exe data info examples/buildings.geojson
 格式:      geojson
 要素数:    4
 几何类型:  LineString, Point
+范围:      [116.390000, 39.900000] → [116.410000, 39.920000]
 字段:      grade, height, name, usage, width
 ```
 
@@ -68,7 +69,8 @@ $ ./target/debug/kanyu.exe data info examples/buildings.geojson --json
   "format": "geojson",
   "feature_count": 4,
   "geometry_types": ["LineString", "Point"],
-  "fields": ["grade", "height", "name", "usage", "width"]
+  "fields": ["grade", "height", "name", "usage", "width"],
+  "extent": [116.39, 39.9, 116.41, 39.92]
 }
 ```
 
