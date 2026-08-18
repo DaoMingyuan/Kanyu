@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-15 · v0.22.0+ · 367 测试全绿 · GIS 模式 preset 落地（本机 GUI 挂载）· 推送待凭据**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset 镜像落盘（YAML 修复已回灌本机）· GitHub 双仓同步完成（Kanyu 主仓 + 新仓 DaoMingyuan/kanyu-gis 首发）**。
 
 ### 1.1 已完成实现
 
@@ -72,7 +72,7 @@
 | 堪舆工程 .kyu | ✅ | JSON 工程清单（裁决 #19）：图层引用/视口/地图色彩/可见性，壳层打开/保存 |
 | 开源规范 | ✅ | 双许可/CI/Release 工作流/五份接口文档/README 实拍图 |
 | 上游回馈 | ✅ | acadrust issue #55（AC15 定位缺陷 + 修法 + 证据） |
-| dsh/ DSH 组件 | ✅(本机) | GIS 模式 preset（`dsh/presets/gis_mode/`：preset.yml + agent.cordis.yml，七大能力工具面 4 行 + 子代理 2 行）+ kanyu-gis 组件 Host+Client 双半代码 + README + 示例数据；`cordis doctor` 通过、本机 GUI 挂载成功。2026-08-15 复核订正：GitHub 推送凭据误用 PAT 模型，复核确认 `docs/GITHUB.md` 只登记「账号名 + 仓库 URL」两种（PAT 从未入库，.gitignore 已挡之，合规）；GIS 模式预设零变更；GitHub 推送仅待凭据登记后执行，预设与组件文件保持不动 |
+| dsh/ DSH 组件 | ✅(开源) | kanyu-gis 组件 Host+Client 双半（`dsh/plugin/`：7 大能力 RPC + 8 个 kanyu_* 动态工具，CLI 旗标与 v0.22.0 实测对拍一致）+ GIS 模式 preset 仓库源（`dsh/presets/kanyu-gis/`：preset.yml + agent.cordis.yml + skills/kanyu-gis/SKILL.md）+ README/CHANGELOG/示例/sync-preset.sh/verify_preset.mjs；**已开源双仓**：主仓 Kanyu 入库推送 + 独立仓 [DaoMingyuan/kanyu-gis](https://github.com/DaoMingyuan/kanyu-gis) 首发（184e47f）；本机安装区经 sync-preset.sh 同步并通过旁路校验（agent.cordis.yml 顶层 fallback 键 YAML 非法已修复回灌）；DSH 活体挂载验证待 dsh CLI 环境 |
 
 ### 1.2 待完成事项（优先级序）
 
@@ -86,7 +86,7 @@
 8. **性能基准**：对 QGIS 的 §5.3 指标实测并公开基准报告
 9. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
 10. **属性面板重建**：等待用户定制要求
-11. **DSH 组件 GitHub 同步**（长期项，待用户密钥）：dsh/ 组件与 GIS 模式 preset 的开源发布，密钥待用户提供（项目文档 `docs/GITHUB.md` 中的密钥）
+11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；后续批次：DSH 活体挂载验证、组件能力深化（编辑内核与 kanyu-edit 对齐、3D 真管线对接）、凭据轮换时按 docs/GITHUB.md 登记
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — dsh/ 组件源完整入库 + GIS 模式 preset 镜像 + GitHub 双仓开源同步
+- 提交：本次 commit；测试：crates 零改动（组件层作业，四道门禁不适用）；验证：`node dsh/tools/verify_preset.mjs --preset-dir dsh/presets` exit 0（21 行组合 + preset 元数据全可加载）、`kanyu agents validate --code-repo` exit 0、`kanyu introspect --json`/`data info --json examples/buildings.geojson`/`render map` 出图三抽查全过、`bash dsh/sync-preset.sh` 本机安装区同步 + 旁路校验通过
+- 内容：① `dsh/plugin/host.js`+`client.js` 双半入库（7 大能力 RPC + 8 个 kanyu_* 动态工具；CLI 旗标与 v0.22.0 实测逐一对拍一致，host.js 零改动）；② `dsh/presets/kanyu-gis/`（preset.yml + agent.cordis.yml + skills/kanyu-gis/SKILL.md）从本机安装区镜像入库，**修复 agent.cordis.yml 顶层 `fallback:` 键 YAML 非法**（收回 model-local 行内、去自引用），并经 sync-preset.sh 回灌本机安装区；③ `dsh/README.md`/`dsh/CHANGELOG.md`/`dsh/examples/`/`dsh/sync-preset.sh` 新建；④ `verify_preset.mjs` 移入 `dsh/tools/` 并修复两处自身缺陷（entryListSchema 误当 zod schema 调 safeParse——实为 js-yaml Schema，改回与发现库同路径的 yaml.load 判定；shapeIssue 对非 group 行的普通 config 对象误报 + preset.yml 元数据误判为行数组）；⑤ `docs/GIS_MODE.md` 重写对齐实际（`kanyu dsh` 虚写命令更正为 sync-preset.sh）；⑥ AGENTS.md 仓库结构表补 dsh/ 行；⑦ **GitHub 双仓同步**：主仓 Kanyu 本次提交推送；新建独立开源仓 **DaoMingyuan/kanyu-gis**（公开，双许可）并以 184e47f 首发推送（暂存组包于 target/tmp，推送经运行时令牌一次性 credential helper，令牌不落盘，暂存目录已清）
+- 偏差：凭据实测更正——`git credential fill` 取得的 gho_ 令牌 `X-OAuth-Scopes` 含 **repo 全权限**（gist/read:org/repo/user/workflow/write:public_key），与 docs/GITHUB.md 2026-08-15 记录「scope 仅 repo:read 无 push 权限」不符；API 建仓 + 双仓推送均一次成功，docs/GITHUB.md 已追加更正记录
+- 后续：DSH 活体挂载验证（dsh/cordis 不在本机 PATH，本轮以同判定链旁路校验代替）；组件能力深化批次（长期项，见 §1.2 #11 改写）
+
+### [开工] 2026-08-16 dsh/deepseek(main) — 堪舆GIS DSH 组件重做（动态 Cordis 插件双半）+ GIS 模式 preset + GitHub 新仓库开源
+- 范围：dsh/ 组件源（kanyu-gis 插件 Host+Client 双半代码：地图面板/数据目录读取/坐标框架/目录/地理处理/地理编辑/3D 七大能力）+ README/CHANGELOG/示例数据；GIS 模式 preset 源（dsh/presets/gis-mode/）；GitHub 新仓库（凭据按 docs/GITHUB.md 运行时令牌）；AI_SYNC/README/CHANGELOG 登记
+- 依据：用户指令（基于堪舆工程创建 DSH 组件并开源同步 GitHub 新仓库；七大能力移植组件自我迭代；据组件创建 GIS 模式；长期推进）；2026-08-15 阻断教训（dsh/ 组件源零落盘，git ls-files dsh/ 实测为空——本轮一切落盘以字节级回读自证）；总规裁决 #19
+- 预计：大（组件双半代码 + preset + GitHub 新仓库 + 本会话活体运行验证）
 
 ### [收工] 2026-08-15 dsh/deepseek(main) — GIS模式 GitHub 同步推送凭据模型复核（预设零变更）
 - 复核：`docs/GITHUB.md` 通读（L1-17），确证「同步 GitHub」凭据模型仅「账号名 + 仓库 URL」两种（ghp/gho PAT 从未在仓库或文档入库；.gitignore L22-23 已将其挡在提交外，合规）

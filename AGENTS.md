@@ -33,7 +33,8 @@ cargo fmt --all
 | `crates/kanyu-shell/` | 桌面壳层（egui）v0.9：声明式命令注册表（`commands.rs`，DAML 范式投影）/ Ribbon 功能区（动画）/ `dock.rs` 三区停靠（跨区回流+滚动契约）/ Contents 图层树（`toc.rs` 复选框+分组+符号化分类展开行）/ 图层属性页 + `symbology.rs` 符号化（单色/唯一值/分级，按层渲染，入 .kyu）/ 中央视图停靠区（`mapview.rs` 页签吸附+纯白画布）+ `scene3d.rs` 实验 3D / `catalog.rs` 工程目录五分类 / `toolbox/`（参数类型对齐 ArcGIS Python 工具箱规范，注册表在 `core::tooldef`）/ `attrtable.rs` 属性表（字段计算器）/ `edit.rs` 编辑会话（顶点/绘制/单元格）/ `services.rs` 服务链接（WFS 发现/WMS 底图）/ `layoutview.rs` 布局页签 / `settings.rs`（坐标系全库/渲染/界面缩放）/ 终端 / AI 对话 / **`src/ui_kit/` = UI 组件规范库**（WCAG 对比度/24px 目标/tokens::state 状态色强制，截图验证模式） |
 | `crates/kanyu-edit/` | 编辑内核：Undo/Redo 框架（命令逆操作双栈）+ 基础编辑命令（GeomPath 三级定位） |
 | `crates/kanyu-mcp/` | MCP Server（rmcp 3.x，stdio + streamable HTTP，SEP-2663 长任务） |
-| `docs/` | 总规 + 架构/API/SDK/MCP/CLI 文档 |
+| `docs/` | 总规 + 架构/API/SDK/MCP/CLI/GIS_MODE 文档 |
+| `dsh/` | 堪舆 GIS × DeepSeek Harness 组件源：`plugin/`（Host+Client 双半，七大能力 + 8 个 kanyu_* 动态工具）/ `presets/kanyu-gis/`（GIS 模式 preset + 领域技能）/ `tools/verify_preset.mjs` / `sync-preset.sh`（同步本机安装区）；手册见 `docs/GIS_MODE.md` |
 | `AI_SYNC.md` | **长久性联动机制**（开工登记/收工回记/状态快照/迭代边界）——先于一切阅读 |
 | `examples/` | 示例数据（GeoJSON） |
 | `tests/` | 跨 crate 集成测试 |

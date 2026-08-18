@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **堪舆 GIS × DeepSeek Harness 组件源入库（`dsh/`）**：`plugin/host.js` +
+  `plugin/client.js` 双半（七大能力域——地图面板/GIS 数据目录读取/坐标框架/
+  工程目录/地理处理/地理编辑/3D 地理——经 kanyu CLI 驱动，8 个 `kanyu_*` 动态
+  工具把堪舆 AI 意图面整合进 Harness function-calling）；`presets/kanyu-gis/`
+  GIS 模式 preset（agent.cordis.yml 组合 + 领域技能 SKILL.md）；
+  `sync-preset.sh` 仓库→本机安装区同步脚本；`tools/verify_preset.mjs` 旁路
+  可加载性校验；手册 `docs/GIS_MODE.md` 重写对齐实际机制（更正不可复现的
+  `kanyu dsh` 虚写命令）。开源同步至 GitHub：主仓库推送 + 独立组件仓首发
+  （详见 AI_SYNC.md 会签簿 2026-08-18 回记）。
+
 ### 修复
 
 - **`agents validate` 双语境误报修复**：`parse_meta_line` 的 `to_ascii_lowercase`

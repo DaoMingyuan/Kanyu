@@ -1,0 +1,45 @@
+# dsh/ —— 堪舆 GIS × DeepSeek Harness 组件
+
+> 本目录是堪舆（Kanyu）GIS 能力在 DeepSeek Harness（DSH / Cordis）侧的组件源，
+> 即「GIS 模式」的仓库内单一事实来源。组件运行手册见 [`docs/GIS_MODE.md`](../docs/GIS_MODE.md)。
+
+## 组成
+
+| 路径 | 职责 |
+|------|------|
+| `plugin/host.js` | 组件 Host 半（宿主进程侧）：以 `kanyu` CLI 为执行后端，暴露 Package 私有 JSON RPC（`harness.handle`），并向 DSH 模型注册 8 个 `kanyu_*` 动态工具（`harness.registerTool`）——堪舆原壳层 LocalDriver/OpenAiDriver 意图面在 Harness function-calling 代理循环中的整合形态 |
+| `plugin/client.js` | 组件 Client 半（浏览器侧）：DSH Web GUI「堪舆 GIS 工作台」，会话头部按钮 + 全局浮层七页签（目录/数据/地图/坐标/处理/编辑/3D/关于）+ cordis 卡片，全部经 `host.call` 走 Host 半 |
+| `presets/kanyu-gis/` | GIS 模式 agent preset：`preset.yml`（发现元数据）+ `agent.cordis.yml`（组合：模型路由/服务/工具/技能）+ `skills/kanyu-gis/SKILL.md`（七域能力地图技能） |
+| `examples/` | 组件演示数据（GeoJSON 小样例） |
+| `tools/verify_preset.mjs` | preset 可加载性旁路校验（与 DSH 发现库同判定链）；用法：`node dsh/tools/verify_preset.mjs --preset-dir dsh/presets` |
+| `sync-preset.sh` | 把仓库内 preset 源同步到本机 DSH 安装区（`~/.dsh/.agent-presets/kanyu-gis/`）并触发校验 |
+
+## 七大能力域 → kanyu 内核落点
+
+| 能力 | 组件工具 | kanyu 侧对应物 |
+|------|----------|----------------|
+| 地图面板 | `kanyu_render` | `kanyu render map`（晨山/夜观星，PNG/SVG） |
+| GIS 数据目录读取 | `kanyu_catalog` / `kanyu_data` | `kanyu data info/query/validate` + 格式注册表 |
+| 坐标框架 | `kanyu_crs` | `kanyu data reproject`（EPSG 全库） |
+| 工程目录 | Client 目录页签 | `catalog.list` RPC（扩展名矩阵对齐 `format.rs`） |
+| 地理处理 | `kanyu_geoprocess` | `kanyu analysis <13 工具>`（QGIS 语义） |
+| 地理编辑 | `kanyu_edit` | 组件内 GeoJSON 编辑内核；深度拓扑编辑由 `kanyu-edit` crate 承接 |
+| 3D 地理 | `kanyu_scene3d` | 挤出体场景数据制备 + Client canvas 等距投影绘制 |
+
+另注册 `kanyu_introspect`（系统自省，对齐 `kanyu introspect --json`）。
+
+## 安装与同步
+
+```bash
+# 仓库 → 本机 DSH 安装区（含校验）
+bash dsh/sync-preset.sh
+```
+
+组件工具全部经 PATH 上的 `kanyu` CLI 执行，不依赖宿主 `node_modules`；
+找不到 `kanyu.exe` 时以 `kanyu-mcp`（MCP stdio 入口）兜底。
+
+## 自我迭代边界
+
+组件的迭代发生在 **Git 协作层**（提交/PR + CI），运行时绝不自改内核——
+对齐 [AI_SYNC.md](../AI_SYNC.md) §1.3。改本目录任何文件后：
+开工登记 → 验证（`verify_preset.mjs` + `kanyu agents validate --code-repo`）→ 收工回记。
