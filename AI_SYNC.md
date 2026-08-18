@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· 服务链接 WFS 发现（第十五轮：services.discover RPC 19 项 + parseCapabilities 移植 + 双端发现表单，54/54 断言）· WFS GetFeature 拉取落图层（第十六轮：services.fetch RPC 20 项 + 双端拉取按钮联动当前图层，55/55 断言）· WMS GetMap 底图预览（第十七轮：services.wms RPC 21 项 + buildGetmapUrl 移植壳层 v2 + 双端底图预览，56/56 断言）· 属性单元格编辑 + workspace-write 指引（第十八轮：双端编辑页签单元格闭环 + 生产写拒绝可操作化，59/59 断言）· 顶点编辑画布（第十九轮：edit.geometry RPC 22 项 + 拖拽写 vertex-move，62/62 断言）· 目录五分类补全（第二十轮：地图框=渲染产物 + 布局框=.kyu layouts，计数全真实，63/63 断言）· CRS 全库检索接内核 EPSG 库（第二十一轮：kanyu crs search/info 子命令 + crs.search RPC 23 项 + 双端检索框，65/65 断言，cargo test/clippy 全绿）· 工具箱注册表全库接内核 tooldef（第二十二轮：kanyu tool list/run 子命令 + toolbox.list/toolbox.run RPC 25 项，37 工具单一事实来源，68/68 断言）· 双端处理页签工具箱全库表单（第二十三轮：ToolboxPanel 参数表驱动动态表单 + 五分类分组，70/70 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· sync-local.sh 一键本地同步契约（过期实例不热加载根因修复入档）· kanyu-mcp 桥接入 GIS 模式（第十一轮：mcp__kanyu__* 17 stable 工具入会话，roster 实证无 broken）· 地图面板符号化 StyleRule 直通（第十二轮：46/46 断言 + 3080 桥 graduated PNG 目检，pwsh 引号教训入档）· 属性表预览（第十三轮：data.preview RPC 18 项 + 双端表格 + kanyu_data preview，48/48 断言）· 目录五分类对齐壳层 catalog.rs（第十四轮：categories 元组 + 数据库类分离 + 双端分类区渲染，51/51 断言）· 服务链接 WFS 发现（第十五轮：services.discover RPC 19 项 + parseCapabilities 移植 + 双端发现表单，54/54 断言）· WFS GetFeature 拉取落图层（第十六轮：services.fetch RPC 20 项 + 双端拉取按钮联动当前图层，55/55 断言）· WMS GetMap 底图预览（第十七轮：services.wms RPC 21 项 + buildGetmapUrl 移植壳层 v2 + 双端底图预览，56/56 断言）· 属性单元格编辑 + workspace-write 指引（第十八轮：双端编辑页签单元格闭环 + 生产写拒绝可操作化，59/59 断言）· 顶点编辑画布（第十九轮：edit.geometry RPC 22 项 + 拖拽写 vertex-move，62/62 断言）· 目录五分类补全（第二十轮：地图框=渲染产物 + 布局框=.kyu layouts，计数全真实，63/63 断言）· CRS 全库检索接内核 EPSG 库（第二十一轮：kanyu crs search/info 子命令 + crs.search RPC 23 项 + 双端检索框，65/65 断言，cargo test/clippy 全绿）· 工具箱注册表全库接内核 tooldef（第二十二轮：kanyu tool list/run 子命令 + toolbox.list/toolbox.run RPC 25 项，37 工具单一事实来源，68/68 断言）· 双端处理页签工具箱全库表单（第二十三轮：ToolboxPanel 参数表驱动动态表单 + 五分类分组，70/70 断言）· kanyu_geoprocess 注册表分支（第二十四轮：模型侧直连 37 工具全库，双轨分流，72/72 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — GIS 模式 AI 面整合：kanyu_geoprocess 注册表分支（模型侧直连 37 工具全库，72/72 断言）
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **72/72**（新增 2 断言：mean_coordinates 注册表分支输出 1 要素 + 未知 id 中文报错不静默）、`--static` **57/57**；sync-local 回灌 + 3080 重启后 health `"rpc":25"、桥实测 toolbox.run mean_coordinates stdout 直出均值点（注册表分支依赖面在生产实例同构可达）
+- 内容：host.js `kanyu_geoprocess` 执行双轨分流——白名单 13 走 GP_TOOLS（kanyu analysis）不变；白名单外 id 走 toolbox.run 注册表分支（kanyu tool run），input 便捷映射 layer（params 未显式给 layer 时）、第二输入不猜键名引导 params 具名透传；工具描述更新为双轨发现面（精选 + 注册表全库经 toolbox.list/kanyu tool list --json 发现）
+- 偏差：3080 冒烟确认既有边界——产图层工具经生产桥写工作区外路径被拒（workspace-write，kanyu 进程 os error 5），省 output 走 stdout 即通；已在 dsh/CHANGELOG [0.21.0] 入档提示
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续二十四轮离线）；GIS 模式 AI 面整合续候选——kanyu_data/kanyu_catalog 等其余 7 工具逐一审视注册表/内核新出口对齐（如 kanyu_data 加 validate 宗地质检分支审视、introspect 自省面对齐 9 命令组），或 3D 域深化
+
+### [开工] 2026-08-18 kimi-code(main) — GIS 模式 AI 面整合：kanyu_geoprocess 加注册表分支（模型侧直连 tooldef 37 工具全库）
+- 范围：dsh/plugin/host.js（kanyu_geoprocess 工具执行分流——白名单 13 走 GP_TOOLS 精选面不变；其余 id 走 toolbox.run 注册表分支，input 便捷映射 layer、其余注册表参数经 params 键值透传，描述文案更新为双轨发现面）、dsh/tools/test_plugin.mjs（动态工具注册表分支断言）、文档与双仓同步；crates 零改动、RPC 计数不变（复用 toolbox.run）
+- 依据：第二十三轮收工回记登记的下轮候选；用户目标「原来堪舆的 AI 能力要根据 DeepSeek harness 整合优化」——模型侧 8 工具此前处理域只吃 13 白名单，注册表 37 工具已可通过 `kanyu tool` CLI 触达，本切片把该面整合进 function-calling；本地三模型端点连续二十三轮离线，组件仓 CI 第二十三轮推送 success（6ec27ee）
+- 预计：小（host.js 单点分流 + 测试 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — 组件处理域深化（续）：双客户端处理页签工具箱全库表单（70/70 断言）
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **70/70**（新增 2 断言：双端 ToolboxPanel/toolbox.list/toolbox.run/TB_CAT_CN 契约）、`--static` **57/57**（toolbox.list 静态断言改双态——CI 无 CLI 降级指引 / 本机有 CLI 真实注册表，修本机静态模式误红）；sync-local 回灌 + 3080 重启后 health `"rpc":25`、安装区 client.js 含 ToolboxPanel

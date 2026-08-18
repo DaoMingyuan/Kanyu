@@ -80,9 +80,13 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第二十三轮）
+## 4. 当前状态（2026-08-18，第二十四轮）
 
-- **处理页签工具箱全库表单（本轮新增）**：双客户端新增 ToolboxPanel——
+- **kanyu_geoprocess 注册表分支（本轮新增）**：模型侧动态工具双轨分流——
+  白名单外 id 走 toolbox.run 注册表分支（37 工具全库，input 映射 layer、
+  params 键值透传），处理域模型面覆盖全库。测试器 72/72（static 57/57）。
+  RPC 仍 25 项。端点复测仍全部离线。
+- **处理页签工具箱全库表单（第二十三轮）**：双客户端新增 ToolboxPanel——
   toolbox.list 拉 tooldef 37 工具注册表，五分类 optgroup 分组 + ParamKind
   驱动动态表单（Enum 下拉/Boolean 复选/Layer 预填当前图层/LinearUnit·
   MultiLayers·Extent 格式提示），运行走 toolbox.run；13 精选快捷面并存。
