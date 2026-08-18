@@ -94,6 +94,10 @@
   **投影变换联动**：双端坐标页签改专属 runReproject——crs.reproject 带
   output 落盘 dsh/output/，stderr 计数 + 设为当前图层全页签联动；host
   crsReproject 补 ensureOutDir 同款防护，测试器 82/82 全绿。
+  **工具箱产图层联动**：ToolboxPanel 产图层工具输出缺省落 dsh/output/
+  （split_by_field 多产出视作目录），stderr 写出清单首产出设为当前图层
+  全页签联动；host toolboxRun 补 ensureOutDir（三条 --output 路径全部
+  保底），测试器 86/86 全绿。
 
 - **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
   （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>

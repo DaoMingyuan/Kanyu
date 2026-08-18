@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第二十七轮）
+## 4. 当前状态（2026-08-18，第二十八轮）
 
-- **投影变换联动（本轮新增）**：双端坐标页签「投影变换」改专属
+- **工具箱产图层联动（本轮新增）**：双端 ToolboxPanel 产图层工具
+  （report=false 且无 OutFile 参数）输出缺省落 dsh/output/（split_by_field
+  多产出视作目录），成功解析 stderr 写出清单 → 首产出设为当前图层全页签
+  联动；报告类直出原文；host toolboxRun 补 ensureOutDir（三条 --output
+  路径全部保底）。测试器 86/86（static 68/68）；3080 桥实测 buffer 落盘
+  + 计数正确。RPC 仍 25 项。端点复测仍全部离线。
+- **投影变换联动（第二十七轮）**：双端坐标页签「投影变换」改专属
   runReproject——crs.reproject 带 output 落盘 dsh/output/，stderr 解析
   计数展示「源 → 目标：变换 N 要素」，落盘成功即设为当前图层（store.path
   广播，各页签联动）；host crsReproject 补 ensureOutDir（reproject
