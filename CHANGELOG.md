@@ -59,6 +59,9 @@
   新增 services.discover RPC（19 项，parseCapabilities 移植壳层 services.rs
   最小提取纯函数，10s 超时 + 离线 xml 解析路径），kanyu_catalog 加 url
   分支，双客户端目录页签服务链接分类加发现表单，测试器 54/54 全绿。
+  **WFS GetFeature 拉取**：新增 services.fetch RPC（20 项，buildGetFeatureUrl
+  移植壳层，离线 data 路径 + 缺省落 output/wfs_<图层>.geojson），双端图层行
+  「拉取」按钮联动当前图层，测试器 55/55 全绿。
 
 ### 修复
 
