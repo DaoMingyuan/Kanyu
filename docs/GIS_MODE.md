@@ -80,9 +80,16 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第六十四轮）
+## 4. 当前状态（2026-08-18，第六十五轮）
 
-- **feature-add 画布化（本轮，绘制点/线/面新要素进画布）**：双端 client.js
+- **顶点框选批量移动（本轮，vertices-move 原子批量算子）**：EDIT_OPS 11→12
+  新增 vertices-move（先全量校验再统一写入，单条 undo 整体回滚，保留 Z/M）；
+  双端 client.js 编辑画布新增「框选」开关——拖橡皮筋多选顶点（单击清空），
+  选择集 ≥2 时拖拽任一选中顶点整组批量移动，drawEdit2d opts 叠加橡皮筋
+  虚线框 + 选中高亮 + 批量联动预览。测试器 190/190（static 154/154），
+  生产桥 vertices-move 实测通过（3 顶点批量移动，单条 undo 回滚）。注：
+  六十四轮双仓 CI（74d5322 / b65771e）均 success。
+- **feature-add 画布化（第六十四轮，绘制点/线/面新要素进画布）**：双端 client.js
   编辑画布绘制模式扩三种——绘制点单击即成 feature-add Point，绘制线 ≥2 点 /
   绘制面 ≥3 点（自动闭合）攒点应用 feature-add LineString/Polygon；复用
   drawRef/drawOverlay/afterEdit 骨架。测试器 185/185（static 149/149），
