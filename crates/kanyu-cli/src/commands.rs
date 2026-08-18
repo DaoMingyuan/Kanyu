@@ -352,6 +352,16 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
             let result = kanyu_core::crs::reproject(&layer.collection(), from, to)?;
             write_geojson_result(&result, output.as_deref())?;
         }
+        DataCommand::Calc {
+            file,
+            target,
+            expr,
+            output,
+        } => {
+            let layer = Layer::load(stem_of(file), file)?;
+            let result = kanyu_core::attrcalc::calc_field(&layer.collection(), target, expr)?;
+            write_geojson_result(&result, output.as_deref())?;
+        }
     }
     Ok(())
 }

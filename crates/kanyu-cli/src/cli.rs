@@ -189,6 +189,21 @@ pub enum DataCommand {
         #[arg(long)]
         output: Option<String>,
     },
+    /// 字段计算器：按表达式计算/新建目标字段（+-*/%、比较、and/or/not、
+    /// round/upper/concat/coalesce 等函数与 $area/$length/$x/$y 几何虚列）。
+    Calc {
+        /// 数据文件路径。
+        file: String,
+        /// 目标字段（不存在则新建，存在则覆盖）。
+        #[arg(long)]
+        target: String,
+        /// 表达式（如 "[height] * 2" 或 "$area / 10000"）。
+        #[arg(long)]
+        expr: String,
+        /// 结果输出路径（GeoJSON）；缺省打印到 stdout。
+        #[arg(long)]
+        output: Option<String>,
+    },
 }
 
 /// `kanyu analysis ...`

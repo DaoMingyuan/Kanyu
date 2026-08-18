@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第四十二轮）
+## 4. 当前状态（2026-08-18，第四十三轮）
 
-- **双半盘点 + RPC 面对称锁（本轮新增）**：动态/静态两半 RPC 方法集
+- **字段计算器出口（本轮新增）**：主仓新增 `kanyu data calc`（attrcalc
+  内核首个 CLI 出口；--target/--expr/--output，表达式支持算术/比较/逻辑/
+  函数与 $area/$length/$x/$y）；组件侧 kanyu_data 新增 action=calc
+  （ensureOutDir 防护 + 落盘确认回执，与 query 分支同契约）。测试器
+  119/119（static 93/93）。RPC 仍 25 项。端点复测仍全部离线。
+- **双半盘点 + RPC 面对称锁（第四十二轮）**：动态/静态两半 RPC 方法集
   18 = 18 零独有、页签 8/8 相同；差异仅四处设计意图（cordis 卡片/preset
   门控/样式注入/slot 数）已入 dsh/README 差异白名单表；测试器新增两半
   对称断言（强于既有单向 ⊆ 锁）。测试器 115/115（static 92/92）。

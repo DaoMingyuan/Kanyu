@@ -180,6 +180,24 @@ $ ./target/debug/kanyu.exe data reproject examples/buildings.geojson --from EPSG
 已写出 4 个要素 → bj3857.geojson        # 该提示在 stderr
 ```
 
+### 3.6 `kanyu data calc <file> --target <field> --expr <expr>` ✅（字段计算器）
+
+attrcalc 内核出口：逐要素求值表达式并写入目标字段（不存在则新建，存在则覆盖）。
+支持 `+ - * / %`、比较、`and/or/not`、`round/upper/concat/coalesce` 等函数与
+`$area/$length/$x/$y` 几何虚列（对齐壳层属性表字段计算器语义）。
+
+| 参数 | 说明 |
+|---|---|
+| `<file>` | 数据文件路径 |
+| `--target <field>` | 目标字段（不存在则新建，存在则覆盖） |
+| `--expr <expr>` | 表达式（如 `"[height] * 2"` 或 `"$area / 10000"`） |
+| `--output <path>` | 结果输出路径（GeoJSON）；缺省打印到 stdout |
+
+```bash
+$ ./target/debug/kanyu.exe data calc examples/buildings.geojson --target h2 --expr "[height] * 2" --output calc.geojson
+已写出 4 个要素 → calc.geojson          # 该提示在 stderr
+```
+
 ## 4. kanyu analysis ✅
 
 空间分析工具组（geo crate；对应 [MASTERPLAN.md](MASTERPLAN.md) §4.2.2）。

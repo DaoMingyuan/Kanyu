@@ -6,6 +6,13 @@
 
 ### 新增
 
+- **`kanyu data calc` 字段计算器（attrcalc 内核 CLI 出口）**：`DataCommand::Calc`
+  → `attrcalc::calc_field`，逐要素求值表达式写入目标字段（不存在则新建）；
+  支持算术/比较/逻辑、round/upper/concat/coalesce 等函数与
+  `$area/$length/$x/$y` 几何虚列（对齐壳层属性表字段计算器）；`--output`
+  落盘 GeoJSON 走 `write_geojson_result` 共用契约。dsh 组件 `kanyu_data`
+  动态工具新增 `action=calc`（含落盘确认回执）。
+
 - **`kanyu data info` 范围摘要（LayerSummary.extent）**：`LayerSummary` 新增
   `extent: Option<[f64; 4]>` 字段——`Layer::summary()` 在既有 WKB 行走中
   解码几何累积坐标范围 `[minx, miny, maxx, maxy]`（空图层/全空几何为
