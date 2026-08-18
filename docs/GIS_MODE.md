@@ -30,7 +30,7 @@
 | 坐标框架 | `kanyu_crs` | `kanyu data reproject`（EPSG 全库）+ 常用坐标系速查表 |
 | 工程目录 | Client 目录页签 | `catalog.list` RPC（递归扫描，扩展名矩阵对齐注册表） |
 | 地理处理 | `kanyu_geoprocess` | `kanyu analysis` 13 工具（QGIS 语义，参数名逐旗标对拍 v0.22.0 实测） |
-| 地理编辑 | `kanyu_edit` | 组件内 GeoJSON 在线编辑内核（6 算子）；深度拓扑编辑由 `kanyu-edit` crate 承接 |
+| 地理编辑 | `kanyu_edit` | 组件内 GeoJSON 在线编辑内核（6 算子 + undo/redo 双栈）；深度拓扑编辑由 `kanyu-edit` crate 承接 |
 | 3D 地理 | `kanyu_scene3d` | 挤出体场景数据制备 + Client canvas 等距投影绘制 |
 
 另有 `kanyu_introspect`（系统自省，对齐 `kanyu introspect --json`）。工具参数与输出
@@ -80,9 +80,13 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第五轮）
+## 4. 当前状态（2026-08-18，第七轮）
 
-- **面板联动加载（本轮新增，用户指令落地）**：`dsh/pkg/` 升级为 dsh.client 双面包——
+- **编辑能力深化（本轮新增）**：组件编辑内核对齐 kanyu-edit 命令逆操作双栈范式——
+  `applyMutation` 单一变更入口正/逆共用，变更算子入 undo 栈（容量 64、新变更清 redo），
+  新增 `edit.undo`/`edit.redo`/`edit.history` RPC（RPC 表 14→17），双客户端编辑页签
+  加撤销/重做按钮；测试器 40/40 全绿（含 undo/redo 闭环 5 断言）。
+- **面板联动加载（第五轮，用户指令落地）**：`dsh/pkg/` 升级为 dsh.client 双面包——
   `pkg/client.js` 静态客户端 bundle 常驻 web 前端 boot 图，「🧭 堪舆GIS」会话头部按钮 +
   七页签工作台浮层（目录/数据/地图/坐标/处理/编辑/3D/关于）经会话快照 `agentPreset`
   字段门控：**新建/切换到 kanyu-gis preset 会话时面板自动出现，切回其他模式即隐藏**。
@@ -107,9 +111,10 @@ bash dsh/sync-preset.sh
   （对齐 invariant.js `entryListProblem`），此后仓库侧旁路校验可提前拦截此类 broken。
 - **本地测试**：`dsh/tools/test_plugin.mjs` 组件测试器落地——node:vm 等价
   沙箱（shell→真实子进程跑 kanyu CLI、fs→node:fs、harness→RPC/工具表收集），
-  **35/35 断言全绿**（14 RPC + 8 动态工具注册 + 七大能力逐项实证 + Client 半
-  语法/结构静态校验 + pkg 静态双面包契约组：exports/dsh.client 声明、工厂 id 契约、
-  preset 门控、方言禁项、两半 RPC 漂移锁、index.js RPC 桥实测 ping 200）；临时产物自清理，`dsh/output/` 已入 .gitignore。
+  **40/40 断言全绿**（17 RPC + 8 动态工具注册 + 七大能力逐项实证 + Client 半
+  语法/结构静态校验 + 编辑 undo/redo 双栈闭环 + pkg 静态双面包契约组：
+  exports/dsh.client 声明、工厂 id 契约、preset 门控、方言禁项、两半 RPC
+  漂移锁、index.js RPC 桥实测 ping 200）；临时产物自清理，`dsh/output/` 已入 .gitignore。
 - **DSH 活体冒烟**：`dsh --profile headless` 在仓库根执行真实任务
   「`kanyu agents validate --code-repo` 并引用输出」——会话代理实测执行并正确引用
   「AGENTS.md 校验通过：0 个图层，0 条业务规则」，DSH × kanyu CLI 链路活体验证通过。

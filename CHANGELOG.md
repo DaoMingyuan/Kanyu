@@ -30,6 +30,10 @@
   静态客户端 bundle 常驻 web 前端 boot 图，GIS 工作台头部按钮 + 七页签浮层经
   会话 `agentPreset` 快照门控，切换到 kanyu-gis preset 会话即联动显示；
   Host 半新增 `/kanyu-gis/call` RPC 桥（webServer 前缀路由）供客户端回调内核。
+  **编辑能力深化**：组件编辑内核对齐 kanyu-edit 命令逆操作双栈范式——变更算子
+  应用时计算结构化逆操作入 undo 栈（容量 64、新变更清 redo），新增
+  `edit.undo`/`edit.redo`/`edit.history` RPC，工作台编辑页签加撤销/重做；
+  本地测试器扩至 40 断言全绿（含 undo/redo 闭环）。
 
 ### 修复
 

@@ -100,6 +100,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-18 kimi-code(main) — 组件编辑能力深化：对齐 kanyu-edit 命令逆操作双栈（40/40 断言全绿）
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **40/40 通过 exit 0**（新增编辑历史闭环 5 断言：apply 入栈 → undo 逆操作回写字段移除 → redo 重放字段恢复 → 新变更清 redo → edit.history 栈深标签）；web profile 重装后 3099 冒烟：health 报 8 工具 + 17 RPC、boot 图条目在、日志零报错
+- 内容：① host.js 编辑段重构——`applyMutation` 单一变更入口正/逆共用，5 个变更算子应用时算结构化逆操作（feature-delete↔feature-insert、feature-add→feature-delete、attribute-set/delete↔attribute-restore、vertex-move 自逆 + ringPath=GeomPath 三级定位），按源文件键控双栈（容量 64 淘汰最旧、push 清 redo，与 crates/kanyu-edit/src/history.rs 同语义）；新增 edit.undo/edit.redo/edit.history RPC（14→17）；② 双客户端编辑页签加撤销/重做按钮（方法名显式不拼接）；③ 测试器扩 5 断言至 40；④ 文档全链（README/GIS_MODE/双 CHANGELOG/AI_SYNC）
+- 偏差：漂移锁首跑红一次——`'edit.' + dir` 拼接致静态不可查，改显式方法名后全绿（这正是漂移锁的设计目的，非实现缺陷）
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线）；3D 真管线对接（§1.2 #11 余项）
+
+### [开工] 2026-08-18 kimi-code(main) — 组件编辑能力深化：对齐 kanyu-edit 范式（GeomPath 三级定位 + Undo/Redo 双栈）
+- 范围：dsh/plugin/host.js（edit.apply 算子寻址对齐 GeomPath 语义 + 新增 edit.undo/edit.redo RPC 与历史栈）、dsh/pkg/client.js + plugin/client.js（编辑页签加撤销/重做）、dsh/tools/test_plugin.mjs（新增断言）、文档与双仓同步；crates 零改动
+- 依据：§1.2 #11「组件能力深化（编辑内核与 kanyu-edit 对齐）」；长期目标「地理编辑功能同步移植到组件功能进行自我迭代」
+- 预计：中（host.js 编辑段改写 + 双端 UI + 测试 + 推送）
+
 ### [收工] 2026-08-18 kimi-code(main) — 本地测试器覆盖静态双面包（35/35 断言全绿）
 - 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **35/35 通过 exit 0**（新增 pkg 契约组 12 项全绿，含 RPC 桥实测 ping 200）
 - 内容：test_plugin.mjs 新增 pkg 静态双面包契约断言组——package.json exports 三键 + dsh.client 声明；client.js 语法/工厂 id==包名/inject 三服务/slot 注册/preset 门控/方言禁项；两半漂移锁（客户端 hostCall 方法名 ⊆ host.js RPC 表，9⊆14）；index.js mock apply（8 工具 + /kanyu-gis 前缀路由注册）+ node:http 等价面实测桥 ping；文档计数同步（README/GIS_MODE/CHANGELOG），dsh/CHANGELOG [0.4.1]
