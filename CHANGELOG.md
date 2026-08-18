@@ -91,6 +91,9 @@
   data.query 带 output 落盘 dsh/output/，stderr 解析命中数 + data.preview
   取总数展示「命中 N/M 要素」，落盘成功即设为当前图层全页签联动；host
   dataQuery 补 ensureOutDir（--output 不建父目录防护），测试器 78/78 全绿。
+  **投影变换联动**：双端坐标页签改专属 runReproject——crs.reproject 带
+  output 落盘 dsh/output/，stderr 计数 + 设为当前图层全页签联动；host
+  crsReproject 补 ensureOutDir 同款防护，测试器 82/82 全绿。
 
 - **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
   （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>

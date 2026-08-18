@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第二十六轮）
+## 4. 当前状态（2026-08-18，第二十七轮）
 
-- **数据页签查询联动（本轮新增）**：双端「查询」改专属 runQuery——
+- **投影变换联动（本轮新增）**：双端坐标页签「投影变换」改专属
+  runReproject——crs.reproject 带 output 落盘 dsh/output/，stderr 解析
+  计数展示「源 → 目标：变换 N 要素」，落盘成功即设为当前图层（store.path
+  广播，各页签联动）；host crsReproject 补 ensureOutDir（reproject
+  --output 同款不建父目录防护）。测试器 82/82（static 65/65）；3080 桥
+  实测 4326→4547 落盘 + 计数正确。RPC 仍 25 项。端点复测仍全部离线。
+- **数据页签查询联动（第二十六轮）**：双端「查询」改专属 runQuery——
   data.query 带 output 落盘 dsh/output/，stderr 解析命中数 + data.preview
   取总数展示「命中 N/M 要素」，落盘成功即设为当前图层（store.path 广播，
   各页签联动）；host dataQuery 补 ensureOutDir（--output 不建父目录防护）。
