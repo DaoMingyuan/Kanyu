@@ -87,7 +87,10 @@
   params 键值透传），测试器 72/72 全绿。**3D 分类着色**：scene3d.data 加
   colorField（逐要素 cat + categories ≤12 类），双端 catColor 哈希 HSL
   稳定取色 + 棱柱类别着色 + 图例行，kanyu_scene3d 加 colorField，
-  测试器 74/74 全绿。
+  测试器 74/74 全绿。**数据页签查询联动**：双端「查询」改专属 runQuery——
+  data.query 带 output 落盘 dsh/output/，stderr 解析命中数 + data.preview
+  取总数展示「命中 N/M 要素」，落盘成功即设为当前图层全页签联动；host
+  dataQuery 补 ensureOutDir（--output 不建父目录防护），测试器 78/78 全绿。
 
 - **`kanyu tool` 顶层子命令（工具箱注册表出口）**：`kanyu tool list [--json]`
   （37 工具全量定义含参数表，AI/组件发现面）与 `kanyu tool run <id>
