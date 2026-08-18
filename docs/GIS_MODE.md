@@ -80,8 +80,13 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第十轮）
+## 4. 当前状态（2026-08-18，第十一轮）
 
+- **kanyu-mcp 桥接入 GIS 模式（本轮新增）**：preset 组合新增 `mcp-kanyu` 行
+  （dsh-mcp-client，stdio `kanyu mcp serve`），内核 17 stable 工具以
+  `mcp__kanyu__*` 限定名进会话模型工具面，与组件 8 动态工具互补。实证：
+  roster 无 broken、session.create 成功、实例日志 9 处 kanyu-mcp stdio 启动
+  零错误（模型侧入目待首局对话实测终验）。本地三模型端点复测仍全部离线。
 - **本地同步契约落地（用户报告修复）**：运行中的 `dsh web` 实例不热加载——
   组合树/boot 图启动时一次成型，插件更新后旧实例症状为 boot 图无 kanyu 条目、
   bundle 404、health 落 SPA 兜底页；重启实例即修复。新增 `dsh/sync-local.sh`

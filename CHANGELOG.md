@@ -43,7 +43,10 @@
   排序、两档明暗、高度归一化 0.25），测试器 42/42 全绿，web profile 重装
   冒烟通过。**本地同步契约**：`dsh/sync-local.sh` 一键同步（preset 回灌 +
   校验 + 插件重装），修复过期运行实例致界面不加载问题（组合树/boot 图
-  启动时一次成型，须重启实例生效）。
+  启动时一次成型，须重启实例生效）。**kanyu-mcp 桥接入 GIS 模式**：preset
+  组合新增 mcp-kanyu 行（dsh-mcp-client，stdio `kanyu mcp serve`），内核
+  17 stable 工具以 `mcp__kanyu__*` 限定名进会话模型工具面（web profile
+  实证：roster 无 broken + stdio 桥启动零错误）。
 
 ### 修复
 
