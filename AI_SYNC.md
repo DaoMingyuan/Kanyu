@@ -52,7 +52,7 @@
 
 ## 1. 状态快照
 
-> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
+> 每次收工回记时更新。截至 **2026-08-18 · v0.22.0+ · 394 测试全绿 · dsh/ 组件源完整入库 · GIS 模式 preset web profile 活体挂载验证通过（roster broken 修复闭环 + 领域技能入目实证）· 组件静态插件常驻安装本机 web profile 激活 · 组件编辑逆操作双栈对齐 kanyu-edit（RPC 17，测试器 40/40）· GIS 模式领域技能 SKILL.md 组件形态章节对齐（第八轮）· 组件仓 CI 落地（第九轮：测试器 --static 零依赖模式 + workflow，三验全绿 + 组件仓首跑 success）· 3D 真管线对接 scene3d.rs 软件管线（第十轮：双客户端投影链/背面剔除/纵深排序/拖拽旋转，42/42 断言）· GitHub 双仓同步完成（Kanyu 主仓 + DaoMingyuan/kanyu-gis）**。
 
 ### 1.1 已完成实现
 
@@ -86,7 +86,7 @@
 8. **性能基准**：对 QGIS 的 §5.3 指标实测并公开基准报告
 9. **parquet codec 裁剪**：zstd-sys 等 C codec 经 parquet 引入，评估裁剪保持"内核零 C"纯度
 10. **属性面板重建**：等待用户定制要求
-11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml）；后续批次：kanyu-gis 会话首局对话实测（待本地模型端点在线）、3D 真管线对接、凭据轮换时按 docs/GITHUB.md 登记
+11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml，首跑 success）；3D 真管线对接已完成（第十轮：双客户端对齐 scene3d.rs 软件管线，42/42）；后续批次：kanyu-gis 会话首局对话实测（待本地模型端点在线）、凭据轮换时按 docs/GITHUB.md 登记
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -99,6 +99,17 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-18 kimi-code(main) — 组件 3D 能力对齐内核 scene3d.rs 软件管线（42/42 断言全绿）
+- 提交：本次 commit；测试：crates 零改动；验证：`node dsh/tools/test_plugin.mjs` **42/42**（新增 3D 管线契约断言 ×2）、`--static` **33/33**；web profile 重装（pnpm file: 副本刷新）后 3099 冒烟：health 200（8 工具/17 RPC）+ `/plugins/kanyu-gis-dsh-plugin/client.js` 200（32076B，含 faceVisible 新管线）
+- 内容：① 双客户端 `drawScene3d` 重写，废弃固定 45° 等距投影，逐项移植内核 scene3d.rs 软件管线——投影链（数据→画布线性映射 view.rs 同式 → 绕中心 yaw 旋转 → sin(pitch) 俯仰压缩 → 高度抬升）、face_visible 背面剔除、prism_depth 质心纵深排序（远先绘）、侧面两档明暗（0.55/0.75）、高度归一化画布高×0.25（MAX_HEIGHT_FRAC）、纯白底约束、线/点贴地投影；② Tab3d 新增视角态（yaw=-0.5/pitch=35° 默认）+ 左键拖拽旋转（yaw += dx*0.01、pitch 钳制 30°–45°，内核交互契约同式），角标实时显示方位角/俯仰；③ 文档全链（README/GIS_MODE/dsh/CHANGELOG [0.7.0]/根 CHANGELOG；host.js 注释与工具描述同步改述）
+- 偏差：无；浏览器渲染层未开 GUI 实测（管线语义逐式对齐内核纯函数，契约断言锁定）
+- 后续：kanyu-gis 会话首局对话实测（待本地模型端点在线，连续十轮离线）
+
+### [开工] 2026-08-18 kimi-code(main) — 组件 3D 能力对接内核 scene3d 管线（真管线语义对齐）
+- 范围：dsh/plugin/host.js（scene3d.data 语义对齐内核）、dsh/plugin/client.js + dsh/pkg/client.js（3D 页签绘制管线对齐）、dsh/tools/test_plugin.mjs（断言）、文档与双仓同步；crates 零改动
+- 依据：§1.2 #11 余项「3D 真管线对接」；长期目标「3D地理功能同步移植到组件功能进行自我迭代」；本地三模型端点第十轮复测仍全部离线（curl 000），首局对话实测继续顺延
+- 预计：中（内核 scene3d 语义勘察 + 组件对齐 + 测试 + 推送）
 
 ### [收工] 2026-08-18 kimi-code(main) — 组件仓 CI 落地（测试器 --static 零依赖模式 + 双布局自检，三验全绿）
 - 提交：本次 commit；测试：crates 零改动；验证：主仓 `node dsh/tools/test_plugin.mjs --static` **31/31**、全量模式回归 **40/40** 不破、模拟组件仓根布局（target/tmp 副本）static **31/31**

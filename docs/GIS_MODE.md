@@ -31,7 +31,7 @@
 | 工程目录 | Client 目录页签 | `catalog.list` RPC（递归扫描，扩展名矩阵对齐注册表） |
 | 地理处理 | `kanyu_geoprocess` | `kanyu analysis` 13 工具（QGIS 语义，参数名逐旗标对拍 v0.22.0 实测） |
 | 地理编辑 | `kanyu_edit` | 组件内 GeoJSON 在线编辑内核（6 算子 + undo/redo 双栈）；深度拓扑编辑由 `kanyu-edit` crate 承接 |
-| 3D 地理 | `kanyu_scene3d` | 挤出体场景数据制备 + Client canvas 等距投影绘制 |
+| 3D 地理 | `kanyu_scene3d` | 挤出体场景数据制备 + Client canvas 软件 3D 管线（对齐 scene3d.rs：yaw/pitch 拖拽旋转/背面剔除/质心纵深排序/两档明暗） |
 
 另有 `kanyu_introspect`（系统自省，对齐 `kanyu introspect --json`）。工具参数与输出
 直接引用内核注册表语义——「工具语义 == 内核语义」，无第二套参数表。
@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第九轮）
+## 4. 当前状态（2026-08-18，第十轮）
 
-- **组件仓 CI 落地（本轮新增）**：`tools/test_plugin.mjs` 新增 `--static` 零依赖
+- **3D 真管线对接（本轮新增）**：双客户端 `drawScene3d` 对齐内核 `scene3d.rs`
+  软件管线——投影链（线性映射 → yaw 旋转 → sin(pitch) 压缩 → 高度抬升）、
+  背面剔除、质心纵深排序、侧面两档明暗、高度归一化 0.25、纯白底；Tab3d 加
+  拖拽旋转（yaw/pitch 钳制 30°–45°，内核交互契约同式）。测试器 42/42 全绿
+  （新增 2 项 3D 契约断言），web profile 重装冒烟通过（health 200 + bundle
+  含新管线）。本地三模型端点复测仍全部离线，首局对话实测继续顺延。
+- **组件仓 CI 落地（第九轮）**：`tools/test_plugin.mjs` 新增 `--static` 零依赖
   CI 模式（跳过全部 kanyu CLI 依赖断言，RPC 桥实测改用纯本地 `crs.presets`）+
   主仓/组件仓双布局自检；新增 `.github/workflows/component-test.yml`（同步进
   组件仓仓根 `.github/workflows/`，push/PR 触发）。本机三验：主仓 static 31/31、
