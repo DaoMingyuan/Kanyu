@@ -80,14 +80,21 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-18，第四十八轮）
+## 4. 当前状态（2026-08-18，第五十轮）
 
-- **布局预览 UI（本轮新增，壳层 layoutview 移植闭环）**：host 半新增
+- **目录地图框点击预览（本轮新增，目录五分类可点闭环）**：host 半新增
+  `catalog.readImage` RPC（27→28，渲染产物 PNG → base64，越界防护仅限
+  dsh/output 产物目录内 .png）；双端目录页签地图框条目点击 → PNG 内嵌
+  预览。测试器 134/134（static 104/104）。RPC 28 项。端点复测仍全部离线。
+- **布局预览 UI（第四十八轮）**：host 半新增
   `render.layout` RPC（26→27）——layoutPreview 支持 path 直传与
   `kyu + title` 工程模式（布局规格 page/dpi/legend/scalebar/north 取自
   .kyu 清单，数据取首个可见图层、source 相对工程目录解析）；catalog.list
   布局框条目回传 kyu 工程路径；双端目录页签布局框点击 → SVG 内嵌预览
   + 关闭按钮。测试器 129/129（static 100/100）。RPC 27 项。端点复测仍全部离线。
+- **verify_preset 校验扩展（第四十九轮）**：行内插件包存在性对照宿主
+  检出 + 自带技能 SKILL.md frontmatter 校验（sync-preset.sh 通道覆盖）。
+  正/负向实测通过，static 回归 100/100。RPC 仍 27 项。端点复测仍全部离线。
 - **布局排版出口（第四十六轮）**：主仓新增
   `kanyu render layout`（render crate `layout` 排版器首个 CLI 出口——
   A4 横/竖 + 标题/图例/比例尺/指北针内嵌地图渲染，`--page/--dpi/
