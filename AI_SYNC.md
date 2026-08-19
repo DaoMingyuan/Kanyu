@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 地图画布量测（测距/测面）
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **248/248**（+2）、`--static` **191/191**（+2）；node --check 双端通过
+- 内容：双端 client.js 量测模式下拉（关闭/距离/面积）+ onMapClick 分派（量测中攒点不触发 identify）+ addMeasurePt（extent 反算攒 [fx,fy,mx,my]）+ kyg-measure SVG 覆盖层（viewBox 0 0 1 1 + vectorEffect 非缩放描边，随缩放平移）+ geoDist（4326 haversine / 其余欧氏）+ measureText（距离 m/km、面积 m²/km² 格式化）+ onMapDblClick（量测中双击冻结，否则 onMapReset）+ 清除量测钮。修：addMeasurePt 改 setState 函数式更新（同步连击 stale 闭包丢点，agent-browser 实测暴露）。agent-browser 3080 实测：两点测距 1.02 km（0.012° 经度 haversine 理论值一致）、四点测面 1.36 km²、SVG 填充/描边渲染正确。SKILL.md v2.32，dsh/CHANGELOG [0.88.0]，GIS_MODE §4 第九十三轮，AGENTS.md 计数 248。九十二轮双仓 CI（e37e26f/d98e014）均 success
+- 偏差：无
+- 后续：端点离线顺延项不变；量测结果暂未入状态栏（行内显示已足，需要时可发布 store）；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 地图画布量测（测距/测面）
+- 范围：双端 client.js 量测模式/攒点/SVG 覆盖层/haversine 累算/双击冻结 + 测试器契约键 + 文档计数
+- 依据：ArcGIS Pro 测量语义（测距/测面交互量测）；壳层 crs::measure 为整图层测地线度量，画布交互量测互补；九十一/九十二轮 extent 反算管线直接复用
+- 验证：测试器双模式 + agent-browser 3080 攒点/冻结/清除实测
+
 ### [收工] 2026-08-19 kimi-code(main) — 状态栏鼠标坐标实时跟踪
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **246/246**（+2）、`--static` **189/189**（+2）；node --check 双端通过
 - 内容：双端 client.js 画布 onMouseMove=onMapMove（节流 ≥60ms，像素分数反算地图坐标，复用九十一轮公式）→ store.mapCursor → 状态栏「坐标: x, y」5 位小数；onMouseLeave=onMapLeave/出图区清空；store 加 mapCursor。agent-browser 3080 实测：画布中心 mousemove → 116.39999,39.91001（=范围中心），mouseout（relatedTarget=body）清空。SKILL.md v2.31，dsh/CHANGELOG [0.87.0]，GIS_MODE §4 第九十二轮，AGENTS.md 计数 246。九十一轮双仓 CI（d801b27/3a80e61）均 success

@@ -80,9 +80,16 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第九十二轮）
+## 4. 当前状态（2026-08-19，第九十三轮）
 
-- **状态栏鼠标坐标实时跟踪（本轮）**：画布 mousemove 节流（≥60ms）反算
+- **地图画布量测（本轮）**：测距/测面双模式，画布单击攒点 + SVG 覆盖层
+  实时折线/多边形，haversine/等距圆柱 shoelace 累算（4326），双击冻结、
+  清除重来；量测中单击不触发 identify（onMapClick 分派）。测试器
+  248/248（static 191/191），agent-browser 3080 实测测距 1.02 km /
+  测面 1.36 km² 与理论值一致。九十二轮双仓 CI（e37e26f / d98e014）均
+  success。
+
+- **状态栏鼠标坐标实时跟踪（第九十二轮）**：画布 mousemove 节流（≥60ms）反算
   地图坐标 → `store.mapCursor` → 状态栏「坐标: x, y」实时显示，
   mouseleave/出图区清空（ArcGIS Pro/QGIS 状态栏坐标标配）。测试器
   246/246（static 189/189），agent-browser 3080 实测中心坐标
