@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — Dock 工程图层可见性开关
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **257/257**（+4）、`--static` **200/200**（+4）；node --check 三 js 通过
+- 内容：host.js 新增 style.setVisible RPC（.kyu visible 布尔写回，styleSet 同读写通道 + writeHint）；双端 Dock 工程图层行加复选框（stopPropagation 不抢行点击）+ toggleVis（写回成功更新 kyuProject 快照徽标）。RPC 面 33→34。agent-browser 3080 实测：demo.kyu 取消勾选 → 行徽标「隐藏」+ 文件 visible:false；再勾选 → 「图层」+ true 复原。SKILL.md v2.35（面板侧 33 RPC），dsh/CHANGELOG [0.91.0]，GIS_MODE §4 第九十六轮，AGENTS.md 计数 257。九十五轮双仓 CI（c1929bd/265f51b）均 success
+- 偏差：agent-browser 原生下拉 option 不能 ref 点击（DOM.getBoxModel 报错），用 select 命令按标签选
+- 后续：端点离线顺延项不变；目录页签 .kyu 展开行 visible 徽标只读（本轮只动 Dock，展开行开关留后续）；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — Dock 工程图层可见性开关
+- 范围：host.js style.setVisible RPC + 双端 Dock 复选框/toggleVis + 测试器（RPC 34 + 关开回环）+ 文档计数
+- 依据：壳层 toc.rs 复选框可见性是图层树标配；组件 Dock 工程图层组已有 visible 徽标只读显示，补写回闭环
+- 验证：测试器双模式 + agent-browser 3080 复选框关/开 + demo.kyu 文件 grep 实证
+
 ### [收工] 2026-08-19 kimi-code(main) — 3D 高程夸张系数
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **253/253**（+2）、`--static` **196/196**（+2）；node --check 双端通过
 - 内容：双端 drawScene3d 加 exag 形参（zScale = H*0.25/maxH*exag，纯显示乘算）+ Tab3d 「夸张」下拉（×0.5/1/1.5/2/3/5）+ 标注行档位显示 + effect 依赖加 exag 即时重绘。agent-browser 3080 实测：自建 poly3d.geojson 双棱柱（100m/40m），×3 高耸顶格 vs ×0.5 低矮体块，标注「夸张 ×0.5/×3」同步。SKILL.md v2.34，dsh/CHANGELOG [0.90.0]，GIS_MODE §4 第九十五轮，AGENTS.md 计数 253。九十四轮双仓 CI（1f1219e/3f5adf1）均 success
