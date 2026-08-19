@@ -80,9 +80,16 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第八十四轮）
+## 4. 当前状态（2026-08-19，第八十五轮）
 
-- **顶栏工程选择接 .kyu（本轮）**：顶栏新增工程下拉（catalog.list 扫
+- **底图 WMS 入画布背景（本轮）**：地图页签「底图 WMS」勾选行——内核
+  新增透明背景渲染（`--background none`），`loadBasemap` 按图层范围拉
+  GetMap 同尺寸底图垫底；`axisSwap` 修复严格 1.3.0 服务器（EPSG:4326
+  纬度/经度规范轴序）空白图问题；导出含底图时 canvas 合成。agent-
+  browser 实测真实 OSM 街道底图 + 要素叠加出图。测试器 232/232
+  （static 175/175），cargo test --workspace 全绿。八十四轮双仓 CI
+  （8d0d21f / c07a2a2）均 success。
+- **顶栏工程选择接 .kyu（第八十四轮）**：顶栏新增工程下拉（catalog.list 扫
   .kyu → style.list 载入 → store.kyuProject 发布）；图层坞渲染工程图层
   组，点击 = 当前图层 + 样式/工程路径/图层 id 接力（同目录页签
   pickKyuLayer 语义）。agent-browser 实测 demo.kyu → 「工程: 组件目录

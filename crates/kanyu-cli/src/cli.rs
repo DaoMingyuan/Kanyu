@@ -372,6 +372,10 @@ pub enum RenderCommand {
         /// 主题：light（晨山）/dark（夜观星）。
         #[arg(long, default_value = "light")]
         theme: String,
+        /// 背景色（#RRGGBB；缺省用主题画布色；none/transparent = 透明背景，
+        /// 供底图叠加场景）。
+        #[arg(long)]
+        background: Option<String>,
         /// 属性驱动样式规则（内联 JSON；与 --style-file 二选一）。
         #[arg(long)]
         style: Option<String>,

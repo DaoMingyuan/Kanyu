@@ -722,6 +722,7 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
             width,
             height,
             theme,
+            background,
             style,
             style_file,
         } => {
@@ -747,6 +748,7 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
                 width: *width,
                 height: *height,
                 theme: theme.parse()?,
+                background: background.clone(),
                 style: style_rule,
                 ..Default::default()
             };

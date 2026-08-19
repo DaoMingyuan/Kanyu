@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 底图 WMS 入画布背景：内核透明渲染 + axisSwap 轴序修复
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **232/232**（+3）、`--static` **175/175**（+3）；`cargo test --workspace` 全绿（kanyu-render 25 例含透明背景 2 新例）
+- 内容：内核 kanyu-render 透明背景（background none/transparent 不铺画布色，SVG 省背景 rect/PNG alpha=0）+ CLI `render map --background` 旗标 + 本机 kanyu 已 cargo install 更新；组件 render.map 加 transparent 直通；双端 TabMap「底图 WMS」行（loadBasemap 范围→GetMap 垫底+canvas 合成导出）；services.wms 加 axisSwap（严格 1.3.0 轴序，EPSG:4326 纬度/经度序）——实测 terrestris 空白图 2.3KB→真实街道底图 500KB。agent-browser 截图目检 OSM 底图+要素叠加通过。SKILL.md v2.25，dsh/CHANGELOG [0.81.0]，GIS_MODE §4 第八十五轮，CLI.md §5.1 补 --background 行
+- 偏差：壳层 services.rs build_getmap_url 仍为经度/纬度序（壳层契约不动），严格轴序修复仅在组件侧（axisSwap 参数）；壳层同款修复留后续轮次评估
+- 后续：状态栏比例尺随画布缩放重算、工程下拉接目录自定义扫描目录、壳层 services.rs axisSwap 对齐评估；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 底图 WMS 入画布背景
+- 范围：kanyu-render 透明背景 + CLI --background + host render.map transparent + 双端 TabMap 底图行/叠加/合成导出 + services.wms axisSwap；测试器契约键；文档计数点
+- 依据：八十四轮收工回记后续项；用户参考截图的地理工作台含世界底图
+- 验证：内核测试 + 契约断言 + sync + 重启 3080 + agent-browser 实测（真实 OSM 底图叠加出图）
+
 ### [收工] 2026-08-19 kimi-code(main) — 顶栏工程选择接 .kyu：style.list 载入 + Dock 工程图层组
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **229/229**（+2）、`--static` **172/172**（+2，工程选择契约键锁双端）
 - 内容：双端——顶栏工程下拉（catalog.list 扫 .kyu→style.list 载入→store.kyuProject 发布）；Dock 工程图层组（点击=store.path/sym/kyu/layerId 接力，同 pickKyuLayer 语义）。agent-browser 实测 demo.kyu→「工程: 组件目录夹具」图层组→点击 buildings→状态栏当前图层切换。SKILL.md v2.24，dsh/CHANGELOG [0.80.0]，GIS_MODE §4 第八十四轮

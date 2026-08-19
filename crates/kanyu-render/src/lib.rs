@@ -80,6 +80,7 @@ pub struct RenderOptions {
     /// 主题。
     pub theme: Theme,
     /// 自定义背景色（`#RRGGBB`；缺省用主题画布色）。
+    /// `"none"` / `"transparent"` = 透明背景（不铺画布色，供底图叠加场景）。
     pub background: Option<String>,
     /// 属性驱动样式规则（缺省走主题默认样式，行为与旧版一致）。
     pub style: Option<StyleRule>,
@@ -484,12 +485,25 @@ impl Viewport {
     }
 }
 
+/// 透明背景判定（`"none"` / `"transparent"`，大小写不敏感）。
+fn transparent_bg(opts: &RenderOptions) -> bool {
+    matches!(
+        opts.background
+            .as_deref()
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("none") | Some("transparent")
+    )
+}
+
 fn validate_options(opts: &RenderOptions) -> Result<(), RenderError> {
     if opts.width == 0 || opts.height == 0 || opts.width > 8192 || opts.height > 8192 {
         return Err(RenderError::InvalidSize(opts.width, opts.height));
     }
     if let Some(bg) = &opts.background {
-        parse_hex_color(bg)?;
+        if !transparent_bg(opts) {
+            parse_hex_color(bg)?;
+        }
     }
     if let Some(rule) = &opts.style {
         rule.validate()?;
@@ -553,9 +567,12 @@ pub fn render_svg(
         opts.theme.name(),
         collection.features.len()
     ));
-    out.push_str(&format!(
-        "<rect width=\"100%\" height=\"100%\" fill=\"{background}\"/>\n"
-    ));
+    // 透明背景（none/transparent）不铺背景 rect，供底图叠加（SVG 默认透明）
+    if !transparent_bg(opts) {
+        out.push_str(&format!(
+            "<rect width=\"100%\" height=\"100%\" fill=\"{background}\"/>\n"
+        ));
+    }
     // 绘制顺序：面 → 线 → 点（点最上层）。
     for kind in [GeomKind::Polygon, GeomKind::Line, GeomKind::Point] {
         for feature in &collection.features {
@@ -692,13 +709,16 @@ pub fn render_png(
     )?;
     let mut pixmap = Pixmap::new(opts.width, opts.height)
         .ok_or(RenderError::InvalidSize(opts.width, opts.height))?;
-    let (r, g, b) = parse_hex_color(
-        &opts
-            .background
-            .clone()
-            .unwrap_or_else(|| canvas_color(opts.theme).to_string()),
-    )?;
-    pixmap.fill(Color::from_rgba8(r, g, b, 255));
+    // 透明背景（none/transparent）：Pixmap 新建即全透明，跳过画布色填充
+    if !transparent_bg(opts) {
+        let (r, g, b) = parse_hex_color(
+            &opts
+                .background
+                .clone()
+                .unwrap_or_else(|| canvas_color(opts.theme).to_string()),
+        )?;
+        pixmap.fill(Color::from_rgba8(r, g, b, 255));
+    }
 
     for kind in [GeomKind::Polygon, GeomKind::Line, GeomKind::Point] {
         for feature in &collection.features {
@@ -976,6 +996,49 @@ mod tests {
         // SVG 同步覆盖。
         let svg = render_svg(&empty, &opts).unwrap();
         assert!(svg.contains("#FFFFFF"), "SVG 背景应纯白: {svg}");
+    }
+
+    #[test]
+    fn transparent_background_png_corners_alpha_zero() {
+        // 透明背景（底图叠加场景）：空集合渲染后四角像素 alpha=0（不铺画布色）。
+        let empty = collection_from_str(r#"{"type":"FeatureCollection","features":[]}"#);
+        for bg in ["none", "transparent", "NONE"] {
+            let opts = RenderOptions {
+                background: Some(bg.to_string()),
+                ..Default::default()
+            };
+            let png = render_png(&empty, &opts).unwrap();
+            let pixmap = tiny_skia::Pixmap::decode_png(&png).unwrap();
+            let (w, h) = (pixmap.width(), pixmap.height());
+            for (x, y) in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)] {
+                assert_eq!(
+                    pixmap.pixel(x, y).unwrap().alpha(),
+                    0,
+                    "背景 {bg}：角像素 ({x},{y}) 应全透明"
+                );
+            }
+            // SVG 同步：不输出背景 rect
+            let svg = render_svg(&empty, &opts).unwrap();
+            assert!(
+                !svg.contains("<rect width=\"100%\""),
+                "背景 {bg}：SVG 不应含背景 rect: {svg}"
+            );
+        }
+    }
+
+    #[test]
+    fn transparent_background_still_renders_features() {
+        // 透明背景下要素照常绘制（仅省去画布底色）。
+        let opts = RenderOptions {
+            background: Some("none".to_string()),
+            ..Default::default()
+        };
+        let png = render_png(&mixed_collection(), &opts).unwrap();
+        let pixmap = tiny_skia::Pixmap::decode_png(&png).unwrap();
+        assert!(
+            pixmap.pixels().iter().any(|p| p.alpha() > 0),
+            "透明背景下应存在要素像素"
+        );
     }
 
     #[test]

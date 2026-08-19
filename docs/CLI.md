@@ -432,6 +432,7 @@ $ kanyu tool run stats --param layer=examples/buildings.geojson
 | `--width <n>` | `800` | 图片宽度（像素） |
 | `--height <n>` | `600` | 图片高度（像素） |
 | `--theme <light\|dark>` | `light` | 主题：`light` 晨山 / `dark` 夜观星 |
+| `--background <#RRGGBB\|none>` | （无） | 背景色覆盖；`none`/`transparent` = 透明背景（不铺画布色，供底图叠加场景） |
 | `--style <json>` | （无） | 属性驱动样式规则（内联 JSON；与 `--style-file` 二选一，同给中文报错） |
 | `--style-file <path>` | （无） | 样式规则 JSON 文件路径 |
 
