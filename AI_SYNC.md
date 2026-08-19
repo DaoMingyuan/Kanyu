@@ -101,6 +101,12 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 底部会话/终端融合 + 地图白底 + 配色对齐（第 100 轮）
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **269/269**（+3）、`--static` **212/212**（+3）；node --check 三 js 通过
+- 内容：kyg-bottombar 三页签（地图满高/会话压壳 52% 露宿主 composer/终端 TabTerm）；console.run RPC（kanyu 子命令白名单，拒链式符号，RPC 34→35）；顶栏「返回会话」删除→底部条「收起」；kyg-map-stage/kyg-canvas 白底 #ffffff；壳底 #16181d + topbar 中性化对齐 DSH。agent-browser 3080 实测白底渲染/终端运行+白名单拒绝/会话压壳 + 截图目检。SKILL.md v2.39（35 RPC 清单），dsh/CHANGELOG [0.95.0]，GIS_MODE §4 第一百轮，AGENTS.md 269
+- 偏差：RPC 计数断言 34→35 首跑失败（随 console.run 同步修正）；pkg 方言锚点全部一次命中
+- 后续：用户新要求持续接入（本轮中途插入「地图必须白底」已并入）；端点离线顺延项不变
+
 ### [收工] 2026-08-19 kimi-code(main) — 分析工具右侧化工具箱（第 99 轮）
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **266/266**（+2）、`--static` **209/209**（+2）；node --check 双端通过
 - 内容：地理处理迁入右侧停靠面板（.kyg-right 300px）；ribbon「处理」页签 hidden，「分析处理」组加「分析」开关钮（gpOpen）；TabGp 加 gpq 搜索框 + 精选工具清单行。agent-browser 3080 实测搜索过滤 + buffer 运行出 4 要素 + 截图目检。SKILL.md v2.38，dsh/CHANGELOG [0.94.0]，GIS_MODE §4 第九十九轮，AGENTS.md 266

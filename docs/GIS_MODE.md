@@ -80,9 +80,21 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第九十九轮）
+## 4. 当前状态（2026-08-19，第一百轮）
 
-- **分析工具右侧化（本轮）**：地理处理按 ArcGIS Pro 工具箱范式迁入右侧
+- **底部会话/终端融合 + 地图白底（本轮）**：壳内底部条（`.kyg-bottombar`）
+  三页签——「地图」满高 /「会话」压壳 52% 露出宿主会话区（功能完整性由
+  宿主保证）/「终端」壳内受限控制台（`console.run` RPC：kanyu 子命令
+  白名单 data/render/crs/tool/edit/agents/introspect/skill 直通，拒
+  链式/重定向/替换符号，无任意代码执行安全基线）；顶栏「返回会话」钮
+  删除，收起入底部条（kyg-reopen 浮动钮保留）。地图/编辑画布白底
+  `#ffffff`（对齐 ArcGIS Pro 纯白画布与壳层 mapview.rs 约定），壳底色
+  向 DSH 中性灰对齐（#16181d，topbar 中性化）。RPC 面 34→35。
+  测试器 269/269（static 212/212），agent-browser 3080 实测：白底渲染/
+  终端 data info 出图层信息/非白名单命令拒绝/会话压壳露 composer +
+  截图目检。九十九轮双仓 CI（211567c / 72f5bf2）success。
+
+- **分析工具右侧化（第九十九轮）**：地理处理按 ArcGIS Pro 工具箱范式迁入右侧
   停靠面板（`.kyg-right` 300px）：ribbon 「处理」页签撤下改「分析处理」
   组内「分析」开关钮（`gpOpen`），面板内含工具搜索框（`gpq` 名称/id
   子串过滤）+ 精选工具清单行（GP 徽标）+ 参数表单 + 工具箱全库注册表。
