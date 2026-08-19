@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 地图画布要素点选查询（identify 语义）
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **244/244**（+4）、`--static` **187/187**（+4）；node --check 三 js 通过
+- 内容：host.js 新增 `data.identify` RPC（纯 fs GeoJSON 空间点选：面射线法含洞排除/线点段距/点最近距，tol 地图单位，面内优先距离最近，不经 CLI）；双端 client.js publishMapInfo 发布 store.mapExtent、画布 onClick=onMapIdentify（img 像素分数→范围反算，y 翻转）→ kyg-identify 属性浮层 + store.selFeature 状态栏联动；onMapDown 拖拽超 4px 置 suppRef 抑制 click；舞台 div 补挂 stageRef（八十二轮量宽渲染落地，顺带修复 stageRef 未挂载）。agent-browser 3080 实测：单击命中示例大厦A（要素 #0 浮层 name/height/usage + 状态栏「选中要素 #0」）。SKILL.md v2.30（面板侧 32 RPC），dsh/CHANGELOG [0.86.0]，GIS_MODE §4 第九十一轮，AGENTS.md 计数 244。九十轮主仓 CI（83b5385）success
+- 偏差：agent-browser eval 无 agent 对象（脚本在浏览器上下文执行，页操作走 open/click/snapshot CLI 命令链）；插件 RPC 仅 plugin/host.js 一份（pkg 经 /kanyu-gis/call 桥复用，无独立注册点）
+- 后续：端点离线顺延项不变；浮层在画布底缘点击时可能超视口（功能不受影响，待需要时做边缘翻转定位）；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 地图画布要素点选查询（identify）
+- 范围：host.js data.identify RPC + 双端 client.js 点选交互/浮层/状态栏联动 + 测试器 + 文档计数
+- 依据：GIS 桌面 identify 是地图面板基础交互（ArcGIS Pro Identify 语义）；CLI 无空间点选命令，宿主侧纯 JS 实现（data.preview 同款纯 fs 读面先例）
+- 验证：测试器双模式 + node --check + agent-browser 3080 单击实测
+
 ### [收工] 2026-08-19 kimi-code(main) — 壳层 WMS GetMap 轴序对齐 1.3.0 规范
 - 提交：本次 commit；测试：`cargo test -p kanyu-shell services` 9/9（含 build_getmap_url 契约断言更新）+ clippy -D warnings + RUSTDOCFLAGS="-D warnings" cargo doc 全绿；组件测试器计数不变（240/240+183/183）
 - 内容：kanyu-shell services.rs build_getmap_url EPSG:4326 bbox 改发纬度/经度规范轴序（入参仍 [minx,miny,maxx,maxy]，函数内交换），doc 注释同步；根 CHANGELOG Unreleased 加「修复」节。与组件 services.wms axisSwap 语义对齐——八十五轮遗留偏差闭环

@@ -34,7 +34,7 @@ cargo fmt --all
 | `crates/kanyu-edit/` | 编辑内核：Undo/Redo 框架（命令逆操作双栈）+ 基础编辑命令（GeomPath 三级定位） |
 | `crates/kanyu-mcp/` | MCP Server（rmcp 3.x，stdio + streamable HTTP，SEP-2663 长任务） |
 | `docs/` | 总规 + 架构/API/SDK/MCP/CLI/GIS_MODE 文档 |
-| `dsh/` | 堪舆 GIS × DeepSeek Harness 组件源：`plugin/`（Host+Client 双半，七大能力 + 9 个 kanyu_* 动态工具）/ `pkg/`（常驻静态插件适配器，装本机 web profile）/ `skills/`（WASM 技能 guest 源 + 组件化 .wasm）/ `presets/kanyu-gis/`（GIS 模式 preset + 领域技能）/ `tools/verify_preset.mjs` / `tools/test_plugin.mjs`（240 断言本地测试器）/ `sync-preset.sh`（同步本机安装区）；手册见 `docs/GIS_MODE.md` |
+| `dsh/` | 堪舆 GIS × DeepSeek Harness 组件源：`plugin/`（Host+Client 双半，七大能力 + 9 个 kanyu_* 动态工具）/ `pkg/`（常驻静态插件适配器，装本机 web profile）/ `skills/`（WASM 技能 guest 源 + 组件化 .wasm）/ `presets/kanyu-gis/`（GIS 模式 preset + 领域技能）/ `tools/verify_preset.mjs` / `tools/test_plugin.mjs`（244 断言本地测试器）/ `sync-preset.sh`（同步本机安装区）；手册见 `docs/GIS_MODE.md` |
 | `AI_SYNC.md` | **长久性联动机制**（开工登记/收工回记/状态快照/迭代边界）——先于一切阅读 |
 | `examples/` | 示例数据（GeoJSON） |
 | `tests/` | 跨 crate 集成测试 |

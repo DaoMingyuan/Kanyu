@@ -80,9 +80,16 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第九十轮）
+## 4. 当前状态（2026-08-19，第九十一轮）
 
-- **壳层 WMS GetMap 轴序对齐 1.3.0 规范（本轮）**：
+- **地图画布要素点选查询（本轮）**：`data.identify` RPC 纯 fs 空间点选
+  （面射线法含洞排除/线点段距/点最近距，tol 地图单位），画布单击经
+  像素分数 + `store.mapExtent` 反算地图坐标命中要素，弹属性浮层并
+  联动状态栏「选中要素 #N」；拖拽超 4px 抑制 click。测试器 244/244
+  （static 187/187），agent-browser 3080 实测命中示例大厦A。九十轮
+  主仓 CI（83b5385）success。
+
+- **壳层 WMS GetMap 轴序对齐 1.3.0 规范（第九十轮）**：
   `services::build_getmap_url` EPSG:4326 bbox 改发 `纬度,经度` 规范轴
   序，与组件侧 axisSwap 语义对齐；严格 1.3.0 服务器（terrestris）可
   用，GeoServer 等宽限服务器同兼容。cargo test/clippy/doc 全绿。
