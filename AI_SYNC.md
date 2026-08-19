@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 状态栏鼠标坐标实时跟踪
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **246/246**（+2）、`--static` **189/189**（+2）；node --check 双端通过
+- 内容：双端 client.js 画布 onMouseMove=onMapMove（节流 ≥60ms，像素分数反算地图坐标，复用九十一轮公式）→ store.mapCursor → 状态栏「坐标: x, y」5 位小数；onMouseLeave=onMapLeave/出图区清空；store 加 mapCursor。agent-browser 3080 实测：画布中心 mousemove → 116.39999,39.91001（=范围中心），mouseout（relatedTarget=body）清空。SKILL.md v2.31，dsh/CHANGELOG [0.87.0]，GIS_MODE §4 第九十二轮，AGENTS.md 计数 246。九十一轮双仓 CI（d801b27/3a80e61）均 success
+- 偏差：React onMouseLeave 由 mouseout 委托合成，合成事件验证须 dispatch mouseout+relatedTarget（直接 dispatch mouseleave 不触发，浏览器真实行为无此差异）
+- 后续：端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 状态栏鼠标坐标实时跟踪
+- 范围：双端 client.js mousemove 坐标反算 + 状态栏显示 + 测试器契约键 + 文档计数
+- 依据：GIS 桌面状态栏坐标标配（ArcGIS Pro/QGIS）；九十一轮 identify 已铺 extent 反算管线，本轮复用
+- 验证：测试器双模式 + agent-browser 3080 mousemove/mouseout 实测
+
 ### [收工] 2026-08-19 kimi-code(main) — 地图画布要素点选查询（identify 语义）
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **244/244**（+4）、`--static` **187/187**（+4）；node --check 三 js 通过
 - 内容：host.js 新增 `data.identify` RPC（纯 fs GeoJSON 空间点选：面射线法含洞排除/线点段距/点最近距，tol 地图单位，面内优先距离最近，不经 CLI）；双端 client.js publishMapInfo 发布 store.mapExtent、画布 onClick=onMapIdentify（img 像素分数→范围反算，y 翻转）→ kyg-identify 属性浮层 + store.selFeature 状态栏联动；onMapDown 拖拽超 4px 置 suppRef 抑制 click；舞台 div 补挂 stageRef（八十二轮量宽渲染落地，顺带修复 stageRef 未挂载）。agent-browser 3080 实测：单击命中示例大厦A（要素 #0 浮层 name/height/usage + 状态栏「选中要素 #0」）。SKILL.md v2.30（面板侧 32 RPC），dsh/CHANGELOG [0.86.0]，GIS_MODE §4 第九十一轮，AGENTS.md 计数 244。九十轮主仓 CI（83b5385）success

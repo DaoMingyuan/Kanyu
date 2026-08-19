@@ -80,9 +80,16 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第九十一轮）
+## 4. 当前状态（2026-08-19，第九十二轮）
 
-- **地图画布要素点选查询（本轮）**：`data.identify` RPC 纯 fs 空间点选
+- **状态栏鼠标坐标实时跟踪（本轮）**：画布 mousemove 节流（≥60ms）反算
+  地图坐标 → `store.mapCursor` → 状态栏「坐标: x, y」实时显示，
+  mouseleave/出图区清空（ArcGIS Pro/QGIS 状态栏坐标标配）。测试器
+  246/246（static 189/189），agent-browser 3080 实测中心坐标
+  116.39999,39.91001 与 mouseout 清空。九十一轮双仓 CI（d801b27 /
+  3a80e61）均 success。
+
+- **地图画布要素点选查询（第九十一轮）**：`data.identify` RPC 纯 fs 空间点选
   （面射线法含洞排除/线点段距/点最近距，tol 地图单位），画布单击经
   像素分数 + `store.mapExtent` 反算地图坐标命中要素，弹属性浮层并
   联动状态栏「选中要素 #N」；拖拽超 4px 抑制 click。测试器 244/244
