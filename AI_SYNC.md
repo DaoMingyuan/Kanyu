@@ -101,6 +101,12 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 分析工具右侧化工具箱（第 99 轮）
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **266/266**（+2）、`--static` **209/209**（+2）；node --check 双端通过
+- 内容：地理处理迁入右侧停靠面板（.kyg-right 300px）；ribbon「处理」页签 hidden，「分析处理」组加「分析」开关钮（gpOpen）；TabGp 加 gpq 搜索框 + 精选工具清单行。agent-browser 3080 实测搜索过滤 + buffer 运行出 4 要素 + 截图目检。SKILL.md v2.38，dsh/CHANGELOG [0.94.0]，GIS_MODE §4 第九十九轮，AGENTS.md 266
+- 偏差：pkg ribbon 插入锚点 SKIP0（手工 Edit 补齐时多闭一个括号，node --check 拦截后修正）
+- 后续：第 100 轮（底部会话/终端融合 + 配色对齐）；端点离线顺延项不变
+
 ### [收工] 2026-08-19 kimi-code(main) — 地图界面 GIS 化（第 98 轮）
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **264/264**（+2）、`--static` **207/207**（+2）；node --check 双端通过
 - 内容：主题选择器删除（UI 固定晨山 light，render.map theme 契约恒传）；工具行单行化 + 符号化/.kyu 行收进「样式」折叠区；kyg-center flex 列向 + kyg-fill 画布铺满；2D/3D 视图切换（kyg-viewswitch，scene3d 页签 hidden）。agent-browser 3080 实测 2D 渲染/3D 加载/切换回环 + 截图目检。SKILL.md v2.37，dsh/CHANGELOG [0.93.0]，GIS_MODE §4 第九十八轮，AGENTS.md 264。推送凭据模型修正：git credential helper 陈旧令牌顶包 → 推送一律 `credential.helper=` + token-in-URL
