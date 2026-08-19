@@ -80,9 +80,17 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第九十七轮）
+## 4. 当前状态（2026-08-19，第九十八轮）
 
-- **目录 ArcGIS Pro 化（本轮）**：`catalog.list` 六分类重构（文件夹连接/
+- **地图界面 GIS 化（本轮）**：主题选择器删除（UI 固定晨山 light，
+  `render.map` theme 契约保留恒传）；工具行单行化（符号化/.kyu 持久化
+  收进「样式」折叠区 symOpen）；画布 `kyg-fill` flex 链铺满中央区；
+  2D/3D 视图切换（`kyg-viewswitch` 分段控件，scene3d 页签 hidden 不占
+  ribbon，ArcGIS Pro 视图范式）。测试器 264/264（static 207/207），
+  agent-browser 3080 实测 2D 渲染/3D 场景加载/切换回环 + 截图目检。
+  九十七轮双仓 CI（3f7ee87 / 494ca54）推送完成。
+
+- **目录 ArcGIS Pro 化（第九十七轮）**：`catalog.list` 六分类重构（文件夹连接/
   数据库/矢量数据/服务链接/地图框/布局框），矢量数据 `vecGroups` 按格式
   分组可折叠（Shapefile/GeoJSON/GeoPackage…）；`.gdb` 目录整目录登记入
   数据库类不深入扫描，`gdbUnsupported` 守卫（data info/query/validate/

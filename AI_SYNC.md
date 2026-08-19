@@ -101,6 +101,12 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 地图界面 GIS 化（第 98 轮）
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **264/264**（+2）、`--static` **207/207**（+2）；node --check 双端通过
+- 内容：主题选择器删除（UI 固定晨山 light，render.map theme 契约恒传）；工具行单行化 + 符号化/.kyu 行收进「样式」折叠区；kyg-center flex 列向 + kyg-fill 画布铺满；2D/3D 视图切换（kyg-viewswitch，scene3d 页签 hidden）。agent-browser 3080 实测 2D 渲染/3D 加载/切换回环 + 截图目检。SKILL.md v2.37，dsh/CHANGELOG [0.93.0]，GIS_MODE §4 第九十八轮，AGENTS.md 264。推送凭据模型修正：git credential helper 陈旧令牌顶包 → 推送一律 `credential.helper=` + token-in-URL
+- 偏差：patch 脚本重跑致 symOpen/mapGisKeys 双应用（node --check 拦截去重）；量测旧行缩进异常首跑 SKIP0 二跑补齐
+- 后续：第 99/100 轮（分析右侧化/底部会话终端融合+配色）；端点离线顺延项不变
+
 ### [收工] 2026-08-19 kimi-code(main) — 目录 ArcGIS Pro 化 + GDB/SHP 支持（第 97 轮）
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **262/262**（+5）、`--static` **205/205**（+5）；node --check 三 js 通过
 - 内容：catalog.list 六分类重构（文件夹连接/数据库/矢量数据/服务链接/地图框/布局框）+ vecGroups 按格式分组；.gdb 目录整登记不深入 + gdbUnsupported 守卫（info/query/validate/preview/calc 明确 GDAL 指引报错）；双端 TabCatalog vecSection 子组折叠 + Dock 工程图层/数据图层 grpHead 分组折叠。agent-browser 3080 实测六分类渲染/GDB 指引/折叠回环 + 截图目检。SKILL.md v2.36，dsh/CHANGELOG [0.92.0]，GIS_MODE §4 第九十七轮，AGENTS.md 262
