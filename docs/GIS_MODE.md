@@ -80,9 +80,17 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第八十轮）
+## 4. 当前状态（2026-08-19，第八十一轮）
 
-- **修「切 GIS 模式界面无变化」（本轮，用户实测报告）**：静态半
+- **GIS 模式全屏工作台（本轮，参考用户提供的「地理工作台」截图形态）**：
+  工作台由浮层改为全屏接管会话中央列（`useCenterRect` ResizeObserver 同步
+  centerCol 矩形，position:fixed 落于 shell.overlay 层内，侧栏保持原生）。
+  布局：顶栏 + 页签 ribbon + 左侧图层坞（catalog.list 数据类，点击设当前
+  图层）+ 中央页签区 + 底部状态栏；「返回会话」留 `kyg-reopen` 悬浮重开钮。
+  agent-browser 实测闭环：切入自动接管 → 返回会话 → 重开召回 → 切出收起。
+  测试器 223/223（static 166/166，全屏布局契约键锁双端）。八十轮双仓
+  CI（d257fbc / 558be49）均 success。
+- **修「切 GIS 模式界面无变化」（第八十轮，用户实测报告）**：静态半
   `pkg/client.js` 工作台此前仅在会话头部按钮点击后展开，而首页/新会话
   视图不渲染会话头部槽位——切 kanyu-gis preset 后页面零变化（boot 清单
   与 client.js 投递其实正常）。修复：preset 转换边联动——`prevGis` ref

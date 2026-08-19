@@ -101,6 +101,18 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — GIS 模式全屏工作台：中央列接管 + 图层坞/状态栏 + 重开钮
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **223/223**（+2）、`--static` **166/166**（+2，全屏布局契约键锁双端）
+- 内容：参考用户「地理工作台」截图——工作台浮层改全屏接管会话中央列（useCenterRect ResizeObserver 同步 centerCol 矩形，fixed 落于 shell.overlay 层内）；顶栏/ribbon/左侧图层坞（catalog.list 数据类，点击设当前图层+清单外产出自动重扫）/中央页签区/底部状态栏；「返回会话」留 kyg-reopen 悬浮重开钮（首页无头部槽位防死路）。agent-browser 实测闭环：切入自动接管→返回会话→重开召回→切出收起。SKILL.md v2.21，dsh/CHANGELOG [0.77.0]，GIS_MODE §4 第八十一轮；另确认八十轮双仓 CI（d257fbc / 558be49）均 success
+- 偏差：参考实现工作区（Dpsk-harness）本机未定位，按截图要素自研；切 preset 后刷新页面 preset 不回持（宿主对新会话 blank 会话不持久化 agentPreset——客户端 noteAgentPreset 仅页内有效，入档为已知行为）
+- 后续：中央区真地图画布化（render.map 直通铺满 + 导出地图图片）、状态栏接真实比例尺/坐标系/选择计数、顶栏工程选择接 .kyu；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — GIS 模式全屏工作台：参考「地理工作台」形态接管会话中央列
+- 范围：双端 client.js（Workbench 浮层→全屏接管：顶栏/ribbon 页签行/左侧图层坞/中央页签区/底部状态栏 + useCenterRect 同步 centerCol 矩形）；测试器布局契约键；文档计数点
+- 依据：用户提供参考截图（另一 DSH 部署的地理模式全屏工作台：图层坞+ribbon+地图画布+状态栏）；参考实现工作区未在本机定位，按截图要素自研
+- 机制：shell.overlay 层（inset:0, pointer-events:none，子元素 auto）内 position:fixed 同步 [class*=centerCol] getBoundingClientRect——不碰 slot 影子优先级（single 槽 abdicate 为崩溃退役语义，无法运行时让位）
+- 验证：契约断言 + sync + 重启 3080 + agent-browser 截图复验（切 kanyu-gis 全屏工作台出现、切走恢复会话视图）
+
 ### [收工] 2026-08-19 kimi-code(main) — 修「切 GIS 模式界面无变化」：preset 转换边联动展开/收起工作台
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **221/221**（+2）、`--static` **164/164**（+2，联动契约键锁双端）
 - 内容：确诊——boot 清单/client.js 投递/激活日志全正常，但工作台只在会话头部按钮点击后展开，而首页/新会话视图不渲染会话头部槽位，故切 preset 零变化。修复：pkg 半 `prevGis` 转换边联动（切入 kanyu-gis 自动展开、切出自动收起，手动关闭不反复弹出）；plugin 半 `autoOpened` 激活即展开同款 UX。agent-browser 实测标准模式↔kanyu-gis 往返 0↔22 kyg-* 元素（8 页签）联动。SKILL.md v2.20，dsh/CHANGELOG [0.76.0]，GIS_MODE §4 第八十轮
