@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十七轮）
+## 4. 当前状态（2026-08-19，第七十八轮）
 
-- **目录面板条目过滤（本轮）**：双端 TabCatalog 加过滤框（五分类清单按名
+- **几何量算 WASM 技能（本轮，技能沙箱第七算子）**：新 guest crate
+  `dsh/skills/measure_geom/`（param `_measure: area/length` 逐要素写
+  `_area`/`_length`，shoelace 外环减内环 / 欧氏长度零依赖实现，类型不
+  匹配透传）+ `dsh/skills/measure_geom.wasm` 入仓；双端技能分析区加量算
+  行（area/length 下拉 + skillRelay 接力）。测试器 219/219
+  （static 162/162）。七十七轮双仓 CI（79f67f2 / cc932a3）均 success。
+- **目录面板条目过滤（第七十七轮）**：双端 TabCatalog 加过滤框（五分类清单按名
   子串过滤、大小写不敏感，分类头命中/总数，过滤中强制展开）。测试器
   216/216（static 162/162，catKeys 扩键锁双端）。七十六轮双仓 CI
   （507c802 / dcd036b）均 success。
