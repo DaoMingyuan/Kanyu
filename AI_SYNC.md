@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 地图页签画布化：量宽出图 + 入场自动渲染 + 导出地图图片
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **225/225**（+2）、`--static` **168/168**（+2，画布化五契约键锁双端）
+- 内容：TabMap 双端——stageRef 量中央区宽出图（480–1600 自适应替固定 760×520）、firstRef 入场自动出图、kyg-map-stage 舞台容器、导出地图图片 PNG 下载（图层名命名）。agent-browser 实测 buildings.geojson 舞台大图 + 导出按钮在列无崩。SKILL.md v2.22，dsh/CHANGELOG [0.78.0]，GIS_MODE §4 第八十二轮
+- 偏差：headless 浏览器下载落点不可见（导出用与 3D PNG 导出同款已验证锚链机制）；python 内联反斜杠转义被传输层折叠两处已修正入档（正则须以脚本文件或 Edit 落地）
+- 后续：状态栏接真实比例尺/坐标系/选择计数、顶栏工程选择接 .kyu、底图 WMS 入画布背景；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 地图页签画布化：入场自动出图 + 舞台尺寸渲染 + 导出地图图片
+- 范围：双端 client.js TabMap（stageRef 量宽渲染、firstRef 入场自动出图、kyg-map-stage 预览容器、导出 PNG 按钮）；测试器契约键；文档计数点
+- 目的：全屏工作台中央区对标参考形态——地图页签即开即见大图，而非手动点渲染的小预览
+- 验证：契约断言 + sync + 重启 3080 + agent-browser 截图复验（地图页签自动出图、导出下载）
+
 ### [收工] 2026-08-19 kimi-code(main) — GIS 模式全屏工作台：中央列接管 + 图层坞/状态栏 + 重开钮
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **223/223**（+2）、`--static` **166/166**（+2，全屏布局契约键锁双端）
 - 内容：参考用户「地理工作台」截图——工作台浮层改全屏接管会话中央列（useCenterRect ResizeObserver 同步 centerCol 矩形，fixed 落于 shell.overlay 层内）；顶栏/ribbon/左侧图层坞（catalog.list 数据类，点击设当前图层+清单外产出自动重扫）/中央页签区/底部状态栏；「返回会话」留 kyg-reopen 悬浮重开钮（首页无头部槽位防死路）。agent-browser 实测闭环：切入自动接管→返回会话→重开召回→切出收起。SKILL.md v2.21，dsh/CHANGELOG [0.77.0]，GIS_MODE §4 第八十一轮；另确认八十轮双仓 CI（d257fbc / 558be49）均 success

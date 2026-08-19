@@ -80,9 +80,14 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第八十一轮）
+## 4. 当前状态（2026-08-19，第八十二轮）
 
-- **GIS 模式全屏工作台（本轮，参考用户提供的「地理工作台」截图形态）**：
+- **地图页签画布化（本轮）**：TabMap 对齐参考形态——`stageRef` 量中央区
+  宽度自适应出图（480–1600），`firstRef` 入场自动出图（带当前图层进页签
+  即渲染），预览包入 `kyg-map-stage` 舞台容器，新增「导出地图图片」PNG
+  下载按钮。agent-browser 实测舞台大图出图 + 导出在列。测试器 225/225
+  （static 168/168）。八十一轮双仓 CI（389a1f6 / ce6c897）均 success。
+- **GIS 模式全屏工作台（第八十一轮，参考用户提供的「地理工作台」截图形态）**：
   工作台由浮层改为全屏接管会话中央列（`useCenterRect` ResizeObserver 同步
   centerCol 矩形，position:fixed 落于 shell.overlay 层内，侧栏保持原生）。
   布局：顶栏 + 页签 ribbon + 左侧图层坞（catalog.list 数据类，点击设当前
