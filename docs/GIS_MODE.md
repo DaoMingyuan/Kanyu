@@ -80,9 +80,18 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第九十六轮）
+## 4. 当前状态（2026-08-19，第九十七轮）
 
-- **Dock 工程图层可见性开关（本轮）**：`style.setVisible` RPC 写回 .kyu
+- **目录 ArcGIS Pro 化（本轮）**：`catalog.list` 六分类重构（文件夹连接/
+  数据库/矢量数据/服务链接/地图框/布局框），矢量数据 `vecGroups` 按格式
+  分组可折叠（Shapefile/GeoJSON/GeoPackage…）；`.gdb` 目录整目录登记入
+  数据库类不深入扫描，`gdbUnsupported` 守卫（data info/query/validate/
+  preview/calc）明确报错 GDAL 指引不做伪支持；Dock 工程图层/数据图层
+  分组折叠（grpHead）。测试器 262/262（static 205/205），agent-browser
+  3080 实测六分类渲染 + GDB 条目指引 + Dock 折叠回环。
+  九十六轮双仓 CI（4954c14 / 9827395）均 success。
+
+- **Dock 工程图层可见性开关（第九十六轮）**：`style.setVisible` RPC 写回 .kyu
   `visible` 布尔，Dock 工程图层行复选框（stopPropagation 不抢接力点击）
   对齐壳层 toc.rs 复选框语义。测试器 257/257（static 200/200），
   agent-browser 3080 实测 demo.kyu 关/开回环 + 文件写回 + 徽标联动。

@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 目录 ArcGIS Pro 化 + GDB/SHP 支持（第 97 轮）
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **262/262**（+5）、`--static` **205/205**（+5）；node --check 三 js 通过
+- 内容：catalog.list 六分类重构（文件夹连接/数据库/矢量数据/服务链接/地图框/布局框）+ vecGroups 按格式分组；.gdb 目录整登记不深入 + gdbUnsupported 守卫（info/query/validate/preview/calc 明确 GDAL 指引报错）；双端 TabCatalog vecSection 子组折叠 + Dock 工程图层/数据图层 grpHead 分组折叠。agent-browser 3080 实测六分类渲染/GDB 指引/折叠回环 + 截图目检。SKILL.md v2.36，dsh/CHANGELOG [0.92.0]，GIS_MODE §4 第九十七轮，AGENTS.md 262
+- 偏差：Dock 重构首版括号不平衡（node --check 拦截即修）；GDB 真读取未支持（内核零 C 依赖无 GDAL，按计划明确报错）
+- 后续：第 98–100 轮（删主题+2D/3D 切换/分析右侧化/底部会话终端融合+配色）已登记开工条目；端点离线顺延项不变
+
+### [开工] 2026-08-19 kimi-code(main) — 工作台 ArcGIS Pro 化重构（第 97–100 轮）
+- 范围：host.js catalogList 分类/GIS_EXTS + 双端 Dock 目录树分组折叠（97）；TabMap 删主题/去冗余 + 2D/3D 视图切换（98）；kyg-main 三区 + TabGp 右侧工具箱（99）；底部会话/终端条 + 删「返回会话」+ 配色对齐（100）；测试器契约 + 文档五件套
+- 依据：用户指令（图层目录 ArcGIS Pro 分类分组、GDB/SHP 加载、主题删除、完整坐标框架 2D/3D、分析工具右侧 ArcGIS Pro 工具箱、会话/终端底部融合、UI 配色对齐 DSH）
+- 验证：每轮 测试器双模式 + 停 3080 sync 重启 + agent-browser 实测截图 + 双仓推送 CI 轮询
+
 ### [收工] 2026-08-19 kimi-code(main) — Dock 工程图层可见性开关
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **257/257**（+4）、`--static` **200/200**（+4）；node --check 三 js 通过
 - 内容：host.js 新增 style.setVisible RPC（.kyu visible 布尔写回，styleSet 同读写通道 + writeHint）；双端 Dock 工程图层行加复选框（stopPropagation 不抢行点击）+ toggleVis（写回成功更新 kyuProject 快照徽标）。RPC 面 33→34。agent-browser 3080 实测：demo.kyu 取消勾选 → 行徽标「隐藏」+ 文件 visible:false；再勾选 → 「图层」+ true 复原。SKILL.md v2.35（面板侧 33 RPC），dsh/CHANGELOG [0.91.0]，GIS_MODE §4 第九十六轮，AGENTS.md 计数 257。九十五轮双仓 CI（c1929bd/265f51b）均 success
