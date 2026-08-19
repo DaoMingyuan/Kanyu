@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 壳层 WMS GetMap 轴序对齐 1.3.0 规范
+- 提交：本次 commit；测试：`cargo test -p kanyu-shell services` 9/9（含 build_getmap_url 契约断言更新）+ clippy -D warnings + RUSTDOCFLAGS="-D warnings" cargo doc 全绿；组件测试器计数不变（240/240+183/183）
+- 内容：kanyu-shell services.rs build_getmap_url EPSG:4326 bbox 改发纬度/经度规范轴序（入参仍 [minx,miny,maxx,maxy]，函数内交换），doc 注释同步；根 CHANGELOG Unreleased 加「修复」节。与组件 services.wms axisSwap 语义对齐——八十五轮遗留偏差闭环
+- 偏差：八十八轮组件仓 CI run（d2dcebe/32218598712）假 queued 卡死（force-cancel/cancel 均 500，GitHub 侧顽疾），内容由 efce90f 覆盖验证 success；八十九轮双仓 CI（0492697/efce90f）均 success
+- 后续：端点离线顺延项不变；壳层 app.rs 调用方语义不变（入参序不动）；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 壳层 services.rs axisSwap 对齐
+- 范围：build_getmap_url 规范轴序 + 契约断言 + 根 CHANGELOG 修复节 + GIS_MODE §4
+- 依据：八十五轮收工回记后续项「壳层 services.rs axisSwap 对齐评估」；组件侧实测证明规范轴序对严格服务器必需
+- 验证：cargo test/clippy/doc 本地全绿（Rust 改动预跑 doc 纪律）
+
 ### [收工] 2026-08-19 kimi-code(main) — 工程下拉接目录自定义扫描目录（store.scanDir 联动）
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **240/240**（+2）、`--static` **183/183**（+2）；node --check 三 js 通过
 - 内容：双端 TabCatalog scan 成功发布 store.scanDir（+props.notify）→ Workbench 工程下拉 useEffect 依赖 [s.scanDir] 按 dir 重扫 .kyu；store 加 scanDir 字段。agent-browser 实测：扫 examples/（无 .kyu）下拉清空「（无工程）」、扫回 dsh/examples 恢复 demo.kyu。SKILL.md v2.29，dsh/CHANGELOG [0.85.0]，GIS_MODE §4 第八十九轮，AGENTS.md 计数 240。八十八轮主仓 CI（e654cfb）success（组件仓 d2dcebe queued 超 7 分钟，已记录观察）

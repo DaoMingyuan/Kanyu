@@ -214,18 +214,20 @@ pub fn split_getfeature_url(url: &str) -> (String, String) {
     (base.to_string(), String::new())
 }
 
-/// 构造 WMS GetMap 请求地址（1.3.0 + CRS=EPSG:4326；bbox = `[minx,miny,maxx,maxy]`
-/// 经度/纬度序——宽限服务器（GeoServer 等）通用；严格 1.3.0 轴序服务器属已知边界）。
+/// 构造 WMS GetMap 请求地址（1.3.0 + CRS=EPSG:4326；bbox 入参 = `[minx,miny,maxx,maxy]`
+/// 经度/纬度序，按 1.3.0 规范轴序发出 `纬度,经度`（miny,minx,maxy,maxx）——
+/// 严格 1.3.0 服务器（terrestris 等）必须此序，宽限服务器（GeoServer 等）同兼容；
+/// 与组件侧 services.wms axisSwap 语义对齐）。
 pub fn build_getmap_url(base: &str, layer: &str, bbox: [f64; 4], w: u32, h: u32) -> String {
     format!(
         "{}service=WMS&request=GetMap&version=1.3.0&layers={}&styles=&format=image/png\
          &transparent=false&crs=EPSG:4326&bbox={:.6},{:.6},{:.6},{:.6}&width={w}&height={h}",
         join_query(base),
         layer.trim(),
-        bbox[0],
         bbox[1],
-        bbox[2],
+        bbox[0],
         bbox[3],
+        bbox[2],
     )
 }
 
@@ -464,7 +466,7 @@ mod tests {
         assert!(u.contains("layers=ne:countries"), "{u}");
         assert!(u.contains("crs=EPSG:4326"), "{u}");
         assert!(
-            u.contains("bbox=116.000000,39.500000,117.000000,40.500000"),
+            u.contains("bbox=39.500000,116.000000,40.500000,117.000000"),
             "{u}"
         );
         assert!(u.contains("width=800&height=600"), "{u}");

@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第八十九轮）
+## 4. 当前状态（2026-08-19，第九十轮）
 
-- **工程下拉接目录自定义扫描目录（本轮）**：目录页签 scan 发布
+- **壳层 WMS GetMap 轴序对齐 1.3.0 规范（本轮）**：
+  `services::build_getmap_url` EPSG:4326 bbox 改发 `纬度,经度` 规范轴
+  序，与组件侧 axisSwap 语义对齐；严格 1.3.0 服务器（terrestris）可
+  用，GeoServer 等宽限服务器同兼容。cargo test/clippy/doc 全绿。
+  八十九轮双仓 CI（0492697 / efce90f）均 success。
+
+- **工程下拉接目录自定义扫描目录（第八十九轮）**：目录页签 scan 发布
   `store.scanDir`，顶栏工程下拉随 scanDir 重扫 .kyu。测试器 240/240
   （static 183/183），agent-browser 实测清空/恢复联动通过。八十八轮
   主仓 CI（e654cfb）success。

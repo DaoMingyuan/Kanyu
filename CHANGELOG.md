@@ -258,6 +258,13 @@
 - **WMS 底图入 .kyu**（框级持久化，连接失配中文提示忽略）+ 服务连接右键编辑
   （WFS URL 拆分回填、改名同步各框引用）。
 
+### 修复
+
+- **壳层 WMS GetMap 轴序对齐 1.3.0 规范**：`services::build_getmap_url`
+  EPSG:4326 bbox 改发 `纬度,经度`（miny,minx,maxy,maxx）——严格 1.3.0
+  服务器（terrestris 等）必须此序，GeoServer 等宽限服务器同兼容；与
+  dsh 组件 `services.wms` 的 axisSwap 语义对齐（第九十轮）。
+
 ## [0.21.0] - 2026-08-11
 
 **地图框图层绑定 + 布局 v2 + 服务链接 v2 + 编辑增强 + rstar 性能裁剪。**
