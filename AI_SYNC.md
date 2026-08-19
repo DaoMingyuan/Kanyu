@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — GIS 界面重排：ribbon 五分组 + 堪舆手绘风 SVG 图标
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **234/234**（+2）、`--static` **177/177**（+2）；node --check 三 js 通过
+- 内容：双端 KYG_GRPS 五分组 ribbon（数据管理/地图视图/分析处理/编辑/系统，组框+kyg-grp-label 组标签，ArcGIS Pro 功能区同语义）+ 页签纵向「图标+文字」+ KYG_ICONS 手绘风 SVG 路径表/kanyuIcon() 助手（16×16 线稿 stroke=currentColor 随态变色，对齐壳层 ui_kit 手绘图标语义）+ 罗盘替顶栏/头部/重开钮三处 emoji；会话功能（返回会话/重开钮）原样保留。sync + 重启 3080（cwd=仓根）+ agent-browser 复验五分组渲染与地图页签激活通过。SKILL.md v2.26，dsh/CHANGELOG [0.82.0]，GIS_MODE §4 第八十六轮，AGENTS.md 计数 234
+- 偏差：补丁脚本非幂等（plugin 先成 pkg 失败），重跑须按文件跳过已应用段——后续批量补丁统一带 n==0 跳过
+- 后续：状态栏比例尺随画布缩放重算、工程下拉接目录自定义扫描目录、壳层 services.rs axisSwap 对齐评估；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — GIS 界面重排 + 堪舆风格图标
+- 范围：双端 ribbon 分组（KYG_GRPS）+ 页签/罗盘手绘 SVG 图标（kanyuIcon）+ 测试器契约键 + 文档计数点；会话功能不动
+- 依据：用户指令「整体界面按照 GIS 操作重新排版，图标按照堪舆 GIS 调整，内部保留会话功能」
+- 验证：契约断言 + sync + 重启 3080 + agent-browser 截图目检
+
 ### [收工-附记] 2026-08-19 kimi-code(main) — CI doc 翻红修复：新版 rustdoc 坏链接批量降级（21 处，7 crate）
 - 起因：八十五轮推送（b77bdb1）CI「fmt + clippy + doc」doc 步失败——stable rustdoc 新版收紧 intra-doc 链接检查（RUSTFLAGS=-D warnings 经 cargo doc 传导），翻出存量坏链接：私有项链接（SPATIAL_INDEX_MIN_PAIRS/SJOIN_INDEX_MIN_JOIN/COMMON_CRS/TASK_ELIGIBLE）、数组下标误解析（faces[0]/[0,1]/[f64;2]/[minx,miny,maxx,maxy] 等）、中文锚（[属性描述]）、format 模块/宏二义、裸 URL
 - 处置：21 处全部降级为行内代码/泛型链接/尖括号 URL（纯文档改动，零逻辑），cargo doc --workspace --no-deps（-D warnings）本地复跑零 error；随修复提交入库
