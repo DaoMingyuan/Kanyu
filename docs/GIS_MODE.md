@@ -80,9 +80,13 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十四轮）
+## 4. 当前状态（2026-08-19，第七十五轮）
 
-- **统计聚合 WASM 技能（本轮，技能沙箱第五算子）**：新 guest crate
+- **裁剪 clip 算子（本轮）**：`overlay_ops` guest 扩 `_op: clip`（ArcGIS Clip
+  语义：基准面整体 ∩ 叠加整体一次性交集、不两两配对、叠加属性不入产出）；
+  双端叠加算子下拉加「裁剪 clip（叠加层作模子）」。测试器 214/214
+  （static 162/162）。七十四轮双仓 CI（996aa0a / 40cb8ad）均 success。
+- **统计聚合 WASM 技能（第七十四轮，技能沙箱第五算子）**：新 guest crate
   `dsh/skills/stat_summary/`（param `_stat` 必填数值字段 + `_field` 可选
   分组字段，纯属性聚合输出 geometry:null 表语义要素，带
   `_count/_skipped/_sum/_min/_max/_avg`）+ `dsh/skills/stat_summary.wasm`
