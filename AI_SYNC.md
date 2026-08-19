@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 滚轮缩放指针为锚：pan 倍率差补偿
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **238/238**（+2）、`--static` **181/181**（+2）；node --check 三 js 通过
+- 内容：双端 onMapWheel 指针为锚——pan' = pan·(z'/z) + 指针相对视口中心·(1−z'/z)，光标下内容点不动（GIS 软件标准缩放手感），z≤1 归零复位。agent-browser 实测偏心（25%,30%）滚轮三级 ×1.73 → translate(127px,64px) 补偿 + 比例尺 1:4,639，双击复位 translate(0,0)/1:8,025。SKILL.md v2.28，dsh/CHANGELOG [0.84.0]，GIS_MODE §4 第八十八轮，AGENTS.md 计数 238。八十七轮双仓 CI（60ed589/38131a7）均 success
+- 偏差：同步连续派发 wheel 会共用旧闭包（React 未重渲前 zf 不变），真实用户滚动逐事件重渲不受影响；测试须逐事件间隔
+- 后续：工程下拉接目录自定义扫描目录、壳层 services.rs axisSwap 对齐评估；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 滚轮缩放指针为锚
+- 范围：双端 onMapWheel 加 pan 倍率差补偿 + 测试器契约键 + 文档计数点
+- 依据：八十七轮收工回记后续项「滚轮以指针为锚缩放」
+- 验证：契约断言 + sync + 重启 3080 + agent-browser 偏心缩放/复位实测
+
 ### [收工] 2026-08-19 kimi-code(main) — 地图画布缩放/平移 + 状态栏比例尺随缩放重算
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **236/236**（+2）、`--static` **179/179**（+2）；node --check 三 js 通过
 - 内容：双端 TabMap 画布 kyg-map-view——滚轮缩放（1.2× 步进 0.5–16×，wheel 非 passive 监听绕过 React 根代理被动监听）+ 拖拽平移（zf>1）+ 双击复位；store.mapZoom 发布倍率，状态栏比例尺 ÷ 倍率实时重算 + 「缩放: ×N」档；render2d 成功自动复位；img draggable:false 防原生拖拽干扰。agent-browser 实测 buildings.geojson 渲染 → 滚轮两级 ×1.44 比例尺 1:5,573 → 双击复位 1:8,025。SKILL.md v2.27，dsh/CHANGELOG [0.83.0]，GIS_MODE §4 第八十七轮，AGENTS.md 计数 236。八十六轮双仓 CI（6454074/8759701）均 success
