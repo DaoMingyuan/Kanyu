@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 顶栏工程选择接 .kyu：style.list 载入 + Dock 工程图层组
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **229/229**（+2）、`--static` **172/172**（+2，工程选择契约键锁双端）
+- 内容：双端——顶栏工程下拉（catalog.list 扫 .kyu→style.list 载入→store.kyuProject 发布）；Dock 工程图层组（点击=store.path/sym/kyu/layerId 接力，同 pickKyuLayer 语义）。agent-browser 实测 demo.kyu→「工程: 组件目录夹具」图层组→点击 buildings→状态栏当前图层切换。SKILL.md v2.24，dsh/CHANGELOG [0.80.0]，GIS_MODE §4 第八十四轮
+- 偏差/教训：3080 此前以 npx 缓存目录为 cwd，sandboxPolicy.workspaceRoot 落在缓存目录致 catalog.list 扫不到仓内 GIS 数据；改以仓根为 cwd 重启后工作区即仓根（demo.kyu/buildings.geojson 直入目录与 Dock）——**此后 3080 启动一律 cwd=仓根**
+- 后续：底图 WMS 入画布背景、状态栏比例尺随画布缩放重算、工程下拉接目录页签自定义扫描目录；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 顶栏工程选择接 .kyu
+- 范围：双端 client.js（Workbench 顶栏工程下拉 + pickProject + store.kyuProject + Dock 工程图层组）；测试器契约键；文档计数点
+- 依据：八十三轮收工回记后续项；.kyu 工程此前只能经目录页签数据库类点击展开，顶栏直达更符合 ArcGIS Pro 工程范式
+- 验证：契约断言 + sync + 重启 3080 + agent-browser 实测（下拉选 demo.kyu → Dock 工程图层组 → 点击图层状态栏联动）
+
 ### [收工] 2026-08-19 kimi-code(main) — 状态栏接真实数据：要素计数 + 坐标系 + 近似比例尺 + 选择计数
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **227/227**（+2）、`--static` **170/170**（+2，状态栏数据契约键锁双端）
 - 内容：双端——TabMap 渲染成功即 data.info 取图层概要，approxScale（范围宽×图像像素宽 96dpi，经纬度中心纬度换算）推算近似比例尺，坐标系按格式推断（GeoJSON=EPSG:4326），store.mapInfo 上栏；TabEdit 框选顶点集 store.selVerts / 属性表选中行 store.selFeature 实时上栏。agent-browser 实测 buildings.geojson 状态栏「要素: 4 · 坐标系: EPSG:4326 · 比例尺≈1:8,025」，编辑页签框选追加「已选顶点: 1」。SKILL.md v2.23，dsh/CHANGELOG [0.79.0]，GIS_MODE §4 第八十三轮

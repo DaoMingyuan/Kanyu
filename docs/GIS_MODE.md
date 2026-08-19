@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第八十三轮）
+## 4. 当前状态（2026-08-19，第八十四轮）
 
-- **状态栏接真实数据（本轮）**：状态栏由静态占位升级为数据驱动——渲染
+- **顶栏工程选择接 .kyu（本轮）**：顶栏新增工程下拉（catalog.list 扫
+  .kyu → style.list 载入 → store.kyuProject 发布）；图层坞渲染工程图层
+  组，点击 = 当前图层 + 样式/工程路径/图层 id 接力（同目录页签
+  pickKyuLayer 语义）。agent-browser 实测 demo.kyu → 「工程: 组件目录
+  夹具」图层组 → 点击 buildings → 状态栏当前图层切换。测试器 229/229
+  （static 172/172）。八十三轮双仓 CI（a65b11f / 9bdcf7a）均 success。
+- **状态栏接真实数据（第八十三轮）**：状态栏由静态占位升级为数据驱动——渲染
   成功后经 `data.info` 取要素计数/范围，`approxScale` 推算近似比例尺
   （范围宽 × 图像像素宽，经纬度按中心纬度换算），坐标系按格式推断
   （GeoJSON = EPSG:4326），`store.mapInfo` 上栏；编辑页签框选顶点集与
