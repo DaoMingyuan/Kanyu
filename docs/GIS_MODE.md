@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十五轮）
+## 4. 当前状态（2026-08-19，第七十六轮）
 
-- **裁剪 clip 算子（本轮）**：`overlay_ops` guest 扩 `_op: clip`（ArcGIS Clip
+- **几何简化 WASM 技能（本轮，技能沙箱第六算子）**：新 guest crate
+  `dsh/skills/simplify_geom/`（param `_tolerance` RDP 容差抽稀线/面顶点，
+  geo Simplify，属性继承 + `_tolerance`/`_verts`；点系透传、退化跳过）+
+  `dsh/skills/simplify_geom.wasm` 入仓；双端技能分析区加简化行
+  （skillRelay 接力）。测试器 216/216（static 162/162）。七十五轮双仓 CI
+  （771582b / d299259）均 success。
+- **裁剪 clip 算子（第七十五轮）**：`overlay_ops` guest 扩 `_op: clip`（ArcGIS Clip
   语义：基准面整体 ∩ 叠加整体一次性交集、不两两配对、叠加属性不入产出）；
   双端叠加算子下拉加「裁剪 clip（叠加层作模子）」。测试器 214/214
   （static 162/162）。七十四轮双仓 CI（996aa0a / 40cb8ad）均 success。
