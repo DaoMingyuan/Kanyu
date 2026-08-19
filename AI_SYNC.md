@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 工程下拉接目录自定义扫描目录（store.scanDir 联动）
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **240/240**（+2）、`--static` **183/183**（+2）；node --check 三 js 通过
+- 内容：双端 TabCatalog scan 成功发布 store.scanDir（+props.notify）→ Workbench 工程下拉 useEffect 依赖 [s.scanDir] 按 dir 重扫 .kyu；store 加 scanDir 字段。agent-browser 实测：扫 examples/（无 .kyu）下拉清空「（无工程）」、扫回 dsh/examples 恢复 demo.kyu。SKILL.md v2.29，dsh/CHANGELOG [0.85.0]，GIS_MODE §4 第八十九轮，AGENTS.md 计数 240。八十八轮主仓 CI（e654cfb）success（组件仓 d2dcebe queued 超 7 分钟，已记录观察）
+- 偏差：agent-browser eval 多行脚本须 --stdin 传文件（内联 $() 替换报 Unexpected end of input）；组件仓 CI queued 滞留待观察
+- 后续：壳层 services.rs axisSwap 对齐评估、组件仓 CI queued 滞留复查；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 工程下拉接目录自定义扫描目录
+- 范围：双端 store.scanDir 发布/消费 + 工程下拉 [s.scanDir] 重扫 + 测试器契约键 + 文档计数点
+- 依据：八十五轮收工回记后续项「工程下拉接目录自定义扫描目录」
+- 验证：契约断言 + sync + 重启 3080 + agent-browser 清空/恢复联动实测
+
 ### [收工] 2026-08-19 kimi-code(main) — 滚轮缩放指针为锚：pan 倍率差补偿
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **238/238**（+2）、`--static` **181/181**（+2）；node --check 三 js 通过
 - 内容：双端 onMapWheel 指针为锚——pan' = pan·(z'/z) + 指针相对视口中心·(1−z'/z)，光标下内容点不动（GIS 软件标准缩放手感），z≤1 归零复位。agent-browser 实测偏心（25%,30%）滚轮三级 ×1.73 → translate(127px,64px) 补偿 + 比例尺 1:4,639，双击复位 translate(0,0)/1:8,025。SKILL.md v2.28，dsh/CHANGELOG [0.84.0]，GIS_MODE §4 第八十八轮，AGENTS.md 计数 238。八十七轮双仓 CI（60ed589/38131a7）均 success
