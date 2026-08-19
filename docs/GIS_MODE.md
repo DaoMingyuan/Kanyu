@@ -80,9 +80,13 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十六轮）
+## 4. 当前状态（2026-08-19，第七十七轮）
 
-- **几何简化 WASM 技能（本轮，技能沙箱第六算子）**：新 guest crate
+- **目录面板条目过滤（本轮）**：双端 TabCatalog 加过滤框（五分类清单按名
+  子串过滤、大小写不敏感，分类头命中/总数，过滤中强制展开）。测试器
+  216/216（static 162/162，catKeys 扩键锁双端）。七十六轮双仓 CI
+  （507c802 / dcd036b）均 success。
+- **几何简化 WASM 技能（第七十六轮，技能沙箱第六算子）**：新 guest crate
   `dsh/skills/simplify_geom/`（param `_tolerance` RDP 容差抽稀线/面顶点，
   geo Simplify，属性继承 + `_tolerance`/`_verts`；点系透传、退化跳过）+
   `dsh/skills/simplify_geom.wasm` 入仓；双端技能分析区加简化行
