@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 地图画布缩放/平移 + 状态栏比例尺随缩放重算
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **236/236**（+2）、`--static` **179/179**（+2）；node --check 三 js 通过
+- 内容：双端 TabMap 画布 kyg-map-view——滚轮缩放（1.2× 步进 0.5–16×，wheel 非 passive 监听绕过 React 根代理被动监听）+ 拖拽平移（zf>1）+ 双击复位；store.mapZoom 发布倍率，状态栏比例尺 ÷ 倍率实时重算 + 「缩放: ×N」档；render2d 成功自动复位；img draggable:false 防原生拖拽干扰。agent-browser 实测 buildings.geojson 渲染 → 滚轮两级 ×1.44 比例尺 1:5,573 → 双击复位 1:8,025。SKILL.md v2.27，dsh/CHANGELOG [0.83.0]，GIS_MODE §4 第八十七轮，AGENTS.md 计数 236。八十六轮双仓 CI（6454074/8759701）均 success
+- 偏差：批量补丁脚本已带 skip0（n==0 跳过），幂等可重跑
+- 后续：工程下拉接目录自定义扫描目录、壳层 services.rs axisSwap 对齐评估、滚轮以指针为锚缩放（当前中心锚）；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 地图画布缩放/平移 + 状态栏比例尺重算
+- 范围：双端画布滚轮缩放/拖拽平移/双击复位 + store.mapZoom + 状态栏比例尺重算与缩放档 + 测试器契约键 + 文档计数点
+- 依据：八十五轮收工回记后续项「状态栏比例尺随画布缩放重算」
+- 验证：契约断言 + sync + 重启 3080 + agent-browser 实测缩放/复位
+
 ### [收工] 2026-08-19 kimi-code(main) — GIS 界面重排：ribbon 五分组 + 堪舆手绘风 SVG 图标
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **234/234**（+2）、`--static` **177/177**（+2）；node --check 三 js 通过
 - 内容：双端 KYG_GRPS 五分组 ribbon（数据管理/地图视图/分析处理/编辑/系统，组框+kyg-grp-label 组标签，ArcGIS Pro 功能区同语义）+ 页签纵向「图标+文字」+ KYG_ICONS 手绘风 SVG 路径表/kanyuIcon() 助手（16×16 线稿 stroke=currentColor 随态变色，对齐壳层 ui_kit 手绘图标语义）+ 罗盘替顶栏/头部/重开钮三处 emoji；会话功能（返回会话/重开钮）原样保留。sync + 重启 3080（cwd=仓根）+ agent-browser 复验五分组渲染与地图页签激活通过。SKILL.md v2.26，dsh/CHANGELOG [0.82.0]，GIS_MODE §4 第八十六轮，AGENTS.md 计数 234
