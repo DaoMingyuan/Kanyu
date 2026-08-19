@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 状态栏接真实数据：要素计数 + 坐标系 + 近似比例尺 + 选择计数
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **227/227**（+2）、`--static` **170/170**（+2，状态栏数据契约键锁双端）
+- 内容：双端——TabMap 渲染成功即 data.info 取图层概要，approxScale（范围宽×图像像素宽 96dpi，经纬度中心纬度换算）推算近似比例尺，坐标系按格式推断（GeoJSON=EPSG:4326），store.mapInfo 上栏；TabEdit 框选顶点集 store.selVerts / 属性表选中行 store.selFeature 实时上栏。agent-browser 实测 buildings.geojson 状态栏「要素: 4 · 坐标系: EPSG:4326 · 比例尺≈1:8,025」，编辑页签框选追加「已选顶点: 1」。SKILL.md v2.23，dsh/CHANGELOG [0.79.0]，GIS_MODE §4 第八十三轮
+- 偏差：内核图层模型不追踪 CRS（layer.rs LayerSummary 只报范围不标 CRS），坐标系列按格式推断而非真读；比例尺为近似值（96dpi 假定），标题已注明推算方式
+- 后续：顶栏工程选择接 .kyu、底图 WMS 入画布背景、状态栏比例尺随缩放交互（画布平移/缩放后重算）；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 状态栏接真实数据：比例尺/坐标系/选择计数
+- 范围：双端 client.js（approxScale 推算 + publishMapInfo 发布 store.mapInfo + TabEdit 选择计数 store.selVerts/selFeature + 状态栏数据行）；测试器契约键；文档计数点
+- 依据：八十二轮收工回记后续项第一条；状态栏原为静态「页签/当前图层/模式」三栏
+- 验证：契约断言 + sync + 重启 3080 + agent-browser 实测（渲染后状态栏出要素/坐标系/比例尺，编辑框选后出已选顶点）
+
 ### [收工] 2026-08-19 kimi-code(main) — 地图页签画布化：量宽出图 + 入场自动渲染 + 导出地图图片
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **225/225**（+2）、`--static` **168/168**（+2，画布化五契约键锁双端）
 - 内容：TabMap 双端——stageRef 量中央区宽出图（480–1600 自适应替固定 760×520）、firstRef 入场自动出图、kyg-map-stage 舞台容器、导出地图图片 PNG 下载（图层名命名）。agent-browser 实测 buildings.geojson 舞台大图 + 导出按钮在列无崩。SKILL.md v2.22，dsh/CHANGELOG [0.78.0]，GIS_MODE §4 第八十二轮
