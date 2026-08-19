@@ -80,9 +80,13 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十八轮）
+## 4. 当前状态（2026-08-19，第七十九轮）
 
-- **几何量算 WASM 技能（本轮，技能沙箱第七算子）**：新 guest crate
+- **CRS 检索命中双按钮（本轮）**：双端 TabCrs 检索结果行加「源」/「目标」
+  按钮分设 CRS（替代整行点击只设目标——源 CRS 此前无法从检索回填）。
+  测试器 219/219（static 162/162，crsKeys 扩键锁双端）。七十八轮双仓
+  CI（cea10af / db37bd5）均 success。
+- **几何量算 WASM 技能（第七十八轮，技能沙箱第七算子）**：新 guest crate
   `dsh/skills/measure_geom/`（param `_measure: area/length` 逐要素写
   `_area`/`_length`，shoelace 外环减内环 / 欧氏长度零依赖实现，类型不
   匹配透传）+ `dsh/skills/measure_geom.wasm` 入仓；双端技能分析区加量算
