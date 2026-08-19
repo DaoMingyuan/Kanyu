@@ -83,7 +83,7 @@ impl MapCanvas {
         }
     }
 
-    /// 物理像素尺寸（WMS 请求 WIDTH/HEIGHT 用；未首渲为 [0,0]）。
+    /// 物理像素尺寸（WMS 请求 WIDTH/HEIGHT 用；未首渲为 `[0,0]`）。
     pub fn phys_px(&self) -> [u32; 2] {
         self.tex_px
     }

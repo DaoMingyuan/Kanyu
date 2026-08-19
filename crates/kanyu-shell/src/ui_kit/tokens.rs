@@ -64,7 +64,7 @@ pub mod animation {
     /// Toast 轻提示停留时长（秒，含淡出）。
     pub const TOAST_SECS: f32 = 3.0;
 
-    /// 图标动画缩放（纯函数）：悬停插值放大（hover_t∈[0,1]，越界钳制），
+    /// 图标动画缩放（纯函数）：悬停插值放大（hover_t∈`[0,1]`，越界钳制），
     /// 按下优先缩至 [`PRESS_SCALE`]。
     pub fn icon_scale(hover_t: f32, pressed: bool) -> f32 {
         if pressed {

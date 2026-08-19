@@ -122,7 +122,7 @@ impl std::str::FromStr for OverlayOp {
 /// - 属性：target 要素属性 + overlay 要素属性（键冲突时 overlay 侧键加
 ///   `overlay_` 前缀）；Difference 结果仅带 target 属性（overlay 部分已被减去）。
 ///
-/// **性能（rstar 裁剪，§8.1 复测路线项）**：要素对数 ≥ [`SPATIAL_INDEX_MIN_PAIRS`]
+/// **性能（rstar 裁剪，§8.1 复测路线项）**：要素对数 ≥ `SPATIAL_INDEX_MIN_PAIRS`
 /// 时启用空间索引/包矩形裁剪，**语义与朴素版完全一致**（裁剪而非近似，
 /// 对拍测试见 `tests::overlay_indexed_matches_naive`）：
 /// - Intersection/Difference：包矩形相交是产生影响（非空交集/差集被改变）的
@@ -544,8 +544,8 @@ impl std::str::FromStr for SpatialPredicate {
 /// 无几何或类型不可转换的 target 要素按无匹配处理；join 侧同类要素对跳过
 /// （不产生脏数据）。
 ///
-/// **性能（rstar 裁剪，§8.1 复测路线项）**：要素对数 ≥ [`SPATIAL_INDEX_MIN_PAIRS`]
-/// **且 join 侧 ≥ [`SJOIN_INDEX_MIN_JOIN`]** 时 join 侧建包矩形 R 树，target
+/// **性能（rstar 裁剪，§8.1 复测路线项）**：要素对数 ≥ `SPATIAL_INDEX_MIN_PAIRS`
+/// **且 join 侧 ≥ `SJOIN_INDEX_MIN_JOIN`** 时 join 侧建包矩形 R 树，target
 /// 逐要素查询候选——包矩形相交是 intersects/contains/within 的必要条件，
 /// 裁剪不改变结果集与输出序（候选按 join 序号升序，与朴素路径一致；
 /// 对拍测试见 `tests::sjoin_indexed_matches_naive`）。低于阈值或 join 侧

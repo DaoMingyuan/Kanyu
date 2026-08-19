@@ -1,6 +1,6 @@
 //! # kanyu-skill —— 堪舆的 WASM 技能系统宿主（总规 §4.5"以 WASM 为技能"）
 //!
-//! 技能是编译到 WebAssembly 组件模型的插件：经 [`wit/skill.wit`] 定义的
+//! 技能是编译到 WebAssembly 组件模型的插件：经 `wit/skill.wit` 定义的
 //! 强类型 ABI（`meta() -> string`、`run(string) -> result<string, string>`）
 //! 与内核交互。宿主基于 wasmtime：
 //!

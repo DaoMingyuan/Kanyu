@@ -579,7 +579,7 @@ struct BenchRow {
     features_per_sec: f64,
 }
 
-/// 单项执行 3 次取中位数（返回升序耗时，中位 = [1]）；闭包返回产出要素数
+/// 单项执行 3 次取中位数（返回升序耗时，中位 = `[1]`）；闭包返回产出要素数
 /// （仅防优化吞掉计算）。
 fn bench3(mut f: impl FnMut() -> usize) -> [f64; 3] {
     let mut runs = [0.0; 3];

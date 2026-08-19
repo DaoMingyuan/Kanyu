@@ -60,7 +60,7 @@ pub struct Parcel {
 /// 宗地 TXT 文档。
 #[derive(Debug, Clone, Default)]
 pub struct ParcelDoc {
-    /// 表头（[属性描述] key=value）。
+    /// 表头（`[属性描述]` key=value）。
     pub header: BTreeMap<String, String>,
     /// 地块清单。
     pub parcels: Vec<Parcel>,

@@ -101,6 +101,11 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工-附记] 2026-08-19 kimi-code(main) — CI doc 翻红修复：新版 rustdoc 坏链接批量降级（21 处，7 crate）
+- 起因：八十五轮推送（b77bdb1）CI「fmt + clippy + doc」doc 步失败——stable rustdoc 新版收紧 intra-doc 链接检查（RUSTFLAGS=-D warnings 经 cargo doc 传导），翻出存量坏链接：私有项链接（SPATIAL_INDEX_MIN_PAIRS/SJOIN_INDEX_MIN_JOIN/COMMON_CRS/TASK_ELIGIBLE）、数组下标误解析（faces[0]/[0,1]/[f64;2]/[minx,miny,maxx,maxy] 等）、中文锚（[属性描述]）、format 模块/宏二义、裸 URL
+- 处置：21 处全部降级为行内代码/泛型链接/尖括号 URL（纯文档改动，零逻辑），cargo doc --workspace --no-deps（-D warnings）本地复跑零 error；随修复提交入库
+- 教训入档：**Rust 改动提交前本地须预跑 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps**（CI 的 doc 步与本地默认 cargo doc 行为有版本差）
+
 ### [收工] 2026-08-19 kimi-code(main) — 底图 WMS 入画布背景：内核透明渲染 + axisSwap 轴序修复
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **232/232**（+3）、`--static` **175/175**（+3）；`cargo test --workspace` 全绿（kanyu-render 25 例含透明背景 2 新例）
 - 内容：内核 kanyu-render 透明背景（background none/transparent 不铺画布色，SVG 省背景 rect/PNG alpha=0）+ CLI `render map --background` 旗标 + 本机 kanyu 已 cargo install 更新；组件 render.map 加 transparent 直通；双端 TabMap「底图 WMS」行（loadBasemap 范围→GetMap 垫底+canvas 合成导出）；services.wms 加 axisSwap（严格 1.3.0 轴序，EPSG:4326 纬度/经度序）——实测 terrestris 空白图 2.3KB→真实街道底图 500KB。agent-browser 截图目检 OSM 底图+要素叠加通过。SKILL.md v2.25，dsh/CHANGELOG [0.81.0]，GIS_MODE §4 第八十五轮，CLI.md §5.1 补 --background 行

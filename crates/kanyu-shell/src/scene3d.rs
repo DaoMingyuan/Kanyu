@@ -419,7 +419,7 @@ pub fn ui(
     );
 }
 
-/// 环清洗（去闭合重复点 → [f64;2] 序列）。
+/// 环清洗（去闭合重复点 → `[f64;2]` 序列）。
 fn clean_ring(r: &[Vec<f64>]) -> Vec<[f64; 2]> {
     let mut v: Vec<[f64; 2]> = r.iter().map(|p| [p[0], p[1]]).collect();
     if v.first() == v.last() {

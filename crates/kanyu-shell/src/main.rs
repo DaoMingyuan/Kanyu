@@ -90,7 +90,7 @@ pub struct ShellArgs {
     pub wgpu_demo2: bool,
     /// 隐藏验证参数：AI 对话预置演示记录（意图面回复态截图验证）。
     pub ai_demo: bool,
-    /// 隐藏验证参数：双地图框各自图层集（load[0]→主框，load[1]→新建三维场景框，截图验证切换联动）。
+    /// 隐藏验证参数：双地图框各自图层集（`load[0]`→主框，`load[1]`→新建三维场景框，截图验证切换联动）。
     pub frames_demo: bool,
     /// 隐藏验证参数：同 frames-demo 但场景框关闭（目录保留弱色行，截图验证关闭≠删除）。
     pub frames_demo2: bool,

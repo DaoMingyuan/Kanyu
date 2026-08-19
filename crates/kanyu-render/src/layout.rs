@@ -8,7 +8,7 @@
 //! - **PNG**：tiny-skia 光栅链 + **fontdue 系统字体栈**（中文标题/图例/标注全量渲染；
 //!   运行时读系统字体、ttc 取首 face，读不到回退 ASCII 迷你点阵——比例尺数字与 N）。
 //!
-//! 页面换算与比例尺取整为纯函数（[`LayoutFrame::compute`]/[`nice_scale`]），配单测。
+//! 页面换算与比例尺取整为纯函数（`LayoutFrame::compute`/`nice_scale`），配单测。
 
 use crate::RenderError;
 

@@ -197,7 +197,7 @@ pub enum DataCommand {
         /// 目标字段（不存在则新建，存在则覆盖）。
         #[arg(long)]
         target: String,
-        /// 表达式（如 "[height] * 2" 或 "$area / 10000"）。
+        /// 表达式（如 `[height] * 2` 或 `$area / 10000`）。
         #[arg(long)]
         expr: String,
         /// 结果输出路径（GeoJSON）；缺省打印到 stdout。

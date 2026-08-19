@@ -112,7 +112,7 @@ pub fn default_single(geometry_types: &[String]) -> LayerSymbology {
     LayerSymbology::Single { color }
 }
 
-/// [u8;3] → `#RRGGBB`。
+/// `[u8;3]` → `#RRGGBB`。
 pub fn hex_of(c: [u8; 3]) -> String {
     format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2])
 }

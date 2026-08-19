@@ -214,7 +214,7 @@ pub fn split_getfeature_url(url: &str) -> (String, String) {
     (base.to_string(), String::new())
 }
 
-/// 构造 WMS GetMap 请求地址（1.3.0 + CRS=EPSG:4326；bbox = [minx,miny,maxx,maxy]
+/// 构造 WMS GetMap 请求地址（1.3.0 + CRS=EPSG:4326；bbox = `[minx,miny,maxx,maxy]`
 /// 经度/纬度序——宽限服务器（GeoServer 等）通用；严格 1.3.0 轴序服务器属已知边界）。
 pub fn build_getmap_url(base: &str, layer: &str, bbox: [f64; 4], w: u32, h: u32) -> String {
     format!(

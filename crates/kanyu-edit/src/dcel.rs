@@ -33,7 +33,7 @@ use std::collections::HashMap;
 use geojson::{FeatureCollection, Value as GeoValue};
 use kanyu_core::KanyuError;
 
-/// 外部无界面固定下标（faces[0]）。
+/// 外部无界面固定下标（`faces[0]`）。
 pub const OUTER_FACE: usize = 0;
 
 fn err(msg: impl Into<String>) -> KanyuError {
@@ -43,7 +43,7 @@ fn err(msg: impl Into<String>) -> KanyuError {
 /// 面类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceKind {
-    /// 外部无界面（faces[0]）。
+    /// 外部无界面（`faces[0]`）。
     Outer,
     /// 多边形面（要素实体）。
     Polygon,

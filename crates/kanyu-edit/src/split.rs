@@ -10,7 +10,7 @@
 //!   就地改为首片（modify），其余片按序插入其后（insert），属性随行复制。
 //!   线不切面/退化结果报中文错误。
 //! - [`split_line_at_point`]：仅 LineString（MultiLineString 请先「炸开
-//!   多部件」）；点投影到最近线段（t 截断 [0,1]，1e-9 内吸附既有顶点），
+//!   多部件」）；点投影到最近线段（t 截断 `[0,1]`，1e-9 内吸附既有顶点），
 //!   截为两段——首段就地改（modify），次段插入其后（insert），属性复制。
 //!   投影落于线端点（段长 <2 点）报中文错误。
 //!
@@ -129,7 +129,7 @@ pub fn split_line_at_point(
     if coords.len() < 2 {
         return Err(err("线要素不足 2 个顶点，无法打断"));
     }
-    // 最近线段投影（t 截断 [0,1]）。
+    // 最近线段投影（t 截断 `[0,1]`）。
     let mut best: Option<(f64, usize, f64, [f64; 2])> = None; // (距离², 段号, t, 投影点)
     for (i, seg) in coords.windows(2).enumerate() {
         let (ax, ay) = (seg[0][0], seg[0][1]);

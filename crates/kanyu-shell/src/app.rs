@@ -237,7 +237,7 @@ pub struct KanyuApp {
     last_toolbox_state: u64,
     /// ui-state.json 路径。
     state_path: std::path::PathBuf,
-    /// 地图框清单（frames[0] = 默认主框「地图」，不可删除；休眠框状态驻留自身
+    /// 地图框清单（`frames[0]` = 默认主框「地图」，不可删除；休眠框状态驻留自身
     /// site，激活框状态平铺为本结构体的 layers/toc/render_cache/merged/
     /// data_extent/view_bbox/needs_fit/frame_dim/canvas/scene 字段——交换模型
     /// 见 mapview.rs 模块头）。

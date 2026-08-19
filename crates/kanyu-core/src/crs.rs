@@ -77,7 +77,7 @@ pub fn crs_proj4_def(code: u32) -> Option<&'static str> {
 
 /// EPSG 全库检索（crs-definitions 0.4.0，7507 条，代码域 2000..=32766）：
 /// 按代码子串或名称（大小写不敏感）匹配，按代码升序返回，至多 `limit` 条；
-/// 空查询返回常用精选（见 [`COMMON_CRS`]）。
+/// 空查询返回常用精选（见 `COMMON_CRS`）。
 pub fn search_crs(query: &str, limit: usize) -> Vec<CrsInfo> {
     let q = query.trim();
     if q.is_empty() {

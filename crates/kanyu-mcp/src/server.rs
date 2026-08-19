@@ -901,7 +901,7 @@ impl KanyuServer {
 
 #[tool_handler]
 impl ServerHandler for KanyuServer {
-    /// tools/call 分发：白名单分析工具（[`TASK_ELIGIBLE`]）的 arguments 带
+    /// tools/call 分发：白名单分析工具（`TASK_ELIGIBLE`）的 arguments 带
     /// `"task": true` 时按 SEP-2663 任务化执行（rmcp TaskManager spawn，
     /// 客户端须已声明 tasks 扩展能力，否则路由层拒绝 CreateTaskResult）；
     /// 其余走同步工具路由。

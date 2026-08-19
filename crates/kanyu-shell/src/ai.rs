@@ -22,7 +22,7 @@ use crate::ui_kit::{
 pub struct AiSettings {
     /// 驱动："local" | "openai"。
     pub driver: String,
-    /// OpenAI 兼容端点（如 https://api.openai.com/v1 或自建网关）。
+    /// OpenAI 兼容端点（如 <https://api.openai.com/v1> 或自建网关）。
     pub base_url: String,
     /// API Key（仅本地持久化，不入日志）。
     pub api_key: String,

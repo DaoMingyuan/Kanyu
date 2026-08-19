@@ -2,7 +2,7 @@
 //!
 //! 堪舆 (Kanyu) 的数据心脏。本 crate 提供：
 //!
-//! - [`format`]：统一格式注册表与能力矩阵（读/写/编辑/符号/布局）。
+//! - [`format`](mod@format)：统一格式注册表与能力矩阵（读/写/编辑/符号/布局）。
 //! - [`layer`]：图层内存模型，GeoArrow RecordBatch 载体与属性查询。
 //! - [`analysis`]：空间分析内核（buffer/overlay/topology，geo crate）。
 //! - [`crs`]：坐标参考系工具（投影变换/测地线度量，proj4rs + geo geodesic）。
