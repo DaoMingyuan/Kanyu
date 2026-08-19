@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 3D 高程夸张系数
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **253/253**（+2）、`--static` **196/196**（+2）；node --check 双端通过
+- 内容：双端 drawScene3d 加 exag 形参（zScale = H*0.25/maxH*exag，纯显示乘算）+ Tab3d 「夸张」下拉（×0.5/1/1.5/2/3/5）+ 标注行档位显示 + effect 依赖加 exag 即时重绘。agent-browser 3080 实测：自建 poly3d.geojson 双棱柱（100m/40m），×3 高耸顶格 vs ×0.5 低矮体块，标注「夸张 ×0.5/×3」同步。SKILL.md v2.34，dsh/CHANGELOG [0.90.0]，GIS_MODE §4 第九十五轮，AGENTS.md 计数 253。九十四轮双仓 CI（1f1219e/3f5adf1）均 success
+- 偏差：buildings.geojson 无面要素（点/线 z=0），夸张对棱柱可见——验证须用面数据；React 受控 select 须 HTMLSelectElement native setter 赋值再 dispatch change（直接赋值绕过 value tracker，onChange 可能不发）
+- 后续：端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 3D 高程夸张系数
+- 范围：双端 drawScene3d exag + Tab3d 夸张下拉 + 测试器契约键 + 文档计数
+- 依据：ArcGIS Pro 场景垂直夸张标配；组件 3D 已有拖拽旋转/书签/导出，缺夸张档
+- 验证：测试器双模式 + agent-browser 3080 面要素棱柱 ×0.5/×3 对比截图
+
 ### [收工] 2026-08-19 kimi-code(main) — identify 浮层「定位至此」
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **251/251**（+3）、`--static` **194/194**（+3）；node --check 三 js 通过
 - 内容：host.js dataIdentify 回执加 centroid（geomCenter 顶点递归 bbox 中点）；双端 client.js identify state 存 centroid + 浮层头「定位」钮 + onLocateFeature（zf=2，pan=(w0/2−px, h0/2−py)×2 反解居中，offsetWidth 取未变换尺寸）。agent-browser 3080 实测：点选示例大厦A → 定位 → 缩放 ×2.00、比例尺 1:8,025→1:4,013、要素距视口中心 +2/−1 px。SKILL.md v2.33，dsh/CHANGELOG [0.89.0]，GIS_MODE §4 第九十四轮，AGENTS.md 计数 251。九十三轮双仓 CI（e5ee605/90465a6）均 success

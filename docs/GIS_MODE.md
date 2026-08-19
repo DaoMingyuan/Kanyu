@@ -80,9 +80,15 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第九十四轮）
+## 4. 当前状态（2026-08-19，第九十五轮）
 
-- **identify 浮层「定位至此」（本轮）**：`data.identify` 回执加 `centroid`
+- **3D 高程夸张系数（本轮）**：`drawScene3d` exag 形参 zScale 乘算（纯
+  显示），3D 页签「夸张」下拉 ×0.5–×5 + 画布标注档位（ArcGIS Pro 垂直
+  夸张语义）。测试器 253/253（static 196/196），agent-browser 3080
+  实测 ×3 高耸 vs ×0.5 低矮对比成立。九十四轮双仓 CI（1f1219e /
+  3f5adf1）均 success。
+
+- **identify 浮层「定位至此」（第九十四轮）**：`data.identify` 回执加 `centroid`
   几何范围中心，浮层「定位」钮一键 zf=2 + pan 倍率反解居中命中要素
   （ArcGIS Pro「缩放至所选」语义）。测试器 251/251（static 194/194），
   agent-browser 3080 实测要素居中偏差 +2/−1 px、比例尺 1:8,025→
