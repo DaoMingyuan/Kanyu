@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — identify 浮层「定位至此」
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **251/251**（+3）、`--static` **194/194**（+3）；node --check 三 js 通过
+- 内容：host.js dataIdentify 回执加 centroid（geomCenter 顶点递归 bbox 中点）；双端 client.js identify state 存 centroid + 浮层头「定位」钮 + onLocateFeature（zf=2，pan=(w0/2−px, h0/2−py)×2 反解居中，offsetWidth 取未变换尺寸）。agent-browser 3080 实测：点选示例大厦A → 定位 → 缩放 ×2.00、比例尺 1:8,025→1:4,013、要素距视口中心 +2/−1 px。SKILL.md v2.33，dsh/CHANGELOG [0.89.0]，GIS_MODE §4 第九十四轮，AGENTS.md 计数 251。九十三轮双仓 CI（e5ee605/90465a6）均 success
+- 偏差：无
+- 后续：端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — identify 浮层「定位至此」
+- 范围：host.js centroid 回执 + 双端浮层定位钮/居中反解 + 测试器 + 文档计数
+- 依据：ArcGIS Pro「缩放至所选要素」语义；九十一轮 identify 回执扩展即可闭环
+- 验证：测试器双模式 + agent-browser 3080 定位后坐标偏移/缩放档实测
+
 ### [收工] 2026-08-19 kimi-code(main) — 地图画布量测（测距/测面）
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **248/248**（+2）、`--static` **191/191**（+2）；node --check 双端通过
 - 内容：双端 client.js 量测模式下拉（关闭/距离/面积）+ onMapClick 分派（量测中攒点不触发 identify）+ addMeasurePt（extent 反算攒 [fx,fy,mx,my]）+ kyg-measure SVG 覆盖层（viewBox 0 0 1 1 + vectorEffect 非缩放描边，随缩放平移）+ geoDist（4326 haversine / 其余欧氏）+ measureText（距离 m/km、面积 m²/km² 格式化）+ onMapDblClick（量测中双击冻结，否则 onMapReset）+ 清除量测钮。修：addMeasurePt 改 setState 函数式更新（同步连击 stale 闭包丢点，agent-browser 实测暴露）。agent-browser 3080 实测：两点测距 1.02 km（0.012° 经度 haversine 理论值一致）、四点测面 1.36 km²、SVG 填充/描边渲染正确。SKILL.md v2.32，dsh/CHANGELOG [0.88.0]，GIS_MODE §4 第九十三轮，AGENTS.md 计数 248。九十二轮双仓 CI（e37e26f/d98e014）均 success
