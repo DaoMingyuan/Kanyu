@@ -80,9 +80,17 @@ bash dsh/sync-preset.sh
 4. **会签面**：组件迭代在 [AI_SYNC.md](../AI_SYNC.md) 会签簿登记；自我迭代只发生在
    Git 协作层（提交/PR + CI），运行时绝不自改内核（AI_SYNC §1.3）。
 
-## 4. 当前状态（2026-08-19，第七十九轮）
+## 4. 当前状态（2026-08-19，第八十轮）
 
-- **CRS 检索命中双按钮（本轮）**：双端 TabCrs 检索结果行加「源」/「目标」
+- **修「切 GIS 模式界面无变化」（本轮，用户实测报告）**：静态半
+  `pkg/client.js` 工作台此前仅在会话头部按钮点击后展开，而首页/新会话
+  视图不渲染会话头部槽位——切 kanyu-gis preset 后页面零变化（boot 清单
+  与 client.js 投递其实正常）。修复：preset 转换边联动——`prevGis` ref
+  切入 kanyu-gis 自动展开工作台、切出自动收起（手动关闭不反复弹出）；
+  动态半 `plugin/client.js` 补同款 UX（`autoOpened` 激活即展开一次）。
+  agent-browser 实测：标准模式 ↔ kanyu-gis 往返，面板 0 ↔ 22 个 kyg-*
+  元素（8 页签）联动。测试器 221/221（static 164/164，联动契约键锁双端）。
+- **CRS 检索命中双按钮（第七十九轮）**：双端 TabCrs 检索结果行加「源」/「目标」
   按钮分设 CRS（替代整行点击只设目标——源 CRS 此前无法从检索回填）。
   测试器 219/219（static 162/162，crsKeys 扩键锁双端）。七十八轮双仓
   CI（cea10af / db37bd5）均 success。

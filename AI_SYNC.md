@@ -101,6 +101,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-19 kimi-code(main) — 修「切 GIS 模式界面无变化」：preset 转换边联动展开/收起工作台
+- 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **221/221**（+2）、`--static` **164/164**（+2，联动契约键锁双端）
+- 内容：确诊——boot 清单/client.js 投递/激活日志全正常，但工作台只在会话头部按钮点击后展开，而首页/新会话视图不渲染会话头部槽位，故切 preset 零变化。修复：pkg 半 `prevGis` 转换边联动（切入 kanyu-gis 自动展开、切出自动收起，手动关闭不反复弹出）；plugin 半 `autoOpened` 激活即展开同款 UX。agent-browser 实测标准模式↔kanyu-gis 往返 0↔22 kyg-* 元素（8 页签）联动。SKILL.md v2.20，dsh/CHANGELOG [0.76.0]，GIS_MODE §4 第八十轮
+- 偏差：sync 遇 pnpm EPERM（运行实例占 profile 文件），停实例后同步成功——流程教训：sync 前先停 3080
+- 后续：用户新需求——参考另一 DSH 部署的「地理工作台」全屏形态调整 GIS 模式 UI（下轮）；端点离线顺延项不变；§1.2 维持
+
+### [开工] 2026-08-19 kimi-code(main) — 修「切 GIS 模式界面无变化」：工作台随 preset 联动自动展开/收起
+- 范围：dsh/pkg/client.js（useGisMode 转换边联动 store.open）；dsh/tools/test_plugin.mjs（联动契约键）；文档计数点
+- 确诊：3080 boot 清单含 kanyu-gis-dsh-plugin 且 client.js 200、console 激活日志正常——Client 半已运行；但首页/新会话视图无会话头部槽位渲染，且 store.open 初值 false 需手动点头部按钮，故切 preset 后零 kyg-* 元素
+- 验证：契约断言 + sync + 重启 3080 + agent-browser 复验（切 kanyu-gis 后 kyg-panel 出现）
+
 ### [收工] 2026-08-19 kimi-code(main) — CRS 检索命中双按钮：源/目标分设（219/219 断言不变）
 - 提交：本次 commit；测试：`node dsh/tools/test_plugin.mjs` **219/219**、`--static` **162/162**（计数不变；crsKeys 扩 setFrom(c.code)/按钮分设 CRS 契约键锁双端）
 - 内容：双端 TabCrs 检索结果行加「源」/「目标」双按钮分设 CRS——替代整行点击只能设目标（源 CRS 此前只能靠预设下拉，检索命中无法回填）。SKILL.md v2.19，dsh/CHANGELOG [0.75.0]，GIS_MODE §4 第七十九轮
