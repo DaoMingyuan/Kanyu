@@ -519,6 +519,7 @@ MCP 同源投影（kanyu-core `cartography`/`cass`/`kdb` + kanyu-render `parcelm
 | `dpi` | number \| null | 否 | PNG 分辨率（默认 150，SVG 忽略） |
 | `index` | integer \| null | 否 | 面要素文档序序号（0 起；缺省面积最大者） |
 | `sizhi_e` / `sizhi_s` / `sizhi_w` / `sizhi_n` | string \| null | 否 | 四至/邻宗地注记（缺省取属性 `ZDSZD/ZDSZN/ZDSZX/ZDSZB`；`\n` 分行） |
+| `roads` | string \| null | 否 | 相邻道路线文件路径（线要素；路名取属性 `name/NAME/road_name/道路名称/DLMC`） |
 
 返回：`format=png` → `content` = `image`（base64）+ `text`（摘要 JSON）；
 `format=svg` → `content` = `text`（SVG 源码）+ `text`（摘要 JSON）；

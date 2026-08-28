@@ -89,7 +89,7 @@
 10. **属性面板重建**：等待用户定制要求
 11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml，首跑 success）；3D 真管线对接已完成（第十轮：双客户端对齐 scene3d.rs 软件管线，42/42）；后续批次：~~布局预览 UI 页签~~（第四十八轮已完成：render.layout RPC 27 + 双端布局框点击预览）、kanyu-gis 会话首局对话实测（待本地模型端点在线）、凭据轮换时按 docs/GITHUB.md 登记
 12. ~~**主仓 CI 预存红修复**~~ **已完成（2026-08-18 第四十七轮，`12de4ed` 全绿）**：macOS pyo3 链接（build.rs + add_extension_module_link_args）、toolbox 测试跳过面（实测 import 权威判定）、deny 许可/停维护豁免三因闭环；后续推送 CI 恢复守护意义
-13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；~~② PNG 边长注记旋转贴入~~（**已完成 2026-08-28 第三轮**：离屏 pixmap 旋转合成，与 SVG 同角，目检对齐金样）；③ 邻宗地注记（**已完成 2026-08-28 第五轮**：四至 sizhi_e/s/w/n 主方位最长边 + 法向×切向二维逃逸，ZDSZD/S/X/B 属性拾取，CLI/MCP 双接口，真实 GB32 无压盖）+ 道路名称注记/宗海用岛图种扩展（HY/T 251 缺口随上游携带）待后续；④ 壳层/MCP 宗地图投影（**MCP 半已完成 2026-08-28 第四轮**：parcel-map/parcel-dxf/kdb-pack 三工具入神经接口；壳层半 layoutview/工具箱面板待后续）；~~⑤ 坐标表长表折列~~（**已完成 2026-08-28 第三轮**：right_to_left 列流/题行首列/面积末列，61 行双列目检通过）
+13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；~~② PNG 边长注记旋转贴入~~（**已完成 2026-08-28 第三轮**：离屏 pixmap 旋转合成，与 SVG 同角，目检对齐金样）；③ 邻宗地注记（**已完成 2026-08-28 第五轮**：四至 sizhi_e/s/w/n 主方位最长边 + 法向×切向二维逃逸，ZDSZD/S/X/B 属性拾取，CLI/MCP 双接口，真实 GB32 无压盖）+ 道路名称注记（**已完成 2026-08-28 第六轮**：roads 裁剪绘线 + 路名沿线，CLI/MCP 双接口，真实目检对齐样图）+ 宗海/用岛图种扩展（HY/T 251 缺口随上游携带）待后续；④ 壳层/MCP 宗地图投影（**MCP 半已完成 2026-08-28 第四轮**：parcel-map/parcel-dxf/kdb-pack 三工具入神经接口；壳层半 layoutview/工具箱面板待后续）；~~⑤ 坐标表长表折列~~（**已完成 2026-08-28 第三轮**：right_to_left 列流/题行首列/面积末列，61 行双列目检通过）
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -102,6 +102,18 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第六轮：道路名称注记（L.3 邻地要素收尾）
+- 提交：本次 commit；测试：`cargo test --workspace` **414 全绿**（parcelmap +2：Liang-Barsky 裁剪/路名让位与提取助手）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
+- 内容：`ParcelMapSpec.roads`（`RoadLine` 线串+路名）——0.15mm 黑线按地图框 Liang-Barsky 逐段裁剪，路名沿最长可见段中点、角度沿线（字头向北允许向西），可见段短于路名宽度仅绘线（诚实不压）；`roads_from_collection` 提取助手（CLI/MCP 共用）；CLI `--roads <file>` + MCP `roads` 参数（路名键 name/NAME/road_name/道路名称/DLMC）；docs（CLI §5.3/MCP §3.21/CHANGELOG）同步
+- 真实验证：GB00032 + 合成南大街/黄河十六路——南大街横贯图框下沿、路名居中沿线对齐样图「南大街」观感；框外道路正确裁剪不出图
+- 偏差：无
+- 后续：§1.2 第 13 项余 ③宗海/用岛图种（HY/T 251 缺口随上游携带）④壳层半（layoutview/工具箱面板）
+
+### [开工] 2026-08-28 kimi-code(main) — 不动产制图第六轮：道路名称注记（L.3 邻地要素收尾）
+- 范围：crates/kanyu-render/src/parcelmap.rs、crates/kanyu-cli（cli.rs、commands.rs）、crates/kanyu-mcp/src/server.rs、docs（CLI/MCP/CHANGELOG）
+- 依据：§1.2 第 13 项③（道路名称注记半）；GB/T 42547 图 L.3 道路名称要素（样图「南大街」）；金样 stage10_all_157 观感
+- 预计：中（渲染 + 双接口 + 真实数据复验）
 
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第五轮：四至/邻宗地注记（L.3 版面要素补全）
 - 提交：本次 commit；测试：`cargo test --workspace` **412 全绿**（parcelmap +2：四至锚点方位/宽块碰撞回归）；`clippy --workspace --all-targets -D warnings`（type_complexity 引入 P2 别名 + RenderCommand 豁免注释）与 `fmt --check` 全绿

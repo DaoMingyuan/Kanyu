@@ -254,6 +254,9 @@ pub struct RenderParcelMapReq {
     pub sizhi_w: Option<String>,
     /// 北至注记（缺省取属性 ZDSZB）。
     pub sizhi_n: Option<String>,
+    /// 相邻道路线文件路径（任意注册格式线要素；路名取属性
+    /// name/NAME/road_name/道路名称/DLMC；按地图框裁剪，路名沿线）。
+    pub roads: Option<String>,
     /// 比例尺分母（缺省自动适配取整百）。
     pub scale: Option<u32>,
     /// PNG 分辨率 dpi（默认 150，SVG 忽略）。
@@ -718,6 +721,16 @@ impl KanyuServer {
                 .sizhi_n
                 .or_else(|| prop(&["ZDSZB", "zdszb"]))
                 .unwrap_or_default(),
+            roads: match &req.roads {
+                Some(path) => {
+                    let road_layer = Layer::load(stem_of(path), path).map_err(to_mcp)?;
+                    kanyu_render::parcelmap::roads_from_collection(
+                        &road_layer.collection(),
+                        &["name", "NAME", "road_name", "道路名称", "DLMC", "dlmc"],
+                    )
+                }
+                None => Vec::new(),
+            },
             scale: req.scale,
             dpi: req.dpi.unwrap_or(150.0),
             ..Default::default()
@@ -2302,6 +2315,7 @@ mod tests {
                 sizhi_s: None,
                 sizhi_w: None,
                 sizhi_n: None,
+                roads: None,
                 scale: None,
                 dpi: None,
                 index: None,

@@ -6,6 +6,17 @@
 
 ### 新增
 
+- **宗地图道路名称注记（图 L.3 邻地要素收尾）**：`ParcelMapSpec.roads`
+  （`RoadLine` 线串 + 路名）——0.15mm 黑线按地图框裁剪（Liang-Barsky
+  逐段），路名沿最长可见段中点、角度沿线（字头向北允许向西），
+  可见段短于路名宽度时仅绘线（诚实不压）；`roads_from_collection`
+  提取助手（LineString/MultiLineString + 路名候选键拾取，CLI/MCP
+  共用）。CLI `--roads <file>`、MCP `kanyu_render_parcel_map.roads`
+  （路名键 `name/NAME/road_name/道路名称/DLMC`）。真实数据目检：
+  GB00032 + 合成南大街/黄河十六路——南大街横贯图框下沿、路名居中
+  沿线对齐样图观感，框外道路正确裁剪。新增 2 项测试（Liang-Barsky
+  裁剪/路名让位与提取助手）。
+
 - **宗地图四至/邻宗地注记（图 L.3 版面要素补全）**：`ParcelMapSpec`
   新增 `sizhi_e/s/w/n`——主方位最长边（外法线夹角 <60° 候选中取最长，
   短边/齿边不吸收注记）外侧 2.0mm 起摆放，`\n` 分行居中堆叠；

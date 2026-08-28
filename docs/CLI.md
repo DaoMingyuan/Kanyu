@@ -521,6 +521,7 @@ pixmap 旋转合成，与 SVG `rotate()` 同角）。
 | `--drawer / --reviewer <text>` | （空） | 制图者 / 审核者 |
 | `--draw-date / --review-date <text>` | （空） | 制图 / 审核日期 |
 | `--sizhi-e / --sizhi-s / --sizhi-w / --sizhi-n <text>` | 属性 `ZDSZD/ZDSZN/ZDSZX/ZDSZB` | 四至/邻宗地注记（`\n` 分行；主方位最长边外侧，碰撞沿边切向滑移+法向抬升避让） |
+| `--roads <file>` | （无） | 相邻道路线文件（线要素；路名取属性 `name/NAME/road_name/道路名称/DLMC`；按地图框裁剪，路名沿最长可见段、角度沿线，可见段过短仅绘线） |
 | `--scale <n>` | 自动取整百 | 比例尺分母 |
 | `--dpi <n>` | `150` | PNG 分辨率（SVG 忽略） |
 | `--index <n>` | 面积最大面要素 | 面要素文档序序号（0 起） |

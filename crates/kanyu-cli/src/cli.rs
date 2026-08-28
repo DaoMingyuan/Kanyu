@@ -488,6 +488,10 @@ pub enum RenderCommand {
         /// 北至注记（邻宗地；缺省取属性 ZDSZB）。
         #[arg(long, default_value = "")]
         sizhi_n: String,
+        /// 相邻道路线文件（任意注册格式线要素；路名取属性
+        /// name/NAME/road_name/道路名称/DLMC；按地图框裁剪，路名沿线）。
+        #[arg(long)]
+        roads: Option<String>,
         /// 比例尺分母（缺省自动适配取整百）。
         #[arg(long)]
         scale: Option<u32>,

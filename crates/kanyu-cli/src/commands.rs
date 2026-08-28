@@ -991,6 +991,7 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
             sizhi_s,
             sizhi_w,
             sizhi_n,
+            roads,
             scale,
             dpi,
             index,
@@ -1043,6 +1044,16 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
                     prop_str(&props, &["ZDSZB", "zdszb"]).unwrap_or_default()
                 } else {
                     sizhi_n.clone()
+                },
+                roads: match roads {
+                    Some(path) => {
+                        let road_layer = Layer::load(stem_of(path), path)?;
+                        kanyu_render::parcelmap::roads_from_collection(
+                            &road_layer.collection(),
+                            &["name", "NAME", "road_name", "道路名称", "DLMC", "dlmc"],
+                        )
+                    }
+                    None => Vec::new(),
                 },
                 scale: *scale,
                 dpi: *dpi,

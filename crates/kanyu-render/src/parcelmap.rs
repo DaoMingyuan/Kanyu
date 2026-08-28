@@ -26,6 +26,83 @@ use kanyu_core::cartography::{
 /// 平面点/向量（地图单位）。
 type P2 = (f64, f64);
 
+/// 线段裁剪到矩形（Liang-Barsky；返回可见段两端，全在框外为 None）。
+fn clip_segment_to_rect(a: P2, b: P2, rect: [f64; 4]) -> Option<(P2, P2)> {
+    let (rx, ry, rw, rh) = (rect[0], rect[1], rect[2], rect[3]);
+    let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+    let (mut t0, mut t1) = (0.0_f64, 1.0_f64);
+    for (p, q) in [
+        (-dx, a.0 - rx),     // 左界
+        (dx, rx + rw - a.0), // 右界
+        (-dy, a.1 - ry),     // 上界
+        (dy, ry + rh - a.1), // 下界
+    ] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return None; // 平行且在外侧
+            }
+        } else {
+            let r = q / p;
+            if p < 0.0 {
+                if r > t1 {
+                    return None;
+                }
+                if r > t0 {
+                    t0 = r;
+                }
+            } else {
+                if r < t0 {
+                    return None;
+                }
+                if r < t1 {
+                    t1 = r;
+                }
+            }
+        }
+    }
+    Some((
+        (a.0 + t0 * dx, a.1 + t0 * dy),
+        (a.0 + t1 * dx, a.1 + t1 * dy),
+    ))
+}
+
+/// 道路线要素提取（CLI/MCP 共用）：LineString/MultiLineString 要素 → [`RoadLine`]；
+/// 路名按候选键拾取（[`cartography::feature_prop_str`]），空串仅绘线。
+pub fn roads_from_collection(
+    collection: &geojson::FeatureCollection,
+    name_keys: &[&str],
+) -> Vec<RoadLine> {
+    let mut roads = Vec::new();
+    for feature in &collection.features {
+        let Some(geom) = &feature.geometry else {
+            continue;
+        };
+        let name = feature
+            .properties
+            .as_ref()
+            .and_then(|p| cartography::feature_prop_str(p, name_keys))
+            .unwrap_or_default();
+        let push_line = |roads: &mut Vec<RoadLine>, line: &[Vec<f64>]| {
+            if line.len() >= 2 {
+                roads.push(RoadLine {
+                    path: line.iter().map(|p| (p[0], p[1])).collect(),
+                    name: name.clone(),
+                });
+            }
+        };
+        match &geom.value {
+            geojson::Value::LineString(line) => push_line(&mut roads, line),
+            geojson::Value::MultiLineString(lines) => {
+                for line in lines {
+                    push_line(&mut roads, line);
+                }
+            }
+            _ => {}
+        }
+    }
+    roads
+}
+
 /// 宗地图出图参数。
 #[derive(Debug, Clone)]
 pub struct ParcelMapSpec {
@@ -67,6 +144,18 @@ pub struct ParcelMapSpec {
     pub sizhi_w: String,
     /// 北至注记。
     pub sizhi_n: String,
+    /// 相邻道路（线 + 路名；图 L.3 样图「南大街」要素；0.15mm 黑线按地图框
+    /// 裁剪，路名沿可见段中点、角度沿线（字头向北允许向西）；空表不绘）。
+    pub roads: Vec<RoadLine>,
+}
+
+/// 相邻道路（线要素 + 路名）。
+#[derive(Debug, Clone)]
+pub struct RoadLine {
+    /// 线坐标串（地图单位）。
+    pub path: Vec<P2>,
+    /// 路名（如「南大街」；空串仅绘线）。
+    pub name: String,
 }
 
 impl Default for ParcelMapSpec {
@@ -90,6 +179,7 @@ impl Default for ParcelMapSpec {
             sizhi_s: String::new(),
             sizhi_w: String::new(),
             sizhi_n: String::new(),
+            roads: Vec::new(),
         }
     }
 }
@@ -745,6 +835,52 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
         fill: Some(BLACK),
         stroke: None,
     });
+    // —— 相邻道路（0.15mm 黑线按地图框裁剪，绘于界址线下层；
+    // 路名沿最长可见段中点、角度沿线（字头向北允许向西），可见段过短仅绘线）——
+    for road in &spec.roads {
+        let page_pts: Vec<P2> = road.path.iter().map(|&p| to_page(p)).collect();
+        let mut pieces: Vec<(P2, P2)> = Vec::new();
+        for w in page_pts.windows(2) {
+            if let Some(seg) = clip_segment_to_rect(w[0], w[1], MAP_RECT) {
+                pieces.push(seg);
+                prims.push(Prim::Path {
+                    pts: vec![seg.0, seg.1],
+                    close: false,
+                    fill: None,
+                    stroke: Some(Stroke {
+                        width: 0.15,
+                        color: BLACK,
+                    }),
+                });
+            }
+        }
+        if road.name.trim().is_empty() {
+            continue;
+        }
+        let Some((p0, p1)) = pieces.iter().max_by(|a, b| {
+            let la = (a.1 .0 - a.0 .0).hypot(a.1 .1 - a.0 .1);
+            let lb = (b.1 .0 - b.0 .0).hypot(b.1 .1 - b.0 .1);
+            la.partial_cmp(&lb).unwrap_or(std::cmp::Ordering::Equal)
+        }) else {
+            continue;
+        };
+        let seg_len = (p1.0 - p0.0).hypot(p1.1 - p0.1);
+        let name_w = cartography::text_extent_mm(road.name.trim(), 2.8).0 + 1.0;
+        if seg_len < name_w {
+            continue; // 可见段太短：仅绘线，注记让位（诚实不压）
+        }
+        let angle = (p1.1 - p0.1).atan2(p1.0 - p0.0).to_degrees();
+        prims.push(Prim::Text {
+            x: (p0.0 + p1.0) / 2.0,
+            y: (p0.1 + p1.1) / 2.0,
+            font: 2.8,
+            text: road.name.trim().to_string(),
+            anchor: Anchor::Middle,
+            rotate_deg: cartography::upright_rotation(angle),
+            vcenter: true,
+            bold: false,
+        });
+    }
     // —— 界址线（0.3mm 红）——
     for ring in boundary.rings() {
         prims.push(Prim::Path {
@@ -1353,6 +1489,7 @@ mod tests {
             sizhi_s: String::new(),
             sizhi_w: String::new(),
             sizhi_n: String::new(),
+            roads: Vec::new(),
         }
     }
 
@@ -1614,5 +1751,69 @@ GB00029"
             cartography::rects_overlap(&sizhi, &edge_label),
             "t=0 应判交"
         );
+    }
+
+    #[test]
+    fn clip_segment_cases() {
+        let rect = [0.0, 0.0, 100.0, 100.0];
+        // 横穿：两端截断到边界
+        let ((x0, _), (x1, _)) = clip_segment_to_rect((-10.0, 50.0), (110.0, 50.0), rect).unwrap();
+        assert!((x0 - 0.0).abs() < 1e-9 && (x1 - 100.0).abs() < 1e-9);
+        // 全在内
+        let (a, b) = clip_segment_to_rect((10.0, 10.0), (20.0, 20.0), rect).unwrap();
+        assert_eq!(a, (10.0, 10.0));
+        assert_eq!(b, (20.0, 20.0));
+        // 全在外（左侧平行）
+        assert!(clip_segment_to_rect((-5.0, 10.0), (-5.0, 90.0), rect).is_none());
+        // 全在外（对角不过框）
+        assert!(clip_segment_to_rect((-10.0, 110.0), (-5.0, 120.0), rect).is_none());
+        // 部分在内
+        let (a, _) = clip_segment_to_rect((50.0, 50.0), (150.0, 50.0), rect).unwrap();
+        assert_eq!(a, (50.0, 50.0));
+    }
+
+    #[test]
+    fn roads_clip_and_name_along_line() {
+        let boundary = test_boundary(); // 40×30 矩形，scale 300 → 地图 1m ≈ 3.33mm
+                                        // 道路：纵贯地图框的东西向长线（穿过宗地南侧）
+        let spec = ParcelMapSpec {
+            roads: vec![RoadLine {
+                path: vec![(39594900.0, 4126990.0), (39595120.0, 4126995.0)],
+                name: "南大街".to_string(),
+            }],
+            ..full_spec()
+        };
+        let out = render_parcel_map_svg(&boundary, &spec).unwrap();
+        let svg = svg_of(&out);
+        assert!(svg.contains("南大街"), "路名应沿线绘出");
+        // 可见段过短：路名让位仅绘线（宗地北侧 1m 处 2m 短线）
+        let spec2 = ParcelMapSpec {
+            roads: vec![RoadLine {
+                path: vec![(39595000.0, 4127031.0), (39595002.0, 4127031.0)],
+                name: "超短巷".to_string(),
+            }],
+            ..full_spec()
+        };
+        let out2 = render_parcel_map_svg(&boundary, &spec2).unwrap();
+        let svg2 = svg_of(&out2);
+        assert!(!svg2.contains("超短巷"), "可见段过短路名应让位");
+        // 提取助手：LineString/MultiLineString + 路名候选键
+        let gj: geojson::GeoJson = r#"{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"LineString","coordinates":[[0,0],[10,0]]},
+             "properties":{"name":"南大街"}},
+            {"type":"Feature","geometry":{"type":"MultiLineString","coordinates":[[[0,1],[5,1]],[[5,1],[9,2]]]},
+             "properties":{"道路名称":"解放路"}},
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[0,0]},"properties":{}}
+        ]}"#
+        .parse()
+        .unwrap();
+        let roads = roads_from_collection(
+            &geojson::FeatureCollection::try_from(gj).unwrap(),
+            &["name", "道路名称"],
+        );
+        assert_eq!(roads.len(), 3);
+        assert_eq!(roads[0].name, "南大街");
+        assert_eq!(roads[1].name, "解放路");
+        assert_eq!(roads[2].path.len(), 2);
     }
 }
