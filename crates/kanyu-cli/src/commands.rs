@@ -1091,83 +1091,14 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
                 overlaps
             );
         }
-        RenderCommand::SeaBoundaryMap {
-            file,
-            out,
-            project_name,
-            sea_code,
-            source_epsg,
-            survey_unit,
-            surveyor,
-            drawer,
-            draw_date,
-            inspector,
-            reviewer,
-            scale,
-            dpi,
-            index,
-        } => {
-            use kanyu_render::parcelmap::ParcelMapData;
-            use kanyu_render::seamap::{
-                render_sea_boundary_map_png, render_sea_boundary_map_svg, SeaBoundaryMapSpec,
-            };
-            let (boundary, props) = parcel_boundary_from_file(file, *index)?;
-            // 纯数字代码（如 4527）规范化为 EPSG:xxxx
-            let source_epsg = if source_epsg.chars().all(|c| c.is_ascii_digit()) {
-                format!("EPSG:{source_epsg}")
-            } else {
-                source_epsg.clone()
-            };
-            let spec = SeaBoundaryMapSpec {
-                project_name: project_name
-                    .clone()
-                    .or_else(|| prop_str(&props, &["project_name", "XMMC", "xmmc"]))
-                    .unwrap_or_default(),
-                sea_code: sea_code
-                    .clone()
-                    .or_else(|| prop_str(&props, &["sea_code", "ZHDM", "zhdm"]))
-                    .unwrap_or_default(),
-                source_epsg,
-                survey_unit: survey_unit.clone(),
-                surveyor: surveyor.clone(),
-                drawer: drawer.clone(),
-                draw_date: draw_date.clone(),
-                inspector: inspector.clone(),
-                reviewer: reviewer.clone(),
-                scale: *scale,
-                dpi: *dpi,
-            };
-            let ext = out
-                .rsplit('.')
-                .next()
-                .map(str::to_ascii_lowercase)
-                .unwrap_or_default();
-            let output = match ext.as_str() {
-                "png" => render_sea_boundary_map_png(&boundary, &spec)?,
-                "svg" => render_sea_boundary_map_svg(&boundary, &spec)?,
-                other => {
-                    bail!("输出格式按扩展名判定，仅支持 .png/.svg（实际: '.{other}'）")
-                }
-            };
-            let overlaps = output
-                .diagnostics
-                .iter()
-                .filter(|d| d.contains("overlap=true"))
-                .count();
-            match &output.data {
-                ParcelMapData::Svg(text) => {
-                    std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
-                }
-                ParcelMapData::Png(bytes) => {
-                    std::fs::write(out, bytes).with_context(|| format!("写入 {out} 失败"))?;
-                }
-            }
-            eprintln!(
-                "已出宗海界址图 → {out}（1:{}，注记 {} 条，残余压盖 {} 条）",
-                output.scale,
-                output.diagnostics.len(),
-                overlaps
-            );
+        RenderCommand::SeaBoundaryMap(args) => {
+            sea_map_render(args, kanyu_render::seamap::SeaMapKind::BoundaryMap)?;
+        }
+        RenderCommand::SeaLocationMap(args) => {
+            sea_map_render(args, kanyu_render::seamap::SeaMapKind::LocationMap)?;
+        }
+        RenderCommand::SeaLayoutMap(args) => {
+            sea_map_render(args, kanyu_render::seamap::SeaMapKind::LayoutMap)?;
         }
         RenderCommand::ParcelDxf {
             file,
@@ -1209,6 +1140,81 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
             );
         }
     }
+    Ok(())
+}
+
+/// 宗海图件出图共用实现（宗海界址图 L.7 / 宗海位置图 L.6 / 宗海平面布置图 L.8）。
+fn sea_map_render(
+    args: &crate::cli::SeaMapArgs,
+    kind: kanyu_render::seamap::SeaMapKind,
+) -> Result<()> {
+    use kanyu_render::parcelmap::ParcelMapData;
+    use kanyu_render::seamap::{
+        render_sea_boundary_map_png, render_sea_boundary_map_svg, SeaBoundaryMapSpec,
+    };
+    let (boundary, props) = parcel_boundary_from_file(&args.file, args.index)?;
+    // 纯数字代码（如 4527）规范化为 EPSG:xxxx
+    let source_epsg = if args.source_epsg.chars().all(|c| c.is_ascii_digit()) {
+        format!("EPSG:{}", args.source_epsg)
+    } else {
+        args.source_epsg.clone()
+    };
+    let spec = SeaBoundaryMapSpec {
+        kind,
+        project_name: args
+            .project_name
+            .clone()
+            .or_else(|| prop_str(&props, &["project_name", "XMMC", "xmmc"]))
+            .unwrap_or_default(),
+        sea_code: args
+            .sea_code
+            .clone()
+            .or_else(|| prop_str(&props, &["sea_code", "ZHDM", "zhdm"]))
+            .unwrap_or_default(),
+        source_epsg,
+        survey_unit: args.survey_unit.clone(),
+        surveyor: args.surveyor.clone(),
+        drawer: args.drawer.clone(),
+        draw_date: args.draw_date.clone(),
+        inspector: args.inspector.clone(),
+        reviewer: args.reviewer.clone(),
+        scale: args.scale,
+        dpi: args.dpi,
+    };
+    let ext = args
+        .out
+        .rsplit('.')
+        .next()
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_default();
+    let output = match ext.as_str() {
+        "png" => render_sea_boundary_map_png(&boundary, &spec)?,
+        "svg" => render_sea_boundary_map_svg(&boundary, &spec)?,
+        other => {
+            bail!("输出格式按扩展名判定，仅支持 .png/.svg（实际: '.{other}'）")
+        }
+    };
+    let overlaps = output
+        .diagnostics
+        .iter()
+        .filter(|d| d.contains("overlap=true"))
+        .count();
+    match &output.data {
+        ParcelMapData::Svg(text) => {
+            std::fs::write(&args.out, text).with_context(|| format!("写入 {} 失败", args.out))?;
+        }
+        ParcelMapData::Png(bytes) => {
+            std::fs::write(&args.out, bytes).with_context(|| format!("写入 {} 失败", args.out))?;
+        }
+    }
+    eprintln!(
+        "已出{} → {}（1:{}，注记 {} 条，残余压盖 {} 条）",
+        kind.title_suffix(),
+        args.out,
+        output.scale,
+        output.diagnostics.len(),
+        overlaps
+    );
     Ok(())
 }
 

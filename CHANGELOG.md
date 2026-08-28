@@ -6,6 +6,14 @@
 
 ### 新增
 
+- **宗海位置图（L.6）/ 平面布置图（L.8）出图**：`SeaMapKind` 图种分派
+  接入 `seamap` 渲染管线——`kanyu render sea-location-map` /
+  `sea-layout-map`（经纬网图廓 + 宗海图斑 + 界址点符号 + 网格签注表 +
+  下中比例尺 + 指北针；无坐标表/点号边长注记）。CLI 重构为共享
+  `SeaMapArgs` 三变体（clap flatten）；真实宗地代理渲染目检对齐金样
+  stage10_all_160/162。图种开关测试 1 项（L.6/L.8 无表无注记 +
+  L.7 回归）。
+
 - **宗海界址图渲染器 `seamap` + `kanyu render sea-boundary-map`**：
   GB/T 42547-2023《地籍调查规程》图 L.7 版式（A4 横向）——标题
   「{项目}宗海界址图」+ 宗海代码行 + **自适应经纬网图廓**（度分秒

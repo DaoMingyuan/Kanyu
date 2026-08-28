@@ -592,6 +592,20 @@ $ ./target/debug/kanyu.exe render sea-boundary-map 宗海.dxf --out 宗海界址
 # 实测：真实宗地代理（GB00032，EPSG:4527）DMS 坐标表与金样逐行一致
 ```
 
+### 5.6 `kanyu render sea-location-map / sea-layout-map <file> --out <path>` ✅
+
+宗海位置图（图 L.6）/ 宗海平面布置图（图 L.8）出图：与宗海界址图同一
+`seamap` 渲染管线（`SeaMapKind` 图种分派）——经纬网图廓 + 宗海图斑 +
+红界址线 + 界址点符号 + 网格签注表 + 下中比例尺 + 指北针；
+**无坐标表、无点号/边长注记**。参数与 `sea-boundary-map` 全同
+（`--project-name/--sea-code/--source-epsg/签注六参数/--scale/--dpi/--index`）。
+
+```bash
+$ ./target/debug/kanyu.exe render sea-location-map 宗海.dxf --out 宗海位置图.png \
+    --project-name 代理围填海项目 --sea-code 371602113005JB00088 --source-epsg 4527
+已出宗海位置图 → 宗海位置图.png（1:800，注记 0 条，残余压盖 0 条）   # 该提示在 stderr
+```
+
 ## 6. kanyu gene ✅
 
 WASM 技能系统宿主（kanyu-skill crate；ABI 与沙箱模型见

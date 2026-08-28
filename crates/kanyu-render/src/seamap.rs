@@ -28,9 +28,38 @@ use kanyu_core::cartography::{
 };
 use kanyu_core::crs;
 
+/// 宗海图种（GB/T 42547-2023 附录 L）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SeaMapKind {
+    /// 宗海界址图（图 L.7：界址点编号及坐标表 + 点号/边长注记）。
+    #[default]
+    BoundaryMap,
+    /// 宗海位置图（图 L.6：经纬网图廓 + 图斑，无坐标表/点号边长注记）。
+    LocationMap,
+    /// 宗海平面布置图（图 L.8：同 L.6 版式）。
+    LayoutMap,
+}
+
+impl SeaMapKind {
+    /// 标题后缀（「{项目名称}宗海界址图」等）。
+    pub fn title_suffix(self) -> &'static str {
+        match self {
+            SeaMapKind::BoundaryMap => "宗海界址图",
+            SeaMapKind::LocationMap => "宗海位置图",
+            SeaMapKind::LayoutMap => "宗海平面布置图",
+        }
+    }
+    /// 是否绘界址点编号及坐标表与点号/边长注记（仅 L.7）。
+    pub fn has_coord_table(self) -> bool {
+        matches!(self, SeaMapKind::BoundaryMap)
+    }
+}
+
 /// 宗海界址图出图参数。
 #[derive(Debug, Clone, Default)]
 pub struct SeaBoundaryMapSpec {
+    /// 图种（默认宗海界址图 L.7）。
+    pub kind: SeaMapKind,
     /// 项目名称（标题「{project_name}宗海界址图」）。
     pub project_name: String,
     /// 宗海代码（左上「登记时填写或粘贴」）。
@@ -576,14 +605,22 @@ fn build_scene(boundary: &ParcelBoundary, spec: &SeaBoundaryMapSpec) -> Result<S
     } else {
         spec.source_epsg.trim()
     };
-    // 界址点经纬度（坐标表 DMS 来源）
+    // 界址点经纬度（坐标表 DMS 来源；仅 L.7 需要，L.6/L.8 跳过反算）
     let map_pts: Vec<(f64, f64)> = points.iter().map(|p| (p.x, p.y)).collect();
-    let lonlats = to_lonlat(&map_pts, source_epsg)?;
+    let lonlats = if spec.kind.has_coord_table() {
+        to_lonlat(&map_pts, source_epsg)?
+    } else {
+        Vec::new()
+    };
     // 表格（先组表：表宽参与适配区与自动比例尺求解）
     let coord_table = build_coord_table(&points, &lonlats);
     let sign_table = build_sign_table(spec);
-    // 宗海适配区：地图框扣除留白与右侧表带（坐标表/签注表较宽者）
-    let band_w = coord_table.width().max(sign_table.width());
+    // 宗海适配区：地图框扣除留白与右侧表带（坐标表/签注表较宽者；L.6/L.8 仅签注表）
+    let band_w = if spec.kind.has_coord_table() {
+        coord_table.width().max(sign_table.width())
+    } else {
+        sign_table.width()
+    };
     let fit_x0 = MAP_RECT[0] + MAP_PAD;
     let fit_y0 = MAP_RECT[1] + MAP_PAD;
     let fit_w = (MAP_RECT[2] - 2.0 * MAP_PAD - band_w - TABLE_FIT_GAP).max(FIT_MIN_W);
@@ -602,27 +639,35 @@ fn build_scene(boundary: &ParcelBoundary, spec: &SeaBoundaryMapSpec) -> Result<S
         bbox_c: ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0),
     };
 
-    // 注记排版（点号先排，其矩形作为边长注记的附加障碍）
-    let point_report = cartography::place_point_labels(
-        boundary,
-        &points,
-        &cartography::PointLabelOptions {
-            scale,
-            ..Default::default()
-        },
-        &[],
-    );
-    let point_rects: Vec<_> = point_report.labels.iter().map(|l| l.rect).collect();
-    let edge_report = cartography::place_edge_labels(
-        boundary,
-        &lines,
-        &points,
-        &cartography::EdgeLabelOptions {
-            scale,
-            ..Default::default()
-        },
-        &point_rects,
-    );
+    // 注记排版（点号先排，其矩形作为边长注记的附加障碍；仅 L.7 绘注记）
+    let (point_report, edge_report) = if spec.kind.has_coord_table() {
+        let point_report = cartography::place_point_labels(
+            boundary,
+            &points,
+            &cartography::PointLabelOptions {
+                scale,
+                ..Default::default()
+            },
+            &[],
+        );
+        let point_rects: Vec<_> = point_report.labels.iter().map(|l| l.rect).collect();
+        let edge_report = cartography::place_edge_labels(
+            boundary,
+            &lines,
+            &points,
+            &cartography::EdgeLabelOptions {
+                scale,
+                ..Default::default()
+            },
+            &point_rects,
+        );
+        (point_report, edge_report)
+    } else {
+        (
+            cartography::PlacementReport::default(),
+            cartography::PlacementReport::default(),
+        )
+    };
     let diagnostics = diagnostics_of(&[&point_report, &edge_report]);
 
     let thin = Some(Stroke {
@@ -643,7 +688,7 @@ fn build_scene(boundary: &ParcelBoundary, spec: &SeaBoundaryMapSpec) -> Result<S
         x: PAGE_W / 2.0,
         y: TITLE_Y,
         font: TITLE_FONT,
-        text: format!("{}宗海界址图", spec.project_name),
+        text: format!("{}{}", spec.project_name, spec.kind.title_suffix()),
         anchor: Anchor::Middle,
         rotate_deg: 0.0,
         vcenter: false,
@@ -712,7 +757,8 @@ fn build_scene(boundary: &ParcelBoundary, spec: &SeaBoundaryMapSpec) -> Result<S
             stroke: None,
         });
     }
-    // —— 点号（无 J 前缀）/ 边长注记（2.4mm，位置与旋转按 cartography 排版结果）——
+    // —— 点号（无 J 前缀）/ 边长注记（2.4mm，位置与旋转按 cartography 排版结果；
+    // 仅 L.7 宗海界址图绘注记，L.6/L.8 仅绘界址点符号）——
     for l in point_report.labels.iter().chain(edge_report.labels.iter()) {
         let (x, y) = pm.to_page((l.rect.cx, l.rect.cy));
         prims.push(Prim::Text {
@@ -750,20 +796,27 @@ fn build_scene(boundary: &ParcelBoundary, spec: &SeaBoundaryMapSpec) -> Result<S
         fill: Some(BLACK),
         stroke: None,
     });
-    // —— 比例尺（地图框内左下，分母取整百）——
+    // —— 比例尺（分母取整百；L.7 地图框内左下，L.6/L.8 地图框内下中，对齐金样）——
+    let (scale_x, scale_anchor) = if spec.kind.has_coord_table() {
+        (MAP_RECT[0] + 4.0, Anchor::Start)
+    } else {
+        (MAP_RECT[0] + MAP_RECT[2] / 2.0, Anchor::Middle)
+    };
     prims.push(Prim::Text {
-        x: MAP_RECT[0] + 4.0,
+        x: scale_x,
         y: MAP_RECT[1] + MAP_RECT[3] - 2.5,
         font: 3.2,
         text: format!("1:{scale}"),
-        anchor: Anchor::Start,
+        anchor: scale_anchor,
         rotate_deg: 0.0,
         vcenter: false,
         bold: false,
     });
-    // —— 界址点编号及坐标表（右侧，指北针下方）——
+    // —— 界址点编号及坐标表（右侧，指北针下方；仅 L.7）——
     let table_x1 = MAP_RECT[0] + MAP_RECT[2] - TABLE_ANCHOR_PAD;
-    coord_table.emit(&mut prims, table_x1, COORD_TABLE_Y0);
+    if spec.kind.has_coord_table() {
+        coord_table.emit(&mut prims, table_x1, COORD_TABLE_Y0);
+    }
     // —— 网格签注表（右下锚定）——
     let sign_y0 = MAP_RECT[1] + MAP_RECT[3] - TABLE_ANCHOR_PAD - sign_table.height();
     sign_table.emit(&mut prims, table_x1, sign_y0);
@@ -1213,6 +1266,7 @@ mod tests {
     /// 完整 spec（比例尺缺省自动求解、源坐标系 EPSG:4527）。
     fn full_spec() -> SeaBoundaryMapSpec {
         SeaBoundaryMapSpec {
+            kind: SeaMapKind::BoundaryMap,
             project_name: "代理围填海项目".to_string(),
             sea_code: "371602113005JB00088".to_string(),
             source_epsg: "EPSG:4527".to_string(),
@@ -1404,5 +1458,42 @@ mod tests {
         let path =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/sea_map_test.png");
         std::fs::write(&path, png).unwrap();
+    }
+
+    #[test]
+    fn location_and_layout_kinds_skip_table_and_labels() {
+        // L.6 宗海位置图：无坐标表/点号边长注记，比例尺下中
+        let spec = SeaBoundaryMapSpec {
+            kind: SeaMapKind::LocationMap,
+            ..full_spec()
+        };
+        let out = render_sea_boundary_map_svg(&test_boundary(), &spec).unwrap();
+        let svg = svg_of(&out);
+        assert!(
+            svg.contains("代理围填海项目宗海位置图"),
+            "标题后缀应为位置图"
+        );
+        assert!(!svg.contains("界址点编号及坐标"), "L.6 无坐标表");
+        assert!(out.diagnostics.is_empty(), "L.6 无注记排版诊断");
+        // 比例尺下中（地图框水平中心 x≈148.5 附近；L.7 为左下 x≈16）
+        assert!(svg.contains("1:"), "比例尺存在");
+        // L.8 宗海平面布置图：标题后缀
+        let spec8 = SeaBoundaryMapSpec {
+            kind: SeaMapKind::LayoutMap,
+            ..full_spec()
+        };
+        let out8 = render_sea_boundary_map_svg(&test_boundary(), &spec8).unwrap();
+        let svg8 = svg_of(&out8);
+        assert!(
+            svg8.contains("代理围填海项目宗海平面布置图"),
+            "标题后缀应为平面布置图"
+        );
+        assert!(!svg8.contains("界址点编号及坐标"), "L.8 无坐标表");
+        // L.7 回归：标题/坐标表/点号注记仍在
+        let out7 = render_sea_boundary_map_svg(&test_boundary(), &full_spec()).unwrap();
+        let svg7 = svg_of(&out7);
+        assert!(svg7.contains("宗海界址图"));
+        assert!(svg7.contains("界址点编号及坐标（北纬 | 东经）"));
+        assert!(!out7.diagnostics.is_empty(), "L.7 有注记排版诊断");
     }
 }

@@ -103,6 +103,13 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第八轮：宗海位置图/平面布置图（L.6/L.8 图种分派）
+- 提交：本次 commit；测试：`cargo test --workspace` **421 全绿**（seamap +1：L.6/L.8 无表无注记 + L.7 回归）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
+- 内容：`SeaMapKind` 图种分派入 `seamap` 渲染管线（BoundaryMap/LocationMap/LayoutMap——标题后缀/坐标表与注记开关/比例尺左下或下中）；CLI 重构为共享 `SeaMapArgs` 三变体（`sea-boundary-map`/`sea-location-map`/`sea-layout-map`，clap flatten 零重复）；`sea_map_render` 共用实现；docs（CLI §5.6/MASTERPLAN/CHANGELOG）同步
+- 真实验证：真实宗地代理（GB00032，EPSG:4527）渲染宗海位置图/平面布置图目检对齐金样 stage10_all_160/162（经纬网/图斑/签注表/下中比例尺全符）
+- 偏差：无
+- 后续：§1.2 第 13 项余 ③用岛图种（L.9/L.10）④壳层半；seamap 三命令 MCP 工具待后续轮次
+
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第七轮：宗海界址图（图 L.7，新图种）
 - 提交：本次 commit；测试：`cargo test --workspace` 全绿（seamap +6：DMS 进位/网格间隔/全要素 SVG/PNG）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
 - 内容：kanyu-render 新模块 `seamap`（GB/T 42547-2023 图 L.7 版式 A4 横：自适应经纬网图廓（[1″…1°] 3~8 线/轴，度分秒注记顶底横排/左右竖排）、宗海图斑 RGB(245,162,122)、0.5mm 红界址线、点号无 J 前缀、边长注记 cartography 排版、右侧界址点编号及坐标表（北纬|东经 DMS 3 位小数进位安全、末行闭合、source-epsg 反算 EPSG:4490）、右下网格签注表（坐标系/高程基准固定值）、左下整百比例尺、右上指北针）；CLI `render sea-boundary-map`（属性拾取 sea_code/ZHDM、project_name/XMMC）；docs（CLI §5.5/ARCHITECTURE/MASTERPLAN/CHANGELOG）同步
