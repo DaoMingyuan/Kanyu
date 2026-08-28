@@ -372,6 +372,9 @@ impl KanyuServer {
                     .map_err(to_mcp)?
                     .into_bytes()
             }
+            "dat" => Layer::to_cass_dat_string(&layer.collection(), 3)
+                .map_err(to_mcp)?
+                .into_bytes(),
             "shp" => {
                 // shp 为三件套（base.shp/.shx/.dbf）：不能走字节流写文件，直接落盘。
                 let base = req

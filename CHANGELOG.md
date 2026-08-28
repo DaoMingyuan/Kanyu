@@ -6,6 +6,34 @@
 
 ### 新增
 
+- **不动产制图引擎 `cartography`（勘测定界图注记契约移植）**：kanyu-core
+  新模块，移植堪舆工具箱 `realestate_map/__init__.py` + `label_placement.py`
+  ——界址点左上角起编（内环续编）、边长注记中点法线零沿线偏移（基准净空
+  1.0mm、压盖法线细步外移、least_bad 兜底）、界址点号注记角平分线朝外
+  （基准 1.2mm、中心硬约束宗地外、径向/切向细步消解、inside_fallback
+  诚实标记）、旋转矩形 SAT + 矩形-圆（Ø2.0mm 界址点符号）+ 矩形-环
+  （压红线）碰撞模型、外法线按环走向判定（凹角/锯齿宗地正确）。
+  14 项单元测试全绿。
+
+- **宗地图渲染器 `parcelmap` + `kanyu render parcel-map`**：GB/T 42547-2023
+  《地籍调查规程》图 L.3 版式（A4 竖）——标题「宗 地 图」+ 头部信息框
+  （宗地代码/所在图幅号/宗地面积/土地权利人）+ 地图框（界址点 Ø2.0mm 白底
+  黑圈 + 0.3mm 红界址线 + J 点号/边长注记按 cartography 排版 + 宗地号/地类
+  编码分式）+ 界址点坐标表（点号|X|Y|边长，X=纵坐标（北）Y=横坐标（东）
+  测绘惯例，闭合行重复起点，面积行收尾）+ 整百比例尺自动求解 + 「北」
+  指北针 + 签注栏 + 左侧竖排单位名；SVG/PNG 双通道（PNG 边长注记水平
+  为已知限制，SVG 完整旋转）。要素属性自动拾取（parcel_id/owner/area…），
+  CLI 旗标可覆盖。真实宗地 CASS DXF（滨州 GB00032）渲染 18 注记零压盖。
+
+- **南方 CASS 联动 `cass` + `kanyu render parcel-dxf` + `-f dat`**：
+  kanyu-core 新模块——CASS 坐标数据文件 .dat 读写（CASS 标准轴序
+  `点号,编码,Y东,X北[,H]`，编码列保留，BOM/注释兼容；注册表第 20 格式，
+  读取自动探测，CLI/MCP/壳层/Python/工具箱五处导出分派全接入）；
+  宗地成果 CASS 兼容 DXF 导出（AC1024 + UTF-8：ZD/JZX/JZD/ZJ 分层，
+  SOUTH APPID + XDATA 编码 302001/302002，注记位置经 cartography 排版，
+  纸面毫米要素按比例尺换算模型单位），产物可被堪舆回读形成
+  「真实 CASS DXF → 宗地图渲染 → CASS DXF 再导出 → 再读取」闭环。
+
 - **`kanyu render layout` 布局排版（layout 排版器 CLI 出口）**：
   `RenderCommand::Layout` → kanyu-render `layout` 模块（此前仅壳层
   layoutview 消费）——A4 横/竖页面 + 标题/图例/比例尺/指北针内嵌地图

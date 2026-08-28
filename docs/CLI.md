@@ -120,7 +120,7 @@ $ ./target/debug/kanyu.exe data query examples/buildings.geojson --filter "usage
 
 > 注意：`query` 的 stdout 恒为 GeoJSON 文本（一行），不受 `--json` 影响。
 
-### 3.4 `kanyu data export <file> -f <format> --out <path>` ✅（原生支持 geojson / csv / shp / fgb / geoparquet / dxf / kml / kmz / kdb）
+### 3.4 `kanyu data export <file> -f <format> --out <path>` ✅（原生支持 geojson / csv / shp / fgb / geoparquet / dxf / kml / kmz / kdb / dat）
 
 导出为目标格式，受格式能力矩阵约束（决策路径见
 [ARCHITECTURE.md](ARCHITECTURE.md#4-格式注册表设计)）。
@@ -473,6 +473,67 @@ $ ./target/debug/kanyu.exe render map examples/buildings.geojson --out styled.pn
 $ ./target/debug/kanyu.exe render layout examples/buildings.geojson --out layout.svg --title 示例布局
 已排版 4 个要素 → layout.svg (layout svg, 1123x794px, 96dpi)   # 该提示在 stderr
 ```
+
+### 5.3 `kanyu render parcel-map <file> --out <path>` ✅
+
+宗地图出图（GB/T 42547-2023《地籍调查规程》图 L.3 版式；kanyu-render
+`parcelmap` 模块 + kanyu-core `cartography` 勘测定界图注记契约排版引擎）：
+A4 竖页面 + 标题「宗 地 图」+ 头部信息框（宗地代码/所在图幅号/宗地面积/
+土地权利人）+ 地图框（界址点 Ø2.0mm 符号、0.3mm 红界址线、J 点号与边长
+注记、宗地号/地类编码分式）+ 界址点坐标表（点号|X|Y|边长，X=纵坐标（北）、
+Y=横坐标（东）测绘惯例）+ 整百比例尺 + 「北」指北针 + 签注栏。
+输入为面要素（GeoJSON/SHP/宗地 TXT/DXF 等注册格式；多面要素缺省取面积
+最大者）。输出格式按 `--out` 扩展名判定（`svg`/`png`）。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--out <path>` | （必填） | 输出路径（`.svg` 或 `.png`） |
+| `--parcel-code <text>` | 属性 `parcel_id/ZDDM/zddm` | 宗地代码（分式分子取末 7 位） |
+| `--owner <text>` | 属性 `owner/QLRMC/parcel_name` | 土地权利人 |
+| `--map-sheet <text>` | 属性 `map_sheet/TFH` | 所在图幅号 |
+| `--area <㎡>` | 属性 `area/ZDMJ`，再无现算 | 宗地面积 |
+| `--land-use <text>` | 属性 `parcel_use/YT` | 地类编码（分式分母） |
+| `--unit-name <text>` | （空） | 左侧竖排单位名 |
+| `--survey-note <text>` | （空） | 左下测绘说明（如「2026年08月解析法测绘界址点」） |
+| `--drawer / --reviewer <text>` | （空） | 制图者 / 审核者 |
+| `--draw-date / --review-date <text>` | （空） | 制图 / 审核日期 |
+| `--scale <n>` | 自动取整百 | 比例尺分母 |
+| `--dpi <n>` | `150` | PNG 分辨率（SVG 忽略） |
+| `--index <n>` | 面积最大面要素 | 面要素文档序序号（0 起） |
+
+```bash
+$ ./target/debug/kanyu.exe render parcel-map 宗地.dxf --out 宗地图.png \
+    --parcel-code 371602113005GB00032 --land-use 0801 --unit-name 滨州市自然资源局
+已出宗地图 → 宗地图.png（1:700，注记 18 条，残余压盖 0 条）   # 该提示在 stderr
+# 实测：真实 CASS DXF（滨州 GB00032 宗地，9 界址点）渲染 18 注记零压盖
+```
+
+### 5.4 `kanyu render parcel-dxf <file> --out <path>` ✅
+
+宗地成果 CASS 兼容 DXF 导出（南方 CASS 联动；kanyu-core `cass` 模块）：
+AC1024 DXF——`ZD` 宗地面 / `JZX` 界址线（逐边 + 边长注记，编码 302002）/
+`JZD` 界址点（Ø2.0mm CIRCLE + 点号注记，编码 302001）/ `ZJ` 分式与权利人
+注记；编码挂 SOUTH XDATA，CASS 直接打开编辑，可再被堪舆回读（闭环）。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--out <path>` | （必填） | 输出路径（`.dxf`） |
+| `--parcel-code <text>` | 属性 `parcel_id/ZDDM/zddm` | 宗地代码（分式分子取末 7 位） |
+| `--land-use <text>` | 属性 `parcel_use/YT` | 地类编码（分式分母） |
+| `--owner <text>` | 属性 `owner/QLRMC/parcel_name` | 土地权利人（ZJ 注记） |
+| `--scale <n>` | `1000` | 出图比例尺分母（毫米要素换算模型单位） |
+| `--no-xdata` | （关） | 不挂 SOUTH 编码 XDATA |
+| `--index <n>` | 面积最大面要素 | 面要素文档序序号（0 起） |
+
+```bash
+$ ./target/debug/kanyu.exe render parcel-dxf 宗地.dxf --out 宗地_cass.dxf --scale 700 \
+    --parcel-code 371602113005GB00032 --land-use 0801
+已导出 CASS 兼容 DXF → 宗地_cass.dxf（界址点 9、界址线 9，SOUTH XDATA 开）   # 该提示在 stderr
+```
+
+CASS 坐标数据文件（.dat，注册表第 20 格式）走通用导出：
+`kanyu data export 点层.geojson -f dat --out 点.dat`（CASS 标准轴序
+`点号,编码,Y东,X北[,H]`；.dat 亦可被 `kanyu data info/load` 直接读取）。
 
 ## 6. kanyu gene ✅
 

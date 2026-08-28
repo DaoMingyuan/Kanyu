@@ -284,6 +284,11 @@ fn export(fc: &str, out: &str, format: &str) -> PyResult<()> {
             let layer = Layer::from_collection("py", collection);
             std::fs::write(out, layer.to_kdb_bytes().map_err(to_py)?).map_err(io_err)?
         }
+        "dat" => std::fs::write(
+            out,
+            Layer::to_cass_dat_string(&collection, 3).map_err(to_py)?,
+        )
+        .map_err(io_err)?,
         "shp" => Layer::write_shp(&collection, out.trim_end_matches(".shp")).map_err(to_py)?,
         other => {
             return Err(PyRuntimeError::new_err(format!(

@@ -61,6 +61,11 @@ fn export_collection(
             Layer::to_dxf_string(collection).map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())?,
+        "dat" => std::fs::write(
+            out,
+            Layer::to_cass_dat_string(collection, 3).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?,
         "kml" => std::fs::write(
             out,
             Layer::to_kml_string(collection).map_err(|e| e.to_string())?,

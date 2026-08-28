@@ -23,7 +23,9 @@
 14. [project —— 堪舆工程](#14-project--堪舆工程kyu)
 15. [geoprocess —— QGIS 核心算法移植](#15-geoprocess--qgis-核心算法移植)
 16. [parcel —— 宗地 TXT](#16-parcel--宗地-txt界址点坐标)
-17. [kanyu-py —— Python 桥接](#17-kanyu-py--python-桥接pyo3)
+17. [cartography —— 不动产制图引擎](#17-cartography--不动产制图引擎)
+18. [cass —— 南方 CASS 联动](#18-cass--南方-cass-联动)
+19. [kanyu-py —— Python 桥接](#19-kanyu-py--python-桥接pyo3)
 
 ## 1. crate 总览
 
@@ -692,7 +694,39 @@ key=value + [地块坐标] 说明行与点行），X北Y东测绘惯例（GeoJSO
 | `parse_points_txt(text) -> Result<FeatureCollection>` | 简单点表（name X Y [Z]，# 注释，逗号/空格/Tab）回退解析 |
 | `is_parcel_txt(text) -> bool` | 格式嗅探（全角段标兼容） |
 
-## 17. kanyu-py —— Python 桥接（PyO3）
+## 17. cartography —— 不动产制图引擎
+
+GB/T 42547-2023《地籍调查规程》附录 L + 《不动产登记数据库标准》表 20；
+移植自堪舆工具箱 `realestate_map/__init__.py` 与 `label_placement.py`
+（勘测定界图注记契约），纯数据、不依赖渲染后端。
+
+| API | 说明 |
+|---|---|
+| `ParcelBoundary::from_geometry(&geojson::Value) -> Result<ParcelBoundary>` | Polygon/MultiPolygon → 权属边界（多部件取面积最大） |
+| `generate_boundary_points(&boundary, prefix) -> Vec<BoundaryPointRecord>` | 界址点记录（左上角起编 1,2,3…、内环续编、J 前缀） |
+| `generate_boundary_lines(&boundary, &points) -> Vec<BoundaryLineRecord>` | 界址线记录（相邻点号挂接、长度/中点/角度） |
+| `place_edge_labels(&boundary, &lines, &points, &opts, &obstacles) -> PlacementReport` | 边长注记排版（中点法线 1.0mm 基准、零沿线偏移、压盖法线细步外移、least_bad 兜底） |
+| `place_point_labels(&boundary, &points, &opts, &obstacles) -> PlacementReport` | 界址点号注记排版（角平分线朝外 1.2mm、中心硬约束宗地外、径向/切向细步消解、inside_fallback 标记） |
+| `rects_overlap / rect_circle_overlap / rect_ring_overlap / point_in_ring` | 旋转矩形 SAT / 矩形-圆（Ø2.0mm 界址点符号障碍）/ 矩形-环（压红线）/ 点在环内 |
+| `upright_rotation(angle_deg) -> f64` | 排版旋转归一化（字头向北、允许向西；顺时针为正，SVG/QGIS 同号） |
+| `format_edge_length(m) / text_extent_mm(text, font_mm)` | 边长两位小数 / 文本纸面宽估算（CJK 1.0em、ASCII 0.6em） |
+
+毫米 ↔ 地图单位换算 `mu = mm × scale / 1000`；`PlacementReport`
+（labels/overlap_count/pair_overlaps）供排版诊断回归。
+
+## 18. cass —— 南方 CASS 联动
+
+CASS 坐标数据文件（.dat，注册表第 20 格式）读写 + CASS 兼容 DXF 导出；
+对齐堪舆工具箱 `dat_tools.py` / `cass_profile.json` / `exporters.py` 约定。
+
+| API | 说明 |
+|---|---|
+| `is_cass_dat(text) / parse_cass_dat(text) -> Result<Vec<CassDatPoint>>` | 嗅探/解析（CASS 标准轴序 `点号,编码,Y东,X北[,H]`；BOM/# 注释/空编码/H 可空，中文带行号错误） |
+| `cass_points_to_collection(&points) -> FeatureCollection` | → Point 要素（name/code/h 属性，位置=[东,北]） |
+| `collection_to_cass_dat(&collection, decimals) -> Result<String>` | 点要素 → .dat（缺省点号 J{n} 顺编） |
+| `parcel_to_cass_dxf(&boundary, &points, &lines, &spec) -> Result<String>` | 宗地成果 → CASS 兼容 DXF（AC1024 + UTF-8：ZD/JZX/JZD/ZJ 分层、SOUTH APPID + XDATA 编码 302001/302002、注记位置经 cartography 排版、毫米要素按比例尺换算） |
+
+## 19. kanyu-py —— Python 桥接（PyO3）
 
 扩展模块 `kanyu`（crate-type cdylib；构建产物 `kanyu.dll` → `python/kanyu/kanyu.pyd`）。
 函数面（GeoJSON 文本进出）：`load/query/buffer/overlay/topology/sjoin/

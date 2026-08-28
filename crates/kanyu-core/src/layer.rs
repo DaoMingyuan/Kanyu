@@ -92,6 +92,16 @@ impl Layer {
                     crate::parcel::parse_points_txt(&text)?
                 }
             }
+            "dat" => {
+                let text = std::fs::read_to_string(path)?;
+                if !crate::cass::is_cass_dat(&text) {
+                    return Err(KanyuError::Other(format!(
+                        "dat 读取失败（{path}）：不是有效的 CASS 坐标数据（期望行形如 点号,编码,Y,X[,H]）"
+                    )));
+                }
+                let points = crate::cass::parse_cass_dat(&text)?;
+                crate::cass::cass_points_to_collection(&points)
+            }
             "fgb" => fgb_to_collection(path)?,
             "geoparquet" => parquet_to_collection(path)?,
             "dxf" => dxf_to_collection(path)?,
@@ -277,6 +287,16 @@ impl Layer {
     /// 所有要素写到默认图层 "0"；properties/XDATA 写出 📋 暂不支持；z 丢弃。
     pub fn to_dxf_string(collection: &geojson::FeatureCollection) -> Result<String> {
         collection_to_dxf(collection)
+    }
+
+    /// 导出为 CASS 坐标数据（.dat）字符串：点要素 → `点号,编码,Y东,X北[,H]` 行
+    ///（轴序为 CASS 标准 Y东X北；点号取 `name` 属性、缺省 J{n} 顺编，编码取
+    /// `code`、高程取 `h`/`z`，均可空）。非点要素跳过；无点要素报中文错误。
+    pub fn to_cass_dat_string(
+        collection: &geojson::FeatureCollection,
+        decimals: usize,
+    ) -> Result<String> {
+        crate::cass::collection_to_cass_dat(collection, decimals)
     }
 
     /// 导出为 KML 字符串：每要素一个 Placemark（全六类型，Multi* → MultiGeometry，
@@ -2681,6 +2701,45 @@ mod tests {
         assert_eq!(reloaded.len(), 2);
         // 数值属性在往返后仍可比较查询。
         assert_eq!(reloaded.query("height > 50").unwrap().features.len(), 1);
+    }
+
+    #[test]
+    fn cass_dat_load_and_export_roundtrip() {
+        // .dat 文本 → Layer::load → collection → to_cass_dat_string → 复解析，语义往返一致。
+        let dir = std::env::temp_dir().join("kanyu_core_cass_dat");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("jz.dat");
+        std::fs::write(
+            &path,
+            "\u{feff}# 界址点\r\nJ1,302001,100.125,200.25,5.5\r\nJ2,,101.125,201.25\r\n",
+        )
+        .unwrap();
+        let layer = Layer::load("jz", path.to_str().unwrap()).unwrap();
+        assert_eq!(layer.len(), 2);
+        let s = layer.summary();
+        assert_eq!(s.format, "dat");
+        assert_eq!(s.geometry_types, vec!["Point"]);
+        assert!(s.fields.contains(&"name".to_string()));
+        assert!(s.fields.contains(&"code".to_string()));
+        // 导出 .dat 并复解析：轴序/编码/高程语义逐字段一致。
+        let out = Layer::to_cass_dat_string(&layer.collection(), 3).unwrap();
+        let pts = crate::cass::parse_cass_dat(&out).unwrap();
+        assert_eq!(pts.len(), 2);
+        assert_eq!(pts[0].name, "J1");
+        assert_eq!(pts[0].code, "302001");
+        assert_eq!(pts[0].east, 100.125);
+        assert_eq!(pts[0].north, 200.25);
+        assert_eq!(pts[0].h, Some(5.5));
+        assert_eq!(pts[1].name, "J2");
+        assert_eq!(pts[1].code, "");
+        assert_eq!(pts[1].h, None);
+        // 非 CASS 形态的 .dat 文本 → 中文错误（而非静默空图层）。
+        let bad = dir.join("bad.dat");
+        std::fs::write(&bad, "hello,world\n").unwrap();
+        let err = Layer::load("bad", bad.to_str().unwrap())
+            .err()
+            .expect("非 CASS 文本应报错");
+        assert!(err.to_string().contains("CASS"), "{err}");
     }
 
     /// 在临时目录写出测试 shapefile：sites.shp（2 个 Point，name/height 字段）

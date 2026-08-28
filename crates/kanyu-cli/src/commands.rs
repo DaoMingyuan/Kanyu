@@ -330,6 +330,12 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
                     eprintln!("已导出 {} 个要素 → {out} (txt 宗地界址点)", layer.len());
                 }
+                "dat" => {
+                    // CASS 坐标数据文件：点要素 → 点号,编码,Y东,X北,H（CASS 标准轴序）。
+                    let text = Layer::to_cass_dat_string(&layer.collection(), 3)?;
+                    std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
+                    eprintln!("已导出 {} 个要素 → {out} (dat CASS 坐标)", layer.len());
+                }
                 "kml" => {
                     let text = Layer::to_kml_string(&layer.collection())?;
                     std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
@@ -899,8 +905,236 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
                 }
             }
         }
+        RenderCommand::ParcelMap {
+            file,
+            out,
+            parcel_code,
+            owner,
+            map_sheet,
+            area,
+            land_use,
+            unit_name,
+            survey_note,
+            drawer,
+            reviewer,
+            draw_date,
+            review_date,
+            scale,
+            dpi,
+            index,
+        } => {
+            use kanyu_render::parcelmap::{
+                render_parcel_map_png, render_parcel_map_svg, ParcelMapData, ParcelMapSpec,
+            };
+            let (boundary, props) = parcel_boundary_from_file(file, *index)?;
+            let spec = ParcelMapSpec {
+                parcel_code: parcel_code
+                    .clone()
+                    .or_else(|| prop_str(&props, &["parcel_id", "ZDDM", "zddm"]))
+                    .unwrap_or_default(),
+                owner: owner
+                    .clone()
+                    .or_else(|| prop_str(&props, &["owner", "QLRMC", "parcel_name"]))
+                    .unwrap_or_default(),
+                map_sheet: map_sheet
+                    .clone()
+                    .or_else(|| prop_str(&props, &["map_sheet", "TFH"]))
+                    .unwrap_or_default(),
+                area_sqm: area.or_else(|| prop_f64(&props, &["area", "ZDMJ"])),
+                land_use: land_use
+                    .clone()
+                    .or_else(|| prop_str(&props, &["parcel_use", "YT"]))
+                    .unwrap_or_default(),
+                unit_name: unit_name.clone(),
+                survey_note: survey_note.clone(),
+                drawer: drawer.clone(),
+                reviewer: reviewer.clone(),
+                draw_date: draw_date.clone(),
+                review_date: review_date.clone(),
+                scale: *scale,
+                dpi: *dpi,
+                ..Default::default()
+            };
+            let ext = out
+                .rsplit('.')
+                .next()
+                .map(str::to_ascii_lowercase)
+                .unwrap_or_default();
+            let output = match ext.as_str() {
+                "png" => render_parcel_map_png(&boundary, &spec)?,
+                "svg" => render_parcel_map_svg(&boundary, &spec)?,
+                other => {
+                    bail!("输出格式按扩展名判定，仅支持 .png/.svg（实际: '.{other}'）")
+                }
+            };
+            let overlaps = output
+                .diagnostics
+                .iter()
+                .filter(|d| d.contains("overlap=true"))
+                .count();
+            match &output.data {
+                ParcelMapData::Svg(text) => {
+                    std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
+                }
+                ParcelMapData::Png(bytes) => {
+                    std::fs::write(out, bytes).with_context(|| format!("写入 {out} 失败"))?;
+                }
+            }
+            eprintln!(
+                "已出宗地图 → {out}（1:{}，注记 {} 条，残余压盖 {} 条）",
+                output.scale,
+                output.diagnostics.len(),
+                overlaps
+            );
+        }
+        RenderCommand::ParcelDxf {
+            file,
+            out,
+            parcel_code,
+            land_use,
+            owner,
+            scale,
+            no_xdata,
+            index,
+        } => {
+            use kanyu_core::cartography::{generate_boundary_lines, generate_boundary_points};
+            let (boundary, props) = parcel_boundary_from_file(file, *index)?;
+            let points = generate_boundary_points(&boundary, "J");
+            let lines = generate_boundary_lines(&boundary, &points);
+            let spec = kanyu_core::cass::CassDxfSpec {
+                scale: *scale,
+                parcel_code: parcel_code
+                    .clone()
+                    .or_else(|| prop_str(&props, &["parcel_id", "ZDDM", "zddm"]))
+                    .unwrap_or_default(),
+                land_use: land_use
+                    .clone()
+                    .or_else(|| prop_str(&props, &["parcel_use", "YT"]))
+                    .unwrap_or_default(),
+                owner: owner
+                    .clone()
+                    .or_else(|| prop_str(&props, &["owner", "QLRMC", "parcel_name"]))
+                    .unwrap_or_default(),
+                xdata: !no_xdata,
+            };
+            let text = kanyu_core::cass::parcel_to_cass_dxf(&boundary, &points, &lines, &spec)?;
+            std::fs::write(out, &text).with_context(|| format!("写入 {out} 失败"))?;
+            eprintln!(
+                "已导出 CASS 兼容 DXF → {out}（界址点 {}、界址线 {}，SOUTH XDATA {}）",
+                points.len(),
+                lines.len(),
+                if *no_xdata { "关" } else { "开" }
+            );
+        }
     }
     Ok(())
+}
+
+/// 宗地面要素选取与权属边界提取（parcel-map/parcel-dxf 共用）：
+/// 多面要素缺省取面积最大者；`--index` 按文档序第 N 个（0 起）。
+/// 返回（权属边界, 要素属性表）。
+#[allow(clippy::type_complexity)]
+fn parcel_boundary_from_file(
+    file: &str,
+    index: Option<usize>,
+) -> Result<(
+    kanyu_core::cartography::ParcelBoundary,
+    serde_json::Map<String, serde_json::Value>,
+)> {
+    let layer = Layer::load(stem_of(file), file)?;
+    let collection = layer.collection();
+    let mut polygons: Vec<&geojson::Feature> = collection
+        .features
+        .iter()
+        .filter(|f| {
+            matches!(
+                f.geometry.as_ref().map(|g| &g.value),
+                Some(geojson::Value::Polygon(_)) | Some(geojson::Value::MultiPolygon(_))
+            )
+        })
+        .collect();
+    if polygons.is_empty() {
+        bail!("{file} 中无面要素（宗地制图需要 Polygon/MultiPolygon 宗地边界）");
+    }
+    let feature = match index {
+        Some(i) => *polygons.get(i).with_context(|| {
+            format!(
+                "面要素序号越界：--index {i}，实际仅 {} 个面要素",
+                polygons.len()
+            )
+        })?,
+        None => {
+            // 缺省取面积最大面要素（外环鞋带面积）。
+            polygons.sort_by(|a, b| {
+                polygon_area(b)
+                    .partial_cmp(&polygon_area(a))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            polygons[0]
+        }
+    };
+    let boundary = kanyu_core::cartography::ParcelBoundary::from_geometry(
+        &feature.geometry.as_ref().unwrap().value,
+    )?;
+    let props = feature.properties.clone().unwrap_or_default();
+    Ok((boundary, props))
+}
+
+/// 面要素外环鞋带面积（排序用）。
+fn polygon_area(feature: &geojson::Feature) -> f64 {
+    let rings: &[Vec<Vec<f64>>] = match &feature.geometry.as_ref().unwrap().value {
+        geojson::Value::Polygon(rings) => rings,
+        geojson::Value::MultiPolygon(polys) => {
+            return polys
+                .iter()
+                .map(|r| shoelace(&r[0]))
+                .fold(0.0_f64, |a, b| a.max(b))
+        }
+        _ => return 0.0,
+    };
+    rings.first().map(|r| shoelace(r)).unwrap_or(0.0)
+}
+
+/// 环鞋带面积（绝对值）。
+fn shoelace(ring: &[Vec<f64>]) -> f64 {
+    let mut total = 0.0;
+    for i in 0..ring.len().saturating_sub(1) {
+        total += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+    }
+    total.abs() / 2.0
+}
+
+/// 要素属性字符串拾取（多候选键，空值跳过）。
+fn prop_str(props: &serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        if let Some(v) = props.get(*key) {
+            let s = match v {
+                serde_json::Value::String(s) => s.clone(),
+                serde_json::Value::Null => continue,
+                other => other.to_string(),
+            };
+            if !s.trim().is_empty() {
+                return Some(s);
+            }
+        }
+    }
+    None
+}
+
+/// 要素属性数值拾取（多候选键，字符串可解析亦收）。
+fn prop_f64(props: &serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> Option<f64> {
+    for key in keys {
+        match props.get(*key) {
+            Some(serde_json::Value::Number(n)) => return n.as_f64(),
+            Some(serde_json::Value::String(s)) => {
+                if let Ok(v) = s.trim().parse::<f64>() {
+                    return Some(v);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// 布局图例行：样式规则分类直通（无样式为空——排版器空图例不绘）。

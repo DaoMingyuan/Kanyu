@@ -16,6 +16,8 @@ pub mod agents;
 pub mod analysis;
 pub mod attrcalc;
 pub mod bench;
+pub mod cartography;
+pub mod cass;
 pub mod crs;
 pub mod dwg;
 pub mod error;

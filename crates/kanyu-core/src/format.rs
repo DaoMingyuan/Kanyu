@@ -273,6 +273,18 @@ impl FormatRegistry {
                 note: "移植自堪舆工具箱 txt_feature.py：宗地/点表双格式互认（X北Y东测绘惯例）；质检 kanyu data validate",
             },
             FormatCapabilities {
+                id: "dat",
+                name: "CASS 坐标数据文件（南方 CASS）",
+                extensions: &["dat"],
+                read: Full,
+                write: Full,
+                edit: Full,
+                symbol: None,
+                layout: None,
+                driver: "native",
+                note: "移植自堪舆工具箱 dat_tools.py：点号,编码,Y东,X北[,H] 轴序（CASS 标准），编码列保留（如界址点 302001），H 高程可空，兼容 BOM 与 # 注释",
+            },
+            FormatCapabilities {
                 id: "pdf",
                 name: "PDF",
                 extensions: &["pdf"],
@@ -386,5 +398,24 @@ mod tests {
         ] {
             assert!(reg.by_id(id).is_some(), "missing format: {id}");
         }
+    }
+
+    #[test]
+    fn cass_dat_format_registered_with_full_rw() {
+        // 南方 CASS .dat：读写编辑 Full、符号化/布局 None、原生驱动。
+        let reg = FormatRegistry::builtin();
+        let caps = reg.by_id("dat").expect("dat 应在册");
+        assert_eq!(caps.name, "CASS 坐标数据文件（南方 CASS）");
+        assert_eq!(caps.extensions, &["dat"]);
+        assert_eq!(caps.read, Support::Full);
+        assert_eq!(caps.write, Support::Full);
+        assert_eq!(caps.edit, Support::Full);
+        assert_eq!(caps.symbol, Support::None);
+        assert_eq!(caps.layout, Support::None);
+        assert_eq!(caps.driver, "native");
+        // 扩展名探测与读写能力断言。
+        assert_eq!(reg.detect("界址点.DAT").unwrap().id, "dat");
+        assert!(reg.require("dat", "read").is_ok());
+        assert!(reg.require("dat", "write").is_ok());
     }
 }

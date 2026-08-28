@@ -34,8 +34,10 @@ pub enum Command {
     Analysis(AnalysisCommand),
 
     /// 地图渲染：离屏出图（PNG/SVG）。
+    /// Box 收纳：parcel-map 参数组使 RenderCommand 体积远超其他子命令
+    /// （clippy large_enum_variant），堆间址保持 Command 枚举紧凑。
     #[command(subcommand)]
-    Render(RenderCommand),
+    Render(Box<RenderCommand>),
 
     /// WASM 技能：检视与执行插件（wasmtime 沙箱）。
     #[command(subcommand)]
@@ -418,6 +420,86 @@ pub enum RenderCommand {
         /// 样式规则 JSON 文件路径（与 --style 二选一）。
         #[arg(long)]
         style_file: Option<String>,
+    },
+    /// 宗地图出图（GB/T 42547-2023《地籍调查规程》图 L.3 版式）：界址点 Ø2.0mm 符号 +
+    /// 红界址线 + J 点号/边长注记（勘测定界图注记契约排版）+ 界址点坐标表 +
+    /// 比例尺（分母取整百）+ 指北针 + 签注栏（输出格式按 --out 扩展名判定：svg/png）。
+    ParcelMap {
+        /// 宗地数据文件（面要素；GeoJSON/SHP/宗地 TXT/DXF 等注册格式，
+        /// 多面要素缺省取面积最大者，可用 --index 指定）。
+        file: String,
+        /// 输出路径（.svg 或 .png）。
+        #[arg(long)]
+        out: String,
+        /// 宗地代码（缺省取要素属性 parcel_id/ZDDM/zddm）。
+        #[arg(long)]
+        parcel_code: Option<String>,
+        /// 土地权利人（缺省取属性 owner/QLRMC/parcel_name）。
+        #[arg(long)]
+        owner: Option<String>,
+        /// 所在图幅号（缺省取属性 map_sheet/TFH）。
+        #[arg(long)]
+        map_sheet: Option<String>,
+        /// 宗地面积（㎡；缺省取属性 area/ZDMJ，再无按几何现算）。
+        #[arg(long)]
+        area: Option<f64>,
+        /// 地类编码（缺省取属性 parcel_use/YT）。
+        #[arg(long)]
+        land_use: Option<String>,
+        /// 左侧竖排单位名（如 XXX自然资源局）。
+        #[arg(long, default_value = "")]
+        unit_name: String,
+        /// 测绘说明（左下；如「2026年08月解析法测绘界址点」）。
+        #[arg(long, default_value = "")]
+        survey_note: String,
+        /// 制图者。
+        #[arg(long, default_value = "")]
+        drawer: String,
+        /// 审核者。
+        #[arg(long, default_value = "")]
+        reviewer: String,
+        /// 制图日期。
+        #[arg(long, default_value = "")]
+        draw_date: String,
+        /// 审核日期。
+        #[arg(long, default_value = "")]
+        review_date: String,
+        /// 比例尺分母（缺省自动适配取整百）。
+        #[arg(long)]
+        scale: Option<u32>,
+        /// 分辨率 dpi（默认 150，仅 PNG）。
+        #[arg(long, default_value_t = 150.0)]
+        dpi: f64,
+        /// 面要素序号（缺省取面积最大面要素；指定后按文档序第 N 个，0 起）。
+        #[arg(long)]
+        index: Option<usize>,
+    },
+    /// 宗地 CASS 兼容 DXF 导出（南方 CASS 联动）：ZD/JZX/JZD/ZJ 分层 +
+    /// SOUTH 编码 XDATA（界址点 302001/界址线 302002），CASS 直接打开编辑。
+    ParcelDxf {
+        /// 宗地数据文件（面要素；同 parcel-map）。
+        file: String,
+        /// 输出路径（.dxf）。
+        #[arg(long)]
+        out: String,
+        /// 宗地代码（分式分子取末 7 位；缺省取属性 parcel_id/ZDDM/zddm）。
+        #[arg(long)]
+        parcel_code: Option<String>,
+        /// 地类编码（分式分母；缺省取属性 parcel_use/YT）。
+        #[arg(long)]
+        land_use: Option<String>,
+        /// 土地权利人（ZJ 注记；缺省取属性 owner/QLRMC/parcel_name）。
+        #[arg(long)]
+        owner: Option<String>,
+        /// 出图比例尺分母（纸面毫米要素换算模型单位；默认 1000）。
+        #[arg(long, default_value_t = 1000)]
+        scale: u32,
+        /// 不挂 SOUTH 编码 XDATA。
+        #[arg(long)]
+        no_xdata: bool,
+        /// 面要素序号（缺省取面积最大面要素；指定后按文档序第 N 个，0 起）。
+        #[arg(long)]
+        index: Option<usize>,
     },
 }
 

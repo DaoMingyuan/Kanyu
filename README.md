@@ -34,7 +34,8 @@ See [docs/MASTERPLAN.md](docs/MASTERPLAN.md) for the full vision.
 
 ## 特性（v0.1.0）
 
-- **数据心脏**：统一格式注册表（18 种格式的能力矩阵），GeoJSON 原生加载与属性查询。
+- **数据心脏**：统一格式注册表（20 种格式的能力矩阵，含宗地 TXT 与 CASS .dat），GeoJSON 原生加载与属性查询。
+- **不动产制图**：勘测定界图注记契约排版引擎（cartography）+ GB/T 42547 宗地图出图（`kanyu render parcel-map`）+ 南方 CASS 联动（.dat 读写、CASS 兼容 DXF `kanyu render parcel-dxf`）。
 - **堪舆数据库**：自研存档 `.kdb`（Arrow IPC + `kanyu.*` 元数据，与内存模型同构、类型保真、任何 Arrow 工具链可读）与堪舆工程 `.kyu`（JSON 工程清单：图层引用/视口/地图色彩/可见性），全格式互转。
 - **脊髓 CLI**：`kanyu data info/load/query/export`、`kanyu introspect`、`kanyu agents init/validate`、`kanyu mcp serve`，全局 `--json`。
 - **神经接口**：基于官方 `rmcp` SDK 的 MCP Server（stdio + streamable HTTP），确定性工具，结构化输出。

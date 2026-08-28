@@ -52,7 +52,7 @@ pub fn modules() -> Vec<ModuleInfo> {
     vec![
         ModuleInfo {
             name: "kanyu-core",
-            role: "数据心脏：格式注册表、图层模型、空间分析、投影/度量、AGENTS.md 语义、系统自省",
+            role: "数据心脏：格式注册表、图层模型、空间分析、投影/度量、不动产制图引擎（勘测定界图注记契约）、CASS 联动、AGENTS.md 语义、系统自省",
             status: "stable",
         },
         ModuleInfo {
@@ -67,7 +67,7 @@ pub fn modules() -> Vec<ModuleInfo> {
         },
         ModuleInfo {
             name: "kanyu-render",
-            role: "眼睛：离屏地图渲染（tiny-skia PNG + SVG，晨山/夜观星主题，属性驱动符号化），wgpu 实时管线待壳层",
+            role: "眼睛：离屏地图渲染（tiny-skia PNG + SVG，晨山/夜观星主题，属性驱动符号化）+ 宗地图渲染（GB/T 42547 图 L.3 版式），wgpu 实时管线待壳层",
             status: "incubating",
         },
         ModuleInfo {
