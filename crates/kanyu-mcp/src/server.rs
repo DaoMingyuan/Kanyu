@@ -214,6 +214,76 @@ pub struct SystemHotloadReq {
     pub wasm_path: String,
 }
 
+/// `kanyu_render_parcel_map` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RenderParcelMapReq {
+    /// 宗地数据文件路径（面要素；GeoJSON/SHP/宗地 TXT/DXF/kdb 等注册格式，
+    /// 多面要素缺省取面积最大者，可用 index 指定）。
+    pub path: String,
+    /// 输出格式：svg（源码文本回传）/ png（base64 图片回传）。
+    pub format: String,
+    /// 可选落盘路径（.svg/.png；给定则同时写文件）。
+    pub out: Option<String>,
+    /// 宗地代码（缺省取属性 parcel_id/ZDDM/zddm）。
+    pub parcel_code: Option<String>,
+    /// 土地权利人（缺省取属性 owner/QLRMC/parcel_name）。
+    pub owner: Option<String>,
+    /// 所在图幅号（缺省取属性 map_sheet/TFH）。
+    pub map_sheet: Option<String>,
+    /// 宗地面积（㎡；缺省取属性 area/ZDMJ，再无按几何现算）。
+    pub area: Option<f64>,
+    /// 地类编码（缺省取属性 parcel_use/YT）。
+    pub land_use: Option<String>,
+    /// 左侧竖排单位名（如 XXX自然资源局）。
+    pub unit_name: Option<String>,
+    /// 左下测绘说明（如「2026年08月解析法测绘界址点」）。
+    pub survey_note: Option<String>,
+    /// 制图者。
+    pub drawer: Option<String>,
+    /// 审核者。
+    pub reviewer: Option<String>,
+    /// 制图日期。
+    pub draw_date: Option<String>,
+    /// 审核日期。
+    pub review_date: Option<String>,
+    /// 比例尺分母（缺省自动适配取整百）。
+    pub scale: Option<u32>,
+    /// PNG 分辨率 dpi（默认 150，SVG 忽略）。
+    pub dpi: Option<f64>,
+    /// 面要素序号（缺省面积最大者；指定后按文档序第 N 个，0 起）。
+    pub index: Option<usize>,
+}
+
+/// `kanyu_render_parcel_dxf` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RenderParcelDxfReq {
+    /// 宗地数据文件路径（同 kanyu_render_parcel_map）。
+    pub path: String,
+    /// 输出路径（.dxf，必填落盘）。
+    pub out: String,
+    /// 宗地代码（分式分子取末 7 位；缺省取属性 parcel_id/ZDDM/zddm）。
+    pub parcel_code: Option<String>,
+    /// 地类编码（分式分母；缺省取属性 parcel_use/YT）。
+    pub land_use: Option<String>,
+    /// 土地权利人（ZJ 注记；缺省取属性 owner/QLRMC/parcel_name）。
+    pub owner: Option<String>,
+    /// 出图比例尺分母（纸面毫米要素换算模型单位；默认 1000）。
+    pub scale: Option<u32>,
+    /// 不挂 SOUTH 编码 XDATA（默认 false=挂载 302001/302002）。
+    pub no_xdata: Option<bool>,
+    /// 面要素序号（缺省面积最大者；指定后按文档序第 N 个，0 起）。
+    pub index: Option<usize>,
+}
+
+/// `kanyu_data_kdb_pack` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DataKdbPackReq {
+    /// 输入数据文件（任意注册格式，可多个；图层名=文件主干，重名中文报错）。
+    pub files: Vec<String>,
+    /// 输出路径（.kdb，KDB v2 多图层容器）。
+    pub out: String,
+}
+
 /// `kanyu_skill_run` 输入。
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SkillRunReq {
@@ -577,6 +647,197 @@ impl KanyuServer {
         };
         result.structured_content = Some(summary);
         Ok(result)
+    }
+
+    /// 宗地图出图（GB/T 42547 图 L.3 版式）。
+    #[tool(
+        name = "kanyu_render_parcel_map",
+        description = "宗地图出图（GB/T 42547-2023《地籍调查规程》图 L.3 版式：界址点 Ø2.0mm 符号 + 0.3mm 红界址线 + J 点号/边长注记（勘测定界图注记契约排版，残余压盖诚实回报）+ 界址点坐标表（长表自动折列）+ 宗地号/地类编码分式 + 整百比例尺自动求解 + 「北」指北针 + 签注栏；format=png 时 content 携带 base64 image/png，format=svg 时携带 SVG 源码文本；可选 out 同时落盘；structuredContent 携带比例尺/注记数/残余压盖数）"
+    )]
+    async fn render_parcel_map(
+        &self,
+        Parameters(req): Parameters<RenderParcelMapReq>,
+    ) -> Result<CallToolResult, McpError> {
+        use base64::Engine as _;
+        use kanyu_render::parcelmap::{
+            render_parcel_map_png, render_parcel_map_svg, ParcelMapData, ParcelMapSpec,
+        };
+
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let (boundary, props) =
+            kanyu_core::cartography::boundary_from_collection(&layer.collection(), req.index)
+                .map_err(to_mcp)?;
+        let prop = |keys: &[&str]| kanyu_core::cartography::feature_prop_str(&props, keys);
+        let spec = ParcelMapSpec {
+            parcel_code: req
+                .parcel_code
+                .or_else(|| prop(&["parcel_id", "ZDDM", "zddm"]))
+                .unwrap_or_default(),
+            owner: req
+                .owner
+                .or_else(|| prop(&["owner", "QLRMC", "parcel_name"]))
+                .unwrap_or_default(),
+            map_sheet: req
+                .map_sheet
+                .or_else(|| prop(&["map_sheet", "TFH"]))
+                .unwrap_or_default(),
+            area_sqm: req
+                .area
+                .or_else(|| kanyu_core::cartography::feature_prop_f64(&props, &["area", "ZDMJ"])),
+            land_use: req
+                .land_use
+                .or_else(|| prop(&["parcel_use", "YT"]))
+                .unwrap_or_default(),
+            unit_name: req.unit_name.unwrap_or_default(),
+            survey_note: req.survey_note.unwrap_or_default(),
+            drawer: req.drawer.unwrap_or_default(),
+            reviewer: req.reviewer.unwrap_or_default(),
+            draw_date: req.draw_date.unwrap_or_default(),
+            review_date: req.review_date.unwrap_or_default(),
+            scale: req.scale,
+            dpi: req.dpi.unwrap_or(150.0),
+            ..Default::default()
+        };
+        let fmt = req.format.to_ascii_lowercase();
+        let output = match fmt.as_str() {
+            "png" => render_parcel_map_png(&boundary, &spec).map_err(to_mcp)?,
+            "svg" => render_parcel_map_svg(&boundary, &spec).map_err(to_mcp)?,
+            other => {
+                return Err(McpError::invalid_params(
+                    format!("未知输出格式 '{other}'（支持 svg/png）"),
+                    None,
+                ));
+            }
+        };
+        let overlaps = output
+            .diagnostics
+            .iter()
+            .filter(|d| d.contains("overlap=true"))
+            .count();
+        let summary = serde_json::json!({
+            "scale": output.scale,
+            "label_count": output.diagnostics.len(),
+            "overlap_count": overlaps,
+            "format": fmt,
+            "out": req.out,
+        });
+        if let Some(out) = &req.out {
+            match &output.data {
+                ParcelMapData::Svg(text) => std::fs::write(out, text).map_err(to_mcp)?,
+                ParcelMapData::Png(bytes) => std::fs::write(out, bytes).map_err(to_mcp)?,
+            }
+        }
+        let mut result = match &output.data {
+            ParcelMapData::Png(bytes) => CallToolResult::success(vec![
+                ContentBlock::image(
+                    base64::engine::general_purpose::STANDARD.encode(bytes),
+                    "image/png",
+                ),
+                ContentBlock::text(summary.to_string()),
+            ]),
+            ParcelMapData::Svg(svg) => CallToolResult::success(vec![
+                ContentBlock::text(svg.clone()),
+                ContentBlock::text(summary.to_string()),
+            ]),
+        };
+        result.structured_content = Some(summary);
+        Ok(result)
+    }
+
+    /// 宗地 CASS 兼容 DXF 导出（南方 CASS 联动）。
+    #[tool(
+        name = "kanyu_render_parcel_dxf",
+        description = "宗地成果 CASS 兼容 DXF 导出（南方 CASS 联动：AC1024 DXF——ZD 宗地面 / JZX 界址线（逐边 + 边长注记，编码 302002）/ JZD 界址点（Ø2.0mm CIRCLE + 点号注记，编码 302001）/ ZJ 分式与权利人注记；编码挂 SOUTH XDATA，CASS 直接打开编辑且可被堪舆回读；注记位置经勘测定界图注记契约排版；out 必填落盘，返回界址点/界址线数与字节数）"
+    )]
+    async fn render_parcel_dxf(
+        &self,
+        Parameters(req): Parameters<RenderParcelDxfReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        use kanyu_core::cartography::{generate_boundary_lines, generate_boundary_points};
+
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let (boundary, props) =
+            kanyu_core::cartography::boundary_from_collection(&layer.collection(), req.index)
+                .map_err(to_mcp)?;
+        let prop = |keys: &[&str]| kanyu_core::cartography::feature_prop_str(&props, keys);
+        let points = generate_boundary_points(&boundary, "J");
+        let lines = generate_boundary_lines(&boundary, &points);
+        let spec = kanyu_core::cass::CassDxfSpec {
+            scale: req.scale.unwrap_or(1000),
+            parcel_code: prop(&["parcel_id", "ZDDM", "zddm"]).unwrap_or_default(),
+            land_use: prop(&["parcel_use", "YT"]).unwrap_or_default(),
+            owner: prop(&["owner", "QLRMC", "parcel_name"]).unwrap_or_default(),
+            xdata: !req.no_xdata.unwrap_or(false),
+        };
+        // CLI 旗标可覆盖属性拾取（MCP 侧 req 覆盖优先）
+        let spec = kanyu_core::cass::CassDxfSpec {
+            parcel_code: req.parcel_code.unwrap_or(spec.parcel_code),
+            land_use: req.land_use.unwrap_or(spec.land_use),
+            owner: req.owner.unwrap_or(spec.owner),
+            ..spec
+        };
+        let text = kanyu_core::cass::parcel_to_cass_dxf(&boundary, &points, &lines, &spec)
+            .map_err(to_mcp)?;
+        let bytes = text.len();
+        std::fs::write(&req.out, &text).map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "out": req.out,
+            "boundary_points": points.len(),
+            "boundary_lines": lines.len(),
+            "xdata": spec.xdata,
+            "scale": spec.scale,
+            "bytes": bytes,
+        })))
+    }
+
+    /// 多图层打包为堪舆数据库（KDB v2）。
+    #[tool(
+        name = "kanyu_data_kdb_pack",
+        description = "多图层打包为堪舆数据库（KDB v2 zip 容器：每输入文件成为一个命名图层，图层名=文件主干，重名报错；面向不动产登记数据库标准多表形态单文件建库——ZDJBXX/JZD/JZX… 一库全收，类型保真 RecordBatch 直通；读取侧 kanyu_data_load 取清单首图层）"
+    )]
+    async fn data_kdb_pack(
+        &self,
+        Parameters(req): Parameters<DataKdbPackReq>,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        if req.files.is_empty() {
+            return Err(McpError::invalid_params(
+                "kdb-pack 至少需要一个输入文件".to_string(),
+                None,
+            ));
+        }
+        let mut layers: Vec<kanyu_core::kdb::KdbLayer> = Vec::new();
+        for f in &req.files {
+            let stem = stem_of(f);
+            if layers.iter().any(|l| l.name == stem) {
+                return Err(McpError::invalid_params(
+                    format!("图层名重复（{stem}）：请重命名输入文件之一"),
+                    None,
+                ));
+            }
+            let layer = Layer::load(stem.clone(), f).map_err(to_mcp)?;
+            layers.push(kanyu_core::kdb::KdbLayer {
+                name: stem,
+                batch: layer.batch().clone(),
+            });
+        }
+        let summary: Vec<serde_json::Value> = layers
+            .iter()
+            .map(|l| {
+                serde_json::json!({
+                    "name": l.name,
+                    "rows": l.batch.num_rows(),
+                })
+            })
+            .collect();
+        let bytes = kanyu_core::kdb::layers_to_kdb(&layers).map_err(to_mcp)?;
+        std::fs::write(&req.out, &bytes).map_err(to_mcp)?;
+        Ok(Json(serde_json::json!({
+            "out": req.out,
+            "format": "kdb",
+            "format_version": "2",
+            "layer_count": layers.len(),
+            "layers": summary,
+        })))
     }
 
     /// 系统自省：架构、模块、格式矩阵、工具清单。
@@ -1975,5 +2236,112 @@ mod tests {
         assert!(e.message.contains("缺少必填参数"), "{e}");
         let e = get_prompt_sync("nope", None).unwrap_err();
         assert!(e.message.contains("未知 prompt"), "{e}");
+    }
+    /// 不动产测试宗地（40m×30m 矩形，投影坐标，带 parcel_* 属性）。
+    fn write_parcel_fixture(dir: &std::path::Path) -> String {
+        std::fs::create_dir_all(dir).unwrap();
+        let parcel = dir.join("parcel.geojson");
+        std::fs::write(
+            &parcel,
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                    [[39595000.0,4127000.0],[39595040.0,4127000.0],[39595040.0,4127030.0],[39595000.0,4127030.0],[39595000.0,4127000.0]]]},
+                 "properties":{"parcel_id":"371602113005GB00032","parcel_use":"0801","area":1200.0,"owner":"测试权利人"}}
+            ]}"#,
+        )
+        .unwrap();
+        parcel.to_str().unwrap().to_string()
+    }
+
+    #[tokio::test]
+    async fn render_parcel_map_svg_reports_scale_and_zero_overlap() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_parcelmap");
+        let parcel = write_parcel_fixture(&dir);
+        let server = KanyuServer::new();
+        let result = server
+            .render_parcel_map(Parameters(RenderParcelMapReq {
+                path: parcel,
+                format: "svg".to_string(),
+                out: None,
+                parcel_code: None,
+                owner: None,
+                map_sheet: None,
+                area: None,
+                land_use: None,
+                unit_name: None,
+                survey_note: None,
+                drawer: None,
+                reviewer: None,
+                draw_date: None,
+                review_date: None,
+                scale: None,
+                dpi: None,
+                index: None,
+            }))
+            .await
+            .unwrap();
+        let sc = result.structured_content.unwrap();
+        assert!(sc["scale"].as_u64().unwrap() >= 100);
+        assert_eq!(sc["overlap_count"].as_u64().unwrap(), 0);
+        // 4 点号 + 4 边长
+        assert_eq!(sc["label_count"].as_u64().unwrap(), 8);
+    }
+
+    #[tokio::test]
+    async fn render_parcel_dxf_writes_south_xdata() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_parceldxf");
+        let parcel = write_parcel_fixture(&dir);
+        let out = dir.join("parcel_cass.dxf");
+        let server = KanyuServer::new();
+        let Json(v) = server
+            .render_parcel_dxf(Parameters(RenderParcelDxfReq {
+                path: parcel,
+                out: out.to_str().unwrap().to_string(),
+                parcel_code: None,
+                land_use: None,
+                owner: None,
+                scale: None,
+                no_xdata: None,
+                index: None,
+            }))
+            .await
+            .unwrap();
+        assert_eq!(v["boundary_points"], 4);
+        assert_eq!(v["boundary_lines"], 4);
+        assert_eq!(v["xdata"], true);
+        let text = std::fs::read_to_string(&out).unwrap();
+        assert!(text.contains("SOUTH") && text.contains("302001") && text.contains("302002"));
+        // 分式分子 = 宗地代码末 7 位
+        assert!(text.contains("GB00032"));
+    }
+
+    #[tokio::test]
+    async fn data_kdb_pack_builds_v2_container() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_kdbpack");
+        let parcel = write_parcel_fixture(&dir);
+        let dat = dir.join("pts.dat");
+        std::fs::write(
+            &dat,
+            "J1,302001,39595462.533,4127300.446,12.5
+",
+        )
+        .unwrap();
+        let out = dir.join("db.kdb");
+        let server = KanyuServer::new();
+        let Json(v) = server
+            .data_kdb_pack(Parameters(DataKdbPackReq {
+                files: vec![parcel, dat.to_str().unwrap().to_string()],
+                out: out.to_str().unwrap().to_string(),
+            }))
+            .await
+            .unwrap();
+        assert_eq!(v["format_version"], "2");
+        assert_eq!(v["layer_count"], 2);
+        assert_eq!(v["layers"][1]["name"], "pts");
+        let bytes = std::fs::read(&out).unwrap();
+        assert_eq!(&bytes[..4], b"PK", "应为 zip 容器");
+        let layers = Layer::load_kdb_layers(out.to_str().unwrap()).unwrap();
+        assert_eq!(layers.len(), 2);
+        assert_eq!(layers[0].len(), 1);
     }
 }

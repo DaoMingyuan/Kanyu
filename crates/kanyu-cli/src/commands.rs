@@ -1099,8 +1099,8 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
 }
 
 /// 宗地面要素选取与权属边界提取（parcel-map/parcel-dxf 共用）：
-/// 多面要素缺省取面积最大者；`--index` 按文档序第 N 个（0 起）。
-/// 返回（权属边界, 要素属性表）。
+/// 薄壳委托 [`kanyu_core::cartography::boundary_from_collection`]
+/// （多面要素缺省取面积最大者；`--index` 按文档序第 N 个，0 起）。
 #[allow(clippy::type_complexity)]
 fn parcel_boundary_from_file(
     file: &str,
@@ -1110,99 +1110,20 @@ fn parcel_boundary_from_file(
     serde_json::Map<String, serde_json::Value>,
 )> {
     let layer = Layer::load(stem_of(file), file)?;
-    let collection = layer.collection();
-    let mut polygons: Vec<&geojson::Feature> = collection
-        .features
-        .iter()
-        .filter(|f| {
-            matches!(
-                f.geometry.as_ref().map(|g| &g.value),
-                Some(geojson::Value::Polygon(_)) | Some(geojson::Value::MultiPolygon(_))
-            )
-        })
-        .collect();
-    if polygons.is_empty() {
-        bail!("{file} 中无面要素（宗地制图需要 Polygon/MultiPolygon 宗地边界）");
-    }
-    let feature = match index {
-        Some(i) => *polygons.get(i).with_context(|| {
-            format!(
-                "面要素序号越界：--index {i}，实际仅 {} 个面要素",
-                polygons.len()
-            )
-        })?,
-        None => {
-            // 缺省取面积最大面要素（外环鞋带面积）。
-            polygons.sort_by(|a, b| {
-                polygon_area(b)
-                    .partial_cmp(&polygon_area(a))
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-            polygons[0]
-        }
-    };
-    let boundary = kanyu_core::cartography::ParcelBoundary::from_geometry(
-        &feature.geometry.as_ref().unwrap().value,
-    )?;
-    let props = feature.properties.clone().unwrap_or_default();
-    Ok((boundary, props))
+    Ok(kanyu_core::cartography::boundary_from_collection(
+        &layer.collection(),
+        index,
+    )?)
 }
 
-/// 面要素外环鞋带面积（排序用）。
-fn polygon_area(feature: &geojson::Feature) -> f64 {
-    let rings: &[Vec<Vec<f64>>] = match &feature.geometry.as_ref().unwrap().value {
-        geojson::Value::Polygon(rings) => rings,
-        geojson::Value::MultiPolygon(polys) => {
-            return polys
-                .iter()
-                .map(|r| shoelace(&r[0]))
-                .fold(0.0_f64, |a, b| a.max(b))
-        }
-        _ => return 0.0,
-    };
-    rings.first().map(|r| shoelace(r)).unwrap_or(0.0)
-}
-
-/// 环鞋带面积（绝对值）。
-fn shoelace(ring: &[Vec<f64>]) -> f64 {
-    let mut total = 0.0;
-    for i in 0..ring.len().saturating_sub(1) {
-        total += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
-    }
-    total.abs() / 2.0
-}
-
-/// 要素属性字符串拾取（多候选键，空值跳过）。
+/// 要素属性字符串拾取（薄壳委托 [`kanyu_core::cartography::feature_prop_str`]）。
 fn prop_str(props: &serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> Option<String> {
-    for key in keys {
-        if let Some(v) = props.get(*key) {
-            let s = match v {
-                serde_json::Value::String(s) => s.clone(),
-                serde_json::Value::Null => continue,
-                other => other.to_string(),
-            };
-            if !s.trim().is_empty() {
-                return Some(s);
-            }
-        }
-    }
-    None
+    kanyu_core::cartography::feature_prop_str(props, keys)
 }
 
-/// 要素属性数值拾取（多候选键，字符串可解析亦收）。
+/// 要素属性数值拾取（薄壳委托 [`kanyu_core::cartography::feature_prop_f64`]）。
 fn prop_f64(props: &serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> Option<f64> {
-    for key in keys {
-        match props.get(*key) {
-            Some(serde_json::Value::Number(n)) => return n.as_f64(),
-            Some(serde_json::Value::String(s)) => {
-                if let Ok(v) = s.trim().parse::<f64>() {
-                    return Some(v);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
+    kanyu_core::cartography::feature_prop_f64(props, keys)
 }
 
 /// 布局图例行：样式规则分类直通（无样式为空——排版器空图例不绘）。

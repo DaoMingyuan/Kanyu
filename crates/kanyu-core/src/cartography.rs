@@ -261,6 +261,114 @@ pub fn format_edge_length(length_m: f64) -> String {
     format!("{length_m:.2}")
 }
 
+// ---------------------------------------------------------------------------
+// 宗地面要素选取与属性拾取（CLI/MCP 共用入口助手）
+// ---------------------------------------------------------------------------
+
+/// 宗地面要素选取与权属边界提取：多面要素缺省取面积最大者（外环鞋带面积）；
+/// `index` 指定后按文档序第 N 个（0 起，越界中文报错）。
+/// 返回（权属边界, 要素属性表）。集合中无面要素时报中文错误。
+pub fn boundary_from_collection(
+    collection: &geojson::FeatureCollection,
+    index: Option<usize>,
+) -> Result<(ParcelBoundary, serde_json::Map<String, serde_json::Value>)> {
+    let mut polygons: Vec<&geojson::Feature> = collection
+        .features
+        .iter()
+        .filter(|f| {
+            matches!(
+                f.geometry.as_ref().map(|g| &g.value),
+                Some(geojson::Value::Polygon(_)) | Some(geojson::Value::MultiPolygon(_))
+            )
+        })
+        .collect();
+    if polygons.is_empty() {
+        return Err(crate::error::KanyuError::Other(
+            "集合中无面要素（宗地制图需要 Polygon/MultiPolygon 宗地边界）".to_string(),
+        ));
+    }
+    let feature = match index {
+        Some(i) => polygons.get(i).copied().ok_or_else(|| {
+            crate::error::KanyuError::Other(format!(
+                "面要素序号越界：index {i}，实际仅 {} 个面要素",
+                polygons.len()
+            ))
+        })?,
+        None => {
+            polygons.sort_by(|a, b| {
+                polygon_area(b)
+                    .partial_cmp(&polygon_area(a))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            polygons[0]
+        }
+    };
+    let boundary = ParcelBoundary::from_geometry(&feature.geometry.as_ref().unwrap().value)?;
+    let props = feature.properties.clone().unwrap_or_default();
+    Ok((boundary, props))
+}
+
+/// 面要素外环鞋带面积（多面取最大部件；排序用）。
+fn polygon_area(feature: &geojson::Feature) -> f64 {
+    match &feature.geometry.as_ref().unwrap().value {
+        geojson::Value::Polygon(rings) => rings.first().map(|r| shoelace(r)).unwrap_or(0.0),
+        geojson::Value::MultiPolygon(polys) => polys
+            .iter()
+            .filter_map(|r| r.first())
+            .map(|r| shoelace(r))
+            .fold(0.0_f64, f64::max),
+        _ => 0.0,
+    }
+}
+
+/// 环鞋带面积（绝对值）。
+fn shoelace(ring: &[Vec<f64>]) -> f64 {
+    let mut total = 0.0;
+    for i in 0..ring.len().saturating_sub(1) {
+        total += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+    }
+    total.abs() / 2.0
+}
+
+/// 要素属性字符串拾取（多候选键按序，空串/Null 跳过；非字符串取 JSON 文本）。
+pub fn feature_prop_str(
+    props: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<String> {
+    for key in keys {
+        if let Some(v) = props.get(*key) {
+            let s = match v {
+                serde_json::Value::String(s) => s.clone(),
+                serde_json::Value::Null => continue,
+                other => other.to_string(),
+            };
+            if !s.trim().is_empty() {
+                return Some(s);
+            }
+        }
+    }
+    None
+}
+
+/// 要素属性数值拾取（多候选键按序；字符串可解析为数值亦收）。
+pub fn feature_prop_f64(
+    props: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<f64> {
+    for key in keys {
+        match props.get(*key) {
+            Some(serde_json::Value::Number(n)) => return n.as_f64(),
+            Some(serde_json::Value::String(s)) => {
+                if let Ok(v) = s.trim().parse::<f64>() {
+                    return Some(v);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 /// 排版旋转归一化：数学角 → (-90°, 90°] 内**顺时针为正**的度数
 /// （字头向北、允许向西，附录 L.1.2；与 SVG rotate()/QGIS 存储同号，渲染直接可用）。
 pub fn upright_rotation(angle_deg: f64) -> f64 {
@@ -1281,5 +1389,61 @@ mod tests {
         }
         assert_eq!(report.pair_overlaps(), 1);
         assert_eq!(report.overlap_count(), 1);
+    }
+    /// 两面要素集合（小矩形 10×10 + 大矩形 40×30，均带 parcel_* 属性）。
+    fn two_parcels_collection() -> geojson::FeatureCollection {
+        let gj: geojson::GeoJson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]},
+                 "properties":{"parcel_id":"small","parcel_use":"0701","area":"100.0"}},
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[100,100],[140,100],[140,130],[100,130],[100,100]]]},
+                 "properties":{"parcel_id":"big","parcel_use":"0801","area":1200.0,"owner":"张三"}}
+            ]
+        }"#
+        .parse()
+        .unwrap();
+        geojson::FeatureCollection::try_from(gj).unwrap()
+    }
+
+    #[test]
+    fn boundary_from_collection_picks_largest_or_indexed() {
+        let collection = two_parcels_collection();
+        // 缺省取面积最大者（big，40×30）。
+        let (boundary, props) = boundary_from_collection(&collection, None).unwrap();
+        assert_eq!(props["parcel_id"].as_str().unwrap(), "big");
+        assert_eq!(boundary.exterior.points.len(), 5);
+        // 显式序号取文档序第 0 个（small）。
+        let (_b0, props0) = boundary_from_collection(&collection, Some(0)).unwrap();
+        assert_eq!(props0["parcel_id"].as_str().unwrap(), "small");
+        // 越界中文报错。
+        let err = boundary_from_collection(&collection, Some(5)).unwrap_err();
+        assert!(err.to_string().contains("越界"), "{err}");
+        // 无面要素报错。
+        let empty: geojson::GeoJson = r#"{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[0,0]},"properties":{}}]}"#
+            .parse()
+            .unwrap();
+        let points_only = geojson::FeatureCollection::try_from(empty).unwrap();
+        assert!(boundary_from_collection(&points_only, None).is_err());
+    }
+
+    #[test]
+    fn feature_prop_helpers_pick_by_keys() {
+        let (_b, props) = boundary_from_collection(&two_parcels_collection(), None).unwrap();
+        // 字符串拾取：首命中键优先、缺键跳过。
+        assert_eq!(
+            feature_prop_str(&props, &["missing", "parcel_id"]).as_deref(),
+            Some("big")
+        );
+        assert_eq!(
+            feature_prop_str(&props, &["owner"]).as_deref(),
+            Some("张三")
+        );
+        assert_eq!(feature_prop_str(&props, &["missing"]), None);
+        // 数值拾取：Number 直取、String 解析。
+        assert_eq!(feature_prop_f64(&props, &["area"]), Some(1200.0));
+        let (_b0, props0) = boundary_from_collection(&two_parcels_collection(), Some(0)).unwrap();
+        assert_eq!(feature_prop_f64(&props0, &["area"]), Some(100.0));
     }
 }

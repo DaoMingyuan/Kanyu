@@ -490,6 +490,68 @@ false=产出新图层）。
 - 报告类：`{"type": "report", "report": "…文本…"}`；
 - 错误为中文结构化错误（未知工具 / 图层不存在 / 参数个数与校验失败等）。
 
+### 3.21 不动产制图工具组（v0.23 不动产制图）
+
+CLI `kanyu render parcel-map` / `render parcel-dxf` / `data kdb-pack` 的
+MCP 同源投影（kanyu-core `cartography`/`cass`/`kdb` + kanyu-render `parcelmap`）。
+
+#### `kanyu_render_parcel_map`
+
+> 宗地图出图（GB/T 42547-2023《地籍调查规程》图 L.3 版式；勘测定界图
+> 注记契约排版——边长中点法线、点号角平分线朝外、SAT 避让，残余压盖
+> 诚实回报于 `overlap_count`）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 宗地数据文件路径（面要素；多面缺省取面积最大者） |
+| `format` | string | 是 | `svg`（源码文本回传）/ `png`（base64 图片回传） |
+| `out` | string \| null | 否 | 同时落盘路径（`.svg`/`.png`） |
+| `parcel_code` | string \| null | 否 | 宗地代码（缺省取属性 `parcel_id/ZDDM/zddm`） |
+| `owner` | string \| null | 否 | 土地权利人（缺省 `owner/QLRMC/parcel_name`） |
+| `map_sheet` | string \| null | 否 | 所在图幅号（缺省 `map_sheet/TFH`） |
+| `area` | number \| null | 否 | 宗地面积㎡（缺省 `area/ZDMJ`，再无现算） |
+| `land_use` | string \| null | 否 | 地类编码（缺省 `parcel_use/YT`） |
+| `unit_name` | string \| null | 否 | 左侧竖排单位名 |
+| `survey_note` | string \| null | 否 | 左下测绘说明 |
+| `drawer` / `reviewer` | string \| null | 否 | 制图者 / 审核者 |
+| `draw_date` / `review_date` | string \| null | 否 | 制图 / 审核日期 |
+| `scale` | integer \| null | 否 | 比例尺分母（缺省自动取整百） |
+| `dpi` | number \| null | 否 | PNG 分辨率（默认 150，SVG 忽略） |
+| `index` | integer \| null | 否 | 面要素文档序序号（0 起；缺省面积最大者） |
+
+返回：`format=png` → `content` = `image`（base64）+ `text`（摘要 JSON）；
+`format=svg` → `content` = `text`（SVG 源码）+ `text`（摘要 JSON）；
+`structuredContent`：`{"scale": 700, "label_count": 18, "overlap_count": 0, "format": "png", "out": null}`。
+
+#### `kanyu_render_parcel_dxf`
+
+> 宗地 CASS 兼容 DXF 导出（南方 CASS 联动：ZD/JZX/JZD/ZJ 分层 +
+> SOUTH 编码 XDATA 302001/302002，CASS 直接打开编辑且可被堪舆回读）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 宗地数据文件路径（同上） |
+| `out` | string | 是 | 输出路径（`.dxf` 落盘） |
+| `parcel_code` / `land_use` / `owner` | string \| null | 否 | 覆盖属性拾取（分式/注记） |
+| `scale` | integer \| null | 否 | 出图比例尺分母（默认 1000） |
+| `no_xdata` | boolean \| null | 否 | 不挂 SOUTH XDATA（默认 false=挂载） |
+| `index` | integer \| null | 否 | 面要素文档序序号（0 起） |
+
+返回：`{"out": "…", "boundary_points": 9, "boundary_lines": 9, "xdata": true, "scale": 1000, "bytes": 26731}`。
+
+#### `kanyu_data_kdb_pack`
+
+> 多图层打包为堪舆数据库（KDB v2 zip 容器：每输入文件成为一个命名图层，
+> 图层名=文件主干；面向不动产登记数据库标准多表形态单文件建库）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `files` | string[] | 是 | 输入数据文件（任意注册格式，可多个；重名主干报错） |
+| `out` | string | 是 | 输出路径（`.kdb`） |
+
+返回：`{"out": "…", "format": "kdb", "format_version": "2", "layer_count": 3, "layers": [{"name": "…", "rows": n}]}`。
+读取侧：`kanyu_data_load` 对 v2 容器取清单首图层。
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
@@ -509,6 +571,8 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | —（analysis 组扩展） | `kanyu_analysis_sjoin` / `kanyu_analysis_zonal_stats` | ✅ |
 | `kanyu.render.camera` | `kanyu_render_*` | 📋 |
 | —（render 组首工具；符号化并入其 style 参数，裁决 #17） | `kanyu_render_map` | ✅ |
+| —（不动产制图组，v0.23） | `kanyu_render_parcel_map` / `kanyu_render_parcel_dxf` | ✅ |
+| —（不动产建库，KDB v2） | `kanyu_data_kdb_pack` | ✅ |
 | `kanyu.system.generate` | `kanyu_system_*` | 📋 |
 | `kanyu.system.hotload` | `kanyu_system_hotload` | ✅ |
 | —（gene 组，Phase 5 落地） | `kanyu_skill_run` / `kanyu_skill_list` | ✅ |

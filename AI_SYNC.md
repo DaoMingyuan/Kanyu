@@ -103,6 +103,13 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第四轮：MCP 工具组投影（parcel-map/parcel-dxf/kdb-pack 入神经接口）
+- 提交：本次 commit；测试：`cargo test --workspace` **410 全绿**（cartography +2、MCP +3）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿；`kanyu introspect --json` 实测 32 工具在册（+3）
+- 内容：MCP 三工具——`kanyu_render_parcel_map`（SVG/PNG 回传 + 可选落盘 + structuredContent 比例尺/注记数/压盖数）、`kanyu_render_parcel_dxf`（CASS DXF 落盘回执）、`kanyu_data_kdb_pack`（KDB v2 建库回执图层清单）；`cartography` 新增公共助手 `boundary_from_collection`/`feature_prop_str`/`feature_prop_f64`（CLI 本地实现去重下沉，CLI/MCP 同一事实来源）；introspect +3；docs/MCP.md §3.21 + 命名表；docs/CLI/CHANGELOG 同步
+- 依据：§1.2 第 13 项④（壳层/MCP 投影的 MCP 半；壳层半待后续）
+- 偏差：无
+- 后续：§1.2 第 13 项余 ③邻宗地/道路注记+宗海用岛 ④壳层半（layoutview/工具箱面板）
+
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第三轮：PNG 边长注记旋转 + 坐标表长表折列（国标布局续）
 - 提交：本次 commit；测试：`cargo test --workspace` **405 全绿**（parcelmap +2：折列布局/旋转墨迹方向）；`clippy --workspace --all-targets -D warnings`（int_plus_one 一处随改）与 `fmt --check` 全绿
 - 内容：PNG 边长注记旋转（文本绘入透明离屏 pixmap 后绕中心旋转合成——`draw_rotated_text`，与 SVG rotate() 同角顺时针为正，第一轮「PNG 水平不旋转」已知限制消除）；界址点坐标表长表自动折列（`block_rows`/`display_height`/emit 重写：超 TABLE_MAX_H 触发 right_to_left 列流，题行仅首列、表头每列重复、面积行仅末列、列间隔 4.0mm 对齐勘测定界图契约，折列后展示高度参与适配区/比例尺求解）；docs（CLI §5.3/CHANGELOG）同步

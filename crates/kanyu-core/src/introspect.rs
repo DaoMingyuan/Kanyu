@@ -199,9 +199,26 @@ pub fn tools() -> Vec<ToolInfo> {
             group: "data",
             status: "stable",
         },
+        // 不动产建库（KDB v2 多图层容器）
+        ToolInfo {
+            name: "kanyu_data_kdb_pack",
+            group: "data",
+            status: "stable",
+        },
         // 渲染工具
         ToolInfo {
             name: "kanyu_render_map",
+            group: "render",
+            status: "stable",
+        },
+        // 不动产制图（GB/T 42547 宗地图 + CASS 兼容 DXF）
+        ToolInfo {
+            name: "kanyu_render_parcel_map",
+            group: "render",
+            status: "stable",
+        },
+        ToolInfo {
+            name: "kanyu_render_parcel_dxf",
             group: "render",
             status: "stable",
         },

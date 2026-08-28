@@ -6,6 +6,17 @@
 
 ### 新增
 
+- **不动产制图 MCP 工具组（神经接口投影）**：`kanyu_render_parcel_map`
+  （宗地图出图——SVG 源码/PNG base64 回传 + 可选落盘，
+  `structuredContent` 携带比例尺/注记数/残余压盖数）、
+  `kanyu_render_parcel_dxf`（CASS 兼容 DXF 导出落盘，回执界址点/界址线
+  数与字节数）、`kanyu_data_kdb_pack`（KDB v2 多图层建库，回执图层清单
+  与行数）——CLI 三命令的 MCP 同源投影，AI 代理可直接驱动出图/建库。
+  `cartography` 新增公共助手 `boundary_from_collection`（多面缺省取面积
+  最大者/序号指定）与 `feature_prop_str`/`feature_prop_f64`（属性拾取），
+  CLI 本地实现去重下沉核心。introspect 工具清单 +3（实测 32 项在册），
+  docs/MCP.md §3.21 + 命名表同步。MCP 3 项 + cartography 2 项测试全绿。
+
 - **宗地图第三轮：PNG 旋转注记 + 坐标表长表折列**：PNG 边长注记不再
   水平兜底——文本绘入透明离屏 pixmap 后绕中心旋转合成（与 SVG
   `rotate()` 同角，顺时针为正），SVG/PNG 双通道注记角度一致（对齐
