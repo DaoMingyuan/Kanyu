@@ -222,6 +222,12 @@ pub fn tools() -> Vec<ToolInfo> {
             group: "render",
             status: "stable",
         },
+        // 宗海图件（GB/T 42547 图 L.6/L.7/L.8）
+        ToolInfo {
+            name: "kanyu_render_sea_map",
+            group: "render",
+            status: "stable",
+        },
         ToolInfo {
             name: "kanyu_render_camera",
             group: "render",

@@ -295,6 +295,46 @@ pub struct DataKdbPackReq {
     pub out: String,
 }
 
+/// `kanyu_render_sea_map` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RenderSeaMapReq {
+    /// 宗海数据文件路径（面要素；GeoJSON/SHP/宗地 TXT/DXF/kdb 等注册格式，
+    /// 多面要素缺省取面积最大者，可用 index 指定）。
+    pub path: String,
+    /// 图种：boundary（宗海界址图 L.7，默认）/ location（宗海位置图 L.6）/
+    /// layout（宗海平面布置图 L.8）。
+    pub kind: Option<String>,
+    /// 输出格式：svg（源码文本回传）/ png（base64 图片回传）。
+    pub format: String,
+    /// 可选落盘路径（.svg/.png；给定则同时写文件）。
+    pub out: Option<String>,
+    /// 项目名称（标题前缀；缺省取属性 project_name/XMMC）。
+    pub project_name: Option<String>,
+    /// 宗海代码（缺省取属性 sea_code/ZHDM）。
+    pub sea_code: Option<String>,
+    /// 源坐标系（EPSG:xxxx 或纯数字；界址点坐标表经此反算 CGCS2000 经纬度
+    /// 度分秒；默认 EPSG:4527；仅 boundary 图种使用）。
+    pub source_epsg: Option<String>,
+    /// 测绘单位。
+    pub survey_unit: Option<String>,
+    /// 测量员。
+    pub surveyor: Option<String>,
+    /// 绘图员。
+    pub drawer: Option<String>,
+    /// 绘制日期。
+    pub draw_date: Option<String>,
+    /// 检查人。
+    pub inspector: Option<String>,
+    /// 审核人。
+    pub reviewer: Option<String>,
+    /// 比例尺分母（缺省自动适配取整百）。
+    pub scale: Option<u32>,
+    /// PNG 分辨率 dpi（默认 150，SVG 忽略）。
+    pub dpi: Option<f64>,
+    /// 面要素序号（缺省面积最大者；指定后按文档序第 N 个，0 起）。
+    pub index: Option<usize>,
+}
+
 /// `kanyu_skill_run` 输入。
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SkillRunReq {
@@ -875,6 +915,112 @@ impl KanyuServer {
             "layer_count": layers.len(),
             "layers": summary,
         })))
+    }
+
+    /// 宗海图件出图（宗海界址图 L.7 / 宗海位置图 L.6 / 宗海平面布置图 L.8）。
+    #[tool(
+        name = "kanyu_render_sea_map",
+        description = "宗海图件出图（GB/T 42547-2023 图 L.6/L.7/L.8 版式，A4 横：自适应经纬网图廓（度分秒注记）+ 宗海图斑 + 红界址线 + 网格签注表 + 指北针；kind=boundary（宗海界址图，默认，含界址点编号及坐标表【北纬|东经度分秒，source_epsg 反算】与点号边长注记）/ location（宗海位置图）/ layout（宗海平面布置图）；format=png 时 content 携带 base64 image/png，format=svg 时携带 SVG 源码文本；可选 out 同时落盘；structuredContent 携带图种/比例尺/注记数/残余压盖数）"
+    )]
+    async fn render_sea_map(
+        &self,
+        Parameters(req): Parameters<RenderSeaMapReq>,
+    ) -> Result<CallToolResult, McpError> {
+        use base64::Engine as _;
+        use kanyu_render::parcelmap::ParcelMapData;
+        use kanyu_render::seamap::{
+            render_sea_boundary_map_png, render_sea_boundary_map_svg, SeaBoundaryMapSpec,
+            SeaMapKind,
+        };
+
+        let kind = match req.kind.as_deref().unwrap_or("boundary") {
+            "boundary" => SeaMapKind::BoundaryMap,
+            "location" => SeaMapKind::LocationMap,
+            "layout" => SeaMapKind::LayoutMap,
+            other => {
+                return Err(McpError::invalid_params(
+                    format!("未知图种 '{other}'（支持 boundary/location/layout）"),
+                    None,
+                ));
+            }
+        };
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let (boundary, props) =
+            kanyu_core::cartography::boundary_from_collection(&layer.collection(), req.index)
+                .map_err(to_mcp)?;
+        let prop = |keys: &[&str]| kanyu_core::cartography::feature_prop_str(&props, keys);
+        let raw_epsg = req.source_epsg.unwrap_or_else(|| "EPSG:4527".to_string());
+        // 纯数字代码（如 4527）规范化为 EPSG:xxxx
+        let source_epsg = if raw_epsg.chars().all(|c| c.is_ascii_digit()) {
+            format!("EPSG:{raw_epsg}")
+        } else {
+            raw_epsg
+        };
+        let spec = SeaBoundaryMapSpec {
+            kind,
+            project_name: prop(&["project_name", "XMMC", "xmmc"]).unwrap_or_default(),
+            sea_code: prop(&["sea_code", "ZHDM", "zhdm"]).unwrap_or_default(),
+            source_epsg,
+            survey_unit: req.survey_unit.unwrap_or_default(),
+            surveyor: req.surveyor.unwrap_or_default(),
+            drawer: req.drawer.unwrap_or_default(),
+            draw_date: req.draw_date.unwrap_or_default(),
+            inspector: req.inspector.unwrap_or_default(),
+            reviewer: req.reviewer.unwrap_or_default(),
+            scale: req.scale,
+            dpi: req.dpi.unwrap_or(150.0),
+        };
+        // 参数覆盖属性拾取（req.project_name/sea_code 优先）
+        let spec = SeaBoundaryMapSpec {
+            project_name: req.project_name.unwrap_or(spec.project_name),
+            sea_code: req.sea_code.unwrap_or(spec.sea_code),
+            ..spec
+        };
+        let fmt = req.format.to_ascii_lowercase();
+        let output = match fmt.as_str() {
+            "png" => render_sea_boundary_map_png(&boundary, &spec).map_err(to_mcp)?,
+            "svg" => render_sea_boundary_map_svg(&boundary, &spec).map_err(to_mcp)?,
+            other => {
+                return Err(McpError::invalid_params(
+                    format!("未知输出格式 '{other}'（支持 svg/png）"),
+                    None,
+                ));
+            }
+        };
+        let overlaps = output
+            .diagnostics
+            .iter()
+            .filter(|d| d.contains("overlap=true"))
+            .count();
+        let summary = serde_json::json!({
+            "kind": kind.title_suffix(),
+            "scale": output.scale,
+            "label_count": output.diagnostics.len(),
+            "overlap_count": overlaps,
+            "format": fmt,
+            "out": req.out,
+        });
+        if let Some(out) = &req.out {
+            match &output.data {
+                ParcelMapData::Svg(text) => std::fs::write(out, text).map_err(to_mcp)?,
+                ParcelMapData::Png(bytes) => std::fs::write(out, bytes).map_err(to_mcp)?,
+            }
+        }
+        let mut result = match &output.data {
+            ParcelMapData::Png(bytes) => CallToolResult::success(vec![
+                ContentBlock::image(
+                    base64::engine::general_purpose::STANDARD.encode(bytes),
+                    "image/png",
+                ),
+                ContentBlock::text(summary.to_string()),
+            ]),
+            ParcelMapData::Svg(svg) => CallToolResult::success(vec![
+                ContentBlock::text(svg.clone()),
+                ContentBlock::text(summary.to_string()),
+            ]),
+        };
+        result.structured_content = Some(summary);
+        Ok(result)
     }
 
     /// 系统自省：架构、模块、格式矩阵、工具清单。
@@ -2385,5 +2531,59 @@ mod tests {
         let layers = Layer::load_kdb_layers(out.to_str().unwrap()).unwrap();
         assert_eq!(layers.len(), 2);
         assert_eq!(layers[0].len(), 1);
+    }
+    #[tokio::test]
+    async fn render_sea_map_kinds_render_with_scale() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_seamap");
+        let parcel = write_parcel_fixture(&dir);
+        let server = KanyuServer::new();
+        let mk_req = |kind: Option<&str>| RenderSeaMapReq {
+            path: parcel.clone(),
+            kind: kind.map(str::to_string),
+            format: "svg".to_string(),
+            out: None,
+            project_name: Some("代理围填海项目".to_string()),
+            sea_code: None,
+            source_epsg: Some("4527".to_string()),
+            survey_unit: None,
+            surveyor: None,
+            drawer: None,
+            draw_date: None,
+            inspector: None,
+            reviewer: None,
+            scale: None,
+            dpi: None,
+            index: None,
+        };
+        // L.7 界址图（默认 kind + 纯数字 EPSG 规范化）
+        let r7 = server
+            .render_sea_map(Parameters(mk_req(None)))
+            .await
+            .unwrap();
+        let sc = r7.structured_content.unwrap();
+        assert_eq!(sc["kind"], "宗海界址图");
+        assert!(sc["scale"].as_u64().unwrap() >= 100);
+        assert_eq!(sc["overlap_count"], 0);
+        assert!(sc["label_count"].as_u64().unwrap() > 0);
+        // L.6 位置图（无注记）
+        let r6 = server
+            .render_sea_map(Parameters(mk_req(Some("location"))))
+            .await
+            .unwrap();
+        let sc6 = r6.structured_content.unwrap();
+        assert_eq!(sc6["kind"], "宗海位置图");
+        assert_eq!(sc6["label_count"], 0);
+        // L.8 平面布置图
+        let r8 = server
+            .render_sea_map(Parameters(mk_req(Some("layout"))))
+            .await
+            .unwrap();
+        assert_eq!(r8.structured_content.unwrap()["kind"], "宗海平面布置图");
+        // 未知图种：中文错误
+        let err = server
+            .render_sea_map(Parameters(mk_req(Some("island"))))
+            .await
+            .unwrap_err();
+        assert!(err.message.contains("未知图种"), "{err}");
     }
 }

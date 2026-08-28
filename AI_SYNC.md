@@ -103,6 +103,17 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第九轮：宗海三图种 MCP 工具（kanyu_render_sea_map）
+- 提交：本次 commit；测试：`cargo test --workspace` **422 全绿**（MCP +1：三图种回执 + 未知图种中文错误）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿；`kanyu introspect --json` 实测 33 工具在册（+1）
+- 内容：MCP `kanyu_render_sea_map`——`kind` 一参三图种（boundary L.7/location L.6/layout L.8），SVG/PNG 回传 + 可选落盘 + structuredContent（图种/比例尺/注记数/压盖数），`source_epsg` 纯数字规范化，属性拾取 project_name/XMMC、sea_code/ZHDM；introspect +1；docs/MCP.md §3.21 + 命名表；CHANGELOG 同步
+- 偏差：无
+- 后续：§1.2 第 13 项余 ③用岛图种（L.9/L.10）④壳层半（layoutview/工具箱面板）
+
+### [开工] 2026-08-28 kimi-code(main) — 不动产制图第九轮：宗海三图种 MCP 工具（kanyu_render_sea_map）
+- 范围：crates/kanyu-mcp/src/server.rs、crates/kanyu-core/src/introspect.rs、docs（MCP/CHANGELOG）
+- 依据：§1.2 第 13 项④（MCP 半补齐）；CLI sea-boundary-map/sea-location-map/sea-layout-map 的 MCP 同源投影
+- 预计：小（单工具 kind 参数 + 登记 + 测试）
+
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第八轮：宗海位置图/平面布置图（L.6/L.8 图种分派）
 - 提交：本次 commit；测试：`cargo test --workspace` **421 全绿**（seamap +1：L.6/L.8 无表无注记 + L.7 回归）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
 - 内容：`SeaMapKind` 图种分派入 `seamap` 渲染管线（BoundaryMap/LocationMap/LayoutMap——标题后缀/坐标表与注记开关/比例尺左下或下中）；CLI 重构为共享 `SeaMapArgs` 三变体（`sea-boundary-map`/`sea-location-map`/`sea-layout-map`，clap flatten 零重复）；`sea_map_render` 共用实现；docs（CLI §5.6/MASTERPLAN/CHANGELOG）同步

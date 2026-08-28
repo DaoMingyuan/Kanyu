@@ -554,6 +554,29 @@ MCP 同源投影（kanyu-core `cartography`/`cass`/`kdb` + kanyu-render `parcelm
 返回：`{"out": "…", "format": "kdb", "format_version": "2", "layer_count": 3, "layers": [{"name": "…", "rows": n}]}`。
 读取侧：`kanyu_data_load` 对 v2 容器取清单首图层。
 
+#### `kanyu_render_sea_map`
+
+> 宗海图件出图（GB/T 42547-2023 图 L.6/L.7/L.8 版式；`kind` 一参三图种，
+> CLI `sea-boundary-map`/`sea-location-map`/`sea-layout-map` 的 MCP 同源投影）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 宗海数据文件路径（面要素；多面缺省取面积最大者） |
+| `kind` | string \| null | 否 | `boundary`（宗海界址图 L.7，默认）/ `location`（宗海位置图 L.6）/ `layout`（宗海平面布置图 L.8） |
+| `format` | string | 是 | `svg`（源码文本回传）/ `png`（base64 图片回传） |
+| `out` | string \| null | 否 | 同时落盘路径（`.svg`/`.png`） |
+| `project_name` | string \| null | 否 | 项目名称（缺省 `project_name/XMMC`） |
+| `sea_code` | string \| null | 否 | 宗海代码（缺省 `sea_code/ZHDM`） |
+| `source_epsg` | string \| null | 否 | 源坐标系（默认 `EPSG:4527`；坐标表 DMS 反算基准，仅 boundary） |
+| `survey_unit` / `surveyor` / `drawer` / `draw_date` / `inspector` / `reviewer` | string \| null | 否 | 网格签注表六参数 |
+| `scale` | integer \| null | 否 | 比例尺分母（缺省自动取整百） |
+| `dpi` | number \| null | 否 | PNG 分辨率（默认 150，SVG 忽略） |
+| `index` | integer \| null | 否 | 面要素文档序序号（0 起） |
+
+返回：`format=png` → `content` = `image`（base64）+ `text`（摘要 JSON）；
+`format=svg` → `content` = `text`（SVG 源码）+ `text`（摘要 JSON）；
+`structuredContent`：`{"kind": "宗海界址图", "scale": 800, "label_count": 18, "overlap_count": 0, "format": "png", "out": null}`。
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
@@ -574,6 +597,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | `kanyu.render.camera` | `kanyu_render_*` | 📋 |
 | —（render 组首工具；符号化并入其 style 参数，裁决 #17） | `kanyu_render_map` | ✅ |
 | —（不动产制图组，v0.23） | `kanyu_render_parcel_map` / `kanyu_render_parcel_dxf` | ✅ |
+| —（宗海图件组，v0.23） | `kanyu_render_sea_map` | ✅ |
 | —（不动产建库，KDB v2） | `kanyu_data_kdb_pack` | ✅ |
 | `kanyu.system.generate` | `kanyu_system_*` | 📋 |
 | `kanyu.system.hotload` | `kanyu_system_hotload` | ✅ |

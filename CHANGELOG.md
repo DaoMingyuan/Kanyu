@@ -6,6 +6,14 @@
 
 ### 新增
 
+- **宗海图件 MCP 工具 `kanyu_render_sea_map`**：`kind` 一参三图种
+  （`boundary` 宗海界址图 L.7 / `location` 宗海位置图 L.6 /
+  `layout` 宗海平面布置图 L.8）——CLI 三命令的 MCP 同源投影
+  （SVG 源码/PNG base64 回传 + 可选落盘；`source_epsg` 纯数字自动
+  规范化；`structuredContent` 携带图种/比例尺/注记数/残余压盖数）。
+  introspect +1（实测 33 项在册），docs/MCP.md §3.21 + 命名表同步，
+  1 项测试（三图种回执 + 未知图种中文错误）。
+
 - **宗海位置图（L.6）/ 平面布置图（L.8）出图**：`SeaMapKind` 图种分派
   接入 `seamap` 渲染管线——`kanyu render sea-location-map` /
   `sea-layout-map`（经纬网图廓 + 宗海图斑 + 界址点符号 + 网格签注表 +
