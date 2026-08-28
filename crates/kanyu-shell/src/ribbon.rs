@@ -119,6 +119,8 @@ pub enum RibbonAction {
     // 制图
     /// 地图导出对话框。
     ExportMapDialog,
+    /// 不动产制图对话框。
+    EstateMapDialog,
     // 视图
     /// 缩放到数据范围。
     ZoomToFit,
@@ -219,7 +221,7 @@ fn layout_of(tab: RibbonTab) -> &'static [GroupLayout] {
         ],
         RibbonTab::Cartography => &[GroupLayout {
             name: "地图输出",
-            commands: &["export_map"],
+            commands: &["export_map", "estate_map"],
         }],
         RibbonTab::View => &[
             GroupLayout {
@@ -532,6 +534,7 @@ mod tests {
             RibbonAction::CycleMapTheme,
             RibbonAction::BufferDialog,
             RibbonAction::ExportMapDialog,
+            RibbonAction::EstateMapDialog,
             RibbonAction::SkillHotload,
             RibbonAction::About,
         ] {

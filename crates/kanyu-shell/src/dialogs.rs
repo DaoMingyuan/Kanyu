@@ -29,6 +29,8 @@ pub struct Dialogs {
     pub measure: Option<MeasureState>,
     /// 地图导出。
     pub export_map: Option<ExportMapState>,
+    /// 不动产制图。
+    pub estate_map: Option<EstateMapState>,
     /// 运行技能。
     pub skill_run: Option<SkillRunState>,
     /// 关于堪舆。
@@ -124,6 +126,129 @@ pub struct ExportMapState {
     pub out: String,
 }
 
+/// 不动产制图九图种（下拉顺序；首项为默认图种）。
+pub const ESTATE_MAP_KINDS: [&str; 9] = [
+    "宗地图(使用权)",
+    "所有权宗地图",
+    "宗地草图",
+    "房产图",
+    "宗海界址图",
+    "宗海位置图",
+    "宗海平面布置图",
+    "用岛范围图",
+    "设施布置图",
+];
+
+/// 不动产图种（标签见 [`ESTATE_MAP_KINDS`]，单一事实来源；app 按此分派渲染器）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EstateMapKind {
+    /// 宗地图（土地使用权，图 L.3）。
+    ParcelUseRight,
+    /// 土地所有权宗地图（图 L.4）。
+    ParcelOwnership,
+    /// 宗地草图（表 B.4）。
+    ParcelSketch,
+    /// 房产图（图 L.5）。
+    House,
+    /// 宗海界址图（图 L.7）。
+    SeaBoundary,
+    /// 宗海位置图（图 L.6）。
+    SeaLocation,
+    /// 宗海平面布置图（图 L.8）。
+    SeaLayout,
+    /// 用岛范围图（图 L.9）。
+    IslandRange,
+    /// 建筑物和设施布置图（图 L.10）。
+    IslandFacility,
+}
+
+impl EstateMapKind {
+    /// 下拉标签 → 图种（未知标签 None）。
+    pub fn from_label(label: &str) -> Option<Self> {
+        ESTATE_MAP_KINDS
+            .iter()
+            .position(|&k| k == label)
+            .map(|i| match i {
+                0 => Self::ParcelUseRight,
+                1 => Self::ParcelOwnership,
+                2 => Self::ParcelSketch,
+                3 => Self::House,
+                4 => Self::SeaBoundary,
+                5 => Self::SeaLocation,
+                6 => Self::SeaLayout,
+                7 => Self::IslandRange,
+                _ => Self::IslandFacility,
+            })
+    }
+}
+
+/// 不动产制图表单（九图种出图；输出路径不进表单——确定后弹保存框采集）。
+pub struct EstateMapState {
+    /// 图种（ESTATE_MAP_KINDS 之一）。
+    pub kind: String,
+    /// 代码（宗地代码/宗海代码/用岛代码；可空，要素属性自动拾取）。
+    pub code: String,
+    /// 权利人或项目名（可空，要素属性自动拾取）。
+    pub owner: String,
+    /// 比例尺分母（空 = 自动整百）。
+    pub scale: String,
+    /// 分辨率 DPI（默认 150）。
+    pub dpi: String,
+    /// 丈量者（仅宗地草图显示）。
+    pub measurer: String,
+    /// 地籍区号（仅所有权宗地图显示）。
+    pub cadastral_district: String,
+}
+
+impl Default for EstateMapState {
+    fn default() -> Self {
+        Self {
+            kind: ESTATE_MAP_KINDS[0].to_string(),
+            code: String::new(),
+            owner: String::new(),
+            scale: String::new(),
+            dpi: "150".to_string(),
+            measurer: String::new(),
+            cadastral_district: String::new(),
+        }
+    }
+}
+
+impl EstateMapState {
+    /// 当前图种是否宗地草图（显示丈量者输入）。
+    pub fn is_sketch(&self) -> bool {
+        self.kind == ESTATE_MAP_KINDS[2]
+    }
+    /// 当前图种是否所有权宗地图（显示地籍区号输入）。
+    pub fn is_ownership(&self) -> bool {
+        self.kind == ESTATE_MAP_KINDS[1]
+    }
+}
+
+/// 比例尺分母解析：空串 → None（自动整百）；正整数 → Some；其余中文报错。
+pub fn parse_scale(text: &str) -> Result<Option<u32>, String> {
+    let t = text.trim();
+    if t.is_empty() {
+        return Ok(None);
+    }
+    match t.parse::<u32>() {
+        Ok(n) if n > 0 => Ok(Some(n)),
+        _ => Err(format!("比例尺分母须为正整数（留空自动整百）: {t}")),
+    }
+}
+
+/// 分辨率解析：空串 → 默认 150；正数 → 值；其余中文报错。
+pub fn parse_dpi(text: &str) -> Result<f64, String> {
+    let t = text.trim();
+    if t.is_empty() {
+        return Ok(150.0);
+    }
+    match t.parse::<f64>() {
+        Ok(v) if v.is_finite() && v > 0.0 => Ok(v),
+        _ => Err(format!("DPI 须为正数: {t}")),
+    }
+}
+
 /// 运行技能表单。
 #[derive(Default)]
 pub struct SkillRunState {
@@ -175,6 +300,16 @@ pub enum DialogResult {
     Measure { layer: String, kind: String },
     /// 地图导出。
     ExportMap { out: String },
+    /// 不动产制图出图（输出路径由保存框采集，不在表单内）。
+    EstateMap {
+        kind: String,
+        code: String,
+        owner: String,
+        scale: Option<u32>,
+        dpi: f64,
+        measurer: String,
+        cadastral_district: String,
+    },
     /// 运行技能。
     SkillRun { skill_id: String, layer: String },
     /// 表单验证失败（红字提示，由 app 反馈到终端）。
@@ -397,6 +532,60 @@ impl Dialogs {
             }
         }
 
+        if let Some(st) = &mut self.estate_map {
+            let mut err: Option<String> = None;
+            match dialog_shell(ctx, "不动产制图出图", |ui| {
+                combo_static(ui, "图种", &mut st.kind, &ESTATE_MAP_KINDS, true);
+                text_input(
+                    ui,
+                    "代码",
+                    &mut st.code,
+                    "宗地代码/宗海代码/用岛代码（可空）",
+                    true,
+                );
+                text_input(ui, "权利人/项目名", &mut st.owner, "可空", true);
+                text_input(ui, "比例尺分母", &mut st.scale, "空 = 自动整百", true);
+                text_input(ui, "DPI", &mut st.dpi, "默认 150", true);
+                if st.is_sketch() {
+                    text_input(ui, "丈量者", &mut st.measurer, "宗地草图签注栏", true);
+                }
+                if st.is_ownership() {
+                    text_input(ui, "地籍区号", &mut st.cadastral_district, "DJQDM", true);
+                }
+                if let Some(e) = &err {
+                    error_caption(ui, e);
+                } else {
+                    hint_caption(
+                        ui,
+                        "留空字段从要素属性自动拾取（ZDDM/QLRMC/DJQDM/XMMC/ZHDM…）；确定后选择保存路径",
+                    );
+                }
+            }) {
+                DialogAction::Ok => match (parse_scale(&st.scale), parse_dpi(&st.dpi)) {
+                    (Ok(scale), Ok(dpi)) => {
+                        result = Some(DialogResult::EstateMap {
+                            kind: st.kind.clone(),
+                            code: st.code.trim().to_string(),
+                            owner: st.owner.trim().to_string(),
+                            scale,
+                            dpi,
+                            measurer: st.measurer.trim().to_string(),
+                            cadastral_district: st.cadastral_district.trim().to_string(),
+                        });
+                        self.estate_map = None;
+                    }
+                    (Err(e), _) | (_, Err(e)) => {
+                        err = Some(e);
+                        result = Some(DialogResult::Invalid {
+                            reason: err.clone().unwrap(),
+                        });
+                    }
+                },
+                DialogAction::Cancel => self.estate_map = None,
+                DialogAction::None => {}
+            }
+        }
+
         if let Some(st) = &mut self.skill_run {
             match dialog_shell(ctx, "运行技能（结果存为新图层）", |ui| {
                 layer_picker(ui, "技能", &mut st.skill_id, skills, true);
@@ -458,5 +647,76 @@ impl Dialogs {
         }
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn estate_map_parse_scale() {
+        // 空串（含纯空白）→ None（自动整百）。
+        assert_eq!(parse_scale("").unwrap(), None);
+        assert_eq!(parse_scale("   ").unwrap(), None);
+        // 正整数（容忍首尾空白）。
+        assert_eq!(parse_scale("500").unwrap(), Some(500));
+        assert_eq!(parse_scale(" 1000 ").unwrap(), Some(1000));
+        // 非数 / 非正 / 小数 → 中文报错。
+        assert!(parse_scale("abc").is_err());
+        assert!(parse_scale("0").is_err());
+        assert!(parse_scale("-100").is_err());
+        assert!(parse_scale("12.5").is_err());
+    }
+
+    #[test]
+    fn estate_map_parse_dpi() {
+        assert_eq!(parse_dpi("").unwrap(), 150.0);
+        assert_eq!(parse_dpi("  ").unwrap(), 150.0);
+        assert_eq!(parse_dpi("300").unwrap(), 300.0);
+        assert!(parse_dpi("abc").is_err());
+        assert!(parse_dpi("0").is_err());
+        assert!(parse_dpi("-1").is_err());
+    }
+
+    #[test]
+    fn estate_map_state_defaults() {
+        let st = EstateMapState::default();
+        assert_eq!(st.kind, ESTATE_MAP_KINDS[0]);
+        assert_eq!(st.dpi, "150");
+        assert!(!st.is_sketch());
+        assert!(!st.is_ownership());
+        let sketch = EstateMapState {
+            kind: ESTATE_MAP_KINDS[2].to_string(),
+            ..Default::default()
+        };
+        assert!(sketch.is_sketch());
+        let ownership = EstateMapState {
+            kind: ESTATE_MAP_KINDS[1].to_string(),
+            ..Default::default()
+        };
+        assert!(ownership.is_ownership());
+    }
+
+    #[test]
+    fn estate_map_kinds_nine() {
+        assert_eq!(ESTATE_MAP_KINDS.len(), 9);
+        assert!(ESTATE_MAP_KINDS.iter().all(|k| !k.is_empty()));
+        // 标签 ↔ 图种枚举全量往返（改名不失联）。
+        for label in ESTATE_MAP_KINDS {
+            assert!(
+                EstateMapKind::from_label(label).is_some(),
+                "未映射: {label}"
+            );
+        }
+        assert!(EstateMapKind::from_label("不存在的图种").is_none());
+        assert_eq!(
+            EstateMapKind::from_label(ESTATE_MAP_KINDS[0]),
+            Some(EstateMapKind::ParcelUseRight)
+        );
+        assert_eq!(
+            EstateMapKind::from_label(ESTATE_MAP_KINDS[8]),
+            Some(EstateMapKind::IslandFacility)
+        );
     }
 }

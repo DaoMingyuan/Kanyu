@@ -469,6 +469,10 @@ impl KanyuApp {
                 app.tool_run = Some(st);
             }
         }
+        // --estatemap-demo（隐藏验证参数）：启动即打开不动产制图对话框（截图验证）。
+        if args.estatemap_demo {
+            app.dialogs.estate_map = Some(crate::dialogs::EstateMapState::default());
+        }
         // --load 可多次指定；.kyu 走工程恢复，其余走数据加载。
         // frames/layout-bind 演示系列：load[1] 起由演示预置接管（载入新建框）。
         let frames_demo = args.frames_demo || args.frames_demo2 || args.frames_demo3;
@@ -1926,6 +1930,191 @@ impl KanyuApp {
         Ok(format!("已导出地图 → {out}（{w}×{h}）"))
     }
 
+    /// 不动产制图出图（九图种）：选中图层取面要素 → 勘测定界图注记契约排版 →
+    /// rfd 保存框落盘 PNG/SVG。参数优先、要素属性键回退（与 CLI 同一拾取键）。
+    #[allow(clippy::too_many_arguments)]
+    fn op_estate_map(
+        &mut self,
+        kind: &str,
+        code: &str,
+        owner: &str,
+        scale: Option<u32>,
+        dpi: f64,
+        measurer: &str,
+        cadastral_district: &str,
+    ) -> Result<String, String> {
+        use kanyu_core::cartography::{
+            boundary_from_collection, feature_prop_f64, feature_prop_str,
+        };
+        use kanyu_render::parcelmap::ParcelMapData;
+
+        let Some(i) = self.selected else {
+            return Err("未选中图层".to_string());
+        };
+        let coll = self.layers[i].layer.collection();
+        let (boundary, props) = boundary_from_collection(&coll, None).map_err(|e| e.to_string())?;
+        // 字符串参数：非空优先，空串回退属性键拾取。
+        let pick = |param: &str, keys: &[&str]| -> String {
+            if param.is_empty() {
+                feature_prop_str(&props, keys).unwrap_or_default()
+            } else {
+                param.to_string()
+            }
+        };
+        // 输出路径：保存框采集（默认文件名 {图种名}.png，过滤器 PNG/SVG）。
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("PNG 图片", &["png"])
+            .add_filter("SVG 矢量", &["svg"])
+            .set_file_name(format!("{kind}.png"))
+            .save_file()
+        else {
+            return Ok(format!("已取消出图（{kind}）"));
+        };
+        let out_path = path.to_string_lossy().into_owned();
+        let ext = out_path
+            .rsplit('.')
+            .next()
+            .map(str::to_ascii_lowercase)
+            .unwrap_or_default();
+        if ext != "png" && ext != "svg" {
+            return Err(format!("输出路径须以 .png 或 .svg 结尾: {out_path}"));
+        }
+        let is_svg = ext == "svg";
+        let estate_kind = crate::dialogs::EstateMapKind::from_label(kind)
+            .ok_or_else(|| format!("未知图种: {kind}"))?;
+        use crate::dialogs::EstateMapKind as K;
+        // 按图种构建 Spec 并渲染（产物统一 scale/diagnostics/data 三元组）。
+        let (scale_out, diagnostics, data) = match estate_kind {
+            K::ParcelUseRight | K::ParcelOwnership | K::ParcelSketch => {
+                use kanyu_render::parcelmap::{
+                    render_parcel_map_png, render_parcel_map_svg, ParcelMapKind, ParcelMapSpec,
+                };
+                let pk = match estate_kind {
+                    K::ParcelOwnership => ParcelMapKind::Ownership,
+                    K::ParcelSketch => ParcelMapKind::Sketch,
+                    _ => ParcelMapKind::UseRight,
+                };
+                let spec = ParcelMapSpec {
+                    kind: pk,
+                    parcel_code: pick(code, &["parcel_id", "ZDDM", "zddm"]),
+                    owner: pick(owner, &["owner", "QLRMC", "parcel_name"]),
+                    cadastral_district: pick(cadastral_district, &["DJQDM", "djqdm"]),
+                    measurer: measurer.to_string(),
+                    scale,
+                    dpi,
+                    ..Default::default()
+                };
+                let out = if is_svg {
+                    render_parcel_map_svg(&boundary, &spec)
+                } else {
+                    render_parcel_map_png(&boundary, &spec)
+                }
+                .map_err(|e| e.to_string())?;
+                (out.scale, out.diagnostics, out.data)
+            }
+            K::House => {
+                use kanyu_render::housemap::{
+                    render_house_map_png, render_house_map_svg, HouseMapSpec,
+                };
+                // 房产图字段多，全部走属性拾取（幢号/结构/面积/层次/坐落…）。
+                let spec = HouseMapSpec {
+                    parcel_code: pick(code, &["parcel_id", "ZDDM", "zddm"]),
+                    structure: feature_prop_str(&props, &["FWJG", "jjg", "structure"])
+                        .unwrap_or_default(),
+                    exclusive_area: feature_prop_f64(&props, &["ZYJZMJ", "zyjzmj"]),
+                    building_no: feature_prop_str(&props, &["ZRZH", "zrzh", "building_no"])
+                        .unwrap_or_default(),
+                    total_floors: feature_prop_str(&props, &["ZCS", "zcs"]).unwrap_or_default(),
+                    shared_area: feature_prop_f64(&props, &["FTJZMJ", "ftjzmj"]),
+                    household_no: feature_prop_str(&props, &["HH", "hh", "household_no"])
+                        .unwrap_or_default(),
+                    floor_no: feature_prop_str(&props, &["SZC", "szc", "floor_no"])
+                        .unwrap_or_default(),
+                    building_area: feature_prop_f64(&props, &["SCJZMJ", "scjzmj", "JZMJ", "jzmj"]),
+                    location: feature_prop_str(&props, &["ZL", "zl", "location"])
+                        .unwrap_or_default(),
+                    scale,
+                    dpi,
+                    ..Default::default()
+                };
+                let out = if is_svg {
+                    render_house_map_svg(&boundary, &spec)
+                } else {
+                    render_house_map_png(&boundary, &spec)
+                }
+                .map_err(|e| e.to_string())?;
+                (out.scale, out.diagnostics, out.data)
+            }
+            K::SeaBoundary | K::SeaLocation | K::SeaLayout => {
+                use kanyu_render::seamap::{
+                    render_sea_boundary_map_png, render_sea_boundary_map_svg, SeaBoundaryMapSpec,
+                    SeaMapKind,
+                };
+                let sk = match estate_kind {
+                    K::SeaLocation => SeaMapKind::LocationMap,
+                    K::SeaLayout => SeaMapKind::LayoutMap,
+                    _ => SeaMapKind::BoundaryMap,
+                };
+                let spec = SeaBoundaryMapSpec {
+                    kind: sk,
+                    project_name: pick(owner, &["project_name", "XMMC", "xmmc"]),
+                    sea_code: pick(code, &["sea_code", "ZHDM", "zhdm"]),
+                    source_epsg: self.project_crs.clone(),
+                    scale,
+                    dpi,
+                    ..Default::default()
+                };
+                let out = if is_svg {
+                    render_sea_boundary_map_svg(&boundary, &spec)
+                } else {
+                    render_sea_boundary_map_png(&boundary, &spec)
+                }
+                .map_err(|e| e.to_string())?;
+                (out.scale, out.diagnostics, out.data)
+            }
+            K::IslandRange | K::IslandFacility => {
+                use kanyu_render::islandmap::{
+                    render_island_map_png, render_island_map_svg, IslandMapKind, IslandMapSpec,
+                };
+                let ik = match estate_kind {
+                    K::IslandFacility => IslandMapKind::FacilityMap,
+                    _ => IslandMapKind::RangeMap,
+                };
+                let spec = IslandMapSpec {
+                    kind: ik,
+                    island_code: pick(code, &["island_code", "YDDM", "sea_code", "ZHDM"]),
+                    source_epsg: self.project_crs.clone(),
+                    scale,
+                    dpi,
+                    ..Default::default()
+                };
+                let out = if is_svg {
+                    render_island_map_svg(&boundary, &spec)
+                } else {
+                    render_island_map_png(&boundary, &spec)
+                }
+                .map_err(|e| e.to_string())?;
+                (out.scale, out.diagnostics, out.data)
+            }
+        };
+        match &data {
+            ParcelMapData::Svg(text) => {
+                std::fs::write(&out_path, text).map_err(|e| e.to_string())?;
+            }
+            ParcelMapData::Png(bytes) => {
+                std::fs::write(&out_path, bytes).map_err(|e| e.to_string())?;
+            }
+        }
+        let overlaps = diagnostics
+            .iter()
+            .filter(|d| d.contains("overlap=true"))
+            .count();
+        Ok(format!(
+            "已出{kind} → {out_path}（1:{scale_out}，注记 {} 条，残余压盖 {overlaps} 条）",
+            diagnostics.len()
+        ))
+    }
+
     /// 应用编辑动作（命令入会话 History，即时重建图层可见）。
     fn apply_edit_action(&mut self, action: crate::edit::EditAction) {
         use crate::edit::EditAction;
@@ -2312,6 +2501,9 @@ impl KanyuApp {
             RibbonAction::ExportMapDialog => {
                 self.dialogs.export_map = Some(crate::dialogs::ExportMapState::default())
             }
+            RibbonAction::EstateMapDialog => {
+                self.dialogs.estate_map = Some(crate::dialogs::EstateMapState::default())
+            }
             RibbonAction::ZoomToFit => self.needs_fit = true,
             RibbonAction::StartEdit => {
                 if let Some(i) = self.selected {
@@ -2486,6 +2678,23 @@ impl KanyuApp {
             } => self.op_zonal(&zones, &values, &field, &stats),
             DialogResult::Measure { layer, kind } => self.op_measure(&layer, &kind),
             DialogResult::ExportMap { out } => self.op_export_map(&out),
+            DialogResult::EstateMap {
+                kind,
+                code,
+                owner,
+                scale,
+                dpi,
+                measurer,
+                cadastral_district,
+            } => self.op_estate_map(
+                &kind,
+                &code,
+                &owner,
+                scale,
+                dpi,
+                &measurer,
+                &cadastral_district,
+            ),
             DialogResult::SkillRun { skill_id, layer } => self.op_skill_run(&skill_id, &layer),
             DialogResult::Invalid { reason } => Err(reason),
         };

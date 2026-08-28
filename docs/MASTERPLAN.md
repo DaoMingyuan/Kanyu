@@ -1163,6 +1163,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] **所有权宗地图出图**（`ParcelMapKind` 图种分派入 parcelmap：图 L.4 版式——L.3 全部要素 + 地籍区号注记（5.5mm）+ 集体所有权主体注记（分式上方）+ 权属调查/不动产测绘/制图/审核日期四行签注；`kanyu render parcel-ownership-map` + MCP `kind=ownership`；真实 GB32 渲染目检对齐金样 158，2026-08-28）。
 - [x] **宗地草图出图**（`ParcelMapKind::Sketch` 同管线：表 B.4 + 图 B.1 版式——无坐标表/头部框/分式/竖排单位名，「说明：图中单位为米。」+ 框式签注栏（丈量者/丈量日期/检查者/检查日期 + 概略比例尺）；`kanyu render parcel-sketch-map` + MCP `kind=sketch`；真实 GB32 渲染目检对齐金样 156，2026-08-28）。
 - [x] **房产图出图**（kanyu-render `housemap`：图 L.5 版式——朝向自适应横/竖放（§5.4.5.5.4）+ 头部四行表（宗地代码/结构/专有建筑面积、幢号/总层数/分摊建筑面积、户号/所在层次/建筑面积、坐落）+ 黑轮廓边长注记（cartography 排版）+ 右下绘制日期 + 下中整百比例尺；`kanyu render house-map` + MCP `kanyu_render_house_map`；真实感房屋渲染目检对齐金样 159，2026-08-28）。
+- [x] **不动产制图壳层出图命令**（kanyu-shell `estate_map`：制图页签「不动产制图…」命令 + 九图种模态参数框（图种下拉/代码/权利人/比例尺/DPI，草图丈量者、所有权地籍区号条件显示，留空走要素属性拾取）→ rfd 保存框 → kanyu-render 四渲染器落盘 + 三通道通知；`--estatemap-demo` 截图验证通过，2026-08-28）。
 - [x] **kanyu-py + Python 工具箱**（裁决 #20：PyO3 扩展模块全量暴露内核；ArcGIS .pyt 式 Toolbox/Tool/Param 约定，`kanyu toolbox list/run` 驱动，2026-08-03）。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）

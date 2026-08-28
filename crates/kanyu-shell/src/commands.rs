@@ -299,6 +299,15 @@ pub const COMMANDS: &[CommandDef] = &[
         RibbonAction::ExportMapDialog,
         has_layers,
     ),
+    cmd(
+        "estate_map",
+        "不动产制图…",
+        Icon::Image,
+        "不动产制图出图",
+        "宗地图/房产图/宗海图/用岛图九图种出图（勘测定界图注记契约排版；当前选中图层取面要素）",
+        RibbonAction::EstateMapDialog,
+        has_selection,
+    ),
     // —— 视图：相机 ——
     cmd(
         "zoom_fit",

@@ -104,6 +104,8 @@ pub struct ShellArgs {
     pub service_dlg_demo: bool,
     /// 隐藏验证参数：打开「编辑服务链接」对话框（WFS 连接回填态，截图验证）。
     pub service_edit_demo: bool,
+    /// 隐藏验证参数：启动即打开不动产制图对话框（截图验证）。
+    pub estatemap_demo: bool,
 }
 
 impl Default for ShellArgs {
@@ -138,6 +140,7 @@ impl Default for ShellArgs {
             service_demo: false,
             service_dlg_demo: false,
             service_edit_demo: false,
+            estatemap_demo: false,
         }
     }
 }
@@ -212,6 +215,7 @@ fn parse_args() -> ShellArgs {
             "--service-demo" => args.service_demo = true,
             "--service-dlg-demo" => args.service_dlg_demo = true,
             "--service-edit-demo" => args.service_edit_demo = true,
+            "--estatemap-demo" => args.estatemap_demo = true,
             "--zoom" => {
                 let v = it.next().unwrap_or_else(|| {
                     eprintln!("--zoom 缺少倍率（如 1.25）\n{}", usage());

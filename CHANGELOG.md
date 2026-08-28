@@ -6,6 +6,16 @@
 
 ### 新增
 
+- **不动产制图壳层出图命令（kanyu-shell `estate_map`）**：制图页签
+  「不动产制图…」命令（`has_selection` 置灰）→ 九图种模态参数框
+  （`combo_static` 图种下拉 + 代码/权利人/比例尺/DPI，宗地草图条件
+  显示丈量者、所有权图条件显示地籍区号，留空字段从要素属性自动
+  拾取（ZDDM/QLRMC/DJQDM/XMMC/ZHDM…））→ rfd 保存框（PNG/SVG 双
+  过滤器）→ `parcelmap`/`housemap`/`seamap`/`islandmap` 四渲染器落盘
+  → 状态栏/终端/toast 三通道通知（摘要含比例尺与残余压盖数）。
+  `EstateMapKind` 标签映射单一事实来源（改名不失联）；
+  `--estatemap-demo` 预置旗标截图验证通过。shell +4 测试。
+
 - **房产图（L.5）渲染器 `housemap` + `kanyu render house-map` + MCP
   `kanyu_render_house_map`**：GB/T 42547-2023 图 L.5 版式——**朝向自适应**
   （§5.4.5.5.4：房屋 bbox 宽 ≥ 高 A4 横放、否则竖放）+ 标题「房 产 图」+

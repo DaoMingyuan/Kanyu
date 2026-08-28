@@ -89,7 +89,7 @@
 10. **属性面板重建**：等待用户定制要求
 11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml，首跑 success）；3D 真管线对接已完成（第十轮：双客户端对齐 scene3d.rs 软件管线，42/42）；后续批次：~~布局预览 UI 页签~~（第四十八轮已完成：render.layout RPC 27 + 双端布局框点击预览）、kanyu-gis 会话首局对话实测（待本地模型端点在线）、凭据轮换时按 docs/GITHUB.md 登记
 12. ~~**主仓 CI 预存红修复**~~ **已完成（2026-08-18 第四十七轮，`12de4ed` 全绿）**：macOS pyo3 链接（build.rs + add_extension_module_link_args）、toolbox 测试跳过面（实测 import 权威判定）、deny 许可/停维护豁免三因闭环；后续推送 CI 恢复守护意义
-13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；~~② PNG 边长注记旋转贴入~~（**已完成 2026-08-28 第三轮**：离屏 pixmap 旋转合成，与 SVG 同角，目检对齐金样）；③ **图种全齐（已完成 2026-08-28 第五~十四轮）**：四至邻宗注记（第五轮法向×切向二维逃逸）+ 道路名称注记（第六轮）+ 宗海三件套 L.6/L.7/L.8（第七/八轮 seamap，经纬网+DMS 坐标表，金样逐行一致）+ 用岛两件套 L.9/L.10（第十轮 islandmap，罗盘指北针/一览表）+ 所有权宗地图 L.4（第十二轮）+ 宗地草图 B.4（第十三轮）+ 房产图 L.5（第十四轮 housemap，朝向自适应+四行表）——**九图种全部落地**，HY/T 251 缺口随上游携带（宗海/用岛仍以宗地代理验证）；④ 壳层/MCP 投影（**MCP 半已完成**：parcel-map（use/ownership/sketch）/parcel-dxf/kdb-pack/sea_map（kind×3）/island_map（kind×2）/house_map 七组制图工具入神经接口（第四/九/十一/十二/十三/十四轮），实测 35 工具在册；壳层半 layoutview/工具箱面板待后续）；~~⑤ 坐标表长表折列~~（**已完成 2026-08-28 第三轮**：right_to_left 列流/题行首列/面积末列，61 行双列目检通过）
+13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；~~② PNG 边长注记旋转贴入~~（**已完成 2026-08-28 第三轮**：离屏 pixmap 旋转合成，与 SVG 同角，目检对齐金样）；③ **图种全齐（已完成 2026-08-28 第五~十四轮）**：四至邻宗注记（第五轮法向×切向二维逃逸）+ 道路名称注记（第六轮）+ 宗海三件套 L.6/L.7/L.8（第七/八轮 seamap，经纬网+DMS 坐标表，金样逐行一致）+ 用岛两件套 L.9/L.10（第十轮 islandmap，罗盘指北针/一览表）+ 所有权宗地图 L.4（第十二轮）+ 宗地草图 B.4（第十三轮）+ 房产图 L.5（第十四轮 housemap，朝向自适应+四行表）——**九图种全部落地**，HY/T 251 缺口随上游携带（宗海/用岛仍以宗地代理验证）；④ 壳层/MCP 投影（**全部已完成**：MCP 半——parcel-map（use/ownership/sketch）/parcel-dxf/kdb-pack/sea_map（kind×3）/island_map（kind×2）/house_map 七组制图工具入神经接口（第四/九/十一/十二/十三/十四轮），实测 35 工具在册；壳层半——`estate_map` 九图种出图命令 + 模态参数框 + rfd 落盘（第十五轮，截图验证通过））；~~⑤ 坐标表长表折列~~（**已完成 2026-08-28 第三轮**：right_to_left 列流/题行首列/面积末列，61 行双列目检通过）
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -102,6 +102,13 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十五轮：壳层出图命令（estate_map，§1.2 第 13 项全部收官）
+- 提交：本次 commit；测试：`cargo test --workspace` **443 全绿**（shell +4：parse_scale/parse_dpi/defaults/九图种映射往返）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
+- 内容：kanyu-shell 制图页签「不动产制图…」命令（`estate_map`，Icon::Image，`has_selection` 置灰）→ `RibbonAction::EstateMapDialog` 挂「地图输出」组 → `EstateMapState` 九图种模态参数框（`ESTATE_MAP_KINDS` 单一事实来源 + `EstateMapKind::from_label` 映射；combo_static/text_input/error_caption/hint_caption 全 ui_kit；草图条件显示丈量者、所有权条件显示地籍区号）→ `op_estate_map`（selected 图层 → boundary_from_collection → rfd 保存框（{图种名}.png，PNG/SVG 双过滤器）→ parcelmap/housemap/seamap/islandmap 四渲染器（参数优先、CLI 同键属性回退，source_epsg 取 project_crs）→ 三通道通知（摘要含 1:N 与残余压盖数））；`--estatemap-demo` 预置旗标；docs（ARCHITECTURE/MASTERPLAN/CHANGELOG）同步
+- 截图验证：`--screenshot target/estatemap_demo.png --estatemap-demo --load …` 成功——对话框居中/九图种下拉/hint 正确/演示面要素入画布
+- 偏差：rfd 原生保存框段 headless 不可自动走通（export_layout 同款薄组合，渲染器本体由 workspace 测试覆盖）
+- 后续：§1.2 第 13 项**全部完成**；产物入目录预览（第六分类）按需另立项
 
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十四轮：房产图（图 L.5，收官图种——九图种全齐）
 - 提交：本次 commit；测试：`cargo test --workspace` **439 全绿**（housemap +5、MCP +2）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿；`kanyu introspect --json` 实测 35 工具在册（+1）
