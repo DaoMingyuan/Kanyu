@@ -335,6 +335,45 @@ pub struct RenderSeaMapReq {
     pub index: Option<usize>,
 }
 
+/// `kanyu_render_island_map` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RenderIslandMapReq {
+    /// 用岛数据文件路径（面要素；GeoJSON/SHP/宗地 TXT/DXF/kdb 等注册格式，
+    /// 多面要素缺省取面积最大者，可用 index 指定）。
+    pub path: String,
+    /// 图种：range（用岛范围图 L.9，默认）/ facility（建筑物和设施布置图 L.10）。
+    pub kind: Option<String>,
+    /// 输出格式：svg（源码文本回传）/ png（base64 图片回传）。
+    pub format: String,
+    /// 可选落盘路径（.svg/.png；给定则同时写文件）。
+    pub out: Option<String>,
+    /// 用岛代码（缺省取属性 island_code/YDDM/sea_code/ZHDM）。
+    pub island_code: Option<String>,
+    /// 源坐标系（EPSG:xxxx 或纯数字；L.9 坐标表 DMS 反算基准；默认 EPSG:4527）。
+    pub source_epsg: Option<String>,
+    /// 测绘单位。
+    pub survey_unit: Option<String>,
+    /// 测量员。
+    pub surveyor: Option<String>,
+    /// 绘图员。
+    pub drawer: Option<String>,
+    /// 审核人。
+    pub reviewer: Option<String>,
+    /// 绘制日期。
+    pub draw_date: Option<String>,
+    /// 用岛面积（㎡；缺省取属性 area/ZDMJ，再无现算；L.9 用）。
+    pub area: Option<f64>,
+    /// 设施面要素文件路径（L.10 用；名称取 name/MC/设施名称，编号 no/BH
+    /// 缺省顺编，面积缺省现算；未给时一览表仅表头+合计 0.00 诚实空态）。
+    pub facilities: Option<String>,
+    /// 比例尺分母（缺省自动适配取整百）。
+    pub scale: Option<u32>,
+    /// PNG 分辨率 dpi（默认 150，SVG 忽略）。
+    pub dpi: Option<f64>,
+    /// 面要素序号（缺省面积最大者；指定后按文档序第 N 个，0 起）。
+    pub index: Option<usize>,
+}
+
 /// `kanyu_skill_run` 输入。
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SkillRunReq {
@@ -997,6 +1036,110 @@ impl KanyuServer {
             "scale": output.scale,
             "label_count": output.diagnostics.len(),
             "overlap_count": overlaps,
+            "format": fmt,
+            "out": req.out,
+        });
+        if let Some(out) = &req.out {
+            match &output.data {
+                ParcelMapData::Svg(text) => std::fs::write(out, text).map_err(to_mcp)?,
+                ParcelMapData::Png(bytes) => std::fs::write(out, bytes).map_err(to_mcp)?,
+            }
+        }
+        let mut result = match &output.data {
+            ParcelMapData::Png(bytes) => CallToolResult::success(vec![
+                ContentBlock::image(
+                    base64::engine::general_purpose::STANDARD.encode(bytes),
+                    "image/png",
+                ),
+                ContentBlock::text(summary.to_string()),
+            ]),
+            ParcelMapData::Svg(svg) => CallToolResult::success(vec![
+                ContentBlock::text(svg.clone()),
+                ContentBlock::text(summary.to_string()),
+            ]),
+        };
+        result.structured_content = Some(summary);
+        Ok(result)
+    }
+
+    /// 用岛图件出图（用岛范围图 L.9 / 建筑物和设施布置图 L.10）。
+    #[tool(
+        name = "kanyu_render_island_map",
+        description = "用岛图件出图（GB/T 42547-2023 图 L.9/L.10 版式，A4 横：经纬网图廓 + 图斑 + 界址点符号 + 罗盘指北针（N/E/W/S）+ 左下图例框 + 右下签注表 + 下中整百比例尺；kind=range（用岛范围图，默认，含界址点编号及坐标表【北纬|东经度分秒，source_epsg 反算】与用岛面积行）/ facility（建筑物和设施布置图，设施黄色图斑+编号+一览表合计行，facilities 参数传设施面要素文件，未给时合计 0.00 诚实空态）；format=png 时 content 携带 base64 image/png，format=svg 时携带 SVG 源码文本；可选 out 同时落盘；structuredContent 携带图种/比例尺/设施数）"
+    )]
+    async fn render_island_map(
+        &self,
+        Parameters(req): Parameters<RenderIslandMapReq>,
+    ) -> Result<CallToolResult, McpError> {
+        use base64::Engine as _;
+        use kanyu_render::islandmap::{
+            render_island_map_png, render_island_map_svg, IslandMapKind, IslandMapSpec,
+        };
+        use kanyu_render::parcelmap::ParcelMapData;
+
+        let kind = match req.kind.as_deref().unwrap_or("range") {
+            "range" => IslandMapKind::RangeMap,
+            "facility" => IslandMapKind::FacilityMap,
+            other => {
+                return Err(McpError::invalid_params(
+                    format!("未知图种 '{other}'（支持 range/facility）"),
+                    None,
+                ));
+            }
+        };
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let (boundary, props) =
+            kanyu_core::cartography::boundary_from_collection(&layer.collection(), req.index)
+                .map_err(to_mcp)?;
+        let prop = |keys: &[&str]| kanyu_core::cartography::feature_prop_str(&props, keys);
+        let raw_epsg = req.source_epsg.unwrap_or_else(|| "EPSG:4527".to_string());
+        let source_epsg = if raw_epsg.chars().all(|c| c.is_ascii_digit()) {
+            format!("EPSG:{raw_epsg}")
+        } else {
+            raw_epsg
+        };
+        let facilities = match &req.facilities {
+            Some(path) => {
+                let fl = Layer::load(stem_of(path), path).map_err(to_mcp)?;
+                kanyu_render::islandmap::facilities_from_collection(&fl.collection())
+            }
+            None => Vec::new(),
+        };
+        let spec = IslandMapSpec {
+            kind,
+            island_code: req
+                .island_code
+                .or_else(|| prop(&["island_code", "YDDM", "sea_code", "ZHDM", "zhdm"]))
+                .unwrap_or_default(),
+            source_epsg,
+            survey_unit: req.survey_unit.unwrap_or_default(),
+            surveyor: req.surveyor.unwrap_or_default(),
+            drawer: req.drawer.unwrap_or_default(),
+            reviewer: req.reviewer.unwrap_or_default(),
+            draw_date: req.draw_date.unwrap_or_default(),
+            area_sqm: req
+                .area
+                .or_else(|| kanyu_core::cartography::feature_prop_f64(&props, &["area", "ZDMJ"])),
+            facilities,
+            scale: req.scale,
+            dpi: req.dpi.unwrap_or(150.0),
+        };
+        let facility_count = spec.facilities.len();
+        let fmt = req.format.to_ascii_lowercase();
+        let output = match fmt.as_str() {
+            "png" => render_island_map_png(&boundary, &spec).map_err(to_mcp)?,
+            "svg" => render_island_map_svg(&boundary, &spec).map_err(to_mcp)?,
+            other => {
+                return Err(McpError::invalid_params(
+                    format!("未知输出格式 '{other}'（支持 svg/png）"),
+                    None,
+                ));
+            }
+        };
+        let summary = serde_json::json!({
+            "kind": kind.title(),
+            "scale": output.scale,
+            "facility_count": facility_count,
             "format": fmt,
             "out": req.out,
         });
@@ -2582,6 +2725,66 @@ mod tests {
         // 未知图种：中文错误
         let err = server
             .render_sea_map(Parameters(mk_req(Some("island"))))
+            .await
+            .unwrap_err();
+        assert!(err.message.contains("未知图种"), "{err}");
+    }
+    #[tokio::test]
+    async fn render_island_map_range_and_facility() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_islandmap");
+        let parcel = write_parcel_fixture(&dir);
+        // 设施文件（两个矩形）
+        let fac = dir.join("fac.geojson");
+        std::fs::write(
+            &fac,
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                    [[39595005.0,4127005.0],[39595015.0,4127005.0],[39595015.0,4127015.0],[39595005.0,4127015.0],[39595005.0,4127005.0]]]},
+                 "properties":{"name":"泵房"}}
+            ]}"#,
+        )
+        .unwrap();
+        let server = KanyuServer::new();
+        let mk_req = |kind: Option<&str>, facilities: Option<String>| RenderIslandMapReq {
+            path: parcel.clone(),
+            kind: kind.map(str::to_string),
+            format: "svg".to_string(),
+            out: None,
+            island_code: Some("371602113005JB00088".to_string()),
+            source_epsg: Some("4527".to_string()),
+            survey_unit: None,
+            surveyor: None,
+            drawer: None,
+            reviewer: None,
+            draw_date: None,
+            area: None,
+            facilities,
+            scale: None,
+            dpi: None,
+            index: None,
+        };
+        // L.9 用岛范围图（默认 kind）
+        let r9 = server
+            .render_island_map(Parameters(mk_req(None, None)))
+            .await
+            .unwrap();
+        let sc9 = r9.structured_content.unwrap();
+        assert_eq!(sc9["kind"], "用岛范围图");
+        assert!(sc9["scale"].as_u64().unwrap() >= 100);
+        // L.10 设施布置图（设施 1 项）
+        let r10 = server
+            .render_island_map(Parameters(mk_req(
+                Some("facility"),
+                Some(fac.to_str().unwrap().to_string()),
+            )))
+            .await
+            .unwrap();
+        let sc10 = r10.structured_content.unwrap();
+        assert_eq!(sc10["kind"], "建筑物和设施布置图");
+        assert_eq!(sc10["facility_count"], 1);
+        // 未知图种：中文错误
+        let err = server
+            .render_island_map(Parameters(mk_req(Some("sea"), None)))
             .await
             .unwrap_err();
         assert!(err.message.contains("未知图种"), "{err}");

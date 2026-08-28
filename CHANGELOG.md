@@ -6,6 +6,13 @@
 
 ### 新增
 
+- **用岛图件 MCP 工具 `kanyu_render_island_map`**：`kind` 一参两图种
+  （`range` 用岛范围图 L.9 / `facility` 建筑物和设施布置图 L.10）——
+  CLI 双命令的 MCP 同源投影（`facilities` 设施文件路径参数；
+  `structuredContent` 携带图种/比例尺/设施数）。设施提取助手
+  `facilities_from_collection` 下沉 islandmap 公开 API（CLI/MCP 同一
+  事实来源）。introspect +1（实测 34 项在册），1 项测试。
+
 - **用岛两件套渲染器 `islandmap` + `kanyu render island-range-map` /
   `island-facility-map`**：GB/T 42547-2023 图 L.9 用岛范围图（用岛代码行/
   经纬网图廓/图斑/界址点符号/右侧界址点编号及坐标表（北纬|东经 DMS）+

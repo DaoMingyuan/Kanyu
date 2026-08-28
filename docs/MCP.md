@@ -577,6 +577,29 @@ MCP 同源投影（kanyu-core `cartography`/`cass`/`kdb` + kanyu-render `parcelm
 `format=svg` → `content` = `text`（SVG 源码）+ `text`（摘要 JSON）；
 `structuredContent`：`{"kind": "宗海界址图", "scale": 800, "label_count": 18, "overlap_count": 0, "format": "png", "out": null}`。
 
+#### `kanyu_render_island_map`
+
+> 用岛图件出图（GB/T 42547-2023 图 L.9/L.10 版式；`kind` 一参两图种，
+> CLI `island-range-map`/`island-facility-map` 的 MCP 同源投影）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 用岛数据文件路径（面要素；多面缺省取面积最大者） |
+| `kind` | string \| null | 否 | `range`（用岛范围图 L.9，默认）/ `facility`（建筑物和设施布置图 L.10） |
+| `format` | string | 是 | `svg`（源码文本回传）/ `png`（base64 图片回传） |
+| `out` | string \| null | 否 | 同时落盘路径（`.svg`/`.png`） |
+| `island_code` | string \| null | 否 | 用岛代码（缺省 `island_code/YDDM/sea_code/ZHDM`） |
+| `source_epsg` | string \| null | 否 | 源坐标系（默认 `EPSG:4527`；L.9 坐标表 DMS 反算基准） |
+| `survey_unit` / `surveyor` / `drawer` / `reviewer` / `draw_date` | string \| null | 否 | 签注表参数 |
+| `area` | number \| null | 否 | 用岛面积㎡（缺省 `area/ZDMJ`，再无现算；L.9 用） |
+| `facilities` | string \| null | 否 | 设施面要素文件路径（L.10 用；未给时合计 0.00 诚实空态） |
+| `scale` | integer \| null | 否 | 比例尺分母（缺省自动取整百） |
+| `dpi` | number \| null | 否 | PNG 分辨率（默认 150，SVG 忽略） |
+| `index` | integer \| null | 否 | 面要素文档序序号（0 起） |
+
+返回：`format=png` → `content` = `image`（base64）+ `text`（摘要 JSON）；
+`structuredContent`：`{"kind": "用岛范围图", "scale": 800, "facility_count": 0, "format": "svg", "out": null}`。
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
@@ -598,6 +621,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | —（render 组首工具；符号化并入其 style 参数，裁决 #17） | `kanyu_render_map` | ✅ |
 | —（不动产制图组，v0.23） | `kanyu_render_parcel_map` / `kanyu_render_parcel_dxf` | ✅ |
 | —（宗海图件组，v0.23） | `kanyu_render_sea_map` | ✅ |
+| —（用岛图件组，v0.23） | `kanyu_render_island_map` | ✅ |
 | —（不动产建库，KDB v2） | `kanyu_data_kdb_pack` | ✅ |
 | `kanyu.system.generate` | `kanyu_system_*` | 📋 |
 | `kanyu.system.hotload` | `kanyu_system_hotload` | ✅ |

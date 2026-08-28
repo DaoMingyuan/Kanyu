@@ -1299,45 +1299,12 @@ fn island_map_render(
     Ok(())
 }
 
-/// 设施面要素提取（L.10 一览表与图斑数据来源）：逐面要素取最大部件外环为
-/// 图斑多边形（地图坐标闭合环）；名称取属性 name/MC/设施名称，编号取 no/BH
-/// （缺省顺编 1..），面积取 area/ZDMJ/占地面积（缺省按几何现算 外环−内环）。
+/// 设施面要素提取（薄壳委托 [`kanyu_render::islandmap::facilities_from_collection`]，
+/// CLI/MCP 同一事实来源）。
 fn facilities_from_collection(
     collection: &geojson::FeatureCollection,
 ) -> Vec<kanyu_render::islandmap::IslandFacility> {
-    let mut out = Vec::new();
-    for feature in &collection.features {
-        let Some(geom) = &feature.geometry else {
-            continue;
-        };
-        if !matches!(
-            &geom.value,
-            geojson::Value::Polygon(_) | geojson::Value::MultiPolygon(_)
-        ) {
-            continue;
-        }
-        let Ok(boundary) = kanyu_core::cartography::ParcelBoundary::from_geometry(&geom.value)
-        else {
-            continue;
-        };
-        let props = feature.properties.clone().unwrap_or_default();
-        let area = prop_f64(&props, &["area", "ZDMJ", "占地面积"]).unwrap_or_else(|| {
-            let ext = kanyu_core::cartography::ring_area(&boundary.exterior).abs();
-            let holes: f64 = boundary
-                .interiors
-                .iter()
-                .map(|r| kanyu_core::cartography::ring_area(r).abs())
-                .sum();
-            (ext - holes).max(0.0)
-        });
-        out.push(kanyu_render::islandmap::IslandFacility {
-            name: prop_str(&props, &["name", "MC", "设施名称"]).unwrap_or_default(),
-            no: prop_str(&props, &["no", "BH"]).unwrap_or_else(|| (out.len() + 1).to_string()),
-            area_sqm: area,
-            polygon: boundary.exterior.points.clone(),
-        });
-    }
-    out
+    kanyu_render::islandmap::facilities_from_collection(collection)
 }
 
 /// 宗地面要素选取与权属边界提取（parcel-map/parcel-dxf 共用）：

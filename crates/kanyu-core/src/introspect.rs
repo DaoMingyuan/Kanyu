@@ -228,6 +228,12 @@ pub fn tools() -> Vec<ToolInfo> {
             group: "render",
             status: "stable",
         },
+        // 用岛图件（GB/T 42547 图 L.9/L.10）
+        ToolInfo {
+            name: "kanyu_render_island_map",
+            group: "render",
+            status: "stable",
+        },
         ToolInfo {
             name: "kanyu_render_camera",
             group: "render",

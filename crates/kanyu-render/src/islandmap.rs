@@ -62,6 +62,47 @@ pub struct IslandFacility {
     pub polygon: Vec<(f64, f64)>,
 }
 
+/// 设施面要素提取（CLI/MCP 共用）：逐面要素取最大部件外环为图斑多边形
+/// （地图坐标闭合环）；名称取属性 name/MC/设施名称，编号取 no/BH
+/// （缺省顺编 1..），面积取 area/ZDMJ/占地面积（缺省按几何现算 外环−内环）。
+pub fn facilities_from_collection(collection: &geojson::FeatureCollection) -> Vec<IslandFacility> {
+    let mut out = Vec::new();
+    for feature in &collection.features {
+        let Some(geom) = &feature.geometry else {
+            continue;
+        };
+        if !matches!(
+            &geom.value,
+            geojson::Value::Polygon(_) | geojson::Value::MultiPolygon(_)
+        ) {
+            continue;
+        }
+        let Ok(boundary) = cartography::ParcelBoundary::from_geometry(&geom.value) else {
+            continue;
+        };
+        let props = feature.properties.clone().unwrap_or_default();
+        let area = cartography::feature_prop_f64(&props, &["area", "ZDMJ", "占地面积"])
+            .unwrap_or_else(|| {
+                let ext = cartography::ring_area(&boundary.exterior).abs();
+                let holes: f64 = boundary
+                    .interiors
+                    .iter()
+                    .map(|r| cartography::ring_area(r).abs())
+                    .sum();
+                (ext - holes).max(0.0)
+            });
+        out.push(IslandFacility {
+            name: cartography::feature_prop_str(&props, &["name", "MC", "设施名称"])
+                .unwrap_or_default(),
+            no: cartography::feature_prop_str(&props, &["no", "BH"])
+                .unwrap_or_else(|| (out.len() + 1).to_string()),
+            area_sqm: area,
+            polygon: boundary.exterior.points.clone(),
+        });
+    }
+    out
+}
+
 /// 用岛图件出图参数。
 #[derive(Debug, Clone)]
 pub struct IslandMapSpec {

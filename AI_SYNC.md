@@ -103,6 +103,12 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十一轮：用岛两图种 MCP 工具（kanyu_render_island_map）
+- 提交：本次 commit；测试：`cargo test --workspace` **429 全绿**（MCP +1：L.9/L.10 回执 + 未知图种中文错误）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿；`kanyu introspect --json` 实测 34 工具在册（+1）
+- 内容：MCP `kanyu_render_island_map`——`kind` 一参两图种（range L.9/facility L.10），SVG/PNG 回传 + 可选落盘 + structuredContent（图种/比例尺/设施数），`facilities` 设施文件参数；设施提取助手 `facilities_from_collection` 下沉 islandmap 公开 API（CLI/MCP 同一事实来源）；introspect +1；docs/MCP.md §3.21 + 命名表；CHANGELOG 同步
+- 偏差：无
+- 后续：§1.2 第 13 项余 ④壳层半（layoutview/工具箱面板）；宗地草图（B.4）/所有权宗地图（L.4）/房产图（L.5）图种待后续轮次
+
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十轮：用岛两件套（L.9 用岛范围图 / L.10 设施布置图）
 - 提交：本次 commit；测试：`cargo test --workspace` **428 全绿**（islandmap +6）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
 - 内容：kanyu-render 新模块 `islandmap`（图 L.9 用岛范围图：用岛代码行/经纬网/图斑/右侧界址点编号及坐标表（DMS）+用岛面积行/图例框/签注表九行；图 L.10 设施布置图：设施黄图斑 RGB(255,235,0)+编号+一览表合计行（空态诚实 0.00）+图例；罗盘指北针四向星形劈半黑白瓣+N/E/W/S；seamap 助手 `pub(crate)` 化共享零 API 变化）；CLI 共享 `IslandMapArgs` 双变体（`island-range-map`/`island-facility-map`，`--facilities` 设施提取）；docs（CLI §5.7/MASTERPLAN/CHANGELOG）同步
