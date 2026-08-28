@@ -89,7 +89,7 @@
 10. **属性面板重建**：等待用户定制要求
 11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml，首跑 success）；3D 真管线对接已完成（第十轮：双客户端对齐 scene3d.rs 软件管线，42/42）；后续批次：~~布局预览 UI 页签~~（第四十八轮已完成：render.layout RPC 27 + 双端布局框点击预览）、kanyu-gis 会话首局对话实测（待本地模型端点在线）、凭据轮换时按 docs/GITHUB.md 登记
 12. ~~**主仓 CI 预存红修复**~~ **已完成（2026-08-18 第四十七轮，`12de4ed` 全绿）**：macOS pyo3 链接（build.rs + add_extension_module_link_args）、toolbox 测试跳过面（实测 import 权威判定）、deny 许可/停维护豁免三因闭环；后续推送 CI 恢复守护意义
-13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；② PNG 边长注记旋转贴入（小 pixmap 旋转合成，对齐 SVG）；③ 邻宗地/道路注记 + 宗海/用岛图种扩展（HY/T 251 缺口随上游携带）；④ 壳层/MCP 宗地图投影（layoutview/工具箱面板；kdb v2 建库面板同批）；⑤ 坐标表长表折列（right_to_left 列流）
+13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；~~② PNG 边长注记旋转贴入~~（**已完成 2026-08-28 第三轮**：离屏 pixmap 旋转合成，与 SVG 同角，目检对齐金样）；③ 邻宗地/道路注记 + 宗海/用岛图种扩展（HY/T 251 缺口随上游携带）；④ 壳层/MCP 宗地图投影（layoutview/工具箱面板；kdb v2 建库面板同批）；~~⑤ 坐标表长表折列~~（**已完成 2026-08-28 第三轮**：right_to_left 列流/题行首列/面积末列，61 行双列目检通过）
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -102,6 +102,18 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第三轮：PNG 边长注记旋转 + 坐标表长表折列（国标布局续）
+- 提交：本次 commit；测试：`cargo test --workspace` **405 全绿**（parcelmap +2：折列布局/旋转墨迹方向）；`clippy --workspace --all-targets -D warnings`（int_plus_one 一处随改）与 `fmt --check` 全绿
+- 内容：PNG 边长注记旋转（文本绘入透明离屏 pixmap 后绕中心旋转合成——`draw_rotated_text`，与 SVG rotate() 同角顺时针为正，第一轮「PNG 水平不旋转」已知限制消除）；界址点坐标表长表自动折列（`block_rows`/`display_height`/emit 重写：超 TABLE_MAX_H 触发 right_to_left 列流，题行仅首列、表头每列重复、面积行仅末列、列间隔 4.0mm 对齐勘测定界图契约，折列后展示高度参与适配区/比例尺求解）；docs（CLI §5.3/CHANGELOG）同步
+- 真实验证：GB00032 真实宗地 PNG 边长注记沿线竖排目检对齐金样（26.43/17.27 垂直沿线）；60 界址点合成宗地 61 行坐标表右起双列折列渲染目检通过（1:5000，120 注记 84 least_bad 诚实标记——密集压力用例预期行为）
+- 偏差：无
+- 后续：§1.2 第 13 项余 ③邻宗地/道路注记+宗海用岛 ④壳层/MCP 投影
+
+### [开工] 2026-08-28 kimi-code(main) — 不动产制图第三轮：PNG 边长注记旋转 + 坐标表长表折列（国标布局续）
+- 范围：crates/kanyu-render/src/parcelmap.rs、docs（CLI/CHANGELOG/MASTERPLAN 如需）
+- 依据：§1.2 第 13 项②⑤；第一轮偏差③（PNG 边长注记水平不旋转）；开发计划 §6 长表自动折列 right_to_left 规则
+- 预计：中（单文件双特性 + 真实数据复验）
 
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第二轮：kdb v2 多图层容器（数据库建立方式按规划优化）
 - 提交：本次 commit；测试：`cargo test --workspace` 全绿（新增 kdb v2 内核 6 + CLI 集成 1）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿

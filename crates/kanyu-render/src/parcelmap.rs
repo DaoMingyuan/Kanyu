@@ -13,8 +13,9 @@
 //! - 左侧竖排单位名。
 //!
 //! 比例尺缺省自动求解：宗地 bbox 适配地图框后分母向上取整百。
+//! 坐标表长表自动折列（right_to_left 列流，开发计划 §6/勘测定界图坐标表契约）。
 //! SVG 全量（文字/旋转齐全）；PNG 经 `layout::TextBackend` 系统字体栈
-//! （边长注记首版水平绘制于排版位置，不旋转字形——已知限制，SVG 为准）。
+//! （旋转注记走离屏 pixmap 旋转合成，与 SVG rotate() 同角）。
 
 use crate::layout::{PageSize, TextBackend};
 use crate::RenderError;
@@ -160,6 +161,10 @@ const TABLE_ROW_H: f64 = 4.2;
 const TABLE_TITLE_H: f64 = 5.0;
 const TABLE_CELL_PAD: f64 = 1.5;
 const TABLE_ANCHOR_PAD: f64 = 3.0;
+/// 坐标表最大高度（地图框内高扣除上下锚定边距；超出触发长表折列）。
+const TABLE_MAX_H: f64 = MAP_RECT[3] - 2.0 * TABLE_ANCHOR_PAD;
+/// 折列列间间隔（对齐勘测定界图坐标表 column_gap_mm=4.0 契约）。
+const TABLE_COL_GAP: f64 = 4.0;
 /// 坐标表与宗地适配区间的竖向间隔。
 const TABLE_FIT_GAP: f64 = 4.0;
 /// 适配区最小高（点极多时兜底）。
@@ -323,95 +328,170 @@ impl CoordTable {
         self.rows.len() + 3
     }
 
-    /// 表总高（毫米）。
+    /// 表总高（毫米，未折列时）。
     fn height(&self) -> f64 {
         TABLE_TITLE_H + TABLE_ROW_H * (self.row_count() - 1) as f64
     }
 
-    /// 出图元：白底黑线 0.15mm，锚定地图框右下角。
+    /// 折列布局（开发计划 §6：长表自动折列、right_to_left 列流）。
+    /// 返回每列数据行数（首列=最右列含题行，末列=最左列含面积行）；
+    /// 未超 [`TABLE_MAX_H`] 时单列（含全部数据行）。
+    fn block_rows(&self) -> Vec<usize> {
+        if self.height() <= TABLE_MAX_H {
+            return vec![self.rows.len()];
+        }
+        // 首列容量（题行+表头扣除）；后续列容量（仅表头扣除）。
+        let cap_first =
+            (((TABLE_MAX_H - TABLE_TITLE_H - TABLE_ROW_H) / TABLE_ROW_H).floor() as usize).max(2);
+        let cap_next = (((TABLE_MAX_H - TABLE_ROW_H) / TABLE_ROW_H).floor() as usize).max(2);
+        let mut chunks = Vec::new();
+        let mut idx = 0;
+        let total = self.rows.len();
+        let mut cap = cap_first;
+        while idx < total {
+            let remaining = total - idx;
+            // 末列须余 1 行给面积行：remaining == cap 时少取一行，保证面积行落点。
+            let take = if remaining < cap {
+                remaining
+            } else if remaining == cap {
+                cap - 1
+            } else {
+                cap
+            };
+            let take = take.max(1);
+            chunks.push(take);
+            idx += take;
+            cap = cap_next;
+        }
+        chunks
+    }
+
+    /// 折列后实际展示高度（各列中最高的列；参与适配区/比例尺求解）。
+    fn display_height(&self) -> f64 {
+        let chunks = self.block_rows();
+        let n = chunks.len();
+        chunks
+            .iter()
+            .enumerate()
+            .map(|(b, &take)| {
+                let title = usize::from(b == 0);
+                let area = usize::from(b == n - 1);
+                // 题行高×题行数 + 行高×（表头+数据+面积行数），与 emit 的块高一致
+                TABLE_TITLE_H * title as f64 + TABLE_ROW_H * (1 + take + area) as f64
+            })
+            .fold(0.0_f64, f64::max)
+    }
+
+    /// 出图元：白底黑线 0.15mm，锚定地图框右下角；长表折列（右起列流，
+    /// 题行仅首列、表头每列重复、面积行仅末列——勘测定界图坐标表契约）。
     fn emit(&self, prims: &mut Vec<Prim>) {
         let x1 = MAP_RECT[0] + MAP_RECT[2] - TABLE_ANCHOR_PAD;
         let y1 = MAP_RECT[1] + MAP_RECT[3] - TABLE_ANCHOR_PAD;
-        let x0 = x1 - self.width();
-        let y0 = y1 - self.height();
+        let chunks = self.block_rows();
+        let n_blocks = chunks.len();
         let thin = Some(Stroke {
             width: 0.15,
             color: BLACK,
         });
-        prims.push(Prim::Rect {
-            rect: [x0, y0, self.width(), self.height()],
-            fill: Some(WHITE),
-            stroke: thin,
-        });
-        // 栏分界 x（左起累计）
-        let mut col_x = [0.0_f64; 5];
-        col_x[0] = x0;
-        for c in 0..4 {
-            col_x[c + 1] = col_x[c] + self.col_w[c];
-        }
-        let n_rows = self.row_count();
-        // 行界 y（第 r 行上沿）：r=0 → y0；r≥1 → y0 + 题行高 + (r-1)×行高
-        let row_y = |r: usize| {
-            if r == 0 {
-                y0
-            } else {
-                y0 + TABLE_TITLE_H + (r - 1) as f64 * TABLE_ROW_H
-            }
-        };
-        // 横线（逐行分界）
-        for r in 1..n_rows {
-            let y = row_y(r);
-            prims.push(Prim::Path {
-                pts: vec![(x0, y), (x1, y)],
-                close: false,
-                fill: None,
+        let mut start = 0usize;
+        for (b, &take) in chunks.iter().enumerate() {
+            let first_col = b == 0;
+            let last_col = b == n_blocks - 1;
+            let title_rows = usize::from(first_col);
+            let area_rows = usize::from(last_col);
+            let n = title_rows + 1 + take + area_rows; // 表头恒 1 行
+            let hb = TABLE_TITLE_H * title_rows as f64 + TABLE_ROW_H * (n - title_rows) as f64;
+            let x1_b = x1 - b as f64 * (self.width() + TABLE_COL_GAP);
+            let x0_b = x1_b - self.width();
+            let y0_b = y1 - hb;
+            prims.push(Prim::Rect {
+                rect: [x0_b, y0_b, self.width(), hb],
+                fill: Some(WHITE),
                 stroke: thin,
             });
-        }
-        // 竖线：表头行起；面积行仅值栏分界（前三栏通栏）
-        let head_y = row_y(1);
-        let area_y = row_y(n_rows - 1);
-        for (i, &x) in col_x[1..4].iter().enumerate() {
-            let yb = if i == 2 { y1 } else { area_y };
-            prims.push(Prim::Path {
-                pts: vec![(x, head_y), (x, yb)],
-                close: false,
-                fill: None,
-                stroke: thin,
-            });
-        }
-        // 单元格文本（通栏居中）
-        let cell = |prims: &mut Vec<Prim>, text: &str, xa: f64, xb: f64, r: usize, font: f64| {
-            prims.push(Prim::Text {
-                x: (xa + xb) / 2.0,
-                y: (row_y(r) + row_y(r + 1)) / 2.0,
-                font,
-                text: text.to_string(),
-                anchor: Anchor::Middle,
-                rotate_deg: 0.0,
-                vcenter: true,
-                bold: false,
-            });
-        };
-        cell(prims, "界址点坐标表", x0, x1, 0, TABLE_TITLE_FONT);
-        for c in 0..4 {
-            cell(
-                prims,
-                &self.headers[c],
-                col_x[c],
-                col_x[c + 1],
-                1,
-                TABLE_FONT,
-            );
-        }
-        for (r, row) in self.rows.iter().enumerate() {
+            // 栏分界 x（左起累计）
+            let mut col_x = [0.0_f64; 5];
+            col_x[0] = x0_b;
             for c in 0..4 {
-                cell(prims, &row[c], col_x[c], col_x[c + 1], r + 2, TABLE_FONT);
+                col_x[c + 1] = col_x[c] + self.col_w[c];
             }
+            // 行界 y（第 r 行上沿）：首列 r=1 为题行界（题行高），其后行高均等
+            let row_y = |r: usize| {
+                if r == 0 {
+                    y0_b
+                } else if first_col {
+                    y0_b + TABLE_TITLE_H + (r - 1) as f64 * TABLE_ROW_H
+                } else {
+                    y0_b + r as f64 * TABLE_ROW_H
+                }
+            };
+            // 横线（逐行分界）
+            for r in 1..n {
+                let y = row_y(r);
+                prims.push(Prim::Path {
+                    pts: vec![(x0_b, y), (x1_b, y)],
+                    close: false,
+                    fill: None,
+                    stroke: thin,
+                });
+            }
+            // 竖线：表头行起；面积行仅值栏分界（前三栏通栏）
+            let head_y = row_y(title_rows);
+            let area_y = if last_col { row_y(n - 1) } else { y1 };
+            for (i, &x) in col_x[1..4].iter().enumerate() {
+                let yb = if i == 2 { y1 } else { area_y };
+                prims.push(Prim::Path {
+                    pts: vec![(x, head_y), (x, yb)],
+                    close: false,
+                    fill: None,
+                    stroke: thin,
+                });
+            }
+            // 单元格文本（通栏居中）
+            let cell =
+                |prims: &mut Vec<Prim>, text: &str, xa: f64, xb: f64, r: usize, font: f64| {
+                    prims.push(Prim::Text {
+                        x: (xa + xb) / 2.0,
+                        y: (row_y(r) + row_y(r + 1)) / 2.0,
+                        font,
+                        text: text.to_string(),
+                        anchor: Anchor::Middle,
+                        rotate_deg: 0.0,
+                        vcenter: true,
+                        bold: false,
+                    });
+                };
+            if first_col {
+                cell(prims, "界址点坐标表", x0_b, x1_b, 0, TABLE_TITLE_FONT);
+            }
+            for c in 0..4 {
+                cell(
+                    prims,
+                    &self.headers[c],
+                    col_x[c],
+                    col_x[c + 1],
+                    title_rows,
+                    TABLE_FONT,
+                );
+            }
+            for (r, row) in self.rows[start..start + take].iter().enumerate() {
+                for c in 0..4 {
+                    cell(
+                        prims,
+                        &row[c],
+                        col_x[c],
+                        col_x[c + 1],
+                        title_rows + 1 + r,
+                        TABLE_FONT,
+                    );
+                }
+            }
+            if last_col {
+                cell(prims, &self.area_label, x0_b, col_x[3], n - 1, TABLE_FONT);
+                cell(prims, &self.area_value, col_x[3], x1_b, n - 1, TABLE_FONT);
+            }
+            start += take;
         }
-        let last = n_rows - 1;
-        cell(prims, &self.area_label, x0, col_x[3], last, TABLE_FONT);
-        cell(prims, &self.area_value, col_x[3], x1, last, TABLE_FONT);
     }
 }
 
@@ -487,11 +567,12 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
             .sum();
         (ext - holes).max(0.0)
     });
-    // 坐标表（先组表：表高参与适配区与自动比例尺求解）
+    // 坐标表（先组表：表高参与适配区与自动比例尺求解；长表按折列后展示高度）
     let table = CoordTable::build(&points, &lines, area);
     // 宗地适配区：地图框扣除留白与底部坐标表带
     let fit_w = MAP_RECT[2] - 2.0 * MAP_PAD;
-    let fit_h = (MAP_RECT[3] - 2.0 * MAP_PAD - table.height() - TABLE_FIT_GAP).max(FIT_MIN_H);
+    let fit_h =
+        (MAP_RECT[3] - 2.0 * MAP_PAD - table.display_height() - TABLE_FIT_GAP).max(FIT_MIN_H);
     let (min_x, min_y, max_x, max_y) = ring_bbox(&boundary.exterior);
     let span_x = (max_x - min_x).max(1e-6);
     let span_y = (max_y - min_y).max(1e-6);
@@ -1020,11 +1101,18 @@ fn scene_to_png(prims: &[Prim], dpi: f64, tb: &TextBackend) -> Result<Vec<u8>, R
                 text,
                 anchor,
                 vcenter,
+                rotate_deg,
                 ..
             } => {
                 let px = (font * k) as f32;
                 let w = tb.measure(text, px);
                 let x_px = (*x * k) as f32;
+                // 旋转注记（边长沿线）：离屏小 pixmap 写字后旋转合成，
+                // 与 SVG rotate() 同角（顺时针为正）
+                if rotate_deg.abs() > 1e-6 {
+                    draw_rotated_text(&mut page, tb, text, x_px, (*y * k) as f32, px, *rotate_deg);
+                    continue;
+                }
                 let sx = match anchor {
                     Anchor::Start => x_px,
                     Anchor::Middle => x_px - w / 2.0,
@@ -1049,6 +1137,46 @@ fn scene_to_png(prims: &[Prim], dpi: f64, tb: &TextBackend) -> Result<Vec<u8>, R
     }
     page.encode_png()
         .map_err(|e| RenderError::InvalidStyle(format!("宗地图 PNG 编码失败: {e}")))
+}
+
+/// 旋转文本绘制（PNG）：文本先绘入透明离屏 pixmap，再绕中心旋转移植。
+/// 中心语义与排版引擎输出一致（anchor=Middle + vcenter）；`deg` 顺时针为正
+/// （y 向下屏幕系，与 SVG rotate()/QGIS 存储同号）。
+fn draw_rotated_text(
+    page: &mut tiny_skia::Pixmap,
+    tb: &TextBackend,
+    text: &str,
+    cx: f32,
+    cy: f32,
+    px: f32,
+    deg: f64,
+) {
+    use tiny_skia::{Color, Pixmap, PixmapPaint, Transform};
+    let pad = 2_u32;
+    let ow = (tb.measure(text, px).ceil() as u32 + pad * 2).max(4);
+    let oh = ((px * 1.4).ceil() as u32 + pad * 2).max(4);
+    let Some(mut off) = Pixmap::new(ow, oh) else {
+        return;
+    };
+    // 基线：cap 中心对 pixmap 中心（cap 高 ≈0.7em，中心 ≈ 基线 − 0.35em；
+    // pixmap 中心 = pad + 0.7em → 基线 = pad + 1.05em）
+    let baseline = pad as f32 + px * 1.05;
+    tb.draw(
+        &mut off,
+        text,
+        pad as f32,
+        baseline,
+        px,
+        Color::from_rgba8(0, 0, 0, 255),
+    );
+    let (owf, ohf) = (ow as f32, oh as f32);
+    let rad = (deg as f32).to_radians();
+    let (sn, cs) = rad.sin_cos();
+    // off 中心 → (cx, cy)：t = c − R(θ)·(ow/2, oh/2)
+    let tx = cx - (owf / 2.0) * cs + (ohf / 2.0) * sn;
+    let ty = cy - (owf / 2.0) * sn - (ohf / 2.0) * cs;
+    let ts = Transform::from_row(cs, sn, -sn, cs, tx, ty);
+    page.draw_pixmap(0, 0, off.as_ref(), &PixmapPaint::default(), ts, None);
 }
 
 // ---------------------------------------------------------------------------
@@ -1192,5 +1320,98 @@ mod tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../target/parcel_map_test.png");
         std::fs::write(&path, png).unwrap();
+    }
+
+    /// 60 顶点圆形宗地（数据行 61 > A4 单块容量）。
+    fn big_boundary() -> ParcelBoundary {
+        let pts: Vec<(f64, f64)> = (0..60)
+            .map(|i| {
+                let a = i as f64 / 60.0 * std::f64::consts::TAU;
+                (39595000.0 + 100.0 * a.cos(), 4127000.0 + 100.0 * a.sin())
+            })
+            .collect();
+        ParcelBoundary {
+            exterior: RealestateRing::new(pts, RingRole::Exterior),
+            interiors: vec![],
+        }
+    }
+
+    #[test]
+    fn folded_coord_table_right_to_left() {
+        let boundary = big_boundary();
+        let points = cartography::generate_boundary_points(&boundary, "J");
+        let lines = cartography::generate_boundary_lines(&boundary, &points);
+        let table = CoordTable::build(&points, &lines, 31415.93);
+        let chunks = table.block_rows();
+        assert!(chunks.len() > 1, "61 数据行应触发折列: {chunks:?}");
+        assert_eq!(chunks.iter().sum::<usize>(), table.rows.len());
+        assert!(
+            table.display_height() <= TABLE_MAX_H + 1e-6,
+            "折列后展示高度应 ≤ 框内可用高"
+        );
+        let mut prims = Vec::new();
+        table.emit(&mut prims);
+        // 题行仅首列一次；表头每列重复；面积行仅末列一次
+        let titles = prims
+            .iter()
+            .filter(|p| matches!(p, Prim::Text { text, .. } if text == "界址点坐标表"))
+            .count();
+        assert_eq!(titles, 1);
+        let headers = prims
+            .iter()
+            .filter(|p| matches!(p, Prim::Text { text, .. } if text == "X坐标(m)"))
+            .count();
+        assert_eq!(headers, chunks.len());
+        let areas = prims
+            .iter()
+            .filter(|p| matches!(p, Prim::Text { text, .. } if text == "宗地面积(平方米)"))
+            .count();
+        assert_eq!(areas, 1);
+        // 右起列流：首列外框在次列右侧
+        let rects: Vec<[f64; 4]> = prims
+            .iter()
+            .filter_map(|p| match p {
+                Prim::Rect { rect, .. } => Some(*rect),
+                _ => None,
+            })
+            .collect();
+        assert!(rects.len() == chunks.len() && rects[0][0] > rects[1][0]);
+        // 面积值在末列（最左）：其 x 小于首列 x0
+        let area_x = prims
+            .iter()
+            .find_map(|p| match p {
+                Prim::Text { text, x, .. } if text == "31415.93" => Some(*x),
+                _ => None,
+            })
+            .expect("面积值文本应在图元中");
+        assert!(area_x < rects[0][0], "面积行应在末列（最左）");
+    }
+
+    #[test]
+    fn png_rotated_text_draws_vertical_ink() {
+        let tb = TextBackend::system();
+        let mut page = tiny_skia::Pixmap::new(200, 200).unwrap();
+        page.fill(tiny_skia::Color::from_rgba8(255, 255, 255, 255));
+        // 「8888」旋转 90°：真字体与点阵回退均有数字字形
+        draw_rotated_text(&mut page, &tb, "8888", 100.0, 100.0, 20.0, 90.0);
+        let (mut minx, mut miny, mut maxx, mut maxy) = (u32::MAX, u32::MAX, 0, 0);
+        for y in 0..200 {
+            for x in 0..200 {
+                let p = page.pixel(x, y).unwrap();
+                if p.red() < 100 {
+                    minx = minx.min(x);
+                    maxx = maxx.max(x);
+                    miny = miny.min(y);
+                    maxy = maxy.max(y);
+                }
+            }
+        }
+        assert!(maxx > minx && maxy > miny, "旋转文本应有墨迹");
+        assert!(
+            (maxy - miny) > (maxx - minx),
+            "90° 旋转文本应垂直延展（高 {} > 宽 {}）",
+            maxy - miny,
+            maxx - minx
+        );
     }
 }
