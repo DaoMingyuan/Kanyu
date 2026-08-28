@@ -560,6 +560,38 @@ CASS 坐标数据文件（.dat，注册表第 20 格式）走通用导出：
 `kanyu data export 点层.geojson -f dat --out 点.dat`（CASS 标准轴序
 `点号,编码,Y东,X北[,H]`；.dat 亦可被 `kanyu data info/load` 直接读取）。
 
+### 5.5 `kanyu render sea-boundary-map <file> --out <path>` ✅
+
+宗海界址图出图（GB/T 42547-2023 图 L.7 版式；kanyu-render `seamap`
+模块 + `cartography` 排版引擎）：A4 **横向**页面——标题「{项目}宗海界址图」
++ 宗海代码行 + **经纬网图廓**（自适应间隔，度分秒注记顶/底横排、左右竖排）
++ 地图区（宗海图斑 RGB(245,162,122)、0.5mm 红界址线、点号 1,2,3…
+（无 J 前缀）、边长注记）+ 右侧**界址点编号及坐标表**（点号|纬度（北纬）|
+经度（东经），**度分秒 3 位小数**，末行重复起点闭合，逐点经 `--source-epsg`
+反算 EPSG:4490）+ 右下网格签注表（坐标系/高程基准/测绘单位/测量员/绘图员/
+绘制日期/检查人/审核人）+ 左下整百比例尺 + 右上指北针。
+输出格式按 `--out` 扩展名判定（`svg`/`png`）。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--out <path>` | （必填） | 输出路径（`.svg` 或 `.png`） |
+| `--project-name <text>` | 属性 `project_name/XMMC` | 项目名称（标题前缀） |
+| `--sea-code <text>` | 属性 `sea_code/ZHDM` | 宗海代码（左上「登记时填写或粘贴」） |
+| `--source-epsg <code>` | `EPSG:4527` | 源坐标系（坐标表 DMS 反算基准；裸数字自动规范化） |
+| `--survey-unit / --surveyor / --drawer` | （空） | 测绘单位 / 测量员 / 绘图员（签注表） |
+| `--draw-date <text>` | （空） | 绘制日期 |
+| `--inspector / --reviewer <text>` | （空） | 检查人 / 审核人 |
+| `--scale <n>` | 自动取整百 | 比例尺分母 |
+| `--dpi <n>` | `150` | PNG 分辨率（SVG 忽略） |
+| `--index <n>` | 面积最大面要素 | 面要素文档序序号（0 起） |
+
+```bash
+$ ./target/debug/kanyu.exe render sea-boundary-map 宗海.dxf --out 宗海界址图.png \
+    --project-name 代理围填海项目 --sea-code 371602113005JB00088 --source-epsg 4527
+已出宗海界址图 → 宗海界址图.png（1:800，注记 18 条，残余压盖 0 条）   # 该提示在 stderr
+# 实测：真实宗地代理（GB00032，EPSG:4527）DMS 坐标表与金样逐行一致
+```
+
 ## 6. kanyu gene ✅
 
 WASM 技能系统宿主（kanyu-skill crate；ABI 与沙箱模型见

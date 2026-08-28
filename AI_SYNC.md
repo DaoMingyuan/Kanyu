@@ -103,6 +103,13 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第七轮：宗海界址图（图 L.7，新图种）
+- 提交：本次 commit；测试：`cargo test --workspace` 全绿（seamap +6：DMS 进位/网格间隔/全要素 SVG/PNG）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
+- 内容：kanyu-render 新模块 `seamap`（GB/T 42547-2023 图 L.7 版式 A4 横：自适应经纬网图廓（[1″…1°] 3~8 线/轴，度分秒注记顶底横排/左右竖排）、宗海图斑 RGB(245,162,122)、0.5mm 红界址线、点号无 J 前缀、边长注记 cartography 排版、右侧界址点编号及坐标表（北纬|东经 DMS 3 位小数进位安全、末行闭合、source-epsg 反算 EPSG:4490）、右下网格签注表（坐标系/高程基准固定值）、左下整百比例尺、右上指北针）；CLI `render sea-boundary-map`（属性拾取 sea_code/ZHDM、project_name/XMMC）；docs（CLI §5.5/ARCHITECTURE/MASTERPLAN/CHANGELOG）同步
+- 真实验证：真实宗地代理（GB00032，EPSG:4527）渲染 **DMS 坐标表与金样 stage10_all_161 逐行一致**（37°16′21.140″/118°04′34.712″ 等 10 行全符）；经纬网/图斑/双表/指北针目检对齐金样
+- 偏差：无（上游 HY/T 251 缺口与宗海真实数据缺口随上游携带，仍以宗地代理验证）
+- 后续：§1.2 第 13 项余 ③用岛图种（L.9/L.10）/宗海位置图与平面布置图（L.6/L.8）④壳层半；seamap MCP 工具与坐标表折列待后续轮次
+
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第六轮：道路名称注记（L.3 邻地要素收尾）
 - 提交：本次 commit；测试：`cargo test --workspace` **414 全绿**（parcelmap +2：Liang-Barsky 裁剪/路名让位与提取助手）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
 - 内容：`ParcelMapSpec.roads`（`RoadLine` 线串+路名）——0.15mm 黑线按地图框 Liang-Barsky 逐段裁剪，路名沿最长可见段中点、角度沿线（字头向北允许向西），可见段短于路名宽度仅绘线（诚实不压）；`roads_from_collection` 提取助手（CLI/MCP 共用）；CLI `--roads <file>` + MCP `roads` 参数（路名键 name/NAME/road_name/道路名称/DLMC）；docs（CLI §5.3/MCP §3.21/CHANGELOG）同步

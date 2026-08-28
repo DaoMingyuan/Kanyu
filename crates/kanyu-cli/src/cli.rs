@@ -502,6 +502,54 @@ pub enum RenderCommand {
         #[arg(long)]
         index: Option<usize>,
     },
+    /// 宗海界址图（GB/T 42547-2023 图 L.7 版式，A4 横）：经纬网图廓（度分秒注记）+
+    /// 宗海图斑填充 + 红界址线 + 点号（无 J 前缀）/边长注记 + 界址点编号及坐标表
+    /// （经纬度度分秒，投影反算）+ 网格签注表 + 比例尺（分母取整百）+ N 指北针
+    /// （输出格式按 --out 扩展名判定：svg/png）。
+    SeaBoundaryMap {
+        /// 宗海数据文件（面要素；同 parcel-map）。
+        file: String,
+        /// 输出路径（.svg 或 .png）。
+        #[arg(long)]
+        out: String,
+        /// 项目名称（标题「{项目名称}宗海界址图」；缺省取属性 project_name/XMMC）。
+        #[arg(long)]
+        project_name: Option<String>,
+        /// 宗海代码（缺省取属性 sea_code/ZHDM）。
+        #[arg(long)]
+        sea_code: Option<String>,
+        /// 源坐标系（EPSG:xxxx 或纯数字代码；界址点坐标表经此反算为 CGCS2000
+        /// 经纬度度分秒；默认 EPSG:4527）。
+        #[arg(long, default_value = "EPSG:4527")]
+        source_epsg: String,
+        /// 测绘单位。
+        #[arg(long, default_value = "")]
+        survey_unit: String,
+        /// 测量员。
+        #[arg(long, default_value = "")]
+        surveyor: String,
+        /// 绘图员。
+        #[arg(long, default_value = "")]
+        drawer: String,
+        /// 绘制日期。
+        #[arg(long, default_value = "")]
+        draw_date: String,
+        /// 检查人。
+        #[arg(long, default_value = "")]
+        inspector: String,
+        /// 审核人。
+        #[arg(long, default_value = "")]
+        reviewer: String,
+        /// 比例尺分母（缺省自动适配取整百）。
+        #[arg(long)]
+        scale: Option<u32>,
+        /// 分辨率 dpi（默认 150，仅 PNG）。
+        #[arg(long, default_value_t = 150.0)]
+        dpi: f64,
+        /// 面要素序号（缺省取面积最大面要素；指定后按文档序第 N 个，0 起）。
+        #[arg(long)]
+        index: Option<usize>,
+    },
     /// 宗地 CASS 兼容 DXF 导出（南方 CASS 联动）：ZD/JZX/JZD/ZJ 分层 +
     /// SOUTH 编码 XDATA（界址点 302001/界址线 302002），CASS 直接打开编辑。
     ParcelDxf {

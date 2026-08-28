@@ -15,6 +15,8 @@ use geojson::{FeatureCollection, Value};
 pub mod layout;
 /// 宗地图渲染器（GB/T 42547 图 L.3 版式；见模块 rustdoc）。
 pub mod parcelmap;
+/// 宗海界址图渲染器（GB/T 42547 图 L.7 版式；见模块 rustdoc）。
+pub mod seamap;
 
 /// 渲染错误。
 #[derive(Debug, thiserror::Error)]

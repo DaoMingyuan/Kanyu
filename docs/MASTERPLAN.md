@@ -1157,6 +1157,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] **宗地 TXT 格式**（移植自堪舆工具箱 txt_feature.py：双段解析/校验/写出/质检；简单点表回退；注册表第 19 格式，2026-08-03）。
 - [x] **不动产制图引擎与宗地图出图**（cartography：勘测定界图注记契约移植——边长中点法线零沿线偏移/界址点号角平分线朝外/旋转矩形 SAT 避让/least_bad 诚实标记；kanyu-render `parcelmap`：GB/T 42547-2023 图 L.3 版式宗地图（界址点符号/红界址线/J 点号/边长注记/界址点坐标表/分式注记/整百比例尺/「北」指北针/签注栏）SVG+PNG 双通道；`kanyu render parcel-map`；真实宗地 CASS DXF 渲染验证 18 注记 0 压盖，2026-08-28）。
 - [x] **南方 CASS 联动**（cass 模块：CASS 坐标数据文件 .dat 读写（CASS 标准轴序 点号,编码,Y东,X北[,H]，编码列保留；注册表第 20 格式，CLI/MCP/壳层/Python/工具箱五处导出分派全接入）；宗地成果 CASS 兼容 DXF 导出（AC1024：ZD/JZX/JZD/ZJ 分层 + SOUTH 编码 XDATA 302001/302002），`kanyu render parcel-dxf`；真实 CASS DXF「读取→宗地图渲染→CASS DXF 再导出→再读取」闭环验证，2026-08-28）。
+- [x] **宗海界址图出图**（kanyu-render `seamap`：GB/T 42547-2023 图 L.7 版式 A4 横——自适应经纬网图廓（度分秒注记）、宗海图斑/红界址线/点号边长注记（cartography 排版）、右侧界址点编号及坐标表（北纬|东经，度分秒 3 位小数，EPSG:4490 反算）、网格签注表；`kanyu render sea-boundary-map`；真实宗地代理渲染 DMS 坐标表与金样逐行一致，2026-08-28）。
 - [x] **kanyu-py + Python 工具箱**（裁决 #20：PyO3 扩展模块全量暴露内核；ArcGIS .pyt 式 Toolbox/Tool/Param 约定，`kanyu toolbox list/run` 驱动，2026-08-03）。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）
