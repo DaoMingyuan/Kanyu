@@ -103,6 +103,13 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十二轮：所有权宗地图（L.4 图种分派 + CLI/MCP 双接口）
+- 提交：本次 commit；测试：`cargo test --workspace` **431 全绿**（parcelmap +1 L.4 要素、MCP +1 ownership kind）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
+- 内容：`ParcelMapKind` 图种分派入 parcelmap（UseRight/Ownership——地籍区号注记 5.5mm + 集体所有权主体分式上方（缺省回退权利人）+ 左下四行签注（权属调查/不动产测绘/制图/审核日期））；CLI 重构为共享 `ParcelMapArgs` 双变体（`parcel-map`/`parcel-ownership-map`，L.4 专属 `--cadastral-district`（属性 DJQDM 拾取）/`--collective-owner`/`--ownership-survey`/`--realty-mapping`）；MCP `kanyu_render_parcel_map` 加 `kind` 及三个 L.4 参数；docs（CLI §5.3A/MCP §3.21/MASTERPLAN/CHANGELOG）同步
+- 真实验证：GB00032 渲染所有权宗地图目检对齐金样 158（地籍区号 371602113/集体主体分式上方/四至/四行签注全符，18 注记零压盖）
+- 偏差：无
+- 后续：§1.2 第 13 项余 ④壳层半（layoutview/工具箱面板）；宗地草图（B.4）/房产图（L.5）图种待后续轮次
+
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十一轮：用岛两图种 MCP 工具（kanyu_render_island_map）
 - 提交：本次 commit；测试：`cargo test --workspace` **429 全绿**（MCP +1：L.9/L.10 回执 + 未知图种中文错误）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿；`kanyu introspect --json` 实测 34 工具在册（+1）
 - 内容：MCP `kanyu_render_island_map`——`kind` 一参两图种（range L.9/facility L.10），SVG/PNG 回传 + 可选落盘 + structuredContent（图种/比例尺/设施数），`facilities` 设施文件参数；设施提取助手 `facilities_from_collection` 下沉 islandmap 公开 API（CLI/MCP 同一事实来源）；introspect +1；docs/MCP.md §3.21 + 命名表；CHANGELOG 同步

@@ -103,9 +103,22 @@ pub fn roads_from_collection(
     roads
 }
 
+/// 宗地图图种（GB/T 42547-2023 附录 L）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ParcelMapKind {
+    /// 土地使用权宗地图（图 L.3）。
+    #[default]
+    UseRight,
+    /// 土地所有权宗地图（图 L.4：地籍区号注记 + 集体所有权主体注记
+    /// （分式上方）+ 权属调查/不动产测绘/制图/审核日期签注）。
+    Ownership,
+}
+
 /// 宗地图出图参数。
 #[derive(Debug, Clone)]
 pub struct ParcelMapSpec {
+    /// 图种（默认使用权 L.3）。
+    pub kind: ParcelMapKind,
     /// 宗地代码（完整 19 位或任意长度；分式分子取末 7 位）。
     pub parcel_code: String,
     /// 土地权利人。
@@ -147,6 +160,15 @@ pub struct ParcelMapSpec {
     /// 相邻道路（线 + 路名；图 L.3 样图「南大街」要素；0.15mm 黑线按地图框
     /// 裁剪，路名沿可见段中点、角度沿线（字头向北允许向西）；空表不绘）。
     pub roads: Vec<RoadLine>,
+    /// 地籍区号（DJQDM；L.4 所有权宗地图用——地图区上方居中 5.5mm 注记；
+    /// 空串不绘）。
+    pub cadastral_district: String,
+    /// 集体所有权主体（L.4 用——分式上方注记；空串回退土地权利人 owner）。
+    pub collective_owner: String,
+    /// 权属调查说明（L.4 左下签注首行，如「2026年08月权属调查」）。
+    pub ownership_survey: String,
+    /// 不动产测绘说明（L.4 左下签注次行，如「2026年08月不动产测绘」）。
+    pub realty_mapping: String,
 }
 
 /// 相邻道路（线要素 + 路名）。
@@ -161,6 +183,7 @@ pub struct RoadLine {
 impl Default for ParcelMapSpec {
     fn default() -> Self {
         Self {
+            kind: ParcelMapKind::UseRight,
             parcel_code: String::new(),
             owner: String::new(),
             map_sheet: String::new(),
@@ -180,6 +203,10 @@ impl Default for ParcelMapSpec {
             sizhi_w: String::new(),
             sizhi_n: String::new(),
             roads: Vec::new(),
+            cadastral_district: String::new(),
+            collective_owner: String::new(),
+            ownership_survey: String::new(),
+            realty_mapping: String::new(),
         }
     }
 }
@@ -962,6 +989,40 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
         vcenter: true,
         bold: false,
     });
+    // —— L.4 所有权宗地图专属注记 ——
+    if spec.kind == ParcelMapKind::Ownership {
+        // 地籍区号（DJQDM，地图区上方居中 5.5mm，对齐金样 158「371602113」）
+        if !spec.cadastral_district.trim().is_empty() {
+            prims.push(Prim::Text {
+                x: MAP_RECT[0] + MAP_RECT[2] / 2.0,
+                y: MAP_RECT[1] + 7.5,
+                font: 5.5,
+                text: spec.cadastral_district.trim().to_string(),
+                anchor: Anchor::Middle,
+                rotate_deg: 0.0,
+                vcenter: true,
+                bold: false,
+            });
+        }
+        // 集体所有权主体注记（分式上方；空串回退土地权利人）
+        let collective = if spec.collective_owner.trim().is_empty() {
+            spec.owner.trim()
+        } else {
+            spec.collective_owner.trim()
+        };
+        if !collective.is_empty() {
+            prims.push(Prim::Text {
+                x: gcx,
+                y: gcy - 6.2,
+                font: 3.0,
+                text: collective.to_string(),
+                anchor: Anchor::Middle,
+                rotate_deg: 0.0,
+                vcenter: true,
+                bold: false,
+            });
+        }
+    }
     // —— 四至/邻宗地注记（GB/T 42547 图 L.3：主方位最长边外侧 2.0mm 起，
     // 宽文本块沿边**切向**滑移避让（法线方向对宽块无效——同边边长注记
     // 恒在法线上；金样邻宗注记亦沿边错开摆放）；障碍=已放置点号/边长/
@@ -1050,37 +1111,34 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
     }
     // —— 界址点坐标表（地图框右下锚定）——
     table.emit(&mut prims);
-    // —— 底部签注带 ——
-    prims.push(Prim::Text {
-        x: INNER_RECT[0] + 3.0,
-        y: 277.2,
-        font: 2.5,
-        text: spec.survey_note.clone(),
-        anchor: Anchor::Start,
-        rotate_deg: 0.0,
-        vcenter: false,
-        bold: false,
-    });
-    prims.push(Prim::Text {
-        x: INNER_RECT[0] + 3.0,
-        y: 281.2,
-        font: 2.5,
-        text: format!("制图日期：{}", spec.draw_date),
-        anchor: Anchor::Start,
-        rotate_deg: 0.0,
-        vcenter: false,
-        bold: false,
-    });
-    prims.push(Prim::Text {
-        x: INNER_RECT[0] + 3.0,
-        y: 285.0,
-        font: 2.5,
-        text: format!("审核日期：{}", spec.review_date),
-        anchor: Anchor::Start,
-        rotate_deg: 0.0,
-        vcenter: false,
-        bold: false,
-    });
+    // —— 底部签注带（L.3：测绘说明/制图日期/审核日期三行；
+    // L.4：权属调查/不动产测绘/制图日期/审核日期四行，对齐金样 158）——
+    let left_notes: Vec<String> = if spec.kind == ParcelMapKind::Ownership {
+        vec![
+            spec.ownership_survey.clone(),
+            spec.realty_mapping.clone(),
+            format!("制图日期：{}", spec.draw_date),
+            format!("审核日期：{}", spec.review_date),
+        ]
+    } else {
+        vec![
+            spec.survey_note.clone(),
+            format!("制图日期：{}", spec.draw_date),
+            format!("审核日期：{}", spec.review_date),
+        ]
+    };
+    for (i, note) in left_notes.iter().enumerate() {
+        prims.push(Prim::Text {
+            x: INNER_RECT[0] + 3.0,
+            y: 274.4 + i as f64 * 3.6,
+            font: 2.5,
+            text: note.clone(),
+            anchor: Anchor::Start,
+            rotate_deg: 0.0,
+            vcenter: false,
+            bold: false,
+        });
+    }
     prims.push(Prim::Text {
         x: PAGE_W / 2.0,
         y: (FOOT_Y0 + INNER_RECT[1] + INNER_RECT[3]) / 2.0,
@@ -1471,6 +1529,7 @@ mod tests {
     /// 完整 spec（比例尺缺省自动求解、面积缺省现算）。
     fn full_spec() -> ParcelMapSpec {
         ParcelMapSpec {
+            kind: ParcelMapKind::UseRight,
             parcel_code: "371602113005GB00032".to_string(),
             owner: "中国联合网络通信有限公司滨州市分公司".to_string(),
             map_sheet: "27.00-95.25".to_string(),
@@ -1490,6 +1549,10 @@ mod tests {
             sizhi_w: String::new(),
             sizhi_n: String::new(),
             roads: Vec::new(),
+            cadastral_district: String::new(),
+            collective_owner: String::new(),
+            ownership_survey: String::new(),
+            realty_mapping: String::new(),
         }
     }
 
@@ -1815,5 +1878,32 @@ GB00029"
         assert_eq!(roads[0].name, "南大街");
         assert_eq!(roads[1].name, "解放路");
         assert_eq!(roads[2].path.len(), 2);
+    }
+
+    #[test]
+    fn ownership_map_l4_elements() {
+        // L.4 所有权宗地图：地籍区号注记 + 集体主体分式上方 + 左下四行签注
+        let spec = ParcelMapSpec {
+            kind: ParcelMapKind::Ownership,
+            cadastral_district: "371602113".to_string(),
+            ownership_survey: "2026年08月权属调查".to_string(),
+            realty_mapping: "2026年08月不动产测绘".to_string(),
+            ..full_spec()
+        };
+        let out = render_parcel_map_svg(&test_boundary(), &spec).unwrap();
+        let svg = svg_of(&out);
+        assert!(svg.contains("371602113"), "地籍区号注记");
+        // 集体主体 = owner 回退（collective_owner 空）在分式上方
+        assert!(svg.contains("中国联合网络通信有限公司滨州市分公司"));
+        assert!(svg.contains("2026年08月权属调查"), "权属调查行");
+        assert!(svg.contains("2026年08月不动产测绘"), "不动产测绘行");
+        assert!(svg.contains("制图日期：2026年08月25日"));
+        // L.3 签注行不出现
+        assert!(!svg.contains("解析法测绘界址点"), "L.4 不用 L.3 测绘说明行");
+        // L.3 回归：无地籍区号、有三行签注
+        let out3 = render_parcel_map_svg(&test_boundary(), &full_spec()).unwrap();
+        let svg3 = svg_of(&out3);
+        assert!(!svg3.contains("权属调查"));
+        assert!(svg3.contains("2026年08月解析法测绘界址点"));
     }
 }

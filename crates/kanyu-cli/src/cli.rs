@@ -436,72 +436,10 @@ pub enum RenderCommand {
     /// 宗地图出图（GB/T 42547-2023《地籍调查规程》图 L.3 版式）：界址点 Ø2.0mm 符号 +
     /// 红界址线 + J 点号/边长注记（勘测定界图注记契约排版）+ 界址点坐标表 +
     /// 比例尺（分母取整百）+ 指北针 + 签注栏（输出格式按 --out 扩展名判定：svg/png）。
-    ParcelMap {
-        /// 宗地数据文件（面要素；GeoJSON/SHP/宗地 TXT/DXF 等注册格式，
-        /// 多面要素缺省取面积最大者，可用 --index 指定）。
-        file: String,
-        /// 输出路径（.svg 或 .png）。
-        #[arg(long)]
-        out: String,
-        /// 宗地代码（缺省取要素属性 parcel_id/ZDDM/zddm）。
-        #[arg(long)]
-        parcel_code: Option<String>,
-        /// 土地权利人（缺省取属性 owner/QLRMC/parcel_name）。
-        #[arg(long)]
-        owner: Option<String>,
-        /// 所在图幅号（缺省取属性 map_sheet/TFH）。
-        #[arg(long)]
-        map_sheet: Option<String>,
-        /// 宗地面积（㎡；缺省取属性 area/ZDMJ，再无按几何现算）。
-        #[arg(long)]
-        area: Option<f64>,
-        /// 地类编码（缺省取属性 parcel_use/YT）。
-        #[arg(long)]
-        land_use: Option<String>,
-        /// 左侧竖排单位名（如 XXX自然资源局）。
-        #[arg(long, default_value = "")]
-        unit_name: String,
-        /// 测绘说明（左下；如「2026年08月解析法测绘界址点」）。
-        #[arg(long, default_value = "")]
-        survey_note: String,
-        /// 制图者。
-        #[arg(long, default_value = "")]
-        drawer: String,
-        /// 审核者。
-        #[arg(long, default_value = "")]
-        reviewer: String,
-        /// 制图日期。
-        #[arg(long, default_value = "")]
-        draw_date: String,
-        /// 审核日期。
-        #[arg(long, default_value = "")]
-        review_date: String,
-        /// 东至注记（邻宗地；缺省取属性 ZDSZD；`\n` 分行）。
-        #[arg(long, default_value = "")]
-        sizhi_e: String,
-        /// 南至注记（邻宗地；缺省取属性 ZDSZN）。
-        #[arg(long, default_value = "")]
-        sizhi_s: String,
-        /// 西至注记（邻宗地；缺省取属性 ZDSZX）。
-        #[arg(long, default_value = "")]
-        sizhi_w: String,
-        /// 北至注记（邻宗地；缺省取属性 ZDSZB）。
-        #[arg(long, default_value = "")]
-        sizhi_n: String,
-        /// 相邻道路线文件（任意注册格式线要素；路名取属性
-        /// name/NAME/road_name/道路名称/DLMC；按地图框裁剪，路名沿线）。
-        #[arg(long)]
-        roads: Option<String>,
-        /// 比例尺分母（缺省自动适配取整百）。
-        #[arg(long)]
-        scale: Option<u32>,
-        /// 分辨率 dpi（默认 150，仅 PNG）。
-        #[arg(long, default_value_t = 150.0)]
-        dpi: f64,
-        /// 面要素序号（缺省取面积最大面要素；指定后按文档序第 N 个，0 起）。
-        #[arg(long)]
-        index: Option<usize>,
-    },
+    ParcelMap(ParcelMapArgs),
+    /// 土地所有权宗地图（图 L.4 版式）：L.3 全部要素 + 地籍区号注记（5.5mm）+
+    /// 集体所有权主体注记（分式上方）+ 权属调查/不动产测绘/制图/审核日期签注。
+    ParcelOwnershipMap(ParcelMapArgs),
     /// 宗海界址图（GB/T 42547-2023 图 L.7 版式，A4 横）：经纬网图廓（度分秒注记）+
     /// 宗海图斑填充 + 红界址线 + 点号（无 J 前缀）/边长注记 + 界址点编号及坐标表
     /// （经纬度度分秒，投影反算）+ 网格签注表 + 比例尺（分母取整百）+ N 指北针
@@ -547,6 +485,88 @@ pub enum RenderCommand {
         #[arg(long)]
         index: Option<usize>,
     },
+}
+
+/// 宗地图件共用参数（使用权宗地图 L.3 / 所有权宗地图 L.4）。
+#[derive(clap::Args, Debug, Clone)]
+pub struct ParcelMapArgs {
+    /// 宗地数据文件（面要素；GeoJSON/SHP/宗地 TXT/DXF 等注册格式，
+    /// 多面要素缺省取面积最大者，可用 --index 指定）。
+    pub file: String,
+    /// 输出路径（.svg 或 .png）。
+    #[arg(long)]
+    pub out: String,
+    /// 宗地代码（缺省取要素属性 parcel_id/ZDDM/zddm）。
+    #[arg(long)]
+    pub parcel_code: Option<String>,
+    /// 土地权利人（缺省取属性 owner/QLRMC/parcel_name）。
+    #[arg(long)]
+    pub owner: Option<String>,
+    /// 所在图幅号（缺省取属性 map_sheet/TFH）。
+    #[arg(long)]
+    pub map_sheet: Option<String>,
+    /// 宗地面积（㎡；缺省取属性 area/ZDMJ，再无按几何现算）。
+    #[arg(long)]
+    pub area: Option<f64>,
+    /// 地类编码（缺省取属性 parcel_use/YT）。
+    #[arg(long)]
+    pub land_use: Option<String>,
+    /// 左侧竖排单位名（如 XXX自然资源局）。
+    #[arg(long, default_value = "")]
+    pub unit_name: String,
+    /// 测绘说明（L.3 左下；如「2026年08月解析法测绘界址点」）。
+    #[arg(long, default_value = "")]
+    pub survey_note: String,
+    /// 制图者。
+    #[arg(long, default_value = "")]
+    pub drawer: String,
+    /// 审核者。
+    #[arg(long, default_value = "")]
+    pub reviewer: String,
+    /// 制图日期。
+    #[arg(long, default_value = "")]
+    pub draw_date: String,
+    /// 审核日期。
+    #[arg(long, default_value = "")]
+    pub review_date: String,
+    /// 东至注记（邻宗地；缺省取属性 ZDSZD；`\n` 分行）。
+    #[arg(long, default_value = "")]
+    pub sizhi_e: String,
+    /// 南至注记（邻宗地；缺省取属性 ZDSZN）。
+    #[arg(long, default_value = "")]
+    pub sizhi_s: String,
+    /// 西至注记（邻宗地；缺省取属性 ZDSZX）。
+    #[arg(long, default_value = "")]
+    pub sizhi_w: String,
+    /// 北至注记（邻宗地；缺省取属性 ZDSZB）。
+    #[arg(long, default_value = "")]
+    pub sizhi_n: String,
+    /// 相邻道路线文件（任意注册格式线要素；路名取属性
+    /// name/NAME/road_name/道路名称/DLMC；按地图框裁剪，路名沿线）。
+    #[arg(long)]
+    pub roads: Option<String>,
+    /// 地籍区号 DJQDM（L.4 用——地图区上方居中 5.5mm 注记；缺省取属性
+    /// DJQDM/djqdm，L.3 忽略）。
+    #[arg(long, default_value = "")]
+    pub cadastral_district: String,
+    /// 集体所有权主体（L.4 用——分式上方注记；缺省回退土地权利人）。
+    #[arg(long, default_value = "")]
+    pub collective_owner: String,
+    /// 权属调查说明（L.4 左下签注首行，如「2026年08月权属调查」）。
+    #[arg(long, default_value = "")]
+    pub ownership_survey: String,
+    /// 不动产测绘说明（L.4 左下签注次行，如「2026年08月不动产测绘」）。
+    #[arg(long, default_value = "")]
+    pub realty_mapping: String,
+    /// 比例尺分母（缺省自动适配取整百）。
+    #[arg(long)]
+    pub scale: Option<u32>,
+    /// 分辨率 dpi（默认 150，仅 PNG）。
+    #[arg(long, default_value_t = 150.0)]
+    pub dpi: f64,
+    /// 面要素序号（缺省取面积最大面要素；指定后按文档序第 N 个，0 起）。
+    #[arg(long)]
+    pub index: Option<usize>,
 }
 
 /// 宗海图件共用参数（宗海界址图 L.7 / 宗海位置图 L.6 / 宗海平面布置图 L.8）。

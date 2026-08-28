@@ -973,123 +973,11 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
                 }
             }
         }
-        RenderCommand::ParcelMap {
-            file,
-            out,
-            parcel_code,
-            owner,
-            map_sheet,
-            area,
-            land_use,
-            unit_name,
-            survey_note,
-            drawer,
-            reviewer,
-            draw_date,
-            review_date,
-            sizhi_e,
-            sizhi_s,
-            sizhi_w,
-            sizhi_n,
-            roads,
-            scale,
-            dpi,
-            index,
-        } => {
-            use kanyu_render::parcelmap::{
-                render_parcel_map_png, render_parcel_map_svg, ParcelMapData, ParcelMapSpec,
-            };
-            let (boundary, props) = parcel_boundary_from_file(file, *index)?;
-            let spec = ParcelMapSpec {
-                parcel_code: parcel_code
-                    .clone()
-                    .or_else(|| prop_str(&props, &["parcel_id", "ZDDM", "zddm"]))
-                    .unwrap_or_default(),
-                owner: owner
-                    .clone()
-                    .or_else(|| prop_str(&props, &["owner", "QLRMC", "parcel_name"]))
-                    .unwrap_or_default(),
-                map_sheet: map_sheet
-                    .clone()
-                    .or_else(|| prop_str(&props, &["map_sheet", "TFH"]))
-                    .unwrap_or_default(),
-                area_sqm: area.or_else(|| prop_f64(&props, &["area", "ZDMJ"])),
-                land_use: land_use
-                    .clone()
-                    .or_else(|| prop_str(&props, &["parcel_use", "YT"]))
-                    .unwrap_or_default(),
-                unit_name: unit_name.clone(),
-                survey_note: survey_note.clone(),
-                drawer: drawer.clone(),
-                reviewer: reviewer.clone(),
-                draw_date: draw_date.clone(),
-                review_date: review_date.clone(),
-                // 四至注记：旗标优先，缺省取属性 ZDSZD/S/X/B（不动产登记数据库标准四至字段）
-                sizhi_e: if sizhi_e.is_empty() {
-                    prop_str(&props, &["ZDSZD", "zdszd"]).unwrap_or_default()
-                } else {
-                    sizhi_e.clone()
-                },
-                sizhi_s: if sizhi_s.is_empty() {
-                    prop_str(&props, &["ZDSZN", "zdszn"]).unwrap_or_default()
-                } else {
-                    sizhi_s.clone()
-                },
-                sizhi_w: if sizhi_w.is_empty() {
-                    prop_str(&props, &["ZDSZX", "zdszx"]).unwrap_or_default()
-                } else {
-                    sizhi_w.clone()
-                },
-                sizhi_n: if sizhi_n.is_empty() {
-                    prop_str(&props, &["ZDSZB", "zdszb"]).unwrap_or_default()
-                } else {
-                    sizhi_n.clone()
-                },
-                roads: match roads {
-                    Some(path) => {
-                        let road_layer = Layer::load(stem_of(path), path)?;
-                        kanyu_render::parcelmap::roads_from_collection(
-                            &road_layer.collection(),
-                            &["name", "NAME", "road_name", "道路名称", "DLMC", "dlmc"],
-                        )
-                    }
-                    None => Vec::new(),
-                },
-                scale: *scale,
-                dpi: *dpi,
-                ..Default::default()
-            };
-            let ext = out
-                .rsplit('.')
-                .next()
-                .map(str::to_ascii_lowercase)
-                .unwrap_or_default();
-            let output = match ext.as_str() {
-                "png" => render_parcel_map_png(&boundary, &spec)?,
-                "svg" => render_parcel_map_svg(&boundary, &spec)?,
-                other => {
-                    bail!("输出格式按扩展名判定，仅支持 .png/.svg（实际: '.{other}'）")
-                }
-            };
-            let overlaps = output
-                .diagnostics
-                .iter()
-                .filter(|d| d.contains("overlap=true"))
-                .count();
-            match &output.data {
-                ParcelMapData::Svg(text) => {
-                    std::fs::write(out, text).with_context(|| format!("写入 {out} 失败"))?;
-                }
-                ParcelMapData::Png(bytes) => {
-                    std::fs::write(out, bytes).with_context(|| format!("写入 {out} 失败"))?;
-                }
-            }
-            eprintln!(
-                "已出宗地图 → {out}（1:{}，注记 {} 条，残余压盖 {} 条）",
-                output.scale,
-                output.diagnostics.len(),
-                overlaps
-            );
+        RenderCommand::ParcelMap(args) => {
+            parcel_map_render(args, kanyu_render::parcelmap::ParcelMapKind::UseRight)?;
+        }
+        RenderCommand::ParcelOwnershipMap(args) => {
+            parcel_map_render(args, kanyu_render::parcelmap::ParcelMapKind::Ownership)?;
         }
         RenderCommand::SeaBoundaryMap(args) => {
             sea_map_render(args, kanyu_render::seamap::SeaMapKind::BoundaryMap)?;
@@ -1146,6 +1034,127 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
             );
         }
     }
+    Ok(())
+}
+
+/// 宗地图件出图共用实现（使用权宗地图 L.3 / 所有权宗地图 L.4）。
+fn parcel_map_render(
+    args: &crate::cli::ParcelMapArgs,
+    kind: kanyu_render::parcelmap::ParcelMapKind,
+) -> Result<()> {
+    use kanyu_render::parcelmap::{
+        render_parcel_map_png, render_parcel_map_svg, ParcelMapData, ParcelMapSpec,
+    };
+    let (boundary, props) = parcel_boundary_from_file(&args.file, args.index)?;
+    let spec = ParcelMapSpec {
+        kind,
+        parcel_code: args
+            .parcel_code
+            .clone()
+            .or_else(|| prop_str(&props, &["parcel_id", "ZDDM", "zddm"]))
+            .unwrap_or_default(),
+        owner: args
+            .owner
+            .clone()
+            .or_else(|| prop_str(&props, &["owner", "QLRMC", "parcel_name"]))
+            .unwrap_or_default(),
+        map_sheet: args
+            .map_sheet
+            .clone()
+            .or_else(|| prop_str(&props, &["map_sheet", "TFH"]))
+            .unwrap_or_default(),
+        area_sqm: args.area.or_else(|| prop_f64(&props, &["area", "ZDMJ"])),
+        land_use: args
+            .land_use
+            .clone()
+            .or_else(|| prop_str(&props, &["parcel_use", "YT"]))
+            .unwrap_or_default(),
+        unit_name: args.unit_name.clone(),
+        survey_note: args.survey_note.clone(),
+        drawer: args.drawer.clone(),
+        reviewer: args.reviewer.clone(),
+        draw_date: args.draw_date.clone(),
+        review_date: args.review_date.clone(),
+        // 四至注记：旗标优先，缺省取属性 ZDSZD/S/X/B（不动产登记数据库标准四至字段）
+        sizhi_e: if args.sizhi_e.is_empty() {
+            prop_str(&props, &["ZDSZD", "zdszd"]).unwrap_or_default()
+        } else {
+            args.sizhi_e.clone()
+        },
+        sizhi_s: if args.sizhi_s.is_empty() {
+            prop_str(&props, &["ZDSZN", "zdszn"]).unwrap_or_default()
+        } else {
+            args.sizhi_s.clone()
+        },
+        sizhi_w: if args.sizhi_w.is_empty() {
+            prop_str(&props, &["ZDSZX", "zdszx"]).unwrap_or_default()
+        } else {
+            args.sizhi_w.clone()
+        },
+        sizhi_n: if args.sizhi_n.is_empty() {
+            prop_str(&props, &["ZDSZB", "zdszb"]).unwrap_or_default()
+        } else {
+            args.sizhi_n.clone()
+        },
+        roads: match &args.roads {
+            Some(path) => {
+                let road_layer = Layer::load(stem_of(path), path)?;
+                kanyu_render::parcelmap::roads_from_collection(
+                    &road_layer.collection(),
+                    &["name", "NAME", "road_name", "道路名称", "DLMC", "dlmc"],
+                )
+            }
+            None => Vec::new(),
+        },
+        cadastral_district: if args.cadastral_district.is_empty() {
+            prop_str(&props, &["DJQDM", "djqdm"]).unwrap_or_default()
+        } else {
+            args.cadastral_district.clone()
+        },
+        collective_owner: args.collective_owner.clone(),
+        ownership_survey: args.ownership_survey.clone(),
+        realty_mapping: args.realty_mapping.clone(),
+        scale: args.scale,
+        dpi: args.dpi,
+        ..Default::default()
+    };
+    let ext = args
+        .out
+        .rsplit('.')
+        .next()
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_default();
+    let output = match ext.as_str() {
+        "png" => render_parcel_map_png(&boundary, &spec)?,
+        "svg" => render_parcel_map_svg(&boundary, &spec)?,
+        other => {
+            bail!("输出格式按扩展名判定，仅支持 .png/.svg（实际: '.{other}'）")
+        }
+    };
+    let overlaps = output
+        .diagnostics
+        .iter()
+        .filter(|d| d.contains("overlap=true"))
+        .count();
+    match &output.data {
+        ParcelMapData::Svg(text) => {
+            std::fs::write(&args.out, text).with_context(|| format!("写入 {} 失败", args.out))?;
+        }
+        ParcelMapData::Png(bytes) => {
+            std::fs::write(&args.out, bytes).with_context(|| format!("写入 {} 失败", args.out))?;
+        }
+    }
+    let kind_name = match kind {
+        kanyu_render::parcelmap::ParcelMapKind::UseRight => "宗地图",
+        kanyu_render::parcelmap::ParcelMapKind::Ownership => "所有权宗地图",
+    };
+    eprintln!(
+        "已出{kind_name} → {}（1:{}，注记 {} 条，残余压盖 {} 条）",
+        args.out,
+        output.scale,
+        output.diagnostics.len(),
+        overlaps
+    );
     Ok(())
 }
 

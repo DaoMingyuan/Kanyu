@@ -6,6 +6,16 @@
 
 ### 新增
 
+- **所有权宗地图（L.4）出图**：`ParcelMapKind` 图种分派入 `parcelmap`
+  渲染管线——L.3 全部要素 + 地籍区号注记（DJQDM，地图区上方居中
+  5.5mm）+ 集体所有权主体注记（分式上方，缺省回退土地权利人）+
+  左下四行签注（权属调查/不动产测绘/制图日期/审核日期）。
+  CLI 重构为共享 `ParcelMapArgs` 双变体（`parcel-map` /
+  `parcel-ownership-map`，L.4 专属 `--cadastral-district/--collective-owner/
+  --ownership-survey/--realty-mapping`）；MCP `kanyu_render_parcel_map`
+  加 `kind=use|ownership` 及三个 L.4 参数。真实 GB32 渲染目检对齐金样
+  158（地籍区号/集体主体/四至/四行签注全符）。parcelmap +1、MCP +1 测试。
+
 - **用岛图件 MCP 工具 `kanyu_render_island_map`**：`kind` 一参两图种
   （`range` 用岛范围图 L.9 / `facility` 建筑物和设施布置图 L.10）——
   CLI 双命令的 MCP 同源投影（`facilities` 设施文件路径参数；

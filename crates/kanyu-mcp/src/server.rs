@@ -257,6 +257,18 @@ pub struct RenderParcelMapReq {
     /// 相邻道路线文件路径（任意注册格式线要素；路名取属性
     /// name/NAME/road_name/道路名称/DLMC；按地图框裁剪，路名沿线）。
     pub roads: Option<String>,
+    /// 图种：use（土地使用权宗地图 L.3，默认）/ ownership（土地所有权
+    /// 宗地图 L.4：地籍区号注记 + 集体所有权主体注记 + 权属调查/不动产
+    /// 测绘签注）。
+    pub kind: Option<String>,
+    /// 地籍区号 DJQDM（L.4 用；缺省取属性 DJQDM/djqdm）。
+    pub cadastral_district: Option<String>,
+    /// 集体所有权主体（L.4 用——分式上方注记；缺省回退土地权利人）。
+    pub collective_owner: Option<String>,
+    /// 权属调查说明（L.4 左下签注首行）。
+    pub ownership_survey: Option<String>,
+    /// 不动产测绘说明（L.4 左下签注次行）。
+    pub realty_mapping: Option<String>,
     /// 比例尺分母（缺省自动适配取整百）。
     pub scale: Option<u32>,
     /// PNG 分辨率 dpi（默认 150，SVG 忽略）。
@@ -758,7 +770,18 @@ impl KanyuServer {
             kanyu_core::cartography::boundary_from_collection(&layer.collection(), req.index)
                 .map_err(to_mcp)?;
         let prop = |keys: &[&str]| kanyu_core::cartography::feature_prop_str(&props, keys);
+        let kind = match req.kind.as_deref().unwrap_or("use") {
+            "use" => kanyu_render::parcelmap::ParcelMapKind::UseRight,
+            "ownership" => kanyu_render::parcelmap::ParcelMapKind::Ownership,
+            other => {
+                return Err(McpError::invalid_params(
+                    format!("未知图种 '{other}'（支持 use/ownership）"),
+                    None,
+                ));
+            }
+        };
         let spec = ParcelMapSpec {
+            kind,
             parcel_code: req
                 .parcel_code
                 .or_else(|| prop(&["parcel_id", "ZDDM", "zddm"]))
@@ -810,6 +833,13 @@ impl KanyuServer {
                 }
                 None => Vec::new(),
             },
+            cadastral_district: req
+                .cadastral_district
+                .or_else(|| prop(&["DJQDM", "djqdm"]))
+                .unwrap_or_default(),
+            collective_owner: req.collective_owner.unwrap_or_default(),
+            ownership_survey: req.ownership_survey.unwrap_or_default(),
+            realty_mapping: req.realty_mapping.unwrap_or_default(),
             scale: req.scale,
             dpi: req.dpi.unwrap_or(150.0),
             ..Default::default()
@@ -2605,6 +2635,11 @@ mod tests {
                 sizhi_w: None,
                 sizhi_n: None,
                 roads: None,
+                kind: None,
+                cadastral_district: None,
+                collective_owner: None,
+                ownership_survey: None,
+                realty_mapping: None,
                 scale: None,
                 dpi: None,
                 index: None,
@@ -2616,6 +2651,84 @@ mod tests {
         assert_eq!(sc["overlap_count"].as_u64().unwrap(), 0);
         // 4 点号 + 4 边长
         assert_eq!(sc["label_count"].as_u64().unwrap(), 8);
+    }
+    #[tokio::test]
+    async fn render_parcel_map_ownership_kind() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_parcelmap_l4");
+        let parcel = write_parcel_fixture(&dir);
+        let server = KanyuServer::new();
+        let result = server
+            .render_parcel_map(Parameters(RenderParcelMapReq {
+                path: parcel,
+                format: "svg".to_string(),
+                out: None,
+                parcel_code: None,
+                owner: None,
+                map_sheet: None,
+                area: None,
+                land_use: None,
+                unit_name: None,
+                survey_note: None,
+                drawer: None,
+                reviewer: None,
+                draw_date: None,
+                review_date: None,
+                sizhi_e: None,
+                sizhi_s: None,
+                sizhi_w: None,
+                sizhi_n: None,
+                roads: None,
+                kind: Some("ownership".to_string()),
+                cadastral_district: Some("371602113".to_string()),
+                collective_owner: None,
+                ownership_survey: Some("2026年08月权属调查".to_string()),
+                realty_mapping: None,
+                scale: None,
+                dpi: None,
+                index: None,
+            }))
+            .await
+            .unwrap();
+        let sc = result.structured_content.unwrap();
+        assert_eq!(sc["overlap_count"], 0);
+        // SVG 内容含 L.4 要素（content 首块为 SVG 文本）
+        let svg = format!("{:?}", result.content);
+        assert!(svg.contains("371602113"), "地籍区号注记");
+        assert!(svg.contains("2026年08月权属调查"), "权属调查签注行");
+        // 未知图种：中文错误
+        let err = server
+            .render_parcel_map(Parameters(RenderParcelMapReq {
+                path: write_parcel_fixture(&dir),
+                format: "svg".to_string(),
+                out: None,
+                parcel_code: None,
+                owner: None,
+                map_sheet: None,
+                area: None,
+                land_use: None,
+                unit_name: None,
+                survey_note: None,
+                drawer: None,
+                reviewer: None,
+                draw_date: None,
+                review_date: None,
+                sizhi_e: None,
+                sizhi_s: None,
+                sizhi_w: None,
+                sizhi_n: None,
+                roads: None,
+                kind: Some("freehold".to_string()),
+                cadastral_district: None,
+                collective_owner: None,
+                ownership_survey: None,
+                realty_mapping: None,
+                scale: None,
+                dpi: None,
+                index: None,
+            }))
+            .await
+            .unwrap_err();
+        assert!(err.message.contains("未知图种"), "{err}");
     }
 
     #[tokio::test]

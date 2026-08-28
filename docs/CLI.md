@@ -533,6 +533,27 @@ $ ./target/debug/kanyu.exe render parcel-map 宗地.dxf --out 宗地图.png \
 # 实测：真实 CASS DXF（滨州 GB00032 宗地，9 界址点）渲染 18 注记零压盖
 ```
 
+### 5.3A `kanyu render parcel-ownership-map <file> --out <path>` ✅
+
+土地所有权宗地图出图（图 L.4 版式；`ParcelMapKind` 图种分派同管线）：
+L.3 全部要素 + **地籍区号注记**（DJQDM，地图区上方居中 5.5mm）+
+**集体所有权主体注记**（分式上方，缺省回退土地权利人）+
+左下四行签注（权属调查/不动产测绘/制图日期/审核日期）。
+参数与 `parcel-map` 全同，另加 L.4 专属三参数：
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--cadastral-district <text>` | 属性 `DJQDM/djqdm` | 地籍区号（5.5mm 注记；空不绘） |
+| `--collective-owner <text>` | 回退土地权利人 | 集体所有权主体（分式上方注记） |
+| `--ownership-survey / --realty-mapping <text>` | （空） | 权属调查 / 不动产测绘说明（左下签注首两行） |
+
+```bash
+$ ./target/debug/kanyu.exe render parcel-ownership-map 宗地.dxf --out 所有权宗地图.png \
+    --parcel-code 371602113005GB00032 --cadastral-district 371602113 \
+    --ownership-survey 2026年08月权属调查 --realty-mapping 2026年08月不动产测绘
+已出所有权宗地图 → 所有权宗地图.png（1:700，注记 18 条，残余压盖 0 条）   # 该提示在 stderr
+```
+
 ### 5.4 `kanyu render parcel-dxf <file> --out <path>` ✅
 
 宗地成果 CASS 兼容 DXF 导出（南方 CASS 联动；kanyu-core `cass` 模块）：
