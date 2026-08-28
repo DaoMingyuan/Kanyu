@@ -103,6 +103,13 @@
 
 ## 2. 迭代会签簿（新条目加在顶部）
 
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十三轮：宗地草图（B.4/图 B.1 图种分派 + CLI/MCP 双接口）
+- 提交：本次 commit；测试：`cargo test --workspace` **432 全绿**（parcelmap +1 草图要素 + L.3 回归）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
+- 内容：`ParcelMapKind::Sketch` 入 parcelmap 管线——无坐标表/头部信息框/分式/竖排单位名（SKETCH_MAP_RECT 全幅地图区 + SKETCH_SIGN_Y0 分隔线）；标题「宗地草图」；右下「说明：图中单位为米。」；框式签注栏（x=76/141 竖线 + 前两栏中行横线，丈量者|丈量日期|概略比例尺（两行通栏）/ 检查者|检查日期|1:N）；CLI `parcel-sketch-map`（共享 ParcelMapArgs + 草图四参数 `--measurer/--measure-date/--checker/--check-date`）；MCP `kind=sketch` 同名四参数；docs（CLI §5.3B/MCP §3.21/MASTERPLAN/CHANGELOG）同步
+- 真实验证：GB00032 渲染宗地草图目检对齐金样 156（标题/说明/框式签注栏/点号边长四至注记全符，1:500 自动整百，18 注记零压盖）
+- 偏差：无
+- 后续：§1.2 第 13 项余 ④壳层半（layoutview/工具箱面板）；房产图（L.5）待后续轮次
+
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十二轮：所有权宗地图（L.4 图种分派 + CLI/MCP 双接口）
 - 提交：本次 commit；测试：`cargo test --workspace` **431 全绿**（parcelmap +1 L.4 要素、MCP +1 ownership kind）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
 - 内容：`ParcelMapKind` 图种分派入 parcelmap（UseRight/Ownership——地籍区号注记 5.5mm + 集体所有权主体分式上方（缺省回退权利人）+ 左下四行签注（权属调查/不动产测绘/制图/审核日期））；CLI 重构为共享 `ParcelMapArgs` 双变体（`parcel-map`/`parcel-ownership-map`，L.4 专属 `--cadastral-district`（属性 DJQDM 拾取）/`--collective-owner`/`--ownership-survey`/`--realty-mapping`）；MCP `kanyu_render_parcel_map` 加 `kind` 及三个 L.4 参数；docs（CLI §5.3A/MCP §3.21/MASTERPLAN/CHANGELOG）同步

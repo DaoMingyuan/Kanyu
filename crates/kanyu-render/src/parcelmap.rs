@@ -103,7 +103,7 @@ pub fn roads_from_collection(
     roads
 }
 
-/// 宗地图图种（GB/T 42547-2023 附录 L）。
+/// 宗地图图种（GB/T 42547-2023 附录 L / 附录 B）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ParcelMapKind {
     /// 土地使用权宗地图（图 L.3）。
@@ -112,6 +112,10 @@ pub enum ParcelMapKind {
     /// 土地所有权宗地图（图 L.4：地籍区号注记 + 集体所有权主体注记
     /// （分式上方）+ 权属调查/不动产测绘/制图/审核日期签注）。
     Ownership,
+    /// 宗地草图（表 B.4 + 图 B.1：无坐标表/头部框/分式/竖排单位名；
+    /// 「说明：图中单位为米。」+ 框式签注栏（丈量者/丈量日期/检查者/
+    /// 检查日期 + 概略比例尺））。
+    Sketch,
 }
 
 /// 宗地图出图参数。
@@ -169,6 +173,14 @@ pub struct ParcelMapSpec {
     pub ownership_survey: String,
     /// 不动产测绘说明（L.4 左下签注次行，如「2026年08月不动产测绘」）。
     pub realty_mapping: String,
+    /// 丈量者（宗地草图签注栏）。
+    pub measurer: String,
+    /// 丈量日期（宗地草图签注栏）。
+    pub measure_date: String,
+    /// 检查者（宗地草图签注栏）。
+    pub checker: String,
+    /// 检查日期（宗地草图签注栏）。
+    pub check_date: String,
 }
 
 /// 相邻道路（线要素 + 路名）。
@@ -207,6 +219,10 @@ impl Default for ParcelMapSpec {
             collective_owner: String::new(),
             ownership_survey: String::new(),
             realty_mapping: String::new(),
+            measurer: String::new(),
+            measure_date: String::new(),
+            checker: String::new(),
+            check_date: String::new(),
         }
     }
 }
@@ -281,6 +297,10 @@ const HEADER_Y1: f64 = 36.0;
 const HEADER_COLS: [f64; 5] = [11.0, 64.0, 98.0, 134.0, 199.0];
 /// 地图框（主体；即内图廓 y 36→272 段，底为签注带）。
 const MAP_RECT: [f64; 4] = [11.0, 36.0, 188.0, 236.0];
+/// 宗地草图地图框（无头部框：y 26→262 段，底为草图框式签注栏）。
+const SKETCH_MAP_RECT: [f64; 4] = [11.0, 26.0, 188.0, 236.0];
+/// 宗地草图框式签注栏上沿（栏高 24mm：两行 ×12）。
+const SKETCH_SIGN_Y0: f64 = 262.0;
 /// 宗地适配留白（地图框内沿）。
 const MAP_PAD: f64 = 10.0;
 /// 底部签注带上沿。
@@ -727,11 +747,16 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
         (ext - holes).max(0.0)
     });
     // 坐标表（先组表：表高参与适配区与自动比例尺求解；长表按折列后展示高度）
+    let is_sketch = spec.kind == ParcelMapKind::Sketch;
+    let map_rect = if is_sketch { SKETCH_MAP_RECT } else { MAP_RECT };
     let table = CoordTable::build(&points, &lines, area);
-    // 宗地适配区：地图框扣除留白与底部坐标表带
-    let fit_w = MAP_RECT[2] - 2.0 * MAP_PAD;
-    let fit_h =
-        (MAP_RECT[3] - 2.0 * MAP_PAD - table.display_height() - TABLE_FIT_GAP).max(FIT_MIN_H);
+    // 宗地适配区：地图框扣除留白与底部坐标表带（草图无坐标表带）
+    let fit_w = map_rect[2] - 2.0 * MAP_PAD;
+    let fit_h = if is_sketch {
+        (map_rect[3] - 2.0 * MAP_PAD).max(FIT_MIN_H)
+    } else {
+        (map_rect[3] - 2.0 * MAP_PAD - table.display_height() - TABLE_FIT_GAP).max(FIT_MIN_H)
+    };
     let (min_x, min_y, max_x, max_y) = ring_bbox(&boundary.exterior);
     let span_x = (max_x - min_x).max(1e-6);
     let span_y = (max_y - min_y).max(1e-6);
@@ -742,8 +767,8 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
     };
     // 地图单位（米）→ 纸面毫米：mu = 1000 / scale；bbox 中心对适配区中心，北朝上
     let mu = 1000.0 / f64::from(scale);
-    let fit_cx = MAP_RECT[0] + MAP_PAD + fit_w / 2.0;
-    let fit_cy = MAP_RECT[1] + MAP_PAD + fit_h / 2.0;
+    let fit_cx = map_rect[0] + MAP_PAD + fit_w / 2.0;
+    let fit_cy = map_rect[1] + MAP_PAD + fit_h / 2.0;
     let bbox_c = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0);
     let to_page = |(x, y): (f64, f64)| (fit_cx + (x - bbox_c.0) * mu, fit_cy - (y - bbox_c.1) * mu);
 
@@ -792,7 +817,13 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
             color: BLACK,
         }),
     });
-    for y in [HEADER_Y1, FOOT_Y0] {
+    // 分隔线（L.3/L.4：头部框下沿 + 签注带上沿；草图：仅框式签注栏上沿）
+    let separators: &[f64] = if is_sketch {
+        &[SKETCH_SIGN_Y0]
+    } else {
+        &[HEADER_Y1, FOOT_Y0]
+    };
+    for &y in separators {
         prims.push(Prim::Path {
             pts: vec![(INNER_RECT[0], y), (INNER_RECT[0] + INNER_RECT[2], y)],
             close: false,
@@ -800,45 +831,50 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
             stroke: thin,
         });
     }
-    // —— 标题（顶部居中）+ 右上「单位：m㎡」——
+    // —— 标题（顶部居中，图种分派）+ 右上「单位：m㎡」（草图不绘）——
     prims.push(Prim::Text {
         x: PAGE_W / 2.0,
         y: TITLE_Y,
         font: TITLE_FONT,
-        text: "宗 地 图".to_string(),
+        text: match spec.kind {
+            ParcelMapKind::Sketch => "宗地草图".to_string(),
+            _ => "宗 地 图".to_string(),
+        },
         anchor: Anchor::Middle,
         rotate_deg: 0.0,
         vcenter: false,
         bold: true,
     });
-    prims.push(Prim::Text {
-        x: INNER_RECT[0] + INNER_RECT[2] - 2.0,
-        y: UNIT_NOTE_Y,
-        font: UNIT_NOTE_FONT,
-        text: "单位：m㎡".to_string(),
-        anchor: Anchor::End,
-        rotate_deg: 0.0,
-        vcenter: false,
-        bold: false,
-    });
-    // —— 头部信息框（面积一栏按金样加大字号）——
-    let header_texts = [
-        format!("宗地代码：{}", spec.parcel_code),
-        format!("所在图幅号：{}", spec.map_sheet),
-        format!("宗地面积：{area:.2}"),
-        format!("土地权利人：{}", spec.owner),
-    ];
-    for (c, text) in header_texts.iter().enumerate() {
+    // —— 右上「单位：m㎡」+ 头部信息框（面积一栏按金样加大字号；草图均不绘）——
+    if !is_sketch {
         prims.push(Prim::Text {
-            x: (HEADER_COLS[c] + HEADER_COLS[c + 1]) / 2.0,
-            y: (HEADER_Y0 + HEADER_Y1) / 2.0,
-            font: if c == 2 { 3.4 } else { 2.7 },
-            text: text.clone(),
-            anchor: Anchor::Middle,
+            x: INNER_RECT[0] + INNER_RECT[2] - 2.0,
+            y: UNIT_NOTE_Y,
+            font: UNIT_NOTE_FONT,
+            text: "单位：m㎡".to_string(),
+            anchor: Anchor::End,
             rotate_deg: 0.0,
-            vcenter: true,
+            vcenter: false,
             bold: false,
         });
+        let header_texts = [
+            format!("宗地代码：{}", spec.parcel_code),
+            format!("所在图幅号：{}", spec.map_sheet),
+            format!("宗地面积：{area:.2}"),
+            format!("土地权利人：{}", spec.owner),
+        ];
+        for (c, text) in header_texts.iter().enumerate() {
+            prims.push(Prim::Text {
+                x: (HEADER_COLS[c] + HEADER_COLS[c + 1]) / 2.0,
+                y: (HEADER_Y0 + HEADER_Y1) / 2.0,
+                font: if c == 2 { 3.4 } else { 2.7 },
+                text: text.clone(),
+                anchor: Anchor::Middle,
+                rotate_deg: 0.0,
+                vcenter: true,
+                bold: false,
+            });
+        }
     }
     // —— 指北针（地图框内右上：「北」字 + 细长三角，对齐 GB/T 42547 图 L.3 样图）——
     prims.push(Prim::Text {
@@ -868,7 +904,7 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
         let page_pts: Vec<P2> = road.path.iter().map(|&p| to_page(p)).collect();
         let mut pieces: Vec<(P2, P2)> = Vec::new();
         for w in page_pts.windows(2) {
-            if let Some(seg) = clip_segment_to_rect(w[0], w[1], MAP_RECT) {
+            if let Some(seg) = clip_segment_to_rect(w[0], w[1], map_rect) {
                 pieces.push(seg);
                 prims.push(Prim::Path {
                     pts: vec![seg.0, seg.1],
@@ -952,7 +988,8 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
             bold: false,
         });
     }
-    // —— 宗地中央分式（分子=宗地代码末 7 位 / 分母=地类编码，3.0mm 中等线，分数线横贯）——
+    // —— 宗地中央分式（分子=宗地代码末 7 位 / 分母=地类编码，3.0mm 中等线，分数线横贯；
+    // 草图不绘分式）——
     let code_tail: String = {
         let chars: Vec<char> = spec.parcel_code.chars().collect();
         chars.iter().skip(chars.len().saturating_sub(7)).collect()
@@ -963,64 +1000,66 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
         .max(cartography::text_extent_mm(&spec.land_use, 3.0).0))
         / 2.0
         + 1.0;
-    prims.push(Prim::Text {
-        x: gcx,
-        y: gcy - 2.3,
-        font: 3.0,
-        text: code_tail,
-        anchor: Anchor::Middle,
-        rotate_deg: 0.0,
-        vcenter: true,
-        bold: false,
-    });
-    prims.push(Prim::Path {
-        pts: vec![(gcx - half, gcy), (gcx + half, gcy)],
-        close: false,
-        fill: None,
-        stroke: thin,
-    });
-    prims.push(Prim::Text {
-        x: gcx,
-        y: gcy + 2.3,
-        font: 3.0,
-        text: spec.land_use.clone(),
-        anchor: Anchor::Middle,
-        rotate_deg: 0.0,
-        vcenter: true,
-        bold: false,
-    });
-    // —— L.4 所有权宗地图专属注记 ——
-    if spec.kind == ParcelMapKind::Ownership {
-        // 地籍区号（DJQDM，地图区上方居中 5.5mm，对齐金样 158「371602113」）
-        if !spec.cadastral_district.trim().is_empty() {
-            prims.push(Prim::Text {
-                x: MAP_RECT[0] + MAP_RECT[2] / 2.0,
-                y: MAP_RECT[1] + 7.5,
-                font: 5.5,
-                text: spec.cadastral_district.trim().to_string(),
-                anchor: Anchor::Middle,
-                rotate_deg: 0.0,
-                vcenter: true,
-                bold: false,
-            });
-        }
-        // 集体所有权主体注记（分式上方；空串回退土地权利人）
-        let collective = if spec.collective_owner.trim().is_empty() {
-            spec.owner.trim()
-        } else {
-            spec.collective_owner.trim()
-        };
-        if !collective.is_empty() {
-            prims.push(Prim::Text {
-                x: gcx,
-                y: gcy - 6.2,
-                font: 3.0,
-                text: collective.to_string(),
-                anchor: Anchor::Middle,
-                rotate_deg: 0.0,
-                vcenter: true,
-                bold: false,
-            });
+    if !is_sketch {
+        prims.push(Prim::Text {
+            x: gcx,
+            y: gcy - 2.3,
+            font: 3.0,
+            text: code_tail,
+            anchor: Anchor::Middle,
+            rotate_deg: 0.0,
+            vcenter: true,
+            bold: false,
+        });
+        prims.push(Prim::Path {
+            pts: vec![(gcx - half, gcy), (gcx + half, gcy)],
+            close: false,
+            fill: None,
+            stroke: thin,
+        });
+        prims.push(Prim::Text {
+            x: gcx,
+            y: gcy + 2.3,
+            font: 3.0,
+            text: spec.land_use.clone(),
+            anchor: Anchor::Middle,
+            rotate_deg: 0.0,
+            vcenter: true,
+            bold: false,
+        });
+        // —— L.4 所有权宗地图专属注记 ——
+        if spec.kind == ParcelMapKind::Ownership {
+            // 地籍区号（DJQDM，地图区上方居中 5.5mm，对齐金样 158「371602113」）
+            if !spec.cadastral_district.trim().is_empty() {
+                prims.push(Prim::Text {
+                    x: MAP_RECT[0] + MAP_RECT[2] / 2.0,
+                    y: MAP_RECT[1] + 7.5,
+                    font: 5.5,
+                    text: spec.cadastral_district.trim().to_string(),
+                    anchor: Anchor::Middle,
+                    rotate_deg: 0.0,
+                    vcenter: true,
+                    bold: false,
+                });
+            }
+            // 集体所有权主体注记（分式上方；空串回退土地权利人）
+            let collective = if spec.collective_owner.trim().is_empty() {
+                spec.owner.trim()
+            } else {
+                spec.collective_owner.trim()
+            };
+            if !collective.is_empty() {
+                prims.push(Prim::Text {
+                    x: gcx,
+                    y: gcy - 6.2,
+                    font: 3.0,
+                    text: collective.to_string(),
+                    anchor: Anchor::Middle,
+                    rotate_deg: 0.0,
+                    vcenter: true,
+                    bold: false,
+                });
+            }
         }
     }
     // —— 四至/邻宗地注记（GB/T 42547 图 L.3：主方位最长边外侧 2.0mm 起，
@@ -1109,69 +1148,168 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
             });
         }
     }
-    // —— 界址点坐标表（地图框右下锚定）——
-    table.emit(&mut prims);
-    // —— 底部签注带（L.3：测绘说明/制图日期/审核日期三行；
-    // L.4：权属调查/不动产测绘/制图日期/审核日期四行，对齐金样 158）——
-    let left_notes: Vec<String> = if spec.kind == ParcelMapKind::Ownership {
-        vec![
-            spec.ownership_survey.clone(),
-            spec.realty_mapping.clone(),
-            format!("制图日期：{}", spec.draw_date),
-            format!("审核日期：{}", spec.review_date),
-        ]
-    } else {
-        vec![
-            spec.survey_note.clone(),
-            format!("制图日期：{}", spec.draw_date),
-            format!("审核日期：{}", spec.review_date),
-        ]
-    };
-    for (i, note) in left_notes.iter().enumerate() {
+    // —— 界址点坐标表（地图框右下锚定；草图无坐标表）——
+    if !is_sketch {
+        table.emit(&mut prims);
+    }
+    // —— 底部签注带（图种分派）——
+    if is_sketch {
+        // 宗地草图：右下「说明：图中单位为米。」+ 框式签注栏
+        // （丈量者|丈量日期|概略比例尺（两行通栏）/ 检查者|检查日期|1:N，
+        // 对齐金样 156）
         prims.push(Prim::Text {
-            x: INNER_RECT[0] + 3.0,
-            y: 274.4 + i as f64 * 3.6,
+            x: INNER_RECT[0] + INNER_RECT[2] - 3.0,
+            y: SKETCH_SIGN_Y0 - 2.0,
             font: 2.5,
-            text: note.clone(),
-            anchor: Anchor::Start,
+            text: "说明：图中单位为米。".to_string(),
+            anchor: Anchor::End,
+            rotate_deg: 0.0,
+            vcenter: false,
+            bold: false,
+        });
+        // 栏分隔：x=76 / x=141 两竖线（签注栏全高）；中行横线仅前两栏
+        for x in [76.0, 141.0] {
+            prims.push(Prim::Path {
+                pts: vec![(x, SKETCH_SIGN_Y0), (x, INNER_RECT[1] + INNER_RECT[3])],
+                close: false,
+                fill: None,
+                stroke: thin,
+            });
+        }
+        let mid_y = (SKETCH_SIGN_Y0 + INNER_RECT[1] + INNER_RECT[3]) / 2.0;
+        prims.push(Prim::Path {
+            pts: vec![(INNER_RECT[0], mid_y), (141.0, mid_y)],
+            close: false,
+            fill: None,
+            stroke: thin,
+        });
+        // 单元格文本：标签靠左、值居中
+        let cell = |prims: &mut Vec<Prim>, label: &str, value: &str, xa: f64, xb: f64, y: f64| {
+            prims.push(Prim::Text {
+                x: xa + 3.0,
+                y,
+                font: 2.5,
+                text: label.to_string(),
+                anchor: Anchor::Start,
+                rotate_deg: 0.0,
+                vcenter: true,
+                bold: false,
+            });
+            prims.push(Prim::Text {
+                x: (xa + xb) / 2.0 + 6.0,
+                y,
+                font: 2.5,
+                text: value.to_string(),
+                anchor: Anchor::Middle,
+                rotate_deg: 0.0,
+                vcenter: true,
+                bold: false,
+            });
+        };
+        let row1_y = (SKETCH_SIGN_Y0 + mid_y) / 2.0;
+        let row2_y = (mid_y + INNER_RECT[1] + INNER_RECT[3]) / 2.0;
+        cell(&mut prims, "丈量者", &spec.measurer, 11.0, 76.0, row1_y);
+        cell(
+            &mut prims,
+            "丈量日期",
+            &spec.measure_date,
+            76.0,
+            141.0,
+            row1_y,
+        );
+        cell(&mut prims, "检查者", &spec.checker, 11.0, 76.0, row2_y);
+        cell(
+            &mut prims,
+            "检查日期",
+            &spec.check_date,
+            76.0,
+            141.0,
+            row2_y,
+        );
+        // 概略比例尺（第三栏两行通栏）：题 + 值
+        prims.push(Prim::Text {
+            x: 170.0,
+            y: row1_y,
+            font: 2.5,
+            text: "概略比例尺".to_string(),
+            anchor: Anchor::Middle,
+            rotate_deg: 0.0,
+            vcenter: true,
+            bold: false,
+        });
+        prims.push(Prim::Text {
+            x: 170.0,
+            y: row2_y,
+            font: 2.8,
+            text: format!("1:{scale}"),
+            anchor: Anchor::Middle,
+            rotate_deg: 0.0,
+            vcenter: true,
+            bold: false,
+        });
+    } else {
+        // L.3：测绘说明/制图日期/审核日期三行；
+        // L.4：权属调查/不动产测绘/制图日期/审核日期四行，对齐金样 158
+        let left_notes: Vec<String> = if spec.kind == ParcelMapKind::Ownership {
+            vec![
+                spec.ownership_survey.clone(),
+                spec.realty_mapping.clone(),
+                format!("制图日期：{}", spec.draw_date),
+                format!("审核日期：{}", spec.review_date),
+            ]
+        } else {
+            vec![
+                spec.survey_note.clone(),
+                format!("制图日期：{}", spec.draw_date),
+                format!("审核日期：{}", spec.review_date),
+            ]
+        };
+        for (i, note) in left_notes.iter().enumerate() {
+            prims.push(Prim::Text {
+                x: INNER_RECT[0] + 3.0,
+                y: 274.4 + i as f64 * 3.6,
+                font: 2.5,
+                text: note.clone(),
+                anchor: Anchor::Start,
+                rotate_deg: 0.0,
+                vcenter: false,
+                bold: false,
+            });
+        }
+        prims.push(Prim::Text {
+            x: PAGE_W / 2.0,
+            y: (FOOT_Y0 + INNER_RECT[1] + INNER_RECT[3]) / 2.0,
+            font: 3.6,
+            text: format!("1:{scale}"),
+            anchor: Anchor::Middle,
+            rotate_deg: 0.0,
+            vcenter: true,
+            bold: false,
+        });
+        prims.push(Prim::Text {
+            x: INNER_RECT[0] + INNER_RECT[2] - 3.0,
+            y: 278.5,
+            font: 2.6,
+            text: format!("制图：{}", spec.drawer),
+            anchor: Anchor::End,
+            rotate_deg: 0.0,
+            vcenter: false,
+            bold: false,
+        });
+        prims.push(Prim::Text {
+            x: INNER_RECT[0] + INNER_RECT[2] - 3.0,
+            y: 283.5,
+            font: 2.6,
+            text: format!("审核：{}", spec.reviewer),
+            anchor: Anchor::End,
             rotate_deg: 0.0,
             vcenter: false,
             bold: false,
         });
     }
-    prims.push(Prim::Text {
-        x: PAGE_W / 2.0,
-        y: (FOOT_Y0 + INNER_RECT[1] + INNER_RECT[3]) / 2.0,
-        font: 3.6,
-        text: format!("1:{scale}"),
-        anchor: Anchor::Middle,
-        rotate_deg: 0.0,
-        vcenter: true,
-        bold: false,
-    });
-    prims.push(Prim::Text {
-        x: INNER_RECT[0] + INNER_RECT[2] - 3.0,
-        y: 278.5,
-        font: 2.6,
-        text: format!("制图：{}", spec.drawer),
-        anchor: Anchor::End,
-        rotate_deg: 0.0,
-        vcenter: false,
-        bold: false,
-    });
-    prims.push(Prim::Text {
-        x: INNER_RECT[0] + INNER_RECT[2] - 3.0,
-        y: 283.5,
-        font: 2.6,
-        text: format!("审核：{}", spec.reviewer),
-        anchor: Anchor::End,
-        rotate_deg: 0.0,
-        vcenter: false,
-        bold: false,
-    });
-    // —— 左侧竖排单位名（地图框内左缘，逐字纵向堆叠）——
+    // —— 左侧竖排单位名（地图框内左缘，逐字纵向堆叠；草图不绘）——
     let unit_chars: Vec<char> = spec.unit_name.chars().collect();
-    if !unit_chars.is_empty() {
+    if !is_sketch && !unit_chars.is_empty() {
         let step = 3.4;
         let mid = MAP_RECT[1] + MAP_RECT[3] / 2.0;
         let y_start = mid - (unit_chars.len() as f64 - 1.0) * step / 2.0;
@@ -1553,6 +1691,10 @@ mod tests {
             collective_owner: String::new(),
             ownership_survey: String::new(),
             realty_mapping: String::new(),
+            measurer: String::new(),
+            measure_date: String::new(),
+            checker: String::new(),
+            check_date: String::new(),
         }
     }
 
@@ -1905,5 +2047,40 @@ GB00029"
         let svg3 = svg_of(&out3);
         assert!(!svg3.contains("权属调查"));
         assert!(svg3.contains("2026年08月解析法测绘界址点"));
+    }
+
+    #[test]
+    fn sketch_map_b4_elements() {
+        // 宗地草图（表 B.4 + 图 B.1）：无坐标表/头部框/分式/竖排单位名；
+        // 说明：图中单位为米。+ 框式签注栏（丈量者/丈量日期/检查者/检查日期 + 概略比例尺）
+        let spec = ParcelMapSpec {
+            kind: ParcelMapKind::Sketch,
+            measurer: "张三".to_string(),
+            measure_date: "2026年08月25日".to_string(),
+            checker: "李四".to_string(),
+            check_date: "2026年08月25日".to_string(),
+            ..full_spec()
+        };
+        let out = render_parcel_map_svg(&test_boundary(), &spec).unwrap();
+        let svg = svg_of(&out);
+        assert!(svg.contains("宗地草图"), "草图标题");
+        assert!(svg.contains("说明：图中单位为米。"), "单位说明");
+        assert!(svg.contains("丈量者") && svg.contains("张三"));
+        assert!(svg.contains("检查者") && svg.contains("李四"));
+        assert!(svg.contains("概略比例尺"));
+        assert!(svg.contains(&format!("1:{}", out.scale)));
+        // 不绘要素
+        assert!(!svg.contains("界址点坐标表"), "草图无坐标表");
+        assert!(!svg.contains("单位：m㎡"), "草图无单位注记");
+        assert!(!svg.contains("土地权利人："), "草图无头部信息框");
+        assert!(!svg.contains("0801"), "草图无分式");
+        assert!(!svg.contains("某某市自然资源局"), "草图无竖排单位名");
+        // 点号/边长注记仍在
+        assert!(svg.contains("J1"));
+        assert!(!out.diagnostics.is_empty());
+        // L.3 回归不受影响
+        let out3 = render_parcel_map_svg(&test_boundary(), &full_spec()).unwrap();
+        let svg3 = svg_of(&out3);
+        assert!(svg3.contains("界址点坐标表") && svg3.contains("单位：m㎡"));
     }
 }

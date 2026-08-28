@@ -979,6 +979,9 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
         RenderCommand::ParcelOwnershipMap(args) => {
             parcel_map_render(args, kanyu_render::parcelmap::ParcelMapKind::Ownership)?;
         }
+        RenderCommand::ParcelSketchMap(args) => {
+            parcel_map_render(args, kanyu_render::parcelmap::ParcelMapKind::Sketch)?;
+        }
         RenderCommand::SeaBoundaryMap(args) => {
             sea_map_render(args, kanyu_render::seamap::SeaMapKind::BoundaryMap)?;
         }
@@ -1114,6 +1117,10 @@ fn parcel_map_render(
         collective_owner: args.collective_owner.clone(),
         ownership_survey: args.ownership_survey.clone(),
         realty_mapping: args.realty_mapping.clone(),
+        measurer: args.measurer.clone(),
+        measure_date: args.measure_date.clone(),
+        checker: args.checker.clone(),
+        check_date: args.check_date.clone(),
         scale: args.scale,
         dpi: args.dpi,
         ..Default::default()
@@ -1147,6 +1154,7 @@ fn parcel_map_render(
     let kind_name = match kind {
         kanyu_render::parcelmap::ParcelMapKind::UseRight => "宗地图",
         kanyu_render::parcelmap::ParcelMapKind::Ownership => "所有权宗地图",
+        kanyu_render::parcelmap::ParcelMapKind::Sketch => "宗地草图",
     };
     eprintln!(
         "已出{kind_name} → {}（1:{}，注记 {} 条，残余压盖 {} 条）",

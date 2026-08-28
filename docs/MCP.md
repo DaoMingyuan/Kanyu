@@ -520,10 +520,11 @@ MCP 同源投影（kanyu-core `cartography`/`cass`/`kdb` + kanyu-render `parcelm
 | `index` | integer \| null | 否 | 面要素文档序序号（0 起；缺省面积最大者） |
 | `sizhi_e` / `sizhi_s` / `sizhi_w` / `sizhi_n` | string \| null | 否 | 四至/邻宗地注记（缺省取属性 `ZDSZD/ZDSZN/ZDSZX/ZDSZB`；`\n` 分行） |
 | `roads` | string \| null | 否 | 相邻道路线文件路径（线要素；路名取属性 `name/NAME/road_name/道路名称/DLMC`） |
-| `kind` | string \| null | 否 | `use`（使用权宗地图 L.3，默认）/ `ownership`（所有权宗地图 L.4） |
+| `kind` | string \| null | 否 | `use`（使用权宗地图 L.3，默认）/ `ownership`（所有权宗地图 L.4）/ `sketch`（宗地草图 B.4） |
 | `cadastral_district` | string \| null | 否 | 地籍区号 DJQDM（L.4 用；缺省 `DJQDM/djqdm`） |
 | `collective_owner` | string \| null | 否 | 集体所有权主体（L.4 分式上方注记；缺省回退权利人） |
 | `ownership_survey` / `realty_mapping` | string \| null | 否 | 权属调查 / 不动产测绘说明（L.4 签注首两行） |
+| `measurer` / `measure_date` / `checker` / `check_date` | string \| null | 否 | 丈量者/丈量日期/检查者/检查日期（宗地草图签注栏） |
 
 返回：`format=png` → `content` = `image`（base64）+ `text`（摘要 JSON）；
 `format=svg` → `content` = `text`（SVG 源码）+ `text`（摘要 JSON）；

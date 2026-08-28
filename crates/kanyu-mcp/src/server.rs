@@ -259,7 +259,8 @@ pub struct RenderParcelMapReq {
     pub roads: Option<String>,
     /// 图种：use（土地使用权宗地图 L.3，默认）/ ownership（土地所有权
     /// 宗地图 L.4：地籍区号注记 + 集体所有权主体注记 + 权属调查/不动产
-    /// 测绘签注）。
+    /// 测绘签注）/ sketch（宗地草图 B.4：无坐标表/头部框/分式，
+    /// 「说明：图中单位为米。」+ 框式签注栏）。
     pub kind: Option<String>,
     /// 地籍区号 DJQDM（L.4 用；缺省取属性 DJQDM/djqdm）。
     pub cadastral_district: Option<String>,
@@ -269,6 +270,14 @@ pub struct RenderParcelMapReq {
     pub ownership_survey: Option<String>,
     /// 不动产测绘说明（L.4 左下签注次行）。
     pub realty_mapping: Option<String>,
+    /// 丈量者（宗地草图签注栏）。
+    pub measurer: Option<String>,
+    /// 丈量日期（宗地草图签注栏）。
+    pub measure_date: Option<String>,
+    /// 检查者（宗地草图签注栏）。
+    pub checker: Option<String>,
+    /// 检查日期（宗地草图签注栏）。
+    pub check_date: Option<String>,
     /// 比例尺分母（缺省自动适配取整百）。
     pub scale: Option<u32>,
     /// PNG 分辨率 dpi（默认 150，SVG 忽略）。
@@ -773,9 +782,10 @@ impl KanyuServer {
         let kind = match req.kind.as_deref().unwrap_or("use") {
             "use" => kanyu_render::parcelmap::ParcelMapKind::UseRight,
             "ownership" => kanyu_render::parcelmap::ParcelMapKind::Ownership,
+            "sketch" => kanyu_render::parcelmap::ParcelMapKind::Sketch,
             other => {
                 return Err(McpError::invalid_params(
-                    format!("未知图种 '{other}'（支持 use/ownership）"),
+                    format!("未知图种 '{other}'（支持 use/ownership/sketch）"),
                     None,
                 ));
             }
@@ -840,6 +850,10 @@ impl KanyuServer {
             collective_owner: req.collective_owner.unwrap_or_default(),
             ownership_survey: req.ownership_survey.unwrap_or_default(),
             realty_mapping: req.realty_mapping.unwrap_or_default(),
+            measurer: req.measurer.unwrap_or_default(),
+            measure_date: req.measure_date.unwrap_or_default(),
+            checker: req.checker.unwrap_or_default(),
+            check_date: req.check_date.unwrap_or_default(),
             scale: req.scale,
             dpi: req.dpi.unwrap_or(150.0),
             ..Default::default()
@@ -2640,6 +2654,10 @@ mod tests {
                 collective_owner: None,
                 ownership_survey: None,
                 realty_mapping: None,
+                measurer: None,
+                measure_date: None,
+                checker: None,
+                check_date: None,
                 scale: None,
                 dpi: None,
                 index: None,
@@ -2683,6 +2701,10 @@ mod tests {
                 collective_owner: None,
                 ownership_survey: Some("2026年08月权属调查".to_string()),
                 realty_mapping: None,
+                measurer: None,
+                measure_date: None,
+                checker: None,
+                check_date: None,
                 scale: None,
                 dpi: None,
                 index: None,
@@ -2722,6 +2744,10 @@ mod tests {
                 collective_owner: None,
                 ownership_survey: None,
                 realty_mapping: None,
+                measurer: None,
+                measure_date: None,
+                checker: None,
+                check_date: None,
                 scale: None,
                 dpi: None,
                 index: None,

@@ -6,6 +6,15 @@
 
 ### 新增
 
+- **宗地草图（表 B.4 + 图 B.1）出图**：`ParcelMapKind::Sketch` 入
+  `parcelmap` 管线——**无坐标表/头部信息框/分式/竖排单位名**；
+  标题「宗地草图」+ 全幅地图区 + 北指北针 + 右下「说明：图中单位
+  为米。」+ **框式签注栏**（丈量者|丈量日期|概略比例尺（两行通栏）/
+  检查者|检查日期|1:N，自动整百）。CLI `parcel-sketch-map`（共享
+  `ParcelMapArgs`，草图四参数 `--measurer/--measure-date/--checker/
+  --check-date`）；MCP `kind=sketch` 同名四参数。真实 GB32 渲染目检
+  对齐金样 156。parcelmap +1 测试（草图要素 + L.3 回归）。
+
 - **所有权宗地图（L.4）出图**：`ParcelMapKind` 图种分派入 `parcelmap`
   渲染管线——L.3 全部要素 + 地籍区号注记（DJQDM，地图区上方居中
   5.5mm）+ 集体所有权主体注记（分式上方，缺省回退土地权利人）+

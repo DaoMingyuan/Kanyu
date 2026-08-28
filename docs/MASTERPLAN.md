@@ -1161,6 +1161,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] **宗海位置图/平面布置图出图**（`SeaMapKind` 图种分派同管线：图 L.6/L.8 版式——经纬网图廓+图斑+界址点符号+签注表+下中比例尺，无坐标表注记；`kanyu render sea-location-map`/`sea-layout-map`（共享 SeaMapArgs 三变体）；真实代理渲染目检对齐金样 160/162，2026-08-28）。
 - [x] **用岛范围图/设施布置图出图**（kanyu-render `islandmap`（复用 seamap 经纬网/坐标表体系）：图 L.9 版式——用岛代码行/经纬网/图斑/罗盘指北针（四向星形 N/E/W/S）/图例框/签注表九行/界址点编号及坐标表（DMS）+用岛面积行；图 L.10 版式——设施黄色图斑+编号+一览表（合计行）+图例；`kanyu render island-range-map`/`island-facility-map`（共享 IslandMapArgs）；真实代理渲染 DMS 坐标表与用岛面积（3483.61）同金样 163/164 逐值一致，2026-08-28）。
 - [x] **所有权宗地图出图**（`ParcelMapKind` 图种分派入 parcelmap：图 L.4 版式——L.3 全部要素 + 地籍区号注记（5.5mm）+ 集体所有权主体注记（分式上方）+ 权属调查/不动产测绘/制图/审核日期四行签注；`kanyu render parcel-ownership-map` + MCP `kind=ownership`；真实 GB32 渲染目检对齐金样 158，2026-08-28）。
+- [x] **宗地草图出图**（`ParcelMapKind::Sketch` 同管线：表 B.4 + 图 B.1 版式——无坐标表/头部框/分式/竖排单位名，「说明：图中单位为米。」+ 框式签注栏（丈量者/丈量日期/检查者/检查日期 + 概略比例尺）；`kanyu render parcel-sketch-map` + MCP `kind=sketch`；真实 GB32 渲染目检对齐金样 156，2026-08-28）。
 - [x] **kanyu-py + Python 工具箱**（裁决 #20：PyO3 扩展模块全量暴露内核；ArcGIS .pyt 式 Toolbox/Tool/Param 约定，`kanyu toolbox list/run` 驱动，2026-08-03）。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）

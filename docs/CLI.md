@@ -554,6 +554,26 @@ $ ./target/debug/kanyu.exe render parcel-ownership-map 宗地.dxf --out 所有�
 已出所有权宗地图 → 所有权宗地图.png（1:700，注记 18 条，残余压盖 0 条）   # 该提示在 stderr
 ```
 
+### 5.3B `kanyu render parcel-sketch-map <file> --out <path>` ✅
+
+宗地草图出图（表 B.4 + 图 B.1 版式；`ParcelMapKind` 图种分派同管线）：
+**无坐标表/头部信息框/分式/竖排单位名**——标题「宗地草图」+ 全幅地图区
+（界址点符号/红界址线/J 点号/边长注记/四至注记/道路名称）+ 北指北针 +
+右下「说明：图中单位为米。」+ **框式签注栏**（丈量者|丈量日期|概略比例尺
+（两行通栏）/ 检查者|检查日期|1:N，比例尺自动取整百）。
+参数与 `parcel-map` 全同（L.3/L.4 专属参数忽略），另加草图四参数：
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--measurer / --measure-date <text>` | （空） | 丈量者 / 丈量日期（签注栏） |
+| `--checker / --check-date <text>` | （空） | 检查者 / 检查日期（签注栏） |
+
+```bash
+$ ./target/debug/kanyu.exe render parcel-sketch-map 宗地.dxf --out 宗地草图.png \
+    --measurer 张三 --measure-date 2026年08月25日 --checker 李四 --check-date 2026年08月25日
+已出宗地草图 → 宗地草图.png（1:500，注记 18 条，残余压盖 0 条）   # 该提示在 stderr
+```
+
 ### 5.4 `kanyu render parcel-dxf <file> --out <path>` ✅
 
 宗地成果 CASS 兼容 DXF 导出（南方 CASS 联动；kanyu-core `cass` 模块）：

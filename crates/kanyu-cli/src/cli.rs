@@ -440,6 +440,10 @@ pub enum RenderCommand {
     /// 土地所有权宗地图（图 L.4 版式）：L.3 全部要素 + 地籍区号注记（5.5mm）+
     /// 集体所有权主体注记（分式上方）+ 权属调查/不动产测绘/制图/审核日期签注。
     ParcelOwnershipMap(ParcelMapArgs),
+    /// 宗地草图（表 B.4 + 图 B.1 版式）：无坐标表/头部框/分式/竖排单位名；
+    /// 「说明：图中单位为米。」+ 框式签注栏（丈量者/丈量日期/检查者/
+    /// 检查日期 + 概略比例尺）。
+    ParcelSketchMap(ParcelMapArgs),
     /// 宗海界址图（GB/T 42547-2023 图 L.7 版式，A4 横）：经纬网图廓（度分秒注记）+
     /// 宗海图斑填充 + 红界址线 + 点号（无 J 前缀）/边长注记 + 界址点编号及坐标表
     /// （经纬度度分秒，投影反算）+ 网格签注表 + 比例尺（分母取整百）+ N 指北针
@@ -558,6 +562,18 @@ pub struct ParcelMapArgs {
     /// 不动产测绘说明（L.4 左下签注次行，如「2026年08月不动产测绘」）。
     #[arg(long, default_value = "")]
     pub realty_mapping: String,
+    /// 丈量者（宗地草图签注栏）。
+    #[arg(long, default_value = "")]
+    pub measurer: String,
+    /// 丈量日期（宗地草图签注栏）。
+    #[arg(long, default_value = "")]
+    pub measure_date: String,
+    /// 检查者（宗地草图签注栏）。
+    #[arg(long, default_value = "")]
+    pub checker: String,
+    /// 检查日期（宗地草图签注栏）。
+    #[arg(long, default_value = "")]
+    pub check_date: String,
     /// 比例尺分母（缺省自动适配取整百）。
     #[arg(long)]
     pub scale: Option<u32>,
