@@ -1159,6 +1159,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] **南方 CASS 联动**（cass 模块：CASS 坐标数据文件 .dat 读写（CASS 标准轴序 点号,编码,Y东,X北[,H]，编码列保留；注册表第 20 格式，CLI/MCP/壳层/Python/工具箱五处导出分派全接入）；宗地成果 CASS 兼容 DXF 导出（AC1024：ZD/JZX/JZD/ZJ 分层 + SOUTH 编码 XDATA 302001/302002），`kanyu render parcel-dxf`；真实 CASS DXF「读取→宗地图渲染→CASS DXF 再导出→再读取」闭环验证，2026-08-28）。
 - [x] **宗海界址图出图**（kanyu-render `seamap`：GB/T 42547-2023 图 L.7 版式 A4 横——自适应经纬网图廓（度分秒注记）、宗海图斑/红界址线/点号边长注记（cartography 排版）、右侧界址点编号及坐标表（北纬|东经，度分秒 3 位小数，EPSG:4490 反算）、网格签注表；`kanyu render sea-boundary-map`；真实宗地代理渲染 DMS 坐标表与金样逐行一致，2026-08-28）。
 - [x] **宗海位置图/平面布置图出图**（`SeaMapKind` 图种分派同管线：图 L.6/L.8 版式——经纬网图廓+图斑+界址点符号+签注表+下中比例尺，无坐标表注记；`kanyu render sea-location-map`/`sea-layout-map`（共享 SeaMapArgs 三变体）；真实代理渲染目检对齐金样 160/162，2026-08-28）。
+- [x] **用岛范围图/设施布置图出图**（kanyu-render `islandmap`（复用 seamap 经纬网/坐标表体系）：图 L.9 版式——用岛代码行/经纬网/图斑/罗盘指北针（四向星形 N/E/W/S）/图例框/签注表九行/界址点编号及坐标表（DMS）+用岛面积行；图 L.10 版式——设施黄色图斑+编号+一览表（合计行）+图例；`kanyu render island-range-map`/`island-facility-map`（共享 IslandMapArgs）；真实代理渲染 DMS 坐标表与用岛面积（3483.61）同金样 163/164 逐值一致，2026-08-28）。
 - [x] **kanyu-py + Python 工具箱**（裁决 #20：PyO3 扩展模块全量暴露内核；ArcGIS .pyt 式 Toolbox/Tool/Param 约定，`kanyu toolbox list/run` 驱动，2026-08-03）。
 
 #### Phase 2：视界 —— GPU 渲染（Months 4–6）

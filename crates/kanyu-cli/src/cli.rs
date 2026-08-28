@@ -512,6 +512,14 @@ pub enum RenderCommand {
     SeaLocationMap(SeaMapArgs),
     /// 宗海平面布置图（图 L.8 版式，A4 横）：同 L.6 版式。
     SeaLayoutMap(SeaMapArgs),
+    /// 用岛范围图（图 L.9 版式，A4 横）：经纬网图廓 + 用岛图斑 + 罗盘指北针 +
+    /// 界址点编号及坐标表（经纬度度分秒，投影反算）+ 用岛面积 + 网格签注表 +
+    /// 图例 + 比例尺（分母取整百；无点号边长注记）。
+    IslandRangeMap(IslandMapArgs),
+    /// 建筑物和设施布置图（图 L.10 版式，A4 横）：同 L.9 版式 + 设施黄色图斑
+    /// 与编号 + 建筑物和设施一览表（--facilities 设施面要素文件；缺省为诚实空态：
+    /// 图斑区无设施、一览表仅表头 + 合计 0.00）。
+    IslandFacilityMap(IslandMapArgs),
     /// 宗地 CASS 兼容 DXF 导出（南方 CASS 联动）：ZD/JZX/JZD/ZJ 分层 +
     /// SOUTH 编码 XDATA（界址点 302001/界址线 302002），CASS 直接打开编辑。
     ParcelDxf {
@@ -587,6 +595,55 @@ pub struct SeaMapArgs {
     /// 面要素序号（缺省取面积最大面要素；指定后按文档序第 N 个，0 起）。
     #[arg(long)]
     pub index: Option<usize>,
+}
+
+/// 用岛图件共用参数（用岛范围图 L.9 / 建筑物和设施布置图 L.10）。
+#[derive(clap::Args, Debug, Clone)]
+pub struct IslandMapArgs {
+    /// 用岛数据文件（面要素；GeoJSON/SHP/宗地 TXT/DXF/kdb 等注册格式，
+    /// 多面要素缺省取面积最大者，可用 --index 指定）。
+    pub file: String,
+    /// 输出路径（.svg 或 .png）。
+    #[arg(long)]
+    pub out: String,
+    /// 用岛代码（缺省取属性 island_code/YDDM/sea_code/ZHDM）。
+    #[arg(long)]
+    pub island_code: Option<String>,
+    /// 源坐标系（EPSG:xxxx 或纯数字代码；界址点坐标表经此反算为 CGCS2000
+    /// 经纬度度分秒；默认 EPSG:4527）。
+    #[arg(long, default_value = "EPSG:4527")]
+    pub source_epsg: String,
+    /// 测绘单位。
+    #[arg(long, default_value = "")]
+    pub survey_unit: String,
+    /// 测量员。
+    #[arg(long, default_value = "")]
+    pub surveyor: String,
+    /// 绘图员。
+    #[arg(long, default_value = "")]
+    pub drawer: String,
+    /// 审核人。
+    #[arg(long, default_value = "")]
+    pub reviewer: String,
+    /// 绘制日期。
+    #[arg(long, default_value = "")]
+    pub draw_date: String,
+    /// 用岛面积（平方米；缺省按几何现算 外环−内环；L.9 面积行用）。
+    #[arg(long)]
+    pub area: Option<f64>,
+    /// 比例尺分母（缺省自动适配取整百）。
+    #[arg(long)]
+    pub scale: Option<u32>,
+    /// 分辨率 dpi（默认 150，仅 PNG）。
+    #[arg(long, default_value_t = 150.0)]
+    pub dpi: f64,
+    /// 面要素序号（缺省取面积最大面要素；指定后按文档序第 N 个，0 起）。
+    #[arg(long)]
+    pub index: Option<usize>,
+    /// 设施数据文件（L.10 用，任意注册格式面要素；名称取属性 name/MC/设施名称，
+    /// 编号取 no/BH（缺省顺编 1..），面积取 area/ZDMJ/占地面积（缺省现算））。
+    #[arg(long)]
+    pub facilities: Option<String>,
 }
 
 /// `kanyu skill ...`

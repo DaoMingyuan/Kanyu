@@ -11,6 +11,8 @@
 
 use geojson::{FeatureCollection, Value};
 
+/// 用岛图件渲染器（GB/T 42547 图 L.9/L.10 版式；见模块 rustdoc）。
+pub mod islandmap;
 /// 打印布局排版器（SVG + PNG；见模块 rustdoc）。
 pub mod layout;
 /// 宗地图渲染器（GB/T 42547 图 L.3 版式；见模块 rustdoc）。

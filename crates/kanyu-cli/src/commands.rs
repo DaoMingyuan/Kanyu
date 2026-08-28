@@ -1100,6 +1100,12 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
         RenderCommand::SeaLayoutMap(args) => {
             sea_map_render(args, kanyu_render::seamap::SeaMapKind::LayoutMap)?;
         }
+        RenderCommand::IslandRangeMap(args) => {
+            island_map_render(args, kanyu_render::islandmap::IslandMapKind::RangeMap)?;
+        }
+        RenderCommand::IslandFacilityMap(args) => {
+            island_map_render(args, kanyu_render::islandmap::IslandMapKind::FacilityMap)?;
+        }
         RenderCommand::ParcelDxf {
             file,
             out,
@@ -1216,6 +1222,122 @@ fn sea_map_render(
         overlaps
     );
     Ok(())
+}
+
+/// 用岛图件出图共用实现（用岛范围图 L.9 / 建筑物和设施布置图 L.10）。
+fn island_map_render(
+    args: &crate::cli::IslandMapArgs,
+    kind: kanyu_render::islandmap::IslandMapKind,
+) -> Result<()> {
+    use kanyu_render::islandmap::{render_island_map_png, render_island_map_svg, IslandMapSpec};
+    use kanyu_render::parcelmap::ParcelMapData;
+    let (boundary, props) = parcel_boundary_from_file(&args.file, args.index)?;
+    // 纯数字代码（如 4527）规范化为 EPSG:xxxx
+    let source_epsg = if args.source_epsg.chars().all(|c| c.is_ascii_digit()) {
+        format!("EPSG:{}", args.source_epsg)
+    } else {
+        args.source_epsg.clone()
+    };
+    // 设施提取（仅 L.10 加载设施文件；L.9 忽略 --facilities，渲染器亦忽略 facilities）
+    let facilities = match (&args.facilities, kind) {
+        (Some(path), kanyu_render::islandmap::IslandMapKind::FacilityMap) => {
+            let layer = Layer::load(stem_of(path), path)?;
+            facilities_from_collection(&layer.collection())
+        }
+        _ => Vec::new(),
+    };
+    let spec = IslandMapSpec {
+        kind,
+        island_code: args
+            .island_code
+            .clone()
+            .or_else(|| prop_str(&props, &["island_code", "YDDM", "sea_code", "ZHDM"]))
+            .unwrap_or_default(),
+        source_epsg,
+        survey_unit: args.survey_unit.clone(),
+        surveyor: args.surveyor.clone(),
+        drawer: args.drawer.clone(),
+        reviewer: args.reviewer.clone(),
+        draw_date: args.draw_date.clone(),
+        area_sqm: args.area.or_else(|| prop_f64(&props, &["area", "ZDMJ"])),
+        facilities,
+        scale: args.scale,
+        dpi: args.dpi,
+    };
+    let ext = args
+        .out
+        .rsplit('.')
+        .next()
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_default();
+    let output = match ext.as_str() {
+        "png" => render_island_map_png(&boundary, &spec)?,
+        "svg" => render_island_map_svg(&boundary, &spec)?,
+        other => {
+            bail!("输出格式按扩展名判定，仅支持 .png/.svg（实际: '.{other}'）")
+        }
+    };
+    match &output.data {
+        ParcelMapData::Svg(text) => {
+            std::fs::write(&args.out, text).with_context(|| format!("写入 {} 失败", args.out))?;
+        }
+        ParcelMapData::Png(bytes) => {
+            std::fs::write(&args.out, bytes).with_context(|| format!("写入 {} 失败", args.out))?;
+        }
+    }
+    eprintln!(
+        "已出{} → {}（1:{}{}）",
+        kind.title(),
+        args.out,
+        output.scale,
+        match kind {
+            kanyu_render::islandmap::IslandMapKind::FacilityMap =>
+                format!("，设施 {} 项", spec.facilities.len()),
+            kanyu_render::islandmap::IslandMapKind::RangeMap => String::new(),
+        }
+    );
+    Ok(())
+}
+
+/// 设施面要素提取（L.10 一览表与图斑数据来源）：逐面要素取最大部件外环为
+/// 图斑多边形（地图坐标闭合环）；名称取属性 name/MC/设施名称，编号取 no/BH
+/// （缺省顺编 1..），面积取 area/ZDMJ/占地面积（缺省按几何现算 外环−内环）。
+fn facilities_from_collection(
+    collection: &geojson::FeatureCollection,
+) -> Vec<kanyu_render::islandmap::IslandFacility> {
+    let mut out = Vec::new();
+    for feature in &collection.features {
+        let Some(geom) = &feature.geometry else {
+            continue;
+        };
+        if !matches!(
+            &geom.value,
+            geojson::Value::Polygon(_) | geojson::Value::MultiPolygon(_)
+        ) {
+            continue;
+        }
+        let Ok(boundary) = kanyu_core::cartography::ParcelBoundary::from_geometry(&geom.value)
+        else {
+            continue;
+        };
+        let props = feature.properties.clone().unwrap_or_default();
+        let area = prop_f64(&props, &["area", "ZDMJ", "占地面积"]).unwrap_or_else(|| {
+            let ext = kanyu_core::cartography::ring_area(&boundary.exterior).abs();
+            let holes: f64 = boundary
+                .interiors
+                .iter()
+                .map(|r| kanyu_core::cartography::ring_area(r).abs())
+                .sum();
+            (ext - holes).max(0.0)
+        });
+        out.push(kanyu_render::islandmap::IslandFacility {
+            name: prop_str(&props, &["name", "MC", "设施名称"]).unwrap_or_default(),
+            no: prop_str(&props, &["no", "BH"]).unwrap_or_else(|| (out.len() + 1).to_string()),
+            area_sqm: area,
+            polygon: boundary.exterior.points.clone(),
+        });
+    }
+    out
 }
 
 /// 宗地面要素选取与权属边界提取（parcel-map/parcel-dxf 共用）：

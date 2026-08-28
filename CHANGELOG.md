@@ -6,6 +6,17 @@
 
 ### 新增
 
+- **用岛两件套渲染器 `islandmap` + `kanyu render island-range-map` /
+  `island-facility-map`**：GB/T 42547-2023 图 L.9 用岛范围图（用岛代码行/
+  经纬网图廓/图斑/界址点符号/右侧界址点编号及坐标表（北纬|东经 DMS）+
+  用岛面积行/左下图例框/右下签注表九行）与图 L.10 建筑物和设施布置图
+  （设施黄色图斑 RGB(255,235,0) + 编号 + 右侧一览表（合计行加粗观感，
+  空设施诚实 0.00）+ 图例）——复用 `seamap` 经纬网/坐标表体系（助手
+  `pub(crate)` 化共享，公开 API 零变化）；**罗盘指北针**（四向星形
+  劈半黑白瓣 + N/E/W/S）。CLI 共享 `IslandMapArgs` 双变体（`--island-code`
+  属性拾取/`--facilities` 设施文件提取）。真实代理渲染 DMS 坐标表与
+  用岛面积（3483.61）同金样 163/164 逐值一致。6 项测试。
+
 - **宗海图件 MCP 工具 `kanyu_render_sea_map`**：`kind` 一参三图种
   （`boundary` 宗海界址图 L.7 / `location` 宗海位置图 L.6 /
   `layout` 宗海平面布置图 L.8）——CLI 三命令的 MCP 同源投影

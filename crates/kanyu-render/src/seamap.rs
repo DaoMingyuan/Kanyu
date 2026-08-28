@@ -127,23 +127,23 @@ pub fn render_sea_boundary_map_png(
 // ---------------------------------------------------------------------------
 
 /// 页宽 / 页高。
-const PAGE_W: f64 = 297.0;
+pub(crate) const PAGE_W: f64 = 297.0;
 const PAGE_H: f64 = 210.0;
 /// 页面外框（0.3mm）。
-const OUTER_RECT: [f64; 4] = [5.0, 5.0, 287.0, 200.0];
+pub(crate) const OUTER_RECT: [f64; 4] = [5.0, 5.0, 287.0, 200.0];
 /// 标题基线 y 与字号（图名大号粗体）。
-const TITLE_Y: f64 = 15.0;
-const TITLE_FONT: f64 = 6.0;
+pub(crate) const TITLE_Y: f64 = 15.0;
+pub(crate) const TITLE_FONT: f64 = 6.0;
 /// 左上宗海代码行基线 y 与字号。
-const SEA_CODE_Y: f64 = 20.5;
-const SEA_CODE_FONT: f64 = 2.8;
+pub(crate) const SEA_CODE_Y: f64 = 20.5;
+pub(crate) const SEA_CODE_FONT: f64 = 2.8;
 /// 地图框（经纬网图廓；主体矩形，网线/注记挂接其四边）。
-const MAP_RECT: [f64; 4] = [12.0, 26.0, 273.0, 156.0];
+pub(crate) const MAP_RECT: [f64; 4] = [12.0, 26.0, 273.0, 156.0];
 /// 宗海适配留白（地图框内沿）。
-const MAP_PAD: f64 = 8.0;
+pub(crate) const MAP_PAD: f64 = 8.0;
 /// 适配区最小宽/高（表带极宽时兜底）。
-const FIT_MIN_W: f64 = 40.0;
-const FIT_MIN_H: f64 = 40.0;
+pub(crate) const FIT_MIN_W: f64 = 40.0;
+pub(crate) const FIT_MIN_H: f64 = 40.0;
 /// 经纬网注记字号 / 注记中心距图廓边距离。
 const GRID_LABEL_FONT: f64 = 2.6;
 const GRID_LABEL_OFF: f64 = 2.2;
@@ -152,24 +152,24 @@ const GRID_STEPS_SEC: [f64; 12] = [
     1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0,
 ];
 /// 坐标表字号 / 题行字号 / 行高 / 题行高 / 单元格横向留白 / 锚定内边距。
-const TABLE_FONT: f64 = 2.2;
+pub(crate) const TABLE_FONT: f64 = 2.2;
 const TABLE_TITLE_FONT: f64 = 3.2;
-const TABLE_ROW_H: f64 = 4.2;
+pub(crate) const TABLE_ROW_H: f64 = 4.2;
 const TABLE_TITLE_H: f64 = 5.0;
 const TABLE_CELL_PAD: f64 = 1.5;
-const TABLE_ANCHOR_PAD: f64 = 3.0;
+pub(crate) const TABLE_ANCHOR_PAD: f64 = 3.0;
 /// 坐标表带上留白（题行上沿距地图框顶；为指北针留位）。
-const COORD_TABLE_Y0: f64 = MAP_RECT[1] + 20.0;
+pub(crate) const COORD_TABLE_Y0: f64 = MAP_RECT[1] + 20.0;
 /// 坐标表与宗海适配区间的横向间隔。
-const TABLE_FIT_GAP: f64 = 4.0;
+pub(crate) const TABLE_FIT_GAP: f64 = 4.0;
 /// 指北针（地图框内右上）中心 x 偏移 / 顶 y 偏移。
 const NORTH_DX: f64 = 8.0;
 const NORTH_DY: f64 = 4.0;
 /// 颜色（黑 / 界址线红 / 白 / 宗海图斑填充）。
-const BLACK: [u8; 3] = [0, 0, 0];
-const RED: [u8; 3] = [255, 0, 0];
-const WHITE: [u8; 3] = [255, 255, 255];
-const SEA_FILL: [u8; 3] = [245, 162, 122];
+pub(crate) const BLACK: [u8; 3] = [0, 0, 0];
+pub(crate) const RED: [u8; 3] = [255, 0, 0];
+pub(crate) const WHITE: [u8; 3] = [255, 255, 255];
+pub(crate) const SEA_FILL: [u8; 3] = [245, 162, 122];
 
 // ---------------------------------------------------------------------------
 // 场景图元（毫米纸面坐标；SVG/PNG 双后端共用一份几何，与 parcelmap 同构）
@@ -177,21 +177,21 @@ const SEA_FILL: [u8; 3] = [245, 162, 122];
 
 /// 描边（毫米线宽 + RGB）。
 #[derive(Debug, Clone, Copy)]
-struct Stroke {
-    width: f64,
-    color: [u8; 3],
+pub(crate) struct Stroke {
+    pub(crate) width: f64,
+    pub(crate) color: [u8; 3],
 }
 
 /// 文本锚点。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Anchor {
+pub(crate) enum Anchor {
     Start,
     Middle,
 }
 
 /// 场景图元。
 #[derive(Debug, Clone)]
-enum Prim {
+pub(crate) enum Prim {
     /// 矩形（图廓 / 表格外框）。
     Rect {
         rect: [f64; 4],
@@ -239,7 +239,7 @@ struct Scene {
 
 /// 十进制度 → 度分秒串（`37°16′21.140″`；秒按 `sec_dp` 位小数，分/秒零补两位，
 /// 输入取绝对值——经纬度输出恒正；秒舍入满 60 进位到分、分满 60 进位到度）。
-fn format_dms(deg: f64, sec_dp: usize) -> String {
+pub(crate) fn format_dms(deg: f64, sec_dp: usize) -> String {
     let deg = deg.abs();
     let mut d = deg.floor() as u64;
     let rem_min = (deg - d as f64) * 60.0;
@@ -346,7 +346,10 @@ fn fc_points(fc: &geojson::FeatureCollection) -> Result<Vec<(f64, f64)>, RenderE
 
 /// 平面点列（源坐标系）→ 经纬度（CGCS2000，度）：
 /// MultiPoint FC → `crs::reproject(source_epsg → EPSG:4490)` → [lon, lat]。
-fn to_lonlat(pts: &[(f64, f64)], source_epsg: &str) -> Result<Vec<(f64, f64)>, RenderError> {
+pub(crate) fn to_lonlat(
+    pts: &[(f64, f64)],
+    source_epsg: &str,
+) -> Result<Vec<(f64, f64)>, RenderError> {
     let out = crs::reproject(&point_fc(pts), source_epsg, "EPSG:4490").map_err(|e| {
         RenderError::InvalidExtent(format!("投影反算失败（{source_epsg} → EPSG:4490）: {e}"))
     })?;
@@ -358,23 +361,23 @@ fn to_lonlat(pts: &[(f64, f64)], source_epsg: &str) -> Result<Vec<(f64, f64)>, R
 // ---------------------------------------------------------------------------
 
 /// 通用网格表模型（题行可缺省；首行通常为表头）。
-struct GridTable {
+pub(crate) struct GridTable {
     /// 题行（跨全宽；None 无题行）。
-    title: Option<String>,
+    pub(crate) title: Option<String>,
     /// 全部行（含表头行）。
-    rows: Vec<Vec<String>>,
+    pub(crate) rows: Vec<Vec<String>>,
     /// 栏宽（毫米，含两侧留白）。
-    col_w: Vec<f64>,
+    pub(crate) col_w: Vec<f64>,
 }
 
 impl GridTable {
     /// 表总宽（毫米）。
-    fn width(&self) -> f64 {
+    pub(crate) fn width(&self) -> f64 {
         self.col_w.iter().sum()
     }
 
     /// 表总高（毫米）。
-    fn height(&self) -> f64 {
+    pub(crate) fn height(&self) -> f64 {
         let title_h = if self.title.is_some() {
             TABLE_TITLE_H
         } else {
@@ -385,7 +388,7 @@ impl GridTable {
 
     /// 出图元：白底黑线 0.15mm，右上锚定（x1 = 右缘，y0 = 上沿）；
     /// 题行通栏居中，栏分界竖线自题行下缘起。
-    fn emit(&self, prims: &mut Vec<Prim>, x1: f64, y0: f64) {
+    pub(crate) fn emit(&self, prims: &mut Vec<Prim>, x1: f64, y0: f64) {
         let thin = Some(Stroke {
             width: 0.15,
             color: BLACK,
@@ -466,7 +469,7 @@ impl GridTable {
 }
 
 /// 栏宽：全部行内容估算宽最大值 + 两侧留白，并应用最小栏宽。
-fn col_widths(rows: &[Vec<String>], mins: &[f64]) -> Vec<f64> {
+pub(crate) fn col_widths(rows: &[Vec<String>], mins: &[f64]) -> Vec<f64> {
     let n = rows.first().map(|r| r.len()).unwrap_or(0);
     (0..n)
         .map(|c| {
@@ -487,7 +490,10 @@ fn col_widths(rows: &[Vec<String>], mins: &[f64]) -> Vec<f64> {
 
 /// 界址点编号及坐标表：点号 | 纬度(北纬) | 经度(东经)；按点号升序，
 /// 每行 DMS（秒 3 位小数），末行重复 1 号点坐标闭合。
-fn build_coord_table(points: &[BoundaryPointRecord], lonlats: &[(f64, f64)]) -> GridTable {
+pub(crate) fn build_coord_table(
+    points: &[BoundaryPointRecord],
+    lonlats: &[(f64, f64)],
+) -> GridTable {
     let mut rows: Vec<Vec<String>> = vec![vec![
         "点号".to_string(),
         "纬度(北纬)".to_string(),
@@ -533,7 +539,7 @@ fn build_sign_table(spec: &SeaBoundaryMapSpec) -> GridTable {
 // ---------------------------------------------------------------------------
 
 /// 比例尺分母向上取整百（786→800；下限 100）。
-fn round_up_hundred(raw: f64) -> u32 {
+pub(crate) fn round_up_hundred(raw: f64) -> u32 {
     if !raw.is_finite() || raw <= 100.0 {
         return 100;
     }
@@ -541,7 +547,7 @@ fn round_up_hundred(raw: f64) -> u32 {
 }
 
 /// 环 bbox（min_x, min_y, max_x, max_y）。
-fn ring_bbox(ring: &RealestateRing) -> (f64, f64, f64, f64) {
+pub(crate) fn ring_bbox(ring: &RealestateRing) -> (f64, f64, f64, f64) {
     ring.points.iter().fold(
         (
             f64::INFINITY,
@@ -568,22 +574,22 @@ fn diagnostics_of(reports: &[&PlacementReport]) -> Vec<String> {
 }
 
 /// 页面 ↔ 投影坐标映射（mu = 1000/scale；宗海 bbox 中心对适配区中心，北朝上）。
-struct PageMap {
-    mu: f64,
-    fit_c: (f64, f64),
-    bbox_c: (f64, f64),
+pub(crate) struct PageMap {
+    pub(crate) mu: f64,
+    pub(crate) fit_c: (f64, f64),
+    pub(crate) bbox_c: (f64, f64),
 }
 
 impl PageMap {
     /// 投影坐标 → 纸面毫米。
-    fn to_page(&self, p: (f64, f64)) -> (f64, f64) {
+    pub(crate) fn to_page(&self, p: (f64, f64)) -> (f64, f64) {
         (
             self.fit_c.0 + (p.0 - self.bbox_c.0) * self.mu,
             self.fit_c.1 - (p.1 - self.bbox_c.1) * self.mu,
         )
     }
     /// 纸面毫米 → 投影坐标（图廓四角反算用）。
-    fn to_map(&self, p: (f64, f64)) -> (f64, f64) {
+    pub(crate) fn to_map(&self, p: (f64, f64)) -> (f64, f64) {
         (
             self.bbox_c.0 + (p.0 - self.fit_c.0) / self.mu,
             self.bbox_c.1 - (p.1 - self.fit_c.1) / self.mu,
@@ -830,7 +836,7 @@ fn build_scene(boundary: &ParcelBoundary, spec: &SeaBoundaryMapSpec) -> Result<S
 /// 经纬网发射：图廓四角投影坐标反算为经纬度（source_epsg → EPSG:4490），
 /// 经线顶/底边插值、纬线左/右边插值绘网线（0.15mm 黑）；
 /// 注记对齐网线：顶/底横排（如 118°04′30″E）、左/右竖排（如 37°16′19″N，rotate -90）。
-fn emit_graticule(
+pub(crate) fn emit_graticule(
     prims: &mut Vec<Prim>,
     pm: &PageMap,
     source_epsg: &str,
@@ -966,7 +972,7 @@ fn stroke_attrs(stroke: Option<Stroke>) -> String {
 }
 
 /// 场景 → SVG 文档（viewBox 即毫米坐标系，A4 横）。
-fn scene_to_svg(prims: &[Prim]) -> String {
+pub(crate) fn scene_to_svg(prims: &[Prim]) -> String {
     let mut out = String::with_capacity(8192);
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {PAGE_W:.0} {PAGE_H:.0}\" width=\"{PAGE_W:.0}mm\" height=\"{PAGE_H:.0}mm\">\n"
@@ -1057,7 +1063,11 @@ fn scene_to_svg(prims: &[Prim]) -> String {
 // ---------------------------------------------------------------------------
 
 /// 场景 → PNG 字节（A4 横；旋转注记离屏旋转合成，与 SVG rotate() 同角）。
-fn scene_to_png(prims: &[Prim], dpi: f64, tb: &TextBackend) -> Result<Vec<u8>, RenderError> {
+pub(crate) fn scene_to_png(
+    prims: &[Prim],
+    dpi: f64,
+    tb: &TextBackend,
+) -> Result<Vec<u8>, RenderError> {
     use tiny_skia::{
         Color, FillRule, Paint, PathBuilder, Pixmap, Rect, Shader, Stroke as SkStroke, Transform,
     };

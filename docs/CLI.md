@@ -606,6 +606,40 @@ $ ./target/debug/kanyu.exe render sea-location-map 宗海.dxf --out 宗海位置
 已出宗海位置图 → 宗海位置图.png（1:800，注记 0 条，残余压盖 0 条）   # 该提示在 stderr
 ```
 
+### 5.7 `kanyu render island-range-map / island-facility-map <file> --out <path>` ✅
+
+用岛范围图（图 L.9）/ 建筑物和设施布置图（图 L.10）出图（kanyu-render
+`islandmap` 模块，复用 `seamap` 经纬网/坐标表体系）：A4 横向——标题
+（L.9「用岛范围图」/ L.10「建筑物和设施布置图」）+ 用岛代码行 +
+经纬网图廓 + 图斑/红界址线/界址点符号（无点号边长注记）+
+**罗盘指北针**（四向星形 + N/E/W/S）+ 左下图例框 + 下中整百比例尺 +
+右下签注表（坐标系/比例尺/投影方式/中央经线/测绘单位/测量员/绘图员/
+审核人/绘制日期）。L.9 右侧界址点编号及坐标表（北纬|东经 DMS，
+`--source-epsg` 反算）+ 表下「用岛面积：X平方米」；L.10 设施黄色图斑
+（RGB(255,235,0) + 编号）+ 右侧一览表（编号|名称|占地面积/㎡ + 合计行）。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--out <path>` | （必填） | 输出路径（`.svg` 或 `.png`） |
+| `--island-code <text>` | 属性 `island_code/YDDM/sea_code/ZHDM` | 用岛代码 |
+| `--source-epsg <code>` | `EPSG:4527` | 源坐标系（L.9 坐标表 DMS 反算基准） |
+| `--facilities <file>` | （无） | 设施面要素文件（L.10 用；名称取 `name/MC/设施名称`，编号 `no/BH` 缺省顺编，面积缺省现算） |
+| `--survey-unit / --surveyor / --drawer` | （空） | 测绘单位 / 测量员 / 绘图员 |
+| `--reviewer / --draw-date <text>` | （空） | 审核人 / 绘制日期 |
+| `--area <㎡>` | 属性 `area/ZDMJ`，再无现算 | 用岛面积（L.9） |
+| `--scale <n>` | 自动取整百 | 比例尺分母 |
+| `--dpi <n>` | `150` | PNG 分辨率（SVG 忽略） |
+| `--index <n>` | 面积最大面要素 | 面要素文档序序号（0 起） |
+
+```bash
+$ ./target/debug/kanyu.exe render island-range-map 用岛.dxf --out 用岛范围图.png \
+    --island-code 371602113005JB00088 --source-epsg 4527
+已出用岛范围图 → 用岛范围图.png（1:800）   # 该提示在 stderr
+$ ./target/debug/kanyu.exe render island-facility-map 用岛.dxf --out 设施布置图.png \
+    --island-code 371602113005JB00088 --facilities 设施.geojson
+已出建筑物和设施布置图 → 设施布置图.png（1:800，设施 3 项）   # 该提示在 stderr
+```
+
 ## 6. kanyu gene ✅
 
 WASM 技能系统宿主（kanyu-skill crate；ABI 与沙箱模型见
