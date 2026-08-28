@@ -89,7 +89,7 @@
 10. **属性面板重建**：等待用户定制要求
 11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml，首跑 success）；3D 真管线对接已完成（第十轮：双客户端对齐 scene3d.rs 软件管线，42/42）；后续批次：~~布局预览 UI 页签~~（第四十八轮已完成：render.layout RPC 27 + 双端布局框点击预览）、kanyu-gis 会话首局对话实测（待本地模型端点在线）、凭据轮换时按 docs/GITHUB.md 登记
 12. ~~**主仓 CI 预存红修复**~~ **已完成（2026-08-18 第四十七轮，`12de4ed` 全绿）**：macOS pyo3 链接（build.rs + add_extension_module_link_args）、toolbox 测试跳过面（实测 import 权威判定）、deny 许可/停维护豁免三因闭环；后续推送 CI 恢复守护意义
-13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：① **kdb v2 多批次多图层**（数据库建立方式按规划优化：不动产登记数据库标准 24 标准表单文件承载）；② PNG 边长注记旋转贴入（小 pixmap 旋转合成，对齐 SVG）；③ 邻宗地/道路注记 + 宗海/用岛图种扩展（HY/T 251 缺口随上游携带）；④ 壳层/MCP 宗地图投影（layoutview/工具箱面板）；⑤ 坐标表长表折列（right_to_left 列流）
+13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；② PNG 边长注记旋转贴入（小 pixmap 旋转合成，对齐 SVG）；③ 邻宗地/道路注记 + 宗海/用岛图种扩展（HY/T 251 缺口随上游携带）；④ 壳层/MCP 宗地图投影（layoutview/工具箱面板；kdb v2 建库面板同批）；⑤ 坐标表长表折列（right_to_left 列流）
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -102,6 +102,18 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第二轮：kdb v2 多图层容器（数据库建立方式按规划优化）
+- 提交：本次 commit；测试：`cargo test --workspace` 全绿（新增 kdb v2 内核 6 + CLI 集成 1）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿
+- 内容：kdb v2 多图层容器（zip deflate 纯 Rust：manifest.json「kanyu:format_version=2 + layers 清单」+ layers/<名>.kdb 逐层 v1 IPC 独立校验——面向不动产登记数据库标准多表形态单文件建库；v1 完全兼容魔数嗅探，`kdb_to_batch` 遇 v2 报错指路，`kdb_to_layers` 对 v1 返回单图层）；`Layer::load_kdb_layers`（v2 全图层展开/v1 以 stem 命名）+ `Layer::load` v2 取首图层；CLI `kanyu data kdb-pack <file...> --out x.kdb`（图层名=主干，重名报错）+ `data info` v2 自动展开清单（文本/JSON）；docs（API §13/CLI §3.1+3.7/MASTERPLAN §3.5.1+里程碑/CHANGELOG）同步
+- 真实验证：三图层（真实 CASS DXF 20 要素 + 宗地 TXT 面 + CASS .dat 点）建库 → info 清单（字段/范围类型保真）→ 首图层导出 20 要素 → v2 库直渲宗地图 1:700 十八注记零压盖——「建库-读取-渲染」闭环
+- 偏差：无（§1.2 第 13 项① 完成；图层名安全校验禁 `/` `\` `..`）
+- 后续：§1.2 第 13 项余下 ②PNG 注记旋转 ③邻宗地注记/宗海用岛 ④壳层 MCP 投影 ⑤坐标表折列；v2 容器 MCP/壳层建库面板投影待后续轮次
+
+### [开工] 2026-08-28 kimi-code(main) — 不动产制图第二轮：kdb v2 多图层容器（数据库建立方式按规划优化）
+- 范围：crates/kanyu-core（kdb.rs、layer.rs）、crates/kanyu-cli（cli.rs、commands.rs）、docs（API/CLI/ARCHITECTURE/MASTERPLAN/CHANGELOG）
+- 依据：用户目标「数据库等建立方式按照规划继续进行优化」；§1.2 第 13 项①；裁决 #19（KDB 定版）的 v2 演进；MASTERPLAN §3.5.1
+- 预计：中（单格式升级 + CLI + 真实数据验证）
 
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图入内核第一轮：勘测定界图注记引擎 + GB/T 42547 宗地图 + CASS 联动
 - 提交：本次 commit；测试：`cargo test --workspace` **398/398 全绿**（新增 cartography 14 + cass 10 + parcelmap 4）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿

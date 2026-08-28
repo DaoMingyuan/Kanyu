@@ -54,7 +54,17 @@ impl Layer {
         // 堪舆数据库走 RecordBatch 直通路径（类型保真零转换）。
         if caps.id == "kdb" {
             let bytes = std::fs::read(path)?;
-            let batch = crate::kdb::kdb_to_batch(&bytes)?;
+            // v2 多图层容器：取清单首图层（全图层清单用 `load_kdb_layers` /
+            // `kanyu data info` 自动展开）。
+            let batch = if crate::kdb::is_kdb_v2(&bytes) {
+                crate::kdb::kdb_to_layers(&bytes)?
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| KanyuError::Other("kdb v2 容器不含任何图层".to_string()))?
+                    .batch
+            } else {
+                crate::kdb::kdb_to_batch(&bytes)?
+            };
             return Ok(Self {
                 id,
                 format: "kdb".to_string(),
@@ -140,6 +150,37 @@ impl Layer {
             format: "kdb".to_string(),
             batch,
         }
+    }
+
+    /// 加载堪舆数据库全部图层（v1 单批次 → 单图层（名为文件 stem）；
+    /// v2 多图层容器 → 按清单逐层展开，图层名取自清单）。
+    /// 非 kdb 文件报中文错误。
+    pub fn load_kdb_layers(path: &str) -> Result<Vec<Self>> {
+        let registry = FormatRegistry::builtin();
+        let caps = registry
+            .detect(path)
+            .ok_or_else(|| KanyuError::UnknownFormat(path.to_string()))?;
+        if caps.id != "kdb" {
+            return Err(KanyuError::Other(format!(
+                "不是堪舆数据库（.kdb）文件: {path}（探测为 {}）",
+                caps.id
+            )));
+        }
+        let bytes = std::fs::read(path)?;
+        let is_v2 = crate::kdb::is_kdb_v2(&bytes);
+        let stem = std::path::Path::new(path)
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "layer".to_string());
+        let layers = crate::kdb::kdb_to_layers(&bytes)?;
+        Ok(layers
+            .into_iter()
+            .map(|kl| {
+                // v1 单图层以文件 stem 命名；v2 用清单图层名。
+                let name = if is_v2 { kl.name } else { stem.clone() };
+                Self::from_batch(name, kl.batch)
+            })
+            .collect())
     }
 
     /// 导出为堪舆数据库（KanyuDB .kdb）字节流——直接序列化底层

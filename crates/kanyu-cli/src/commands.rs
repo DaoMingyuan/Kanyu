@@ -178,6 +178,46 @@ fn crs_kind_cn(kind: kanyu_core::crs::CrsKind) -> &'static str {
 pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
     match cmd {
         DataCommand::Info { file } => {
+            // kdb v2 多图层容器：展开图层清单（v1/其他格式走原路径）。
+            let is_kdb_v2 = std::path::Path::new(file)
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("kdb"))
+                && std::fs::read(file)
+                    .map(|b| kanyu_core::kdb::is_kdb_v2(&b))
+                    .unwrap_or(false);
+            if is_kdb_v2 {
+                let layers = Layer::load_kdb_layers(file)?;
+                let summaries: Vec<_> = layers.iter().map(|l| l.summary()).collect();
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "id": stem_of(file),
+                            "format": "kdb",
+                            "format_version": "2",
+                            "layer_count": summaries.len(),
+                            "layers": summaries,
+                        }))?
+                    );
+                } else {
+                    println!("图层:      {}", stem_of(file));
+                    println!("格式:      kdb（v2 多图层容器，{} 图层）", summaries.len());
+                    for s in &summaries {
+                        let extent = s.extent.map_or("（空）".to_string(), |e| {
+                            format!("[{:.6}, {:.6}] → [{:.6}, {:.6}]", e[0], e[1], e[2], e[3])
+                        });
+                        println!(
+                            "  ── {}：{} 要素（{}），范围 {}，字段: {}",
+                            s.id,
+                            s.feature_count,
+                            s.geometry_types.join(", "),
+                            extent,
+                            s.fields.join(", ")
+                        );
+                    }
+                }
+                return Ok(());
+            }
             let layer = Layer::load(stem_of(file), file)?;
             print_value(&layer.summary(), json, |s| {
                 let extent = s.extent.map_or("（空）".to_string(), |e| {
@@ -369,6 +409,34 @@ pub fn data(cmd: &DataCommand, json: bool) -> Result<()> {
             let layer = Layer::load(stem_of(file), file)?;
             let result = kanyu_core::attrcalc::calc_field(&layer.collection(), target, expr)?;
             write_geojson_result(&result, output.as_deref())?;
+        }
+        DataCommand::KdbPack { files, out } => {
+            if files.is_empty() {
+                bail!("kdb-pack 至少需要一个输入文件");
+            }
+            let mut layers: Vec<kanyu_core::kdb::KdbLayer> = Vec::new();
+            for f in files {
+                let stem = stem_of(f);
+                if layers.iter().any(|l| l.name == stem) {
+                    bail!("图层名重复（{stem}）：请重命名输入文件之一");
+                }
+                let layer = Layer::load(stem.clone(), f)?;
+                layers.push(kanyu_core::kdb::KdbLayer {
+                    name: stem,
+                    batch: layer.batch().clone(),
+                });
+            }
+            let bytes = kanyu_core::kdb::layers_to_kdb(&layers)?;
+            std::fs::write(out, &bytes).with_context(|| format!("写入 {out} 失败"))?;
+            eprintln!(
+                "已打包 {} 图层（{}）→ {out} (kdb v2 多图层容器)",
+                layers.len(),
+                layers
+                    .iter()
+                    .map(|l| l.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
         }
     }
     Ok(())

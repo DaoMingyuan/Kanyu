@@ -46,7 +46,8 @@ cargo build --release                     # 产物 target/release/kanyu（Window
 
 ### 3.1 `kanyu data info <file>` ✅
 
-检视数据文件：格式探测、要素数、字段清单。
+检视数据文件：格式探测、要素数、字段清单。**kdb v2 多图层容器**自动展开
+图层清单（`format_version: "2"` + 每层要素数/几何类型/范围/字段）。
 
 | 参数 | 说明 |
 |---|---|
@@ -196,6 +197,25 @@ attrcalc 内核出口：逐要素求值表达式并写入目标字段（不存�
 ```bash
 $ ./target/debug/kanyu.exe data calc examples/buildings.geojson --target h2 --expr "[height] * 2" --output calc.geojson
 已写出 4 个要素 → calc.geojson          # 该提示在 stderr
+```
+
+### 3.7 `kanyu data kdb-pack <file...> --out <path.kdb>` ✅
+
+多图层打包为堪舆数据库（KDB v2 zip 容器）：每输入文件成为一个命名图层
+（图层名=文件名主干，重名中文报错），面向《不动产登记数据库标准》的
+多表形态单文件建库（ZDJBXX/JZD/JZX… 一库全收）。类型保真（RecordBatch
+直通，不经 GeoJSON 中间层）。读取侧：`data info` 自动展开 v2 图层清单；
+`Layer::load`/导出/渲染等单图层入口取清单首图层；
+`Layer::load_kdb_layers` 取全部图层。
+
+```bash
+$ ./target/debug/kanyu.exe data kdb-pack 宗地.txt 界址点.dat --out 不动产库.kdb
+已打包 2 图层（宗地, 界址点）→ 不动产库.kdb (kdb v2 多图层容器)   # 该提示在 stderr
+$ ./target/debug/kanyu.exe data info 不动产库.kdb
+图层:      不动产库
+格式:      kdb（v2 多图层容器，2 图层）
+  ── 宗地：1 要素（Polygon），……
+  ── 界址点：9 要素（Point），……
 ```
 
 ## 4. kanyu analysis ✅

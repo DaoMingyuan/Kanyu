@@ -590,15 +590,29 @@ RecordBatch 同构直通（WKB 几何列 + `geoarrow.wkb` 扩展 + 类型化属�
 类型保真不经 GeoJSON 中间层；任何 Arrow 工具链（pyarrow/DuckDB/Polars）可读。
 v1 约束：单批次。
 
+**KDB v2（多图层容器，2026-08-28）**：zip 容器（deflate 纯 Rust），
+`manifest.json`（`kanyu:format_version="2"` + layers 清单：name/path/rows）
++ `layers/<图层名>.kdb`（每层一个 v1 IPC 文件，独立校验）——面向
+《不动产登记数据库标准》多表形态（ZDJBXX/JZD/JZX… 单文件建库）。
+嗅探 zip 魔数分流：v1 完全兼容；`kdb_to_batch` 遇 v2 明确报错指路
+`kdb_to_layers`；`kdb_to_layers` 对 v1 返回单图层（名 `"layer"`），
+两版统一入口。图层名唯一、禁含 `/` `\` `..`（zip 路径安全）。
+
 | API | 签名 | 说明 |
 |---|---|---|
 | `kdb::batch_to_kdb` | `fn batch_to_kdb(batch: &RecordBatch) -> Result<Vec<u8>>` | RecordBatch → KDB 字节流（注入 kanyu.* 元数据） |
-| `kdb::kdb_to_batch` | `fn kdb_to_batch(bytes: &[u8]) -> Result<RecordBatch>` | KDB 字节流 → RecordBatch（校验 `kanyu:format`；多批次/非 KDB 中文报错） |
+| `kdb::kdb_to_batch` | `fn kdb_to_batch(bytes: &[u8]) -> Result<RecordBatch>` | KDB 字节流 → RecordBatch（校验 `kanyu:format`；v2/多批次/非 KDB 中文报错指路） |
+| `kdb::is_kdb_v2` | `fn is_kdb_v2(bytes: &[u8]) -> bool` | v2 容器嗅探（zip 魔数 `PK\x03\x04`） |
+| `kdb::layers_to_kdb` | `fn layers_to_kdb(layers: &[KdbLayer]) -> Result<Vec<u8>>` | 命名图层序列 → KDB v2 字节流（空/重名/非法名中文报错） |
+| `kdb::kdb_to_layers` | `fn kdb_to_layers(bytes: &[u8]) -> Result<Vec<KdbLayer>>` | v1 → 单图层（名 `"layer"`）；v2 → 按清单逐层展开校验 |
 | `Layer::to_kdb_bytes` | `fn to_kdb_bytes(&self) -> Result<Vec<u8>>` | 图层直接导出 KDB（RecordBatch 直通） |
 | `Layer::from_batch` | `fn from_batch(id: impl Into<String>, batch: RecordBatch) -> Layer` | RecordBatch 直构图层（.kdb 读取路径，format 记为 "kdb"） |
+| `Layer::load_kdb_layers` | `fn load_kdb_layers(path: &str) -> Result<Vec<Layer>>` | 加载 .kdb 全部图层（v1 以文件 stem 命名；v2 用清单图层名） |
 
 转换：`Layer::load("x.kdb")` 与 CLI/MCP `export -f kdb` 接入全格式矩阵
-（任意格式 ↔ kdb ↔ 任意格式）。
+（任意格式 ↔ kdb ↔ 任意格式）；v2 容器 `Layer::load` 取清单首图层，
+`kanyu data kdb-pack <file...> --out x.kdb` 多文件打包容器、
+`kanyu data info x.kdb` 自动展开 v2 图层清单。
 
 ## 14. project —— 堪舆工程（`.kyu`）
 

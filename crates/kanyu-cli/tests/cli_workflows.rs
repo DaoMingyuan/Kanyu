@@ -816,3 +816,92 @@ fn toolbox_list_and_run_via_python() {
     assert_eq!(result["ok"], true);
     assert_eq!(result["result"]["count"], 2);
 }
+
+#[test]
+fn kdb_pack_builds_v2_and_info_expands_layers() {
+    let dir = std::env::temp_dir().join("kanyu_itest_kdbpack");
+    std::fs::create_dir_all(&dir).unwrap();
+    let sample = write_sample(&dir);
+    // 第二个输入：CASS .dat 点层（图层名=文件主干 pts）。
+    let dat = dir.join("pts.dat");
+    std::fs::write(
+        &dat,
+        "J1,302001,39595462.533,4127300.446,12.5\nJ2,,39595499.562,4127302.747\n",
+    )
+    .unwrap();
+    let kdb = dir.join("不动产库.kdb");
+
+    // 打包：两个输入 → kdb v2 双图层。
+    let out = kanyu()
+        .args([
+            "data",
+            "kdb-pack",
+            sample.to_str().unwrap(),
+            dat.to_str().unwrap(),
+            "--out",
+            kdb.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    // zip 魔数嗅探 v2 容器。
+    let bytes = std::fs::read(&kdb).unwrap();
+    assert_eq!(&bytes[..4], b"PK\x03\x04");
+
+    // info 展开图层清单（JSON）。
+    let info = kanyu()
+        .args(["data", "info", kdb.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        info.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&info.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&info.stdout).unwrap();
+    assert_eq!(json["format"], "kdb");
+    assert_eq!(json["format_version"], "2");
+    assert_eq!(json["layer_count"], 2);
+    let layers = json["layers"].as_array().unwrap();
+    assert_eq!(layers[0]["id"], "sample");
+    assert_eq!(layers[0]["feature_count"], 2);
+    assert_eq!(layers[1]["id"], "pts");
+    // 类型保真：dat 图层的 name/code/h 字段齐。
+    for f in ["name", "code", "h"] {
+        assert!(
+            layers[1]["fields"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|x| x == f),
+            "dat 图层缺字段 {f}"
+        );
+    }
+
+    // 首图层直通：export 取清单首图层（sample，2 要素）。
+    let out_geo = dir.join("first.geojson");
+    let export = kanyu()
+        .args([
+            "data",
+            "export",
+            kdb.to_str().unwrap(),
+            "-f",
+            "geojson",
+            "--out",
+            out_geo.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        export.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&export.stderr)
+    );
+    let text = std::fs::read_to_string(&out_geo).unwrap();
+    let gj: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(gj["features"].as_array().unwrap().len(), 2);
+}

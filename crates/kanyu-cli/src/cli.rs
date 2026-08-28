@@ -206,6 +206,15 @@ pub enum DataCommand {
         #[arg(long)]
         output: Option<String>,
     },
+    /// 多图层打包为堪舆数据库（KDB v2 zip 容器：每输入文件成为一个命名图层，
+    /// 图层名=文件名主干；面向不动产登记数据库标准的多表形态单文件建库）。
+    KdbPack {
+        /// 输入数据文件（任意注册格式，可多个；同名主干报中文错误）。
+        files: Vec<String>,
+        /// 输出路径（.kdb）。
+        #[arg(long)]
+        out: String,
+    },
 }
 
 /// `kanyu analysis ...`

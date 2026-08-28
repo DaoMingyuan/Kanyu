@@ -585,6 +585,12 @@ GeoArrow 数据 → 符号化引擎 → CAD 实体映射 → DWG/DXF 编码器
 - **转换**：CLI/MCP `export -f kdb` 与 `load .kdb` 已接入全格式转换矩阵
   （任意格式 ↔ kdb ↔ 任意格式）；v1 单批次。
 
+**KDB v2（多图层容器，2026-08-28 落地）**：zip 容器（deflate 纯 Rust），
+`manifest.json`（`kanyu:format_version="2"` + layers 清单）+ `layers/<名>.kdb`
+（每层一个 v1 IPC，独立校验）——面向《不动产登记数据库标准》多表形态
+（ZDJBXX/JZD/JZX… 单文件建库）。v1 完全兼容（魔数嗅探分流）；
+`kanyu data kdb-pack` 多文件打包、`kanyu data info` 自动展开图层清单。
+
 #### 3.5.2 堪舆工程（.kyu，KanyuProject v1）
 
 **设计**：`.kyu` 为 JSON 工程清单：
@@ -1127,6 +1133,7 @@ gis-mcp（★174，92 个工具但 WKT 进出）、gdal-mcp、postgis-mcp 等。
 - [x] MCP Server（rmcp，stdio）+ 6 个确定性工具 + 系统自省。
 - [x] GeoArrow RecordBatch 内存模型替换 GeoJSON 载体（2026-08-02 完成：WKB 几何列 + 类型化属性列；Layer API 仅 collection() 改为返回拥有值，新增 batch() 零拷贝访问）。
 - [x] **堪舆数据库 .kdb**（裁决 #19，2026-08-03：Arrow IPC + `kanyu.*` 元数据，RecordBatch 直通类型保真；读取/导出/全格式转换接入 CLI/MCP）。
+- [x] **堪舆数据库 .kdb v2 多图层容器**（2026-08-28：zip 容器 manifest.json + layers/<名>.kdb 逐层 v1 IPC——面向不动产登记数据库标准多表形态单文件建库；v1 完全兼容（魔数嗅探），`kanyu data kdb-pack` 打包、`data info` 自动展开清单；真实数据三图层（CASS DXF/宗地 TXT/CASS .dat）建库-读取-渲染闭环验证）。
 - [x] **堪舆工程 .kyu**（裁决 #19，2026-08-03：JSON 工程清单——图层引用/视口/地图色彩/可见性；壳层打开/保存落地）。
 - [x] FlatGeobuf 原生读写（内部首选交换格式，列 schema 自动推断）。
 - [x] GeoParquet 原生读写（云原生列式，WKB 几何编码 + geo 元数据）。

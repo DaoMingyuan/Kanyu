@@ -6,6 +6,20 @@
 
 ### 新增
 
+- **堪舆数据库 KDB v2 多图层容器 + `kanyu data kdb-pack`**：`.kdb` 升级为
+  可承载多命名图层的 zip 容器（deflate 纯 Rust）——`manifest.json`
+  （`kanyu:format_version="2"` + layers 清单：name/path/rows）+
+  `layers/<图层名>.kdb`（每层一个 v1 Arrow IPC 文件，独立携带 `kanyu.*`
+  元数据逐层校验），面向《不动产登记数据库标准》多表形态
+  （ZDJBXX/JZD/JZX… 单文件建库）。v1 完全兼容（zip 魔数嗅探分流；
+  `kdb_to_batch` 遇 v2 明确报错指路 `kdb_to_layers`；`kdb_to_layers`
+  对 v1 返回单图层）。CLI `kanyu data kdb-pack <file...> --out x.kdb`
+  多文件打包（图层名=文件主干，重名中文报错）；`kanyu data info`
+  自动展开 v2 图层清单（文本/JSON）；`Layer::load` 对 v2 取清单首图层，
+  `Layer::load_kdb_layers` 取全部图层。内核 6 项 + CLI 集成 1 项测试；
+  真实数据三图层（CASS DXF/宗地 TXT/CASS .dat）建库 → 读取 → 宗地图
+  渲染闭环验证。
+
 - **不动产制图引擎 `cartography`（勘测定界图注记契约移植）**：kanyu-core
   新模块，移植堪舆工具箱 `realestate_map/__init__.py` + `label_placement.py`
   ——界址点左上角起编（内环续编）、边长注记中点法线零沿线偏移（基准净空
