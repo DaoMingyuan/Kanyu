@@ -89,7 +89,7 @@
 10. **属性面板重建**：等待用户定制要求
 11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml，首跑 success）；3D 真管线对接已完成（第十轮：双客户端对齐 scene3d.rs 软件管线，42/42）；后续批次：~~布局预览 UI 页签~~（第四十八轮已完成：render.layout RPC 27 + 双端布局框点击预览）、kanyu-gis 会话首局对话实测（待本地模型端点在线）、凭据轮换时按 docs/GITHUB.md 登记
 12. ~~**主仓 CI 预存红修复**~~ **已完成（2026-08-18 第四十七轮，`12de4ed` 全绿）**：macOS pyo3 链接（build.rs + add_extension_module_link_args）、toolbox 测试跳过面（实测 import 权威判定）、deny 许可/停维护豁免三因闭环；后续推送 CI 恢复守护意义
-13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；~~② PNG 边长注记旋转贴入~~（**已完成 2026-08-28 第三轮**：离屏 pixmap 旋转合成，与 SVG 同角，目检对齐金样）；③ 邻宗地/道路注记 + 宗海/用岛图种扩展（HY/T 251 缺口随上游携带）；④ 壳层/MCP 宗地图投影（layoutview/工具箱面板；kdb v2 建库面板同批）；~~⑤ 坐标表长表折列~~（**已完成 2026-08-28 第三轮**：right_to_left 列流/题行首列/面积末列，61 行双列目检通过）
+13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；~~② PNG 边长注记旋转贴入~~（**已完成 2026-08-28 第三轮**：离屏 pixmap 旋转合成，与 SVG 同角，目检对齐金样）；③ 邻宗地注记（**已完成 2026-08-28 第五轮**：四至 sizhi_e/s/w/n 主方位最长边 + 法向×切向二维逃逸，ZDSZD/S/X/B 属性拾取，CLI/MCP 双接口，真实 GB32 无压盖）+ 道路名称注记/宗海用岛图种扩展（HY/T 251 缺口随上游携带）待后续；④ 壳层/MCP 宗地图投影（**MCP 半已完成 2026-08-28 第四轮**：parcel-map/parcel-dxf/kdb-pack 三工具入神经接口；壳层半 layoutview/工具箱面板待后续）；~~⑤ 坐标表长表折列~~（**已完成 2026-08-28 第三轮**：right_to_left 列流/题行首列/面积末列，61 行双列目检通过）
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -102,6 +102,18 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第五轮：四至/邻宗地注记（L.3 版面要素补全）
+- 提交：本次 commit；测试：`cargo test --workspace` **412 全绿**（parcelmap +2：四至锚点方位/宽块碰撞回归）；`clippy --workspace --all-targets -D warnings`（type_complexity 引入 P2 别名 + RenderCommand 豁免注释）与 `fmt --check` 全绿
+- 内容：`ParcelMapSpec` 四至注记（sizhi_e/s/w/n）——主方位最长边选取（`sizhi_side`：外法线夹角 <60° 候选取最长）+ 外侧 2.0mm 基准 + **法向抬升 × 切向滑移二维逃逸**（宽文本块在短边上被两角点号封锁切向全程，抬高法向净空越过角点——GB32 北边界实案驱动）；障碍=点号/边长/四至注记+权属环，全灭取最小碰撞位；CLI `--sizhi-e/s/w/n` + 属性 ZDSZD/S/X/B 自动拾取；MCP `kanyu_render_parcel_map` 同名四参数；cartography 公共助手 `ring_edge_outward_normal`；docs（CLI §5.3/MCP §3.21/CHANGELOG）同步
+- 真实验证：GB00032 四至注记全部落位无压盖（北至注记西北高悬对齐金样观感；西至注记沿边滑开 69.50 边长注记；东至注记取 J4-J5 主方位长边）
+- 偏差：无
+- 后续：§1.2 第 13 项余 ③道路名称注记/宗海用岛图种 ④壳层半（layoutview/工具箱面板）
+
+### [开工] 2026-08-28 kimi-code(main) — 不动产制图第五轮：四至/邻宗地注记（L.3 版面要素补全）
+- 范围：crates/kanyu-render/src/parcelmap.rs、crates/kanyu-cli（cli.rs、commands.rs）、crates/kanyu-mcp/src/server.rs、docs（CLI/MCP/CHANGELOG）
+- 依据：§1.2 第 13 项③（邻宗地注记半）；GB/T 42547 图 L.3 四至/邻宗地注记要素；不动产登记数据库标准 ZDJBXX 四至字段（ZDSZD/ZDSZN/ZDSZX/ZDSZB）；金样 stage10_all_157 邻宗地注记观感
+- 预计：中（渲染 + 双接口 + 真实数据复验）
 
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第四轮：MCP 工具组投影（parcel-map/parcel-dxf/kdb-pack 入神经接口）
 - 提交：本次 commit；测试：`cargo test --workspace` **410 全绿**（cartography +2、MCP +3）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿；`kanyu introspect --json` 实测 32 工具在册（+3）

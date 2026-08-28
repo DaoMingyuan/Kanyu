@@ -365,6 +365,9 @@ pub enum AnalysisCommand {
 }
 
 /// `kanyu render ...`
+/// 宗地图参数组（20+ 出图参数）使 ParcelMap 变体远大于其他变体——
+/// CLI 一次性解析、无热路径，尺寸差异可接受，豁免 large_enum_variant。
+#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand, Debug)]
 pub enum RenderCommand {
     /// 渲染数据文件为地图图片（输出格式按 --out 扩展名判定：png/svg）。
@@ -473,6 +476,18 @@ pub enum RenderCommand {
         /// 审核日期。
         #[arg(long, default_value = "")]
         review_date: String,
+        /// 东至注记（邻宗地；缺省取属性 ZDSZD；`\n` 分行）。
+        #[arg(long, default_value = "")]
+        sizhi_e: String,
+        /// 南至注记（邻宗地；缺省取属性 ZDSZN）。
+        #[arg(long, default_value = "")]
+        sizhi_s: String,
+        /// 西至注记（邻宗地；缺省取属性 ZDSZX）。
+        #[arg(long, default_value = "")]
+        sizhi_w: String,
+        /// 北至注记（邻宗地；缺省取属性 ZDSZB）。
+        #[arg(long, default_value = "")]
+        sizhi_n: String,
         /// 比例尺分母（缺省自动适配取整百）。
         #[arg(long)]
         scale: Option<u32>,

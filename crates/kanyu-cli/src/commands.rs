@@ -987,6 +987,10 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
             reviewer,
             draw_date,
             review_date,
+            sizhi_e,
+            sizhi_s,
+            sizhi_w,
+            sizhi_n,
             scale,
             dpi,
             index,
@@ -1019,6 +1023,27 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
                 reviewer: reviewer.clone(),
                 draw_date: draw_date.clone(),
                 review_date: review_date.clone(),
+                // 四至注记：旗标优先，缺省取属性 ZDSZD/S/X/B（不动产登记数据库标准四至字段）
+                sizhi_e: if sizhi_e.is_empty() {
+                    prop_str(&props, &["ZDSZD", "zdszd"]).unwrap_or_default()
+                } else {
+                    sizhi_e.clone()
+                },
+                sizhi_s: if sizhi_s.is_empty() {
+                    prop_str(&props, &["ZDSZN", "zdszn"]).unwrap_or_default()
+                } else {
+                    sizhi_s.clone()
+                },
+                sizhi_w: if sizhi_w.is_empty() {
+                    prop_str(&props, &["ZDSZX", "zdszx"]).unwrap_or_default()
+                } else {
+                    sizhi_w.clone()
+                },
+                sizhi_n: if sizhi_n.is_empty() {
+                    prop_str(&props, &["ZDSZB", "zdszb"]).unwrap_or_default()
+                } else {
+                    sizhi_n.clone()
+                },
                 scale: *scale,
                 dpi: *dpi,
                 ..Default::default()

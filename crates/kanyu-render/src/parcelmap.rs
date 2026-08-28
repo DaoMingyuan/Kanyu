@@ -23,6 +23,9 @@ use kanyu_core::cartography::{
     self, BoundaryLineRecord, BoundaryPointRecord, ParcelBoundary, PlacementReport, RealestateRing,
 };
 
+/// 平面点/向量（地图单位）。
+type P2 = (f64, f64);
+
 /// 宗地图出图参数。
 #[derive(Debug, Clone)]
 pub struct ParcelMapSpec {
@@ -54,6 +57,16 @@ pub struct ParcelMapSpec {
     pub dpi: f64,
     /// 界址点号前缀（默认 J）。
     pub point_prefix: String,
+    /// 四至注记（东/南/西/北，即邻宗地注记；空串不绘；`\n` 分行，
+    /// 如「山东省长途电信淄博传输局\nGB00029」；不动产登记数据库标准
+    /// ZDJBXX 四至字段 ZDSZD/ZDSZN/ZDSZX/ZDSZB）。
+    pub sizhi_e: String,
+    /// 南至注记。
+    pub sizhi_s: String,
+    /// 西至注记。
+    pub sizhi_w: String,
+    /// 北至注记。
+    pub sizhi_n: String,
 }
 
 impl Default for ParcelMapSpec {
@@ -73,6 +86,10 @@ impl Default for ParcelMapSpec {
             scale: None,
             dpi: 150.0,
             point_prefix: "J".to_string(),
+            sizhi_e: String::new(),
+            sizhi_s: String::new(),
+            sizhi_w: String::new(),
+            sizhi_n: String::new(),
         }
     }
 }
@@ -536,6 +553,31 @@ fn ring_centroid(ring: &RealestateRing) -> (f64, f64) {
     (cx / (3.0 * cross_sum), cy / (3.0 * cross_sum))
 }
 
+/// 四至注记方位边选取：外环上外法线与方位 `dir` 点积 > 0.5（夹角 <60°）
+/// 的候选边中**取最长边**（主方位边，避免短边/齿边吸收注记）；
+/// 无候选时回退点积最大者。返回（边中点, 外法线, 边方向单位向量）。
+/// 外法线按环走向判定（[`cartography::ring_edge_outward_normal`]，
+/// 锯齿/凹角宗地同样正确）。
+fn sizhi_side(ring: &RealestateRing, dir: P2) -> Option<(P2, P2, P2)> {
+    let mut fallback: Option<(f64, P2, P2, P2)> = None;
+    let mut best: Option<(f64, P2, P2, P2)> = None;
+    for (a, b) in ring.segments() {
+        let n = cartography::ring_edge_outward_normal(ring, a, b);
+        let dot = n.0 * dir.0 + n.1 * dir.1;
+        let mid = ((a.0 + b.0) / 2.0, (a.1 + b.1) / 2.0);
+        let len = (b.0 - a.0).hypot(b.1 - a.1);
+        let norm = if len == 0.0 { 1.0 } else { len };
+        let tv = ((b.0 - a.0) / norm, (b.1 - a.1) / norm);
+        if fallback.map(|(d, _, _, _)| dot > d).unwrap_or(true) {
+            fallback = Some((dot, mid, n, tv));
+        }
+        if dot > 0.5 && best.map(|(l, _, _, _)| len > l).unwrap_or(true) {
+            best = Some((len, mid, n, tv));
+        }
+    }
+    best.or(fallback).map(|(_, m, n, tv)| (m, n, tv))
+}
+
 /// 排版诊断汇总（每条注记一行：text reason=… clearance=…mm overlap=…）。
 fn diagnostics_of(reports: &[&PlacementReport]) -> Vec<String> {
     let mut out = Vec::new();
@@ -784,6 +826,92 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
         vcenter: true,
         bold: false,
     });
+    // —— 四至/邻宗地注记（GB/T 42547 图 L.3：主方位最长边外侧 2.0mm 起，
+    // 宽文本块沿边**切向**滑移避让（法线方向对宽块无效——同边边长注记
+    // 恒在法线上；金样邻宗注记亦沿边错开摆放）；障碍=已放置点号/边长/
+    // 四至注记与权属环；全候选残余压盖时取最小碰撞位（外部输入文本，
+    // 不再诊断标记）；字头向北，`\n` 分行居中堆叠；空串不绘）——
+    let mut label_obstacles: Vec<cartography::LabelRect> = point_report
+        .labels
+        .iter()
+        .chain(edge_report.labels.iter())
+        .map(|l| l.rect)
+        .collect();
+    for (dir, text) in [
+        ((1.0, 0.0), &spec.sizhi_e),
+        ((0.0, -1.0), &spec.sizhi_s),
+        ((-1.0, 0.0), &spec.sizhi_w),
+        ((0.0, 1.0), &spec.sizhi_n),
+    ] {
+        let lines: Vec<&str> = text.lines().filter(|s| !s.trim().is_empty()).collect();
+        if lines.is_empty() {
+            continue;
+        }
+        const SIZHI_LH: f64 = 3.2; // 行高（毫米）
+        let Some((mid, n, tv)) = sizhi_side(&boundary.exterior, dir) else {
+            continue;
+        };
+        // 文本块尺寸（地图单位）：宽 = 最长行估算宽，高 = 行数 × 行高
+        let mm_to_map = f64::from(scale) / 1000.0;
+        let h_mm = lines.len() as f64 * SIZHI_LH;
+        let w_mm = lines
+            .iter()
+            .map(|l| cartography::text_extent_mm(l.trim(), 2.4).0)
+            .fold(0.0_f64, f64::max);
+        let (w_map, h_map) = (w_mm * mm_to_map, h_mm * mm_to_map);
+        // 二维逃逸：法向 k×0.5mm 抬升（外层）× 切向 0、±0.5…±25mm 滑移（内层）——
+        // 宽文本块在短边上会被两角点号注记封锁切向全程，抬高法向净空后
+        // 方可越过角点（金样邻宗注记亦远离边中点高悬）；首个零碰撞即取
+        let mut rect = cartography::LabelRect {
+            cx: 0.0,
+            cy: 0.0,
+            w: w_map,
+            h: h_map,
+            rot_rad: 0.0,
+        };
+        let mut chosen: Option<cartography::LabelRect> = None;
+        let mut least: Option<(usize, cartography::LabelRect)> = None;
+        'escape: for k in 0..=6 {
+            let off_n = (2.0 + h_mm / 2.0 + k as f64 * 0.5) * mm_to_map;
+            for i in 0..=50 {
+                for sign in [1.0_f64, -1.0] {
+                    let off_t = i as f64 * sign * 0.5 * mm_to_map;
+                    rect.cx = mid.0 + n.0 * off_n + tv.0 * off_t;
+                    rect.cy = mid.1 + n.1 * off_n + tv.1 * off_t;
+                    let hits = label_obstacles
+                        .iter()
+                        .filter(|r| cartography::rects_overlap(&rect, r))
+                        .count()
+                        + usize::from(cartography::rect_ring_overlap(
+                            &rect,
+                            &boundary.exterior.points,
+                        ));
+                    if hits == 0 {
+                        chosen = Some(rect);
+                        break 'escape;
+                    }
+                    if least.as_ref().map(|(h, _)| hits < *h).unwrap_or(true) {
+                        least = Some((hits, rect));
+                    }
+                }
+            }
+        }
+        let rect = chosen.or(least.map(|(_, r)| r)).unwrap_or(rect);
+        label_obstacles.push(rect); // 四至块互为障碍
+        let (sx, sy) = to_page((rect.cx, rect.cy));
+        for (i, line) in lines.iter().enumerate() {
+            prims.push(Prim::Text {
+                x: sx,
+                y: sy + (i as f64 - (lines.len() as f64 - 1.0) / 2.0) * SIZHI_LH,
+                font: 2.4,
+                text: line.trim().to_string(),
+                anchor: Anchor::Middle,
+                rotate_deg: 0.0,
+                vcenter: true,
+                bold: false,
+            });
+        }
+    }
     // —— 界址点坐标表（地图框右下锚定）——
     table.emit(&mut prims);
     // —— 底部签注带 ——
@@ -1221,6 +1349,10 @@ mod tests {
             scale: None,
             dpi: 150.0,
             point_prefix: "J".to_string(),
+            sizhi_e: String::new(),
+            sizhi_s: String::new(),
+            sizhi_w: String::new(),
+            sizhi_n: String::new(),
         }
     }
 
@@ -1412,6 +1544,75 @@ mod tests {
             "90° 旋转文本应垂直延展（高 {} > 宽 {}）",
             maxy - miny,
             maxx - minx
+        );
+    }
+    #[test]
+    fn sizhi_labels_anchor_outside_matching_side() {
+        let boundary = test_boundary(); // 40×30 CCW 矩形：东 39595000-39595040，北 4127000-4127030
+                                        // 东：主方位边=东界（中点 (39595040, 4127015)，外法线 (1,0)）
+        let ((mx, my), (nx, ny), _) = sizhi_side(&boundary.exterior, (1.0, 0.0)).unwrap();
+        assert!((mx - 39595040.0).abs() < 1e-6 && (my - 4127015.0).abs() < 1e-6);
+        assert!(nx > 0.99 && ny.abs() < 1e-9, "东界外法线应朝东: {nx},{ny}");
+        // 南/西/北同理
+        let ((_, sy), (_, sny), _) = sizhi_side(&boundary.exterior, (0.0, -1.0)).unwrap();
+        assert!(
+            (sy - 4127000.0).abs() < 1e-6 && sny < -0.99,
+            "南界中点且法线朝南"
+        );
+        let ((wx, _), (wnx, _), _) = sizhi_side(&boundary.exterior, (-1.0, 0.0)).unwrap();
+        assert!(
+            (wx - 39595000.0).abs() < 1e-6 && wnx < -0.99,
+            "西界中点且法线朝西"
+        );
+        let ((_, ny2), (_, nny), _) = sizhi_side(&boundary.exterior, (0.0, 1.0)).unwrap();
+        assert!(
+            (ny2 - 4127030.0).abs() < 1e-6 && nny > 0.99,
+            "北界中点且法线朝北"
+        );
+        // SVG 含分行四至注记
+        let spec = ParcelMapSpec {
+            sizhi_e: "东侧邻宗
+GB00029"
+                .to_string(),
+            sizhi_s: "南侧邻宗".to_string(),
+            ..full_spec()
+        };
+        let out = render_parcel_map_svg(&test_boundary(), &spec).unwrap();
+        let svg = svg_of(&out);
+        assert!(svg.contains("东侧邻宗") && svg.contains("GB00029"));
+        assert!(svg.contains("南侧邻宗"));
+        // 无四至（默认全空）：不含
+        let out0 = render_parcel_map_svg(&test_boundary(), &full_spec()).unwrap();
+        let svg0 = svg_of(&out0);
+        assert!(!svg0.contains("邻宗"));
+    }
+    #[test]
+    fn sizhi_wide_block_collides_with_edge_label_at_base() {
+        // 回归（GB32 北边界实案）：宽四至文本块在基准位必与同边边长注记判交——
+        // 驱动二维逃逸（法向抬升 × 切向滑移）的必要性断言
+        let edge_mid = (39595481.05, 4127301.60);
+        let n = (-0.062, 0.998);
+        let mm_to_map = 0.7;
+        // 37.10 边长注记 rect（近似）
+        let edge_label = cartography::LabelRect {
+            cx: 39595480.95,
+            cy: 4127303.14,
+            w: 4.03,
+            h: 1.68,
+            rot_rad: 0.062,
+        };
+        // N 四至块 t=0
+        let off_n = (2.0 + 3.2) * mm_to_map;
+        let sizhi = cartography::LabelRect {
+            cx: edge_mid.0 + n.0 * off_n,
+            cy: edge_mid.1 + n.1 * off_n,
+            w: 38.4 * mm_to_map,
+            h: 6.4 * mm_to_map,
+            rot_rad: 0.0,
+        };
+        assert!(
+            cartography::rects_overlap(&sizhi, &edge_label),
+            "t=0 应判交"
         );
     }
 }

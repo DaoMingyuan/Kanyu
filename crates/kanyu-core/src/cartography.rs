@@ -924,6 +924,12 @@ fn edge_outward_normal(dx: f64, dy: f64, ccw: bool) -> Point2 {
     }
 }
 
+/// 环某边的外法线（公共入口；按环走向判定外侧，锯齿/凹角宗地同样正确）。
+/// 供四至/邻宗地注记等版面要素取边外指方向。
+pub fn ring_edge_outward_normal(ring: &RealestateRing, start: Point2, end: Point2) -> Point2 {
+    edge_outward_normal(end.0 - start.0, end.1 - start.1, ring_ccw(&ring.points))
+}
+
 /// 顶点角平分线朝外单位向量（按环走向取两邻边外法线合成；
 /// 尖点退化时用 prev→next 边外法线，不依赖质心——锯齿/凹角宗地同正确）。
 fn bisector_outward(ccw: bool, rec: Point2, prev: Point2, next: Point2) -> Point2 {

@@ -246,6 +246,14 @@ pub struct RenderParcelMapReq {
     pub draw_date: Option<String>,
     /// 审核日期。
     pub review_date: Option<String>,
+    /// 东至注记（邻宗地；缺省取属性 ZDSZD；`\n` 分行）。
+    pub sizhi_e: Option<String>,
+    /// 南至注记（缺省取属性 ZDSZN）。
+    pub sizhi_s: Option<String>,
+    /// 西至注记（缺省取属性 ZDSZX）。
+    pub sizhi_w: Option<String>,
+    /// 北至注记（缺省取属性 ZDSZB）。
+    pub sizhi_n: Option<String>,
     /// 比例尺分母（缺省自动适配取整百）。
     pub scale: Option<u32>,
     /// PNG 分辨率 dpi（默认 150，SVG 忽略）。
@@ -694,6 +702,22 @@ impl KanyuServer {
             reviewer: req.reviewer.unwrap_or_default(),
             draw_date: req.draw_date.unwrap_or_default(),
             review_date: req.review_date.unwrap_or_default(),
+            sizhi_e: req
+                .sizhi_e
+                .or_else(|| prop(&["ZDSZD", "zdszd"]))
+                .unwrap_or_default(),
+            sizhi_s: req
+                .sizhi_s
+                .or_else(|| prop(&["ZDSZN", "zdszn"]))
+                .unwrap_or_default(),
+            sizhi_w: req
+                .sizhi_w
+                .or_else(|| prop(&["ZDSZX", "zdszx"]))
+                .unwrap_or_default(),
+            sizhi_n: req
+                .sizhi_n
+                .or_else(|| prop(&["ZDSZB", "zdszb"]))
+                .unwrap_or_default(),
             scale: req.scale,
             dpi: req.dpi.unwrap_or(150.0),
             ..Default::default()
@@ -2274,6 +2298,10 @@ mod tests {
                 reviewer: None,
                 draw_date: None,
                 review_date: None,
+                sizhi_e: None,
+                sizhi_s: None,
+                sizhi_w: None,
+                sizhi_n: None,
                 scale: None,
                 dpi: None,
                 index: None,
