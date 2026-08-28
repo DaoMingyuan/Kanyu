@@ -89,7 +89,7 @@
 10. **属性面板重建**：等待用户定制要求
 11. **DSH 组件能力深化**（长期项，开源基线已立）：`dsh/` 组件与 GIS 模式 preset 已开源双仓（主仓 + DaoMingyuan/kanyu-gis）；DSH 活体挂载验证已完成（2026-08-18：roster broken 修复闭环 + 会话技能入目实证，web profile）；编辑内核与 kanyu-edit 逆操作双栈对齐已完成（第七轮，RPC 17 / 测试器 40 断言）；SKILL.md 组件形态章节对齐已完成（第八轮）；组件仓 CI 已落地（第九轮：--static 31 断言 + component-test.yml，首跑 success）；3D 真管线对接已完成（第十轮：双客户端对齐 scene3d.rs 软件管线，42/42）；后续批次：~~布局预览 UI 页签~~（第四十八轮已完成：render.layout RPC 27 + 双端布局框点击预览）、kanyu-gis 会话首局对话实测（待本地模型端点在线）、凭据轮换时按 docs/GITHUB.md 登记
 12. ~~**主仓 CI 预存红修复**~~ **已完成（2026-08-18 第四十七轮，`12de4ed` 全绿）**：macOS pyo3 链接（build.rs + add_extension_module_link_args）、toolbox 测试跳过面（实测 import 权威判定）、deny 许可/停维护豁免三因闭环；后续推送 CI 恢复守护意义
-13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；~~② PNG 边长注记旋转贴入~~（**已完成 2026-08-28 第三轮**：离屏 pixmap 旋转合成，与 SVG 同角，目检对齐金样）；③ 邻宗地注记（**已完成 2026-08-28 第五轮**：四至 sizhi_e/s/w/n 主方位最长边 + 法向×切向二维逃逸，ZDSZD/S/X/B 属性拾取，CLI/MCP 双接口，真实 GB32 无压盖）+ 道路名称注记（**已完成 2026-08-28 第六轮**：roads 裁剪绘线 + 路名沿线，CLI/MCP 双接口，真实目检对齐样图）+ 宗海/用岛图种扩展（HY/T 251 缺口随上游携带）待后续；④ 壳层/MCP 宗地图投影（**MCP 半已完成 2026-08-28 第四轮**：parcel-map/parcel-dxf/kdb-pack 三工具入神经接口；壳层半 layoutview/工具箱面板待后续）；~~⑤ 坐标表长表折列~~（**已完成 2026-08-28 第三轮**：right_to_left 列流/题行首列/面积末列，61 行双列目检通过）
+13. **不动产制图续**（用户指令，第一轮 2026-08-28 已入内核：cartography/cass/parcelmap + CLI parcel-map/parcel-dxf）：~~① **kdb v2 多批次多图层**~~（**已完成 2026-08-28 第二轮**：zip 容器 manifest+逐层 v1 IPC，v1 兼容；`data kdb-pack`/`data info` 展开；真实三图层闭环）；~~② PNG 边长注记旋转贴入~~（**已完成 2026-08-28 第三轮**：离屏 pixmap 旋转合成，与 SVG 同角，目检对齐金样）；③ **图种全齐（已完成 2026-08-28 第五~十四轮）**：四至邻宗注记（第五轮法向×切向二维逃逸）+ 道路名称注记（第六轮）+ 宗海三件套 L.6/L.7/L.8（第七/八轮 seamap，经纬网+DMS 坐标表，金样逐行一致）+ 用岛两件套 L.9/L.10（第十轮 islandmap，罗盘指北针/一览表）+ 所有权宗地图 L.4（第十二轮）+ 宗地草图 B.4（第十三轮）+ 房产图 L.5（第十四轮 housemap，朝向自适应+四行表）——**九图种全部落地**，HY/T 251 缺口随上游携带（宗海/用岛仍以宗地代理验证）；④ 壳层/MCP 投影（**MCP 半已完成**：parcel-map（use/ownership/sketch）/parcel-dxf/kdb-pack/sea_map（kind×3）/island_map（kind×2）/house_map 七组制图工具入神经接口（第四/九/十一/十二/十三/十四轮），实测 35 工具在册；壳层半 layoutview/工具箱面板待后续）；~~⑤ 坐标表长表折列~~（**已完成 2026-08-28 第三轮**：right_to_left 列流/题行首列/面积末列，61 行双列目检通过）
 
 ### 1.3 自我迭代边界（不可逾越）
 
@@ -102,6 +102,18 @@
 ---
 
 ## 2. 迭代会签簿（新条目加在顶部）
+
+### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十四轮：房产图（图 L.5，收官图种——九图种全齐）
+- 提交：本次 commit；测试：`cargo test --workspace` **439 全绿**（housemap +5、MCP +2）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿；`kanyu introspect --json` 实测 35 工具在册（+1）
+- 内容：kanyu-render 新模块 `housemap`（图 L.5 版式：朝向自适应横/竖放（§5.4.5.5.4，bbox 宽≥高 A4 横否则竖）+ 标题「房 产 图」+「单位：m·㎡」+ 头部四行表（宗地代码/结构/专有建筑面积、幢号/总层数/分摊建筑面积、户号/所在层次/建筑面积、坐落通栏；面积 `{:.2}` None 留空）+ 房屋轮廓 0.3mm 黑线无填充 + 逐边边长注记（cartography 排版）+ 北指北针 + 右下绘制日期 + 下中整百比例尺 + 可选竖排单位名；parcelmap 助手 `pub(crate)` 化共享零 API 变化）；CLI `render house-map`（属性拾取 ZDDM/FWJG/ZYJZMJ/ZRZH/ZCS/FTJZMJ/HH/SZC/SCJZMJ/ZL）；MCP `kanyu_render_house_map`；docs（CLI §5.8/MCP §3.21/MASTERPLAN/CHANGELOG）同步
+- 真实验证：真实感阶梯形房屋（L 形 40×20m，ZRZH/ZCS/HH/SZC/SCJZMJ/ZL 属性）渲染——四行表全值、黑轮廓边长注记沿线、A4 横放、1:200 自动整百，目检对齐金样 159（16 注记 3 least_bad 诚实标记——阶梯短边预期行为）
+- 偏差：无（A3/A5/B5 幅面与分层平面图（房间级）按契约留后续）
+- 后续：§1.2 第 13 项③**图种全部完成**（L.3/L.4/B.4/L.5/L.6/L.7/L.8/L.9/L.10 九图种）；余 ④壳层半（layoutview/工具箱面板）
+
+### [开工] 2026-08-28 kimi-code(main) — 不动产制图第十四轮：房产图（图 L.5，收官图种）
+- 范围：crates/kanyu-render（parcelmap.rs 助手 pub(crate) 化 + 新 housemap.rs）、crates/kanyu-cli（cli.rs、commands.rs）、crates/kanyu-mcp/src/server.rs（kind 如复用 render_parcel_map 则免）、docs（CLI/MCP/MASTERPLAN/CHANGELOG）
+- 依据：§1.2 第 13 项③（房产图 L.5）；金样 stage10_all_159；GB/T 42547 §5.4.5.5.4（幅面 A3/A4/A5/B5、朝向横竖放）
+- 预计：大（新图种 + 头部四行表 + 朝向自适应 + CLI + 真实数据复验）
 
 ### [收工] 2026-08-28 kimi-code(main) — 不动产制图第十三轮：宗地草图（B.4/图 B.1 图种分派 + CLI/MCP 双接口）
 - 提交：本次 commit；测试：`cargo test --workspace` **432 全绿**（parcelmap +1 草图要素 + L.3 回归）；`clippy --workspace --all-targets -D warnings` 与 `fmt --check` 全绿

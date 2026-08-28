@@ -997,6 +997,9 @@ pub fn render(cmd: &RenderCommand) -> Result<()> {
         RenderCommand::IslandFacilityMap(args) => {
             island_map_render(args, kanyu_render::islandmap::IslandMapKind::FacilityMap)?;
         }
+        RenderCommand::HouseMap(args) => {
+            house_map_render(args)?;
+        }
         RenderCommand::ParcelDxf {
             file,
             out,
@@ -1322,6 +1325,98 @@ fn facilities_from_collection(
     collection: &geojson::FeatureCollection,
 ) -> Vec<kanyu_render::islandmap::IslandFacility> {
     kanyu_render::islandmap::facilities_from_collection(collection)
+}
+
+/// 房产图出图实现（GB/T 42547-2023 图 L.5；属性拾取键见各字段注释）。
+fn house_map_render(args: &crate::cli::HouseMapArgs) -> Result<()> {
+    use kanyu_render::housemap::{render_house_map_png, render_house_map_svg, HouseMapSpec};
+    use kanyu_render::parcelmap::ParcelMapData;
+    let (boundary, props) = parcel_boundary_from_file(&args.file, args.index)?;
+    let spec = HouseMapSpec {
+        parcel_code: args
+            .parcel_code
+            .clone()
+            .or_else(|| prop_str(&props, &["parcel_id", "ZDDM", "zddm"]))
+            .unwrap_or_default(),
+        structure: args
+            .structure
+            .clone()
+            .or_else(|| prop_str(&props, &["FWJG", "jjg", "structure"]))
+            .unwrap_or_default(),
+        exclusive_area: args
+            .exclusive_area
+            .or_else(|| prop_f64(&props, &["ZYJZMJ", "zyjzmj"])),
+        building_no: args
+            .building_no
+            .clone()
+            .or_else(|| prop_str(&props, &["ZRZH", "zrzh", "building_no"]))
+            .unwrap_or_default(),
+        total_floors: args
+            .total_floors
+            .clone()
+            .or_else(|| prop_str(&props, &["ZCS", "zcs"]))
+            .unwrap_or_default(),
+        shared_area: args
+            .shared_area
+            .or_else(|| prop_f64(&props, &["FTJZMJ", "ftjzmj"])),
+        household_no: args
+            .household_no
+            .clone()
+            .or_else(|| prop_str(&props, &["HH", "hh", "household_no"]))
+            .unwrap_or_default(),
+        floor_no: args
+            .floor_no
+            .clone()
+            .or_else(|| prop_str(&props, &["SZC", "szc", "floor_no"]))
+            .unwrap_or_default(),
+        building_area: args
+            .building_area
+            .or_else(|| prop_f64(&props, &["SCJZMJ", "scjzmj", "JZMJ", "jzmj"])),
+        location: args
+            .location
+            .clone()
+            .or_else(|| prop_str(&props, &["ZL", "zl", "location"]))
+            .unwrap_or_default(),
+        draw_date: args.draw_date.clone(),
+        unit_name: args.unit_name.clone(),
+        scale: args.scale,
+        dpi: args.dpi,
+    };
+    let ext = args
+        .out
+        .rsplit('.')
+        .next()
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_default();
+    let output = match ext.as_str() {
+        "png" => render_house_map_png(&boundary, &spec)?,
+        "svg" => render_house_map_svg(&boundary, &spec)?,
+        other => {
+            bail!("输出格式按扩展名判定，仅支持 .png/.svg（实际: '.{other}'）")
+        }
+    };
+    let overlaps = output
+        .diagnostics
+        .iter()
+        .filter(|d| d.contains("overlap=true"))
+        .count();
+    match &output.data {
+        ParcelMapData::Svg(text) => {
+            std::fs::write(&args.out, text).with_context(|| format!("写入 {} 失败", args.out))?;
+        }
+        ParcelMapData::Png(bytes) => {
+            std::fs::write(&args.out, bytes).with_context(|| format!("写入 {} 失败", args.out))?;
+        }
+    }
+    eprintln!(
+        "已出房产图 → {}（1:{}，{}，注记 {} 条，残余压盖 {} 条）",
+        args.out,
+        output.scale,
+        if output.landscape { "A4 横" } else { "A4 竖" },
+        output.diagnostics.len(),
+        overlaps
+    );
+    Ok(())
 }
 
 /// 宗地面要素选取与权属边界提取（parcel-map/parcel-dxf 共用）：

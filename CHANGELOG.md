@@ -6,6 +6,17 @@
 
 ### 新增
 
+- **房产图（L.5）渲染器 `housemap` + `kanyu render house-map` + MCP
+  `kanyu_render_house_map`**：GB/T 42547-2023 图 L.5 版式——**朝向自适应**
+  （§5.4.5.5.4：房屋 bbox 宽 ≥ 高 A4 横放、否则竖放）+ 标题「房 产 图」+
+  「单位：m·㎡」+ **头部四行表**（宗地代码/结构/专有建筑面积、幢号/
+  总层数/分摊建筑面积、户号/所在层次/建筑面积、坐落通栏）+ 地图区
+  （房屋轮廓 0.3mm 黑线无填充 + 逐边边长注记（勘测定界图注记契约排版）
+  + 北指北针）+ 右下绘制日期 + 下中整百比例尺。CLI 属性拾取
+  （ZDDM/FWJG/ZYJZMJ/ZRZH/ZCS/FTJZMJ/HH/SZC/SCJZMJ/ZL）；MCP structuredContent
+  携带 scale/landscape/label_count/overlap_count。真实感阶梯形房屋渲染
+  目检对齐金样 159。render +5、MCP +2 测试。
+
 - **宗地草图（表 B.4 + 图 B.1）出图**：`ParcelMapKind::Sketch` 入
   `parcelmap` 管线——**无坐标表/头部信息框/分式/竖排单位名**；
   标题「宗地草图」+ 全幅地图区 + 北指北针 + 右下「说明：图中单位

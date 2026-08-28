@@ -234,6 +234,12 @@ pub fn tools() -> Vec<ToolInfo> {
             group: "render",
             status: "stable",
         },
+        // 房产图（GB/T 42547 图 L.5）
+        ToolInfo {
+            name: "kanyu_render_house_map",
+            group: "render",
+            status: "stable",
+        },
         ToolInfo {
             name: "kanyu_render_camera",
             group: "render",

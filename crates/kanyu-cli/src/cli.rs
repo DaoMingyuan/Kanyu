@@ -462,6 +462,11 @@ pub enum RenderCommand {
     /// 与编号 + 建筑物和设施一览表（--facilities 设施面要素文件；缺省为诚实空态：
     /// 图斑区无设施、一览表仅表头 + 合计 0.00）。
     IslandFacilityMap(IslandMapArgs),
+    /// 房产图（GB/T 42547-2023 图 L.5 版式，A4 朝向自适应：房屋 bbox 宽 ≥ 高横放、
+    /// 否则竖放）：头部四行表（宗地代码/结构/专有建筑面积/幢号/总层数/分摊建筑面积/
+    /// 户号/所在层次/建筑面积/坐落）+ 房屋轮廓黑线 + 逐边边长注记 + 「北」指北针 +
+    /// 绘制日期 + 整百比例尺（输出格式按 --out 扩展名判定：svg/png）。
+    HouseMap(HouseMapArgs),
     /// 宗地 CASS 兼容 DXF 导出（南方 CASS 联动）：ZD/JZX/JZD/ZJ 分层 +
     /// SOUTH 编码 XDATA（界址点 302001/界址线 302002），CASS 直接打开编辑。
     ParcelDxf {
@@ -680,6 +685,62 @@ pub struct IslandMapArgs {
     /// 编号取 no/BH（缺省顺编 1..），面积取 area/ZDMJ/占地面积（缺省现算））。
     #[arg(long)]
     pub facilities: Option<String>,
+}
+
+/// 房产图参数（GB/T 42547-2023 图 L.5 版式）。
+#[derive(clap::Args, Debug, Clone)]
+pub struct HouseMapArgs {
+    /// 房屋数据文件（面要素；GeoJSON/SHP/宗地 TXT/DXF/kdb 等注册格式，
+    /// 多面要素缺省取面积最大者，可用 --index 指定）。
+    pub file: String,
+    /// 输出路径（.svg 或 .png）。
+    #[arg(long)]
+    pub out: String,
+    /// 宗地代码（缺省取属性 parcel_id/ZDDM/zddm）。
+    #[arg(long)]
+    pub parcel_code: Option<String>,
+    /// 结构（如 B/钢/混；缺省取属性 FWJG/jjg/structure）。
+    #[arg(long)]
+    pub structure: Option<String>,
+    /// 专有建筑面积（㎡；缺省取属性 ZYJZMJ/zyjzmj）。
+    #[arg(long)]
+    pub exclusive_area: Option<f64>,
+    /// 幢号（缺省取属性 ZRZH/zrzh/building_no）。
+    #[arg(long)]
+    pub building_no: Option<String>,
+    /// 总层数（缺省取属性 ZCS/zcs）。
+    #[arg(long)]
+    pub total_floors: Option<String>,
+    /// 分摊建筑面积（㎡；缺省取属性 FTJZMJ/ftjzmj）。
+    #[arg(long)]
+    pub shared_area: Option<f64>,
+    /// 户号（缺省取属性 HH/hh/household_no）。
+    #[arg(long)]
+    pub household_no: Option<String>,
+    /// 所在层次（缺省取属性 SZC/szc/floor_no）。
+    #[arg(long)]
+    pub floor_no: Option<String>,
+    /// 建筑面积（㎡；缺省取属性 SCJZMJ/scjzmj/JZMJ/jzmj）。
+    #[arg(long)]
+    pub building_area: Option<f64>,
+    /// 坐落（缺省取属性 ZL/zl/location）。
+    #[arg(long)]
+    pub location: Option<String>,
+    /// 绘制日期（缺省空）。
+    #[arg(long, default_value = "")]
+    pub draw_date: String,
+    /// 左侧竖排单位名（可选，空串不绘）。
+    #[arg(long, default_value = "")]
+    pub unit_name: String,
+    /// 比例尺分母（缺省自动适配取整百）。
+    #[arg(long)]
+    pub scale: Option<u32>,
+    /// 分辨率 dpi（默认 150，仅 PNG）。
+    #[arg(long, default_value_t = 150.0)]
+    pub dpi: f64,
+    /// 面要素序号（缺省取面积最大面要素；指定后按文档序第 N 个，0 起）。
+    #[arg(long)]
+    pub index: Option<usize>,
 }
 
 /// `kanyu skill ...`

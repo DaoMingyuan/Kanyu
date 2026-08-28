@@ -324,7 +324,7 @@ const TABLE_FIT_GAP: f64 = 4.0;
 /// 适配区最小高（点极多时兜底）。
 const FIT_MIN_H: f64 = 40.0;
 /// 颜色（黑 / 界址线红 / 白）。
-const BLACK: [u8; 3] = [0, 0, 0];
+pub(crate) const BLACK: [u8; 3] = [0, 0, 0];
 const RED: [u8; 3] = [255, 0, 0];
 const WHITE: [u8; 3] = [255, 255, 255];
 
@@ -334,14 +334,14 @@ const WHITE: [u8; 3] = [255, 255, 255];
 
 /// 描边（毫米线宽 + RGB）。
 #[derive(Debug, Clone, Copy)]
-struct Stroke {
-    width: f64,
-    color: [u8; 3],
+pub(crate) struct Stroke {
+    pub(crate) width: f64,
+    pub(crate) color: [u8; 3],
 }
 
 /// 文本锚点。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Anchor {
+pub(crate) enum Anchor {
     Start,
     Middle,
     End,
@@ -349,7 +349,7 @@ enum Anchor {
 
 /// 场景图元。
 #[derive(Debug, Clone)]
-enum Prim {
+pub(crate) enum Prim {
     /// 矩形（图廓 / 表格外框）。
     Rect {
         rect: [f64; 4],
@@ -654,7 +654,7 @@ impl CoordTable {
 // ---------------------------------------------------------------------------
 
 /// 比例尺分母向上取整百（786→800；下限 100）。
-fn round_up_hundred(raw: f64) -> u32 {
+pub(crate) fn round_up_hundred(raw: f64) -> u32 {
     if !raw.is_finite() || raw <= 100.0 {
         return 100;
     }
@@ -662,7 +662,7 @@ fn round_up_hundred(raw: f64) -> u32 {
 }
 
 /// 环 bbox（min_x, min_y, max_x, max_y）。
-fn ring_bbox(ring: &RealestateRing) -> (f64, f64, f64, f64) {
+pub(crate) fn ring_bbox(ring: &RealestateRing) -> (f64, f64, f64, f64) {
     ring.points.iter().fold(
         (
             f64::INFINITY,
@@ -716,7 +716,7 @@ fn sizhi_side(ring: &RealestateRing, dir: P2) -> Option<(P2, P2, P2)> {
 }
 
 /// 排版诊断汇总（每条注记一行：text reason=… clearance=…mm overlap=…）。
-fn diagnostics_of(reports: &[&PlacementReport]) -> Vec<String> {
+pub(crate) fn diagnostics_of(reports: &[&PlacementReport]) -> Vec<String> {
     let mut out = Vec::new();
     for report in reports {
         for l in &report.labels {
@@ -1338,7 +1338,7 @@ fn build_scene(boundary: &ParcelBoundary, spec: &ParcelMapSpec) -> Result<Scene,
 // ---------------------------------------------------------------------------
 
 /// 文本 XML 转义。
-fn esc(s: &str) -> String {
+pub(crate) fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -1351,7 +1351,7 @@ fn hex(c: [u8; 3]) -> String {
 }
 
 /// fill 属性。
-fn fill_attr(fill: Option<[u8; 3]>) -> String {
+pub(crate) fn fill_attr(fill: Option<[u8; 3]>) -> String {
     match fill {
         Some(c) => format!("fill=\"{}\"", hex(c)),
         None => "fill=\"none\"".to_string(),
@@ -1359,7 +1359,7 @@ fn fill_attr(fill: Option<[u8; 3]>) -> String {
 }
 
 /// stroke 属性串。
-fn stroke_attrs(stroke: Option<Stroke>) -> String {
+pub(crate) fn stroke_attrs(stroke: Option<Stroke>) -> String {
     match stroke {
         Some(s) => format!(
             " stroke=\"{}\" stroke-width=\"{:.2}\"",
@@ -1602,7 +1602,7 @@ fn scene_to_png(prims: &[Prim], dpi: f64, tb: &TextBackend) -> Result<Vec<u8>, R
 /// 旋转文本绘制（PNG）：文本先绘入透明离屏 pixmap，再绕中心旋转移植。
 /// 中心语义与排版引擎输出一致（anchor=Middle + vcenter）；`deg` 顺时针为正
 /// （y 向下屏幕系，与 SVG rotate()/QGIS 存储同号）。
-fn draw_rotated_text(
+pub(crate) fn draw_rotated_text(
     page: &mut tiny_skia::Pixmap,
     tb: &TextBackend,
     text: &str,

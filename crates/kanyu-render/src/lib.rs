@@ -11,6 +11,8 @@
 
 use geojson::{FeatureCollection, Value};
 
+/// 房产图渲染器（GB/T 42547 图 L.5 版式；见模块 rustdoc）。
+pub mod housemap;
 /// 用岛图件渲染器（GB/T 42547 图 L.9/L.10 版式；见模块 rustdoc）。
 pub mod islandmap;
 /// 打印布局排版器（SVG + PNG；见模块 rustdoc）。

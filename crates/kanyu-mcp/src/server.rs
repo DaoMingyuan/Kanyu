@@ -395,6 +395,48 @@ pub struct RenderIslandMapReq {
     pub index: Option<usize>,
 }
 
+/// `kanyu_render_house_map` 输入。
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RenderHouseMapReq {
+    /// 房屋数据文件路径（面要素；GeoJSON/SHP/宗地 TXT/DXF/kdb 等注册格式，
+    /// 多面要素缺省取面积最大者，可用 index 指定）。
+    pub path: String,
+    /// 输出格式：svg（源码文本回传）/ png（base64 图片回传）。
+    pub format: String,
+    /// 可选落盘路径（.svg/.png；给定则同时写文件）。
+    pub out: Option<String>,
+    /// 宗地代码（缺省取属性 parcel_id/ZDDM/zddm）。
+    pub parcel_code: Option<String>,
+    /// 结构（如 B/钢/混；缺省取属性 FWJG/jjg/structure）。
+    pub structure: Option<String>,
+    /// 专有建筑面积（㎡；缺省取属性 ZYJZMJ/zyjzmj；空值留空）。
+    pub exclusive_area: Option<f64>,
+    /// 幢号（缺省取属性 ZRZH/zrzh/building_no）。
+    pub building_no: Option<String>,
+    /// 总层数（缺省取属性 ZCS/zcs）。
+    pub total_floors: Option<String>,
+    /// 分摊建筑面积（㎡；缺省取属性 FTJZMJ/ftjzmj；空值留空）。
+    pub shared_area: Option<f64>,
+    /// 户号（缺省取属性 HH/hh/household_no）。
+    pub household_no: Option<String>,
+    /// 所在层次（缺省取属性 SZC/szc/floor_no）。
+    pub floor_no: Option<String>,
+    /// 建筑面积（㎡；缺省取属性 SCJZMJ/scjzmj/JZMJ/jzmj；空值留空）。
+    pub building_area: Option<f64>,
+    /// 坐落（缺省取属性 ZL/zl/location）。
+    pub location: Option<String>,
+    /// 绘制日期。
+    pub draw_date: Option<String>,
+    /// 左侧竖排单位名（可选，空串不绘）。
+    pub unit_name: Option<String>,
+    /// 比例尺分母（缺省自动适配取整百）。
+    pub scale: Option<u32>,
+    /// PNG 分辨率 dpi（默认 150，SVG 忽略）。
+    pub dpi: Option<f64>,
+    /// 面要素序号（缺省面积最大者；指定后按文档序第 N 个，0 起）。
+    pub index: Option<usize>,
+}
+
 /// `kanyu_skill_run` 输入。
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SkillRunReq {
@@ -1184,6 +1226,113 @@ impl KanyuServer {
             "kind": kind.title(),
             "scale": output.scale,
             "facility_count": facility_count,
+            "format": fmt,
+            "out": req.out,
+        });
+        if let Some(out) = &req.out {
+            match &output.data {
+                ParcelMapData::Svg(text) => std::fs::write(out, text).map_err(to_mcp)?,
+                ParcelMapData::Png(bytes) => std::fs::write(out, bytes).map_err(to_mcp)?,
+            }
+        }
+        let mut result = match &output.data {
+            ParcelMapData::Png(bytes) => CallToolResult::success(vec![
+                ContentBlock::image(
+                    base64::engine::general_purpose::STANDARD.encode(bytes),
+                    "image/png",
+                ),
+                ContentBlock::text(summary.to_string()),
+            ]),
+            ParcelMapData::Svg(svg) => CallToolResult::success(vec![
+                ContentBlock::text(svg.clone()),
+                ContentBlock::text(summary.to_string()),
+            ]),
+        };
+        result.structured_content = Some(summary);
+        Ok(result)
+    }
+
+    /// 房产图出图（GB/T 42547 图 L.5 版式）。
+    #[tool(
+        name = "kanyu_render_house_map",
+        description = "房产图出图（GB/T 42547-2023《地籍调查规程》图 L.5 版式，A4 朝向自适应——房屋 bbox 宽 ≥ 高横放、否则竖放并加绘指北方向：头部四行表（宗地代码/结构/专有建筑面积/幢号/总层数/分摊建筑面积/户号/所在层次/建筑面积/坐落，空值留空）+ 房屋轮廓 0.3mm 黑线（无填充、无界址点符号）+ 逐边边长注记（勘测定界图注记契约排版，残余压盖诚实回报）+ 「北」指北针 + 绘制日期 + 整百比例尺自动求解；format=png 时 content 携带 base64 image/png，format=svg 时携带 SVG 源码文本；可选 out 同时落盘；structuredContent 携带比例尺/幅面朝向/注记数/残余压盖数）"
+    )]
+    async fn render_house_map(
+        &self,
+        Parameters(req): Parameters<RenderHouseMapReq>,
+    ) -> Result<CallToolResult, McpError> {
+        use base64::Engine as _;
+        use kanyu_render::housemap::{render_house_map_png, render_house_map_svg, HouseMapSpec};
+        use kanyu_render::parcelmap::ParcelMapData;
+
+        let layer = Layer::load(stem_of(&req.path), &req.path).map_err(to_mcp)?;
+        let (boundary, props) =
+            kanyu_core::cartography::boundary_from_collection(&layer.collection(), req.index)
+                .map_err(to_mcp)?;
+        let prop = |keys: &[&str]| kanyu_core::cartography::feature_prop_str(&props, keys);
+        let prop_f64 = |keys: &[&str]| kanyu_core::cartography::feature_prop_f64(&props, keys);
+        let spec = HouseMapSpec {
+            parcel_code: req
+                .parcel_code
+                .or_else(|| prop(&["parcel_id", "ZDDM", "zddm"]))
+                .unwrap_or_default(),
+            structure: req
+                .structure
+                .or_else(|| prop(&["FWJG", "jjg", "structure"]))
+                .unwrap_or_default(),
+            exclusive_area: req
+                .exclusive_area
+                .or_else(|| prop_f64(&["ZYJZMJ", "zyjzmj"])),
+            building_no: req
+                .building_no
+                .or_else(|| prop(&["ZRZH", "zrzh", "building_no"]))
+                .unwrap_or_default(),
+            total_floors: req
+                .total_floors
+                .or_else(|| prop(&["ZCS", "zcs"]))
+                .unwrap_or_default(),
+            shared_area: req.shared_area.or_else(|| prop_f64(&["FTJZMJ", "ftjzmj"])),
+            household_no: req
+                .household_no
+                .or_else(|| prop(&["HH", "hh", "household_no"]))
+                .unwrap_or_default(),
+            floor_no: req
+                .floor_no
+                .or_else(|| prop(&["SZC", "szc", "floor_no"]))
+                .unwrap_or_default(),
+            building_area: req
+                .building_area
+                .or_else(|| prop_f64(&["SCJZMJ", "scjzmj", "JZMJ", "jzmj"])),
+            location: req
+                .location
+                .or_else(|| prop(&["ZL", "zl", "location"]))
+                .unwrap_or_default(),
+            draw_date: req.draw_date.unwrap_or_default(),
+            unit_name: req.unit_name.unwrap_or_default(),
+            scale: req.scale,
+            dpi: req.dpi.unwrap_or(150.0),
+        };
+        let fmt = req.format.to_ascii_lowercase();
+        let output = match fmt.as_str() {
+            "png" => render_house_map_png(&boundary, &spec).map_err(to_mcp)?,
+            "svg" => render_house_map_svg(&boundary, &spec).map_err(to_mcp)?,
+            other => {
+                return Err(McpError::invalid_params(
+                    format!("未知输出格式 '{other}'（支持 svg/png）"),
+                    None,
+                ));
+            }
+        };
+        let overlaps = output
+            .diagnostics
+            .iter()
+            .filter(|d| d.contains("overlap=true"))
+            .count();
+        let summary = serde_json::json!({
+            "scale": output.scale,
+            "landscape": output.landscape,
+            "label_count": output.diagnostics.len(),
+            "overlap_count": overlaps,
             "format": fmt,
             "out": req.out,
         });
@@ -2927,5 +3076,82 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.message.contains("未知图种"), "{err}");
+    }
+    /// L 形房屋面要素（17m 宽 × 24m 高，带 FWJG/ZYJZMJ 等图 L.5 头部表属性）。
+    fn write_house_fixture(dir: &std::path::Path) -> String {
+        std::fs::create_dir_all(dir).unwrap();
+        let house = dir.join("house.geojson");
+        std::fs::write(
+            &house,
+            r#"{"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Polygon","coordinates":[
+                    [[39595000.0,4127000.0],[39595017.0,4127000.0],[39595017.0,4127014.0],[39595008.0,4127014.0],[39595008.0,4127024.0],[39595000.0,4127024.0],[39595000.0,4127000.0]]]},
+                 "properties":{"ZDDM":"371602111019GB00005","FWJG":"B","ZYJZMJ":876.01,"ZRZH":"371602111019GB00005F0022","ZCS":"3","FTJZMJ":12.5,"HH":"101","SZC":"1","SCJZMJ":888.51,"ZL":"朝阳现代城"}}
+            ]}"#,
+        )
+        .unwrap();
+        house.to_str().unwrap().to_string()
+    }
+
+    /// 房产图请求构造（format 可变，其余取属性拾省缺省）。
+    fn house_req(path: &str, format: &str) -> RenderHouseMapReq {
+        RenderHouseMapReq {
+            path: path.to_string(),
+            format: format.to_string(),
+            out: None,
+            parcel_code: None,
+            structure: None,
+            exclusive_area: None,
+            building_no: None,
+            total_floors: None,
+            shared_area: None,
+            household_no: None,
+            floor_no: None,
+            building_area: None,
+            location: None,
+            draw_date: Some("2026年08月25日".to_string()),
+            unit_name: None,
+            scale: None,
+            dpi: None,
+            index: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn render_house_map_svg_reports_structured_content() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_housemap");
+        let house = write_house_fixture(&dir);
+        let server = KanyuServer::new();
+        let result = server
+            .render_house_map(Parameters(house_req(&house, "svg")))
+            .await
+            .unwrap();
+        let sc = result.structured_content.unwrap();
+        assert!(sc["scale"].as_u64().unwrap() >= 100);
+        // 竖形 L 房（17 宽 × 24 高）→ A4 竖
+        assert_eq!(sc["landscape"], false);
+        // L 形 6 边 → 6 条边长注记；方正 L 形残余压盖全零
+        assert_eq!(sc["label_count"], 6);
+        assert_eq!(sc["overlap_count"], 0);
+        assert_eq!(sc["format"], "svg");
+        assert!(sc["out"].is_null());
+        // content 首块为 SVG 文本（含标题与属性拾取值）
+        let svg = format!("{:?}", result.content);
+        assert!(svg.contains("房 产 图"), "房产图标题: {svg:.200}");
+        assert!(svg.contains("371602111019GB00005"), "宗地代码属性拾取");
+        assert!(svg.contains("876.01"), "专有建筑面积属性拾取");
+        assert!(svg.contains("绘制日期：2026年08月25日"), "绘制日期");
+    }
+
+    #[tokio::test]
+    async fn render_house_map_unknown_format_chinese_error() {
+        let dir = std::env::temp_dir().join("kanyu_mcp_housemap_fmt");
+        let house = write_house_fixture(&dir);
+        let server = KanyuServer::new();
+        let err = server
+            .render_house_map(Parameters(house_req(&house, "pdf")))
+            .await
+            .unwrap_err();
+        assert!(err.message.contains("未知输出格式"), "{err}");
     }
 }

@@ -605,6 +605,35 @@ MCP 同源投影（kanyu-core `cartography`/`cass`/`kdb` + kanyu-render `parcelm
 返回：`format=png` → `content` = `image`（base64）+ `text`（摘要 JSON）；
 `structuredContent`：`{"kind": "用岛范围图", "scale": 800, "facility_count": 0, "format": "svg", "out": null}`。
 
+#### `kanyu_render_house_map`
+
+> 房产图出图（GB/T 42547-2023 图 L.5 版式；朝向自适应横/竖放 +
+> 头部四行表 + 黑轮廓边长注记；CLI `house-map` 的 MCP 同源投影）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | string | 是 | 房屋数据文件路径（面要素；多面缺省取面积最大者） |
+| `format` | string | 是 | `svg`（源码文本回传）/ `png`（base64 图片回传） |
+| `out` | string \| null | 否 | 同时落盘路径（`.svg`/`.png`） |
+| `parcel_code` | string \| null | 否 | 宗地代码（缺省 `parcel_id/ZDDM/zddm`） |
+| `structure` | string \| null | 否 | 结构（缺省 `FWJG/jjg/structure`） |
+| `exclusive_area` | number \| null | 否 | 专有建筑面积（缺省 `ZYJZMJ/zyjzmj`） |
+| `building_no` | string \| null | 否 | 幢号（缺省 `ZRZH/zrzh/building_no`） |
+| `total_floors` | string \| null | 否 | 总层数（缺省 `ZCS/zcs`） |
+| `shared_area` | number \| null | 否 | 分摊建筑面积（缺省 `FTJZMJ/ftjzmj`） |
+| `household_no` | string \| null | 否 | 户号（缺省 `HH/hh/household_no`） |
+| `floor_no` | string \| null | 否 | 所在层次（缺省 `SZC/szc/floor_no`） |
+| `building_area` | number \| null | 否 | 建筑面积（缺省 `SCJZMJ/scjzmj/JZMJ/jzmj`） |
+| `location` | string \| null | 否 | 坐落（缺省 `ZL/zl/location`） |
+| `draw_date` | string \| null | 否 | 绘制日期 |
+| `unit_name` | string \| null | 否 | 左侧竖排单位名 |
+| `scale` | integer \| null | 否 | 比例尺分母（缺省自动取整百） |
+| `dpi` | number \| null | 否 | PNG 分辨率（默认 150，SVG 忽略） |
+| `index` | integer \| null | 否 | 面要素文档序序号（0 起） |
+
+返回：`format=png` → `content` = `image`（base64）+ `text`（摘要 JSON）；
+`structuredContent`：`{"scale": 200, "landscape": true, "label_count": 16, "overlap_count": 3, "format": "png", "out": null}`。
+
 ## 4. 命名规范
 
 MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
@@ -627,6 +656,7 @@ MCP 规范限制工具名为 `[a-zA-Z0-9_-]`（不允许点号）。因此总规
 | —（不动产制图组，v0.23） | `kanyu_render_parcel_map` / `kanyu_render_parcel_dxf` | ✅ |
 | —（宗海图件组，v0.23） | `kanyu_render_sea_map` | ✅ |
 | —（用岛图件组，v0.23） | `kanyu_render_island_map` | ✅ |
+| —（房产图，v0.23） | `kanyu_render_house_map` | ✅ |
 | —（不动产建库，KDB v2） | `kanyu_data_kdb_pack` | ✅ |
 | `kanyu.system.generate` | `kanyu_system_*` | 📋 |
 | `kanyu.system.hotload` | `kanyu_system_hotload` | ✅ |

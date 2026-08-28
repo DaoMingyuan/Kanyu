@@ -681,6 +681,39 @@ $ ./target/debug/kanyu.exe render island-facility-map 用岛.dxf --out 设施布
 已出建筑物和设施布置图 → 设施布置图.png（1:800，设施 3 项）   # 该提示在 stderr
 ```
 
+### 5.8 `kanyu render house-map <file> --out <path>` ✅
+
+房产图出图（GB/T 42547-2023 图 L.5 版式；kanyu-render `housemap` 模块）：
+**朝向自适应**（§5.4.5.5.4——房屋 bbox 宽 ≥ 高 A4 横放、否则竖放）+
+标题「房 产 图」+ 右上「单位：m·㎡」+ **头部四行表**（宗地代码/结构/
+专有建筑面积、幢号/总层数/分摊建筑面积、户号/所在层次/建筑面积、坐落）+
+地图区（房屋轮廓 0.3mm 黑线无填充 + 逐边边长注记（勘测定界图注记契约
+排版）+ 北指北针）+ 右下绘制日期 + 下中整百比例尺。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--out <path>` | （必填） | 输出路径（`.svg` 或 `.png`） |
+| `--parcel-code <text>` | 属性 `parcel_id/ZDDM/zddm` | 宗地代码 |
+| `--structure <text>` | 属性 `FWJG/jjg/structure` | 结构 |
+| `--exclusive-area <㎡>` | 属性 `ZYJZMJ/zyjzmj` | 专有建筑面积 |
+| `--building-no <text>` | 属性 `ZRZH/zrzh/building_no` | 幢号 |
+| `--total-floors <text>` | 属性 `ZCS/zcs` | 总层数 |
+| `--shared-area <㎡>` | 属性 `FTJZMJ/ftjzmj` | 分摊建筑面积 |
+| `--household-no <text>` | 属性 `HH/hh/household_no` | 户号 |
+| `--floor-no <text>` | 属性 `SZC/szc/floor_no` | 所在层次 |
+| `--building-area <㎡>` | 属性 `SCJZMJ/scjzmj/JZMJ/jzmj` | 建筑面积 |
+| `--location <text>` | 属性 `ZL/zl/location` | 坐落 |
+| `--draw-date <text>` | （空） | 绘制日期 |
+| `--unit-name <text>` | （空） | 左侧竖排单位名 |
+| `--scale <n>` | 自动取整百 | 比例尺分母 |
+| `--dpi <n>` | `150` | PNG 分辨率（SVG 忽略） |
+| `--index <n>` | 面积最大面要素 | 面要素文档序序号（0 起） |
+
+```bash
+$ ./target/debug/kanyu.exe render house-map 房屋.geojson --out 房产图.png --draw-date 2026年08月25日
+已出房产图 → 房产图.png（1:200，A4 横，注记 16 条，残余压盖 3 条）   # 该提示在 stderr
+```
+
 ## 6. kanyu gene ✅
 
 WASM 技能系统宿主（kanyu-skill crate；ABI 与沙箱模型见
